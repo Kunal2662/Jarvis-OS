@@ -1,0 +1,68 @@
+/* =============================================================================
+ * JARVIS OS — "dark" theme (neutral dark)
+ * See src/jarvis/ui/themes/palette.py:DARK_PALETTE
+ * =========================================================================== */
+
+QWidget {
+    background-color: #0B0F14;
+    color: #E6EEF7;
+    font-family: "Inter", "Segoe UI", "Helvetica Neue", sans-serif;
+    font-size: 13px;
+    selection-background-color: #00E5FF;
+    selection-color: #0B0F14;
+}
+
+QMainWindow, QDialog { background-color: #0B0F14; }
+
+QFrame#surface, QGroupBox {
+    background-color: #111820;
+    border: 1px solid #22303C;
+    border-radius: 8px;
+}
+
+QLabel[role="muted"] { color: #8A97A8; }
+
+QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+    background-color: #1A2330;
+    color: #E6EEF7;
+    border: 1px solid #22303C;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus {
+    border-color: #00E5FF;
+}
+QPushButton:focus {
+    outline: none;
+    border: 2px solid #00E5FF;
+}
+
+QPushButton {
+    background-color: #1A2330;
+    color: #E6EEF7;
+    border: 1px solid #22303C;
+    border-radius: 6px;
+    padding: 8px 16px;
+}
+QPushButton:hover   { border-color: #00E5FF; }
+QPushButton:pressed { background-color: #22303C; }
+QPushButton[variant="primary"] {
+    background-color: #00E5FF; color: #0B0F14; border: none; font-weight: 600;
+}
+QPushButton[variant="primary"]:hover { background-color: #00B8CC; }
+QPushButton[variant="danger"] { background-color: #FF5A6E; color: #FFFFFF; border: none; }
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #111820; border: none; width: 10px; height: 10px;
+}
+QScrollBar::handle { background: #22303C; border-radius: 5px; min-height: 24px; min-width: 24px; }
+QScrollBar::handle:hover { background: #00E5FF; }
+
+QMenuBar, QMenu { background-color: #111820; color: #E6EEF7; border: 1px solid #22303C; }
+QMenu::item:selected { background-color: #22303C; color: #00E5FF; }
+
+QTabWidget::pane { border: 1px solid #22303C; border-radius: 6px; }
+QTabBar::tab { background: #111820; color: #8A97A8; padding: 8px 16px; border: 1px solid transparent; }
+QTabBar::tab:selected { color: #00E5FF; border-color: #22303C; border-bottom-color: transparent; }
+
+QStatusBar { background-color: #111820; color: #8A97A8; border-top: 1px solid #22303C; }

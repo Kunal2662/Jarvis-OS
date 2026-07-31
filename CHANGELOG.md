@@ -1,0 +1,361 @@
+# Changelog
+
+All notable changes to JARVIS OS are documented here. Format loosely
+follows [Keep a Changelog](https://keepachangelog.com/).
+
+## [0.5.2] — Critical Architecture Fix: DI container lazy loading
+
+Out-of-band architecture fix — no roadmap change, no feature addition, no
+API/interface change. Fixes the #1 Critical technical-debt item flagged by
+the repository stabilization pass's performance baseline: `Container()`
+construction cost ~2.5–2.9s, ~99% of which was import time, not
+instantiation.
+
+### Root cause
+`dependency_injector`'s string-path provider form
+(`providers.Singleton("dotted.path.Class", ...)`) resolves and imports its
+target **eagerly, at class-declaration time** — contradicting
+`container.py`'s own docstring claim that importing it "stays cheap and
+side-effect-free." Most application services used this form. The worst
+offender was `agent_orchestrator`, which pulled in
+`jarvis.agents.graph` → LangGraph/LangChain/LangSmith (~1.6s alone) on
+every `import jarvis.core.di.container`, whether or not the agent was ever
+used in that process.
+
+### Changed
+- `src/jarvis/core/di/container.py`: converted 4 of 20 string-path
+  providers to the existing `_build_*` lazy-callable pattern (already used
+  by all 14 infrastructure adapters), each confirmed by direct measurement
+  — not assumption — to justify the conversion:
+  - `agent_orchestrator` (highest priority: ~1.6s, LangGraph/LangChain/
+    LangSmith; confirmed never resolved during app boot in
+    `app.py`/`main_window.py`, only on first agent/chat use)
+  - `memory_service` (~1.07s; makes the cost conditional on
+    `settings.memory.enabled` instead of always-paid)
+  - `automation_service` (~1.07s; `Factory`-based, genuinely on-demand)
+  - `conversation_service` (~0.89s; keeps bare `import container.py`
+    cheap for tests/tooling)
+  - The other 16 string-path services were measured and left unchanged —
+    each within ~0.1s of the shared `Settings`+logger import floor the
+    container pays regardless, so converting them would add boilerplate
+    for no measurable benefit. See `docs/DEPENDENCY_INJECTION.md` §6 for
+    the full before/after and the rule for classifying future services.
+- `pyproject.toml`: added a `[tool.ruff.lint.per-file-ignores]` entry
+  scoping `PLC0415` (import-not-at-top-level) off for `container.py` —
+  the whole file's design requires function-local imports for laziness;
+  same treatment already given to `PLE1205`/`N802` elsewhere in this
+  config for the same "principled exception" reason.
+- `docs/DEPENDENCY_INJECTION.md`: documented the two provider forms'
+  opposite import timing, which providers are lazy today and why, and the
+  measured before/after.
+- Version bumped `0.5.1` → `0.5.2` — a PATCH release per
+  `docs/MASTER_ROADMAP.md` §6's policy, not a milestone-driven MINOR bump.
+
+### Performance (measured, same machine, back-to-back runs)
+| Metric | Before | After | Change |
+|---|---|---|---|
+| `import jarvis.core.di.container` | 2.940s | 1.595s | **−45.7%** |
+| `Container()` construction | ~4.19s\* | 1.735s | **−58.6%**\* |
+| Resolve a cheap service (`settings_service`) | ~3.46s\* | 1.613s | **−53.3%**\* |
+| RSS at that checkpoint | ~101MB\* | 55.5MB | **−45.1%**\* |
+| Resolve `agent_orchestrator` (first AI/chat use) | 5.503s | 5.425s | ~unchanged (expected) |
+| RSS after resolving `agent_orchestrator` | 106.1MB | 106.1MB | unchanged (expected) |
+
+\*Measured via a controlled, verbatim pre-fix copy of the container run
+back-to-back with the fixed version, since this is a from-source
+(non-git) checkout with no prior commit to diff against.
+
+The "first AI request" cost did not disappear — it correctly moved from
+"paid unconditionally at every process start" to "paid once, on first
+actual use," which is the intended effect of lazy loading, not a
+regression.
+
+### Verified
+- Full regression suite: 402 tests collected (unchanged), exit code 0 on
+  two independent full runs — zero failures, zero errors.
+- `ruff`: `container.py` clean (0 findings). Repo-wide PLC0415 findings
+  (446, across test files with function-local imports) confirmed
+  pre-existing and unrelated via a controlled before/after comparison —
+  out of scope for this fix.
+- `black`: `container.py` unchanged, already formatted.
+- `mypy`: `container.py` errors reduced 21 → 17 (confirmed via a
+  controlled before/after comparison) — converting 4 providers to typed
+  callables incidentally fixed 4 pre-existing `var-annotated` gaps that
+  mypy cannot infer through the string-path form. Zero new errors.
+  Remaining 17 are pre-existing, on providers this fix intentionally did
+  not touch.
+- `pip check`: no broken requirements.
+
+## [0.5.1] — Security: `cryptography` dependency upgrade
+
+Dependency-only patch release — no application code, feature, or
+roadmap change. Follows the repository stabilization pass's security
+review, which flagged `cryptography` 43.0.3 as carrying 5 known
+vulnerabilities and recommended a dedicated upgrade pass rather than a
+same-PR bump.
+
+### Changed
+- `cryptography` upgraded `43.0.3` → `48.0.1` (`pyproject.toml`,
+  `requirements.txt`, `requirements-lock.txt`). Resolves all 5 known
+  advisories against the previous version: `PYSEC-2026-35`,
+  `PYSEC-2026-1284`, `PYSEC-2026-2141`, `GHSA-537c-gmf6-5ccf`, and one
+  additional CVE fixed in an intermediate release
+  (`CVE-2026-39892`, non-contiguous-buffer overflow, fixed in
+  `46.0.7`). Confirmed via `pip-audit`: `cryptography` no longer
+  appears in the vulnerability report (24 → 19 total findings across
+  the repo, all 5 removed entries were `cryptography`'s).
+  - Target version chosen deliberately below the very latest release
+    (`50.0.0`, published the day before this upgrade, effectively
+    unfield-tested) — `48.0.1` is the minimum version resolving every
+    known advisory and has ~7 weeks of real-world usage.
+  - Reviewed the full upstream changelog from `43.0.3` through
+    `48.0.1`: every breaking change in that range (Python 3.8 support
+    removal, X.509 CRL/elliptic-curve/OpenSSL-version changes, stricter
+    key-loading error types) is in code paths this app never
+    exercises. `utils/crypto.py` uses only `Fernet`/`InvalidToken`,
+    whose API and on-disk token format are unaffected.
+  - Version bumped `0.5.0` → `0.5.1` (`pyproject.toml`,
+    `__version__.py`, `Settings.app_version`) — a PATCH release per
+    `docs/MASTER_ROADMAP.md` §6's policy ("reserved for out-of-band
+    fixes shipped between milestones"), not a milestone-driven MINOR
+    bump.
+
+### Fixed
+- Regenerated the editable-install package metadata
+  (`jarvis_os.egg-info`), which had gone stale after the Milestone 6
+  version bump and was still advertising the old
+  `cryptography<44.0,>=43.0` constraint — `pip` flagged this as a
+  self-referential dependency conflict the moment `cryptography` was
+  upgraded. `pip check` now reports no broken requirements.
+
+### Verified
+- Full regression suite: 402/402 passing, zero failures, zero errors
+  (identical to the pre-upgrade baseline).
+- `ruff`/`black`/`mypy`: identical finding counts to the pre-upgrade
+  baseline (438 / 0 / 264) — zero new findings anywhere in the repo.
+- Fernet round-trip (`test_api_center_service.py::test_secrets_are_encrypted_at_rest`,
+  which encrypts with one service instance and decrypts with a fresh
+  one to simulate an app restart) passes.
+- Manual verification: key generation, `encrypt()`/`decrypt()`
+  round-trip, invalid-key error handling, and invalid-token error
+  handling all behave identically to before the upgrade; the Fernet
+  token format (`gAAA...` prefix) is unchanged.
+
+## [0.5.0] — Milestone 6: Vision & Multimodal (Architecture Layer)
+
+See `MILESTONE_6_VISION_DELIVERY.md` for full detail. This release
+ships M6's **provider-abstraction layer only** — the Ports & Adapters
+plumbing, not real vision/OCR capability. No vision/OCR dependency
+was added; no capture, OCR, or image-processing code exists yet.
+
+### Added
+- `IVisionProvider` / `IOCRProvider` ports (`core/interfaces/`) —
+  mirror `ILLMProvider`'s shape (`name: str`, `async health()`),
+  deliberately minimal until a real backend exists to validate a
+  fuller method surface against.
+- `VisionSettings` / `OCRSettings` — `enabled: bool = False` by
+  default; `JARVIS_VISION_ENABLED` / `JARVIS_OCR_ENABLED` added to
+  the Settings-UI writable key whitelist.
+- `MockVisionProvider` / `MockOCRProvider` — the only concretes wired
+  in; both honestly report `enabled=False, healthy=False` rather than
+  simulating capability. New `infrastructure/vision/` and
+  `infrastructure/ocr/` packages, each with a provider factory
+  (no backend-selection logic yet — nothing to select between).
+- `VisionService.status()` — reports both providers' health as a
+  plain dict; no other methods exposed.
+- `VisionProviderStatusEvent` — defined on the `EventBus`, matching
+  `AgentStepEvent`'s shape; not yet published anywhere.
+- Agent tool `vision_status` (`agents/tools/vision_tools.py`) —
+  reports provider availability only, registered in
+  `agents/tools/registry.py` behind the existing optional-service
+  pattern.
+- Developer Mode **Vision Status** section (status-only, no
+  image/screenshot/OCR-text/camera-feed/trace content) and a real
+  **Vision** Settings page (two toggles, clearly labelled
+  "unavailable / not yet implemented," replacing the pre-existing
+  placeholder page).
+- `vision_provider`, `ocr_provider`, `vision_service` registered as
+  DI Singletons.
+- 92 new tests across 7 phases (interfaces, settings, mock providers,
+  service, agent tool/orchestrator wiring, Developer Mode view,
+  Settings page), all passing.
+
+### Changed
+- `AgentOrchestrator` gained one additive, backward-compatible
+  optional constructor kwarg, `vision: VisionService | None = None`
+  (mirroring how `chat`/`voice`/`system` were added in M5A), threaded
+  into its existing `build_tool_registry()` call — required because
+  that call has exactly one call site, inside `AgentOrchestrator`
+  itself. Defaults to `None`; an orchestrator built exactly as before
+  this release behaves identically (regression-tested).
+- `core/di/container.py`'s `agent_orchestrator` Singleton now also
+  receives `vision=vision_service`.
+- Version bumped `0.4.0` → `0.5.0` (`pyproject.toml`,
+  `__version__.py`, `Settings.app_version`), per this milestone's
+  entry in `docs/MASTER_ROADMAP.md` §6 Versioning policy.
+
+### Known limitations (see `MILESTONE_6_VISION_DELIVERY.md` for the full list)
+- No real vision or OCR provider exists — both mock providers always
+  report unavailable.
+- No screen capture, camera capture, clipboard image support, or
+  drag-and-drop image input.
+- No Image Question Answering; no multimodal chat.
+- `ChatMessage.content` remains `str`-only — the message-model fork
+  needed for multimodal chat was deliberately left as an open
+  decision for whenever real vision input is built, not resolved now.
+- No image preprocessing, compression, or bounded temp storage (the
+  already-scaffolded `paths.cache_dir()` hook remains unclaimed).
+
+## [0.4.0] — Milestone 5-Agents: Agent Runtime (LangGraph)
+
+See `MILESTONE_5_AGENTS_DELIVERY.md` for full detail.
+
+### Added
+- `AgentOrchestrator` (`agents/orchestrator.py`) — a real, compiled
+  LangGraph `StateGraph`: `planner → tool_selector → tool_executor →
+  critic → responder`, with a loop-back edge from critic to
+  tool-selector for multi-step tasks and a hard `max_steps` stop.
+  Previously every method raised `NotImplementedError`.
+- Tool registry (`agents/tools/`) — `MemoryService`, `AutomationService`,
+  `BrowserService`, `SystemService`, `VoiceService` and `ChatService`
+  auto-exposed as `langchain_core` structured tools; tool *selection*
+  is driven by structured-JSON prompts over the existing `ILLMProvider`
+  port, not a second langchain-native chat-model port.
+- SQLite checkpointer (`agents/checkpointer.py`,
+  `langgraph-checkpoint-sqlite`) — a thread's agent state survives an
+  app restart when `AgentSettings.checkpoint_enabled` is true; falls
+  back to an in-memory saver otherwise.
+- `SystemService.status()` — real `psutil`-backed CPU/memory/disk/
+  process/uptime snapshot (was a `NotImplementedError` stub since
+  Milestone 1).
+- `AgentStepEvent` (`core/events/events.py`) and a new Developer Mode
+  **Agent Trace** section (`ui/views/developer/agent_trace_view.py`) —
+  run an ad-hoc prompt through the orchestrator and watch each graph
+  step arrive live.
+- Prompt-injection mitigation: tool output is now fenced with an
+  explicit `<<<TOOL_OUTPUT>>>...<<<END_TOOL_OUTPUT>>>` marker plus an
+  instruction telling the model never to treat that text as
+  instructions (`agents/prompting.py`'s `UNTRUSTED_TOOL_OUTPUT_NOTICE`)
+  — closes the gap flagged during the Milestone 5.5 audit before this
+  runtime existed.
+- `JARVIS_AGENT_MAX_STEPS` / `JARVIS_AGENT_TIMEOUT_SECONDS` /
+  `JARVIS_AGENT_CHECKPOINT_ENABLED` added to the Settings-UI writable
+  key whitelist.
+- ~40 new tests (`unit/test_system_service.py`,
+  `unit/test_agent_prompting.py`, `unit/test_agent_nodes.py`,
+  `unit/test_agent_tools_registry.py`, `unit/test_agent_checkpointer.py`,
+  `integration/test_agent_orchestrator.py`) and a new `ScriptedFakeLLM`
+  test double.
+
+### Fixed (found during pre-merge validation — see `AUDIT_REPORT_M5-AGENTS.md`)
+- **Reliability**: the default agent configuration
+  (`checkpoint_enabled=True`) crashed on the *first real graph
+  invocation* with `AttributeError: 'Connection' object has no
+  attribute 'is_alive'` — a real incompatibility between
+  `langgraph-checkpoint-sqlite==2.0.11` and `aiosqlite>=0.21` (which
+  dropped the `Thread`-based `Connection` class that method depended
+  on). `open()`/`close()` alone never triggered it, which is why the
+  original unit tests missed it; only found via a live end-to-end
+  smoke run through the real DI container. Fixed by pinning
+  `aiosqlite>=0.20,<0.21`; covered going forward by a new regression
+  test, `test_invoke_with_real_sqlite_checkpointer`.
+- Two pre-existing tests
+  (`test_main_window_registers_shutdown_hooks_in_correct_order`,
+  `test_developer_dashboard_builds_all_thirteen_sections` → renamed
+  `..._fourteen_sections`) updated for this milestone's own intentional
+  changes (a new shutdown hook, a 14th Developer Mode section) — not
+  regressions, just stale hardcoded expectations.
+
+### Changed
+- Version bumped `0.3.0` → `0.4.0` (`pyproject.toml`, `__version__.py`,
+  `Settings.app_version`) — closes the version-drift note tracked in
+  `docs/MASTER_ROADMAP.md` §10 since Milestone 3.1.
+- `Container.agent_orchestrator` now also receives `chat`, `voice`,
+  `system` and `event_bus` (previously only `settings`, `llm`,
+  `memory`, `automation`, `browser`).
+- `AgentOrchestrator.stop()` registered with `ShutdownManager` at
+  `PRIORITY_EARLY` (`ui/main_window.py`), alongside `voice_service`.
+
+### Known limitations (see `MILESTONE_5_AGENTS_DELIVERY.md` for the full list)
+- Vision tool deliberately deferred to Milestone 6.
+- The existing Chat view still talks to `ChatService` directly; the
+  agent is not yet wired into the primary chat UI.
+- `stream()` re-chunks the fully-composed final answer rather than
+  streaming real LLM tokens from inside the responder node.
+- No per-step timings in the Agent Trace panel.
+- `run_automation` never passes a confirmation callback — any action
+  needing interactive confirmation is auto-denied rather than asked.
+
+## [0.3.0] — Milestone 5.5 Production Stabilization Pass (unreleased)
+
+Not a feature milestone -- a stabilization pass over Milestones 0-5,
+following an evidence-based audit (see `AUDIT_REPORT_M0-M5.md`).
+
+### Fixed
+- **Reliability**: 55 sites across 22 files where a fire-and-forget
+  async task had no stored reference and could be garbage-collected
+  mid-execution -- root cause of "Task was destroyed but it is pending!"
+  warnings seen throughout the test suite. Fixed via a shared
+  `fire_and_forget()` helper (`jarvis.utils.async_utils`).
+- **Reliability**: app shutdown (both the tray/menu Quit action and the
+  OS window-close button) now releases every real resource
+  (voice/browser/hotkeys/database) via a new `ShutdownManager`
+  (`core.lifecycle.shutdown_manager`) instead of a hand-sequenced,
+  partially-incomplete inline sequence. The window-close path previously
+  bypassed resource cleanup entirely.
+- **Reliability**: a corrupted/binary-garbage `.env` config file (e.g.
+  from a power loss mid-write) previously crashed startup with an
+  uncaught `UnicodeDecodeError`. Now falls back to defaults with a clear
+  warning instead of refusing to start.
+- **Security**: `DeveloperModeService` password verification used a
+  non-constant-time string comparison (`==`); switched to
+  `hmac.compare_digest`.
+- **Security**: browser automation's `LAUNCH_URL` action had no URL
+  scheme validation -- `file://`/`javascript:`/`data:` URIs would have
+  been auto-allowed with no confirmation. Added scheme validation to
+  `SafetyValidator` (denylist-based, specifically to avoid a false
+  positive on ordinary `localhost:8080`-style local-dev URLs that a
+  naive allowlist approach would have wrongly flagged).
+- **Architecture**: `ThemeService` had a hardcoded accent-color dict
+  that duplicated values already defined in `ui/themes/palette.py`,
+  which existed but was never wired in. Now derives from `palette.py`
+  directly.
+- **Accessibility**: buttons (sidebar nav, quick actions, dialogs) had
+  no visible keyboard-focus indicator -- only text inputs did. Added a
+  `QPushButton:focus` rule to all three themes.
+- **Performance**: all 9 workspace modules were imported eagerly at
+  `main_window` import time regardless of whether a user ever visited
+  them (measured: ~358ms, ~20% of that module's import chain). Fixed at
+  both the `main_window.py` call site and the root cause (a
+  `ui/views/workspaces/__init__.py` package `__init__.py` that itself
+  eagerly re-exported all 9, silently defeating the first fix). Measured
+  result: `MainWindow` construction time dropped from ~256ms to ~109ms.
+- Removed 4 files of dead, milestone-superseded scaffolding
+  (`agents/base_agent.py`, `agents/state.py`,
+  `infrastructure/database/base_repository.py`,
+  `infrastructure/stt/whisper_provider.py`) -- each explicitly labeled
+  "Implementation deferred to Milestone N" for milestones later
+  completed via different, real implementations. Verified zero
+  references before removal.
+
+### Added
+- Packaging foundation: `packaging/jarvis.spec` (PyInstaller),
+  `packaging/build_windows.ps1` (build + optional code signing),
+  `packaging/jarvis_installer.iss` (Inno Setup). None yet
+  build-verified on real Windows hardware -- see `docs/PACKAGING.md`.
+- `docs/PACKAGING.md`, this changelog.
+- ~65 new regression/reliability/security tests across the areas above.
+
+### Known gaps (see `docs/PACKAGING.md` and the RC1 audit report for full detail)
+- No real Windows build has been produced or tested.
+- No application icon exists yet.
+- No first-run/onboarding wizard.
+- Coverage gaps remain concentrated in Settings-page UI wiring code.
+
+## [Earlier history]
+
+Milestones 0 through 5 (architecture scaffolding through the official
+PySide6 UI, Developer Mode, Update Center, and the 9 feature
+workspaces) predate this changelog's introduction and are documented in
+`MILESTONE_5_DELIVERY.md` and `AUDIT_REPORT_M0-M5.md` rather than
+retroactively reconstructed here.

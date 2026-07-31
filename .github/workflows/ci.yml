@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Lint, type-check, test
+    # JARVIS OS targets Windows 11 (PySide6 desktop app, pywinauto automation
+    # backend) -- windows-latest matches the only platform this project is
+    # actually validated on. Qt runs headless via QT_QPA_PLATFORM=offscreen,
+    # already set automatically by tests/conftest.py for the UI test modules.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        # No editable install needed: pyproject.toml's
+        # [tool.pytest.ini_options] sets pythonpath = ["src"], so the tests
+        # import jarvis directly from source.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Ruff (lint)
+        # Reports findings on every PR without blocking merges yet -- the
+        # repository carries pre-existing lint debt (see the stabilization
+        # audit) that a single PR's diff can't reasonably be asked to fix.
+        # Tighten to a hard gate once that backlog is cleared or scoped down
+        # (e.g. `ruff check --diff` against the PR's changed files only).
+        run: ruff check src/ tests/
+        continue-on-error: true
+
+      - name: Black (format check)
+        run: black --check src/ tests/
+        continue-on-error: true
+
+      - name: MyPy (type check)
+        # Matches .pre-commit-config.yaml's scope: src/ only.
+        run: mypy --config-file=pyproject.toml src/
+        continue-on-error: true
+
+      - name: Pytest (full suite + coverage)
+        # Hard gate -- as of the repository stabilization pass the full
+        # suite is 401/401 passing with zero pre-existing failures/errors,
+        # so any red here is a real regression, not legacy noise.
+        run: pytest tests/unit tests/integration --cov=src/jarvis --cov-report=term --cov-report=xml -q
+
+      - name: pip check (dependency conflicts)
+        run: pip check
+
+      - name: pip-audit (dependency vulnerabilities)
+        # Advisory only -- as of the stabilization audit this repo carries
+        # 24 pre-existing known vulnerabilities across the langchain/
+        # langgraph ecosystem and cryptography, each requiring a real
+        # compatibility-tested upgrade (some are major-version jumps), not
+        # a same-PR fix. See MILESTONE docs for the full triage.
+        run: pip-audit
+        continue-on-error: true
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          retention-days: 14

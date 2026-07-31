@@ -1,0 +1,84 @@
+# =============================================================================
+# JARVIS OS — runtime dependencies (pinned lower bounds)
+# -----------------------------------------------------------------------------
+# The canonical dependency definition lives in `pyproject.toml`. This file is
+# kept in sync for tooling / CI / offline install use-cases and for users who
+# prefer `pip install -r requirements.txt`.
+#
+# To upgrade a package:
+#   1. Update `pyproject.toml`
+#   2. Regenerate:  pip install -e . && pip freeze > requirements.txt
+# =============================================================================
+
+# ---------- UI ---------------------------------------------------------------
+PySide6>=6.7,<7.0
+qasync>=0.27,<1.0
+
+# ---------- API surface ------------------------------------------------------
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.32,<1.0
+
+# ---------- Configuration & logging -----------------------------------------
+pydantic>=2.9,<3.0
+pydantic-settings>=2.6,<3.0
+python-dotenv>=1.0,<2.0
+loguru>=0.7,<1.0
+structlog>=24.4,<25.0
+
+# ---------- Data -------------------------------------------------------------
+SQLAlchemy>=2.0,<3.0
+alembic>=1.13,<2.0
+# Pinned <0.21: aiosqlite>=0.21 removed the Thread-based Connection class
+# (and Connection.is_alive with it), which langgraph-checkpoint-sqlite
+# 2.0.11 still calls at real graph-invocation time -- see the matching
+# comment in pyproject.toml for the full explanation.
+aiosqlite>=0.20,<0.21
+chromadb>=0.5,<1.0
+
+# ---------- Agents / LLM -----------------------------------------------------
+langgraph>=0.2,<1.0
+langgraph-checkpoint-sqlite>=1.0,<3.0
+langchain>=0.3,<1.0
+langchain-core>=0.3,<1.0
+langchain-openai>=0.2,<1.0
+langchain-community>=0.3,<1.0
+openai>=1.55,<2.0
+ollama>=0.4,<1.0
+tiktoken>=0.8,<1.0
+
+# ---------- Voice ------------------------------------------------------------
+openai-whisper>=20240930
+sounddevice>=0.5,<1.0
+soundfile>=0.12,<1.0
+numpy>=2.1,<3.0
+
+# ---------- Voice: TTS providers ----------------------------------------------
+# Piper (primary offline) is a native binary — install separately from
+# https://github.com/rhasspy/piper/releases, no Python package required.
+edge-tts>=6.1,<7.0          # free, online, streaming (default alternative to Piper)
+# kokoro-onnx>=0.4,<1.0      # optional offline TTS — uncomment to enable Kokoro
+# elevenlabs API is called directly over httpx (already a dependency); no SDK needed
+
+# ---------- Voice: wake word (optional, pick one) ------------------------------
+# pvporcupine>=3.0,<4.0
+# pvrecorder>=1.2,<2.0
+# openwakeword>=0.6,<1.0
+
+# ---------- Automation -------------------------------------------------------
+playwright>=1.48,<2.0
+pywinauto>=0.6,<1.0; sys_platform == 'win32'
+psutil>=6.1,<7.0
+pynput>=1.7,<2.0
+
+# ---------- HTTP / networking ------------------------------------------------
+httpx>=0.27,<1.0
+websockets>=13.1,<14.0
+
+# ---------- Security ---------------------------------------------------------
+# Upgraded from >=43.0,<44.0 -- 43.0.3 carried 4 known advisories, all
+# resolved by 48.0.1 (see pyproject.toml for the full note).
+cryptography>=48.0.1,<49.0
+keyring>=25.5,<26.0
+
+# ---------- Dependency injection --------------------------------------------
+dependency-injector>=4.42,<5.0

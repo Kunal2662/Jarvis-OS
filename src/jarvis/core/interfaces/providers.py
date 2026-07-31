@@ -1,0 +1,116 @@
+"""Future-integration provider ports (Milestone 5, section 11).
+
+These are the "clean interfaces, no real implementation" ports the
+brief asks for -- one per unfinished service. Every mock provider that
+backs today's service cards and workspaces (see
+``features/integrations/mocks.py``) implements the matching protocol
+here, so a real ``GmailProvider(IGmailProvider)`` adapter can be
+dropped in later with **zero** UI changes: ``ServiceWidget`` and the
+workspace views only ever depend on these types, never on the mock
+concretes.
+
+Kept intentionally small and read-mostly (list/get/summary style
+methods) since no real write-capable integration exists yet; expand
+per-provider as each integration actually gets built.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Protocol, runtime_checkable
+
+
+@dataclass(frozen=True, slots=True)
+class ConnectionStatus:
+    connected: bool
+    detail: str = ""
+    last_sync: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ActivityItem:
+    icon: str
+    text: str
+    timestamp: datetime
+
+
+@runtime_checkable
+class IGmailProvider(Protocol):
+    async def get_connection_status(self) -> ConnectionStatus: ...
+    async def get_unread_count(self) -> int: ...
+    async def list_recent_messages(self, limit: int = 10) -> list[dict[str, Any]]: ...
+    async def get_recent_activity(self, limit: int = 5) -> list[ActivityItem]: ...
+    async def send_message(self, to: str, subject: str, body: str) -> bool: ...
+
+
+@runtime_checkable
+class ISpotifyProvider(Protocol):
+    async def get_connection_status(self) -> ConnectionStatus: ...
+    async def get_now_playing(self) -> dict[str, Any] | None: ...
+    async def list_recent_tracks(self, limit: int = 10) -> list[dict[str, Any]]: ...
+    async def get_recent_activity(self, limit: int = 5) -> list[ActivityItem]: ...
+    async def play(self) -> bool: ...
+    async def pause(self) -> bool: ...
+    async def next_track(self) -> bool: ...
+
+
+@runtime_checkable
+class IWeatherProvider(Protocol):
+    async def get_connection_status(self) -> ConnectionStatus: ...
+    async def get_current(self, location: str) -> dict[str, Any]: ...
+    async def get_forecast(self, location: str, days: int = 5) -> list[dict[str, Any]]: ...
+
+
+@runtime_checkable
+class IFinanceProvider(Protocol):
+    async def get_connection_status(self) -> ConnectionStatus: ...
+    async def get_portfolio_summary(self) -> dict[str, Any]: ...
+    async def list_holdings(self) -> list[dict[str, Any]]: ...
+    async def list_transactions(self, limit: int = 20) -> list[dict[str, Any]]: ...
+    async def get_recent_activity(self, limit: int = 5) -> list[ActivityItem]: ...
+
+
+@runtime_checkable
+class ISmartHomeProvider(Protocol):
+    async def get_connection_status(self) -> ConnectionStatus: ...
+    async def list_devices(self) -> list[dict[str, Any]]: ...
+    async def set_device_state(self, device_id: str, state: dict[str, Any]) -> bool: ...
+    async def get_recent_activity(self, limit: int = 5) -> list[ActivityItem]: ...
+
+
+@runtime_checkable
+class IPluginProvider(Protocol):
+    async def list_installed(self) -> list[dict[str, Any]]: ...
+    async def list_marketplace(self) -> list[dict[str, Any]]: ...
+    async def enable(self, plugin_id: str) -> bool: ...
+    async def disable(self, plugin_id: str) -> bool: ...
+    async def reload(self, plugin_id: str) -> bool: ...
+    async def install(self, plugin_id: str) -> bool: ...  # future -- not wired yet
+    async def uninstall(self, plugin_id: str) -> bool: ...  # future -- not wired yet
+    async def update(self, plugin_id: str) -> bool: ...  # future -- not wired yet
+
+
+@runtime_checkable
+class ITranscriptProvider(Protocol):
+    async def stream_user_turn(self, text_chunk: str, *, final: bool) -> None: ...
+    async def stream_assistant_turn(self, text_chunk: str, *, final: bool) -> None: ...
+    async def export(self, fmt: str = "txt") -> str: ...
+
+
+@runtime_checkable
+class IUpdateProvider(Protocol):
+    async def check_for_updates(self) -> dict[str, Any]: ...
+    async def get_history(self, limit: int = 20) -> list[dict[str, Any]]: ...
+    async def get_last_result(self) -> dict[str, Any] | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderCapabilities:
+    """Optional descriptor a future provider can expose so the UI can
+    show/hide quick actions without special-casing each integration."""
+
+    can_write: bool = False
+    can_search: bool = True
+    supports_pagination: bool = True
+    extra: dict[str, Any] = field(default_factory=dict)

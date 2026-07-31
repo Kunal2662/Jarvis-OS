@@ -1,0 +1,242 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jarvis-os"
+version = "0.5.2"
+description = "JARVIS OS — a production-grade, local-first AI assistant for Windows 11, built on PySide6, FastAPI, LangGraph, Ollama and OpenAI."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+license = { text = "Proprietary" }
+authors = [
+    { name = "JARVIS OS", email = "owner@jarvis-os.local" },
+]
+keywords = ["jarvis", "assistant", "desktop", "windows", "pyside6", "langgraph", "llm"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Desktop Environment",
+]
+
+# Runtime dependencies. Pinning is done in requirements.txt for reproducibility.
+dependencies = [
+    # UI
+    "PySide6>=6.7,<7.0",
+    "qasync>=0.27,<1.0",
+
+    # API surface
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.32,<1.0",
+
+    # Configuration & logging
+    "pydantic>=2.9,<3.0",
+    "pydantic-settings>=2.6,<3.0",
+    "python-dotenv>=1.0,<2.0",
+    "loguru>=0.7,<1.0",
+    "structlog>=24.4,<25.0",
+
+    # Data
+    "SQLAlchemy>=2.0,<3.0",
+    "alembic>=1.13,<2.0",
+    # Milestone 5-Agents pre-merge validation: aiosqlite>=0.21 removed the
+    # Thread-based `Connection` class (and with it `Connection.is_alive`),
+    # which `langgraph-checkpoint-sqlite` (as of 2.0.11, the version this
+    # range resolves to) still calls in `AsyncSqliteSaver.setup()` --
+    # confirmed via a live end-to-end run, not just import: `open()`
+    # succeeds either way, but any real graph invocation raises
+    # `AttributeError: 'Connection' object has no attribute 'is_alive'`
+    # on newer aiosqlite. Pinned below 0.21 until langgraph-checkpoint-sqlite
+    # ships a fix; SQLAlchemy's own aiosqlite usage (open/execute/close) has
+    # no dependency on the removed Thread-based internals.
+    "aiosqlite>=0.20,<0.21",
+    "chromadb>=0.5,<1.0",
+
+    # Agents / LLM
+    "langgraph>=0.2,<1.0",
+    "langgraph-checkpoint-sqlite>=1.0,<3.0",
+    "langchain>=0.3,<1.0",
+    "langchain-core>=0.3,<1.0",
+    "langchain-openai>=0.2,<1.0",
+    "langchain-community>=0.3,<1.0",
+    "openai>=1.55,<2.0",
+    "ollama>=0.4,<1.0",
+    "tiktoken>=0.8,<1.0",
+
+    # Voice
+    "openai-whisper>=20240930",
+    "sounddevice>=0.5,<1.0",
+    "soundfile>=0.12,<1.0",
+    "numpy>=2.1,<3.0",
+    "edge-tts>=6.1,<7.0",
+
+    # Automation
+    "playwright>=1.48,<2.0",
+    "pywinauto>=0.6,<1.0; sys_platform == 'win32'",
+    "psutil>=6.1,<7.0",
+    "pynput>=1.7,<2.0",
+
+    # HTTP / networking
+    "httpx>=0.27,<1.0",
+    "websockets>=13.1,<14.0",
+
+    # Security
+    # Upgraded from >=43.0,<44.0 during the dependency upgrade pass: 43.0.3
+    # carried 4 known advisories (PYSEC-2026-35, PYSEC-2026-1284,
+    # PYSEC-2026-2141, GHSA-537c-gmf6-5ccf), all resolved by 48.0.1. Only
+    # `Fernet`/`InvalidToken` are used anywhere in this codebase
+    # (utils/crypto.py) -- verified against the 44.0-48.0 changelog that no
+    # breaking change in that range touches Fernet (they're all X.509/
+    # elliptic-curve/OpenSSL-version changes this app never exercises).
+    "cryptography>=48.0.1,<49.0",
+    "keyring>=25.5,<26.0",
+
+    # Dependency injection
+    "dependency-injector>=4.42,<5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9.0",
+    "pytest-asyncio>=0.24,<1.0",
+    "pytest-qt>=4.4,<5.0",
+    "pytest-cov>=6.0,<7.0",
+    "ruff>=0.7,<1.0",
+    "black>=24.10,<25.0",
+    "mypy>=1.13,<2.0",
+    "pre-commit>=4.0,<5.0",
+    "types-requests",
+]
+build = [
+    "pyinstaller>=6.11,<7.0",
+]
+# Piper is a native binary (not a pip package) — see
+# https://github.com/rhasspy/piper/releases. Everything below is optional:
+# only install the extras for the TTS backend / wake-word engine you pick
+# in Settings.
+voice-kokoro = [
+    "kokoro-onnx>=0.4,<1.0",
+]
+voice-wake-porcupine = [
+    "pvporcupine>=3.0,<4.0",
+    "pvrecorder>=1.2,<2.0",
+]
+voice-wake-openwakeword = [
+    "openwakeword>=0.6,<1.0",
+]
+
+[project.scripts]
+jarvis = "jarvis.main:main"
+jarvis-api = "jarvis.infrastructure.api.fastapi_server:run"
+
+[project.urls]
+Homepage = "https://github.com/your-org/jarvis-os"
+Documentation = "https://github.com/your-org/jarvis-os/tree/main/docs"
+Issues = "https://github.com/your-org/jarvis-os/issues"
+
+# ---------------------------------------------------------------------------
+# setuptools: src-layout
+# ---------------------------------------------------------------------------
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["jarvis*"]
+
+[tool.setuptools.package-data]
+jarvis = ["py.typed"]
+
+# ---------------------------------------------------------------------------
+# Tooling
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+extend-exclude = ["data", "resources", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",       # pycodestyle / pyflakes
+    "I",                  # isort
+    "N",                  # pep8-naming
+    "UP",                 # pyupgrade
+    "B",                  # bugbear
+    "SIM",                # simplify
+    "TID",                # tidy imports
+    "PL",                 # pylint
+    "RUF",                # ruff
+]
+ignore = [
+    "PLR0913",
+    "PLR2004",
+    # PLE1205 assumes stdlib `logging`'s %-style format semantics; this
+    # project logs exclusively through loguru (see core/logging/logger.py),
+    # which uses {}-style placeholders like str.format. Ruff's pylint-derived
+    # check doesn't know that and flags every correctly-formed loguru call
+    # with 2+ placeholders as "too many arguments" -- a confirmed false
+    # positive (61 instances audited during the Milestones 0-5 completion
+    # audit, all genuine `_logger.warning("... {} ... {}", a, b)` calls).
+    "PLE1205",
+    # N802 (function name should be lowercase) fires on every PySide6/Qt
+    # framework override -- paintEvent, closeEvent, mousePressEvent,
+    # rowCount, columnCount, headerData, etc. These *must* keep Qt's
+    # exact camelCase names to actually override the C++ base class's
+    # virtual methods; snake_case renames would silently stop Qt from
+    # calling them at all. Confirmed audited: every current N802 hit is
+    # one of these framework overrides, not application code sloppiness.
+    "N802",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# container.py's whole architecture is deferred/lazy construction: every
+# `_build_*` factory intentionally imports its target module *inside* the
+# function body (not at file top) so that importing the container itself
+# stays cheap -- see the DI Container Architecture Fix (2026-08) for the
+# measured startup-time and memory rationale. PLC0415 doesn't know this is
+# deliberate and flags every one of these lazy imports as if it were
+# accidental; confirmed false positive for this specific, principled use.
+"src/jarvis/core/di/container.py" = ["PLC0415"]
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_unimported = false
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra -q --strict-markers --cov=jarvis --cov-report=term-missing"
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+markers = [
+    "unit: unit tests",
+    "integration: integration tests",
+    "e2e: end-to-end tests requiring the full app",
+    "windows: tests that only run on Windows",
+]
+
+[tool.coverage.run]
+source = ["src/jarvis"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

@@ -1,0 +1,11 @@
+{
+  "name": "morning_routine",
+  "description": "Open the apps I use every morning.",
+  "steps": [
+    "Open Chrome",
+    "Search Google for weather today",
+    "Open Slack",
+    "Open VS Code",
+    "Open Spotify"
+  ]
+}

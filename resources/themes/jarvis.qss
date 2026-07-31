@@ -1,0 +1,231 @@
+/* =============================================================================
+ * JARVIS OS — "jarvis" theme (default)
+ * Deep navy + electric cyan. Designed to feel like a HUD, not a webpage.
+ * -----------------------------------------------------------------------------
+ * Palette (see src/jarvis/ui/themes/palette.py:JARVIS_PALETTE)
+ *   bg           #050914
+ *   surface      #0A1122
+ *   surface_alt  #0F1A33
+ *   text         #DFF6FF
+ *   text_muted   #6D8BAA
+ *   border       #12253F
+ *   accent       #00E5FF
+ * =========================================================================== */
+
+QWidget {
+    background-color: #050914;
+    color: #DFF6FF;
+    font-family: "Inter", "Segoe UI", "SF Pro Text", "Helvetica Neue", "Arial", sans-serif;
+    font-size: 13px;
+    selection-background-color: #00E5FF;
+    selection-color: #050914;
+}
+
+QWidget[role="code"], QPlainTextEdit[role="code"], QTextEdit[role="code"] {
+    font-family: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+QMainWindow, QDialog {
+    background-color: #050914;
+}
+
+QFrame#surface, QGroupBox {
+    background-color: #0A1122;
+    border: 1px solid #12253F;
+    border-radius: 8px;
+}
+
+QLabel[role="muted"] {
+    color: #6D8BAA;
+}
+
+QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+    background-color: #0F1A33;
+    color: #DFF6FF;
+    border: 1px solid #12253F;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus {
+    border-color: #00E5FF;
+}
+/* Milestone 5.5 accessibility fix: buttons had zero visible
+   keyboard-focus indicator (only text inputs did) -- every sidebar nav
+   item, quick action, and dialog button was invisible to keyboard-only
+   navigation. Pure addition: only affects the keyboard-focused state,
+   no change to mouse/default appearance. */
+QPushButton:focus {
+    outline: none;
+    border: 2px solid #00E5FF;
+}
+
+QPushButton {
+    background-color: #0F1A33;
+    color: #DFF6FF;
+    border: 1px solid #12253F;
+    border-radius: 6px;
+    padding: 8px 16px;
+}
+QPushButton:hover  { border-color: #00E5FF; color: #00E5FF; }
+QPushButton:pressed { background-color: #12253F; }
+QPushButton[variant="primary"] {
+    background-color: #00E5FF;
+    color: #050914;
+    border: none;
+    font-weight: 600;
+}
+QPushButton[variant="primary"]:hover  { background-color: #39FFF6; }
+QPushButton[variant="danger"]         { background-color: #FF3860; color: #FFFFFF; border: none; }
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #0A1122;
+    border: none;
+    width: 10px;
+    height: 10px;
+}
+QScrollBar::handle {
+    background: #12253F;
+    border-radius: 5px;
+    min-height: 24px;
+    min-width: 24px;
+}
+QScrollBar::handle:hover { background: #00E5FF; }
+QScrollBar::add-line, QScrollBar::sub-line { background: transparent; height: 0; width: 0; }
+
+QMenuBar, QMenu {
+    background-color: #0A1122;
+    color: #DFF6FF;
+    border: 1px solid #12253F;
+}
+QMenu::item:selected { background-color: #12253F; color: #00E5FF; }
+
+QTabWidget::pane { border: 1px solid #12253F; border-radius: 6px; }
+QTabBar::tab {
+    background: #0A1122;
+    color: #6D8BAA;
+    padding: 8px 16px;
+    border: 1px solid transparent;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+QTabBar::tab:selected { color: #00E5FF; border-color: #12253F; border-bottom-color: transparent; }
+
+QStatusBar { background-color: #0A1122; color: #6D8BAA; border-top: 1px solid #12253F; }
+
+QToolTip {
+    background-color: #0F1A33;
+    color: #DFF6FF;
+    border: 1px solid #00E5FF;
+    padding: 4px 6px;
+}
+
+/* =============================================================================
+ * Milestone 5 — Component Library (Home dashboard, Developer Mode, API
+ * Center, Update Center). Object names below are set from
+ * jarvis.ui.components.* — keep names in sync if you rename a widget.
+ * =========================================================================== */
+
+QFrame#card {
+    background-color: #0A1122;
+    border: 1px solid #12253F;
+    border-radius: 12px;
+}
+QFrame#card:hover { border-color: #1B3A57; }
+
+QLabel#cardTitle { font-size: 14px; font-weight: 600; color: #DFF6FF; }
+QLabel#cardBadge {
+    background-color: #0F1A33; color: #00E5FF; border-radius: 8px;
+    padding: 2px 8px; font-size: 11px; font-weight: 600;
+}
+QPushButton#cardAction { color: #00E5FF; border: none; background: transparent; padding: 0; font-size: 12px; }
+QPushButton#cardAction:hover { color: #39FFF6; text-decoration: underline; }
+
+QLabel#serviceIcon { font-size: 18px; }
+QLabel#serviceStatus { color: #00E39A; font-size: 11px; font-weight: 600; }
+
+QLabel#statLabel { color: #6D8BAA; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
+QLabel#statValue { color: #DFF6FF; font-size: 20px; font-weight: 700; }
+QLabel#statDeltaPositive { color: #00E39A; font-size: 12px; font-weight: 600; }
+QLabel#statDeltaNegative { color: #FF3860; font-size: 12px; font-weight: 600; }
+
+QLabel#statusBadge {
+    border-radius: 9px; padding: 2px 10px; font-size: 11px; font-weight: 700;
+}
+QLabel#statusBadge[variant="success"] { background-color: rgba(0,227,154,0.15); color: #00E39A; }
+QLabel#statusBadge[variant="warning"] { background-color: rgba(255,209,102,0.15); color: #FFD166; }
+QLabel#statusBadge[variant="danger"]  { background-color: rgba(255,56,96,0.15);  color: #FF3860; }
+QLabel#statusBadge[variant="neutral"] { background-color: rgba(109,139,170,0.15); color: #6D8BAA; }
+
+QPushButton#pillButton {
+    background-color: #0F1A33; color: #DFF6FF; border: 1px solid #12253F;
+    border-radius: 16px; padding: 8px 16px; text-align: left;
+}
+QPushButton#pillButton:hover { border-color: #00E5FF; color: #00E5FF; }
+
+QPushButton#iconTextButton {
+    background-color: #0F1A33; color: #DFF6FF; border: 1px solid #12253F;
+    border-radius: 10px; padding: 10px; font-size: 12px;
+}
+QPushButton#iconTextButton:hover { border-color: #00E5FF; }
+
+QPushButton#navItem {
+    background: transparent; color: #8FA9C4; border: none; border-radius: 8px;
+    padding: 10px 12px; text-align: left; font-size: 13px;
+}
+QPushButton#navItem:hover { background-color: #0F1A33; color: #DFF6FF; }
+QPushButton#navItem:checked { background-color: #0F1A33; color: #00E5FF; font-weight: 600; }
+
+QProgressBar#progressBar {
+    background-color: #0F1A33; border: 1px solid #12253F; border-radius: 5px; height: 8px;
+}
+QProgressBar#progressBar::chunk { background-color: #00E5FF; border-radius: 5px; }
+QLabel#progressLabel { color: #DFF6FF; font-size: 12px; }
+QLabel#progressPercent { color: #6D8BAA; font-size: 12px; }
+
+QLabel[objectName^="stepGlyph"] { font-size: 14px; }
+QLabel#stepGlyphPending   { color: #6D8BAA; }
+QLabel#stepGlyphRunning   { color: #FFD166; }
+QLabel#stepGlyphSucceeded { color: #00E39A; }
+QLabel#stepGlyphFailed    { color: #FF3860; }
+QLabel#stepGlyphSkipped   { color: #6D8BAA; }
+
+QLabel#rowKey, QLabel#rowSubtitle { color: #6D8BAA; font-size: 12px; }
+QLabel#rowValue, QLabel#rowTitle  { color: #DFF6FF; font-size: 13px; }
+QLabel#rowTrailing { color: #6D8BAA; font-size: 11px; }
+
+/* Sidebar (Home dashboard nav) */
+QWidget#sidebar { background-color: #070C16; border-right: 1px solid #12253F; }
+QLabel#sidebarBrand { font-size: 16px; font-weight: 700; color: #DFF6FF; letter-spacing: 1px; }
+QLabel#sidebarVersion { color: #6D8BAA; font-size: 10px; }
+
+/* Top bar */
+QWidget#topBar { background-color: #050914; border-bottom: 1px solid #12253F; }
+QLineEdit#searchBar {
+    background-color: #0A1122; border: 1px solid #12253F; border-radius: 18px; padding: 8px 16px;
+}
+QLabel#greetingTitle { font-size: 18px; font-weight: 700; color: #DFF6FF; }
+QLabel#greetingSubtitle { font-size: 12px; color: #6D8BAA; }
+
+/* Voice hero panel */
+QWidget#heroPanel { background-color: #0A1122; border: 1px solid #12253F; border-radius: 14px; }
+QLabel#heroGreeting { color: #6D8BAA; font-size: 14px; }
+QLabel#heroTitle { color: #00E5FF; font-size: 26px; font-weight: 800; }
+QLabel#heroSubtitle { color: #6D8BAA; font-size: 12px; }
+QLabel#listeningChip {
+    background-color: #0F1A33; color: #00E5FF; border-radius: 14px; padding: 6px 14px; font-size: 12px;
+}
+
+/* Update Terminal */
+QPlainTextEdit#updateTerminalLog {
+    background-color: #060A12; color: #B7F5E5; border: 1px solid #12253F; border-radius: 8px;
+    font-family: "JetBrains Mono", "Cascadia Code", "Consolas", monospace; font-size: 12px;
+}
+QWidget#updateSidebarIndicator {
+    background-color: #0F1A33; border: 1px solid #12253F; border-radius: 8px; padding: 4px;
+}
+QWidget#updateSidebarIndicator:hover { border-color: #00E5FF; }
+
+/* Developer Mode shell */
+QWidget#devModeNav { background-color: #070C16; border-right: 1px solid #12253F; }
+QLabel#devModeTitle { font-size: 15px; font-weight: 700; color: #00E5FF; }
+QFrame#devModeGateCard { background-color: #0A1122; border: 1px solid #12253F; border-radius: 14px; }

@@ -1,0 +1,26 @@
+# JARVIS OS — development dependencies
+-r requirements.txt
+
+pytest>=8.3,<9.0
+pytest-asyncio>=0.24,<1.0
+pytest-qt>=4.4,<5.0
+pytest-cov>=6.0,<7.0
+# Provides the `aiohttp_server` fixture used by
+# tests/integration/test_ollama_provider_fake_server.py. Missing from this
+# file since that test was added -- previously had to be installed by hand,
+# so the test errored on every fresh clone/venv until this was noticed
+# during the repository stabilization pass.
+pytest-aiohttp>=1.0,<2.0
+# ruff/mypy ranges kept tight (not just "<1.0"/"<2.0") -- the previous wide
+# ranges let a fresh `pip install` silently drift to whatever's newest,
+# producing a different lint/type-check baseline than .pre-commit-config.yaml
+# pins (discovered during the repository stabilization pass: installed ruff
+# was 0.16.1 vs pre-commit's then-pinned v0.7.4, mypy 1.20.2 vs v1.13.0).
+# Bump both together with .pre-commit-config.yaml's revs when upgrading.
+ruff>=0.16,<0.17
+black>=24.10,<25.0
+mypy>=1.20,<1.21
+pre-commit>=4.0,<5.0
+pyinstaller>=6.11,<7.0
+types-requests
+pip-audit>=2.7,<3.0
