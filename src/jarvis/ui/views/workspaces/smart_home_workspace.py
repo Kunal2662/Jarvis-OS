@@ -21,8 +21,14 @@ from jarvis.ui.components import (
     WorkspaceHeader,
 )
 from jarvis.ui.components.buttons import PillButton
+from jarvis.ui.components.icons import Icon
 
-_DEVICE_ICONS = {"light": "💡", "climate": "🌡", "lock": "🔒", "camera": "📷"}
+_DEVICE_ICON_KEYS = {
+    "light": "device_light",
+    "climate": "device_climate",
+    "lock": "lock",
+    "camera": "device_camera",
+}
 
 
 class SmartHomeWorkspace(QWidget):
@@ -45,7 +51,7 @@ class SmartHomeWorkspace(QWidget):
             status_state="success",
             search_placeholder="Search devices…",
         )
-        self._header.add_tool_button("Add Device", icon="＋")
+        self._header.add_tool_button("Add Device", icon="add")
         self._column.addWidget(self._header)
 
         stats = CardGrid(columns=3)
@@ -66,9 +72,9 @@ class SmartHomeWorkspace(QWidget):
 
         actions = QuickActionsRow(
             [
-                ("all_off", "⭕", "All Off"),
-                ("goodnight", "🌙", "Goodnight Scene"),
-                ("connect", "🔗", "Connect Hub"),
+                ("all_off", "power_off", "All Off"),
+                ("goodnight", "moon", "Goodnight Scene"),
+                ("connect", "link", "Connect Hub"),
             ]
         )
         self._column.addWidget(actions)
@@ -104,8 +110,8 @@ class SmartHomeWorkspace(QWidget):
         layout.setSpacing(6)
 
         header_row = QHBoxLayout()
-        icon = QLabel(_DEVICE_ICONS.get(device["type"], "🔌"))
-        header_row.addWidget(icon)
+        icon_key = _DEVICE_ICON_KEYS.get(device["type"], "device_generic")
+        header_row.addWidget(Icon(icon_key, size=16))
         name = QLabel(device["name"])
         name.setObjectName("cardTitle")
         header_row.addWidget(name, 1)

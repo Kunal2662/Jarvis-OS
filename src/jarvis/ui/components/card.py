@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from jarvis.ui.components.icons import Icon
+
 
 class Card(QFrame):
     """A rounded, bordered surface. The base unit for every panel."""
@@ -71,8 +73,9 @@ class SectionCard(Card):
 
 class ServiceCard(Card):
     """Compact card used for the Gmail / Spotify / Weather / Finance /
-    Smart Home row: icon glyph + title on top, status text top-right,
-    then a custom body the caller fills in via :attr:`body`."""
+    Smart Home row: icon + title on top, status text top-right, then a
+    custom body the caller fills in via :attr:`body`. ``icon`` is a
+    semantic icon_registry key, not a raw glyph."""
 
     def __init__(
         self,
@@ -87,9 +90,8 @@ class ServiceCard(Card):
         outer.setSpacing(8)
 
         header = QHBoxLayout()
-        icon_label = QLabel(icon)
-        icon_label.setObjectName("serviceIcon")
-        header.addWidget(icon_label)
+        if icon:
+            header.addWidget(Icon(icon, size=18))
         title_label = QLabel(title)
         title_label.setObjectName("cardTitle")
         header.addWidget(title_label)

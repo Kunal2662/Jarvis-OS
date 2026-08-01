@@ -46,8 +46,8 @@ class CalendarWorkspace(QWidget):
             status_state="success",
             search_placeholder="Search events…",
         )
-        header.add_tool_button("New Event", icon="＋")
-        header.add_tool_button("Today", icon="📅")
+        header.add_tool_button("New Event", icon="add")
+        header.add_tool_button("Today", icon="calendar")
         column.addWidget(header)
 
         stats = CardGrid(columns=4)
@@ -68,17 +68,17 @@ class CalendarWorkspace(QWidget):
         activity.set_items(
             [
                 (
-                    "📅",
+                    "calendar",
                     'Added "Project Review Meeting"',
                     (datetime.now() - timedelta(minutes=40)).strftime("%H:%M"),
                 ),
                 (
-                    "✏",
+                    "edit",
                     'Rescheduled "1:1 with Manager" to 15:30',
                     (datetime.now() - timedelta(hours=2)).strftime("%H:%M"),
                 ),
                 (
-                    "🗑",
+                    "delete",
                     'Cancelled "Vendor Sync"',
                     (datetime.now() - timedelta(hours=5)).strftime("%H:%M"),
                 ),
@@ -88,9 +88,9 @@ class CalendarWorkspace(QWidget):
 
         actions = QuickActionsRow(
             [
-                ("new_event", "＋", "New Event"),
-                ("sync", "⟳", "Sync Now"),
-                ("connect", "🔗", "Connect Calendar"),
+                ("new_event", "add", "New Event"),
+                ("sync", "refresh", "Sync Now"),
+                ("connect", "link", "Connect Calendar"),
             ]
         )
         column.addWidget(actions)

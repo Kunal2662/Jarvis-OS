@@ -43,8 +43,8 @@ class GmailWorkspace(QWidget):
             status_state="success",
             search_placeholder="Search mail…",
         )
-        self._header.add_tool_button("Compose", icon="✎")
-        self._header.add_tool_button("Refresh", icon="⟳").clicked.connect(
+        self._header.add_tool_button("Compose", icon="edit")
+        self._header.add_tool_button("Refresh", icon="refresh").clicked.connect(
             lambda: fire_and_forget(self._load())
         )
         self._header.search_changed.connect(self._on_search)
@@ -60,7 +60,7 @@ class GmailWorkspace(QWidget):
 
         inbox_card = SectionCard("Inbox")
         self._table = VirtualTable(["From", "Subject", "Preview", "Received"])
-        empty = EmptyState("No messages", "Nothing matches your search.", glyph="✉")
+        empty = EmptyState("No messages", "Nothing matches your search.", glyph="gmail")
         self._state_stack = WorkspaceStateStack(self._table, empty=empty)
         inbox_card.body.addWidget(self._state_stack)
         column.addWidget(inbox_card)
@@ -70,9 +70,9 @@ class GmailWorkspace(QWidget):
 
         actions = QuickActionsRow(
             [
-                ("compose", "✎", "Compose"),
-                ("mark_all_read", "✓", "Mark All Read"),
-                ("connect", "🔗", "Connect Real Account"),
+                ("compose", "edit", "Compose"),
+                ("mark_all_read", "check", "Mark All Read"),
+                ("connect", "link", "Connect Real Account"),
             ]
         )
         column.addWidget(actions)

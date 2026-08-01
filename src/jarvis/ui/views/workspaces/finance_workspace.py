@@ -73,7 +73,7 @@ class FinanceWorkspace(QWidget):
         column.addWidget(self._activity)
 
         actions = QuickActionsRow(
-            [("connect", "🔗", "Connect Brokerage"), ("export", "⬇", "Export CSV")]
+            [("connect", "link", "Connect Brokerage"), ("export", "download", "Export CSV")]
         )
         column.addWidget(actions)
         column.addStretch(1)

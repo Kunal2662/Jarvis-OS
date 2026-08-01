@@ -100,6 +100,21 @@ class ApplicationBootstrapper:
         app.setApplicationName(APP_NAME)
         app.setOrganizationName(APP_ORG)
 
+        # Must happen before any QSS referencing "Inter" is applied
+        # (MainWindow applies the theme in its own __init__ below) --
+        # otherwise the font-family falls through to a system font.
+        from jarvis.ui.themes.fonts import load_application_fonts
+
+        load_application_fonts()
+
+        # Point the icon registry at the vendored SVGs before any view
+        # constructs an Icon widget (MainWindow, below, builds the
+        # sidebar immediately).
+        from jarvis.core.config import paths
+        from jarvis.ui.components.icons import icon_registry
+
+        icon_registry.set_icons_dir(paths.ICONS_DIR)
+
         loop = qasync.QEventLoop(app)
         asyncio.set_event_loop(loop)
 

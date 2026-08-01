@@ -45,7 +45,7 @@ class CodingWorkspace(QWidget):
             status_state="neutral",
             search_placeholder="Search projects…",
         )
-        header.add_tool_button("New Project", icon="＋")
+        header.add_tool_button("New Project", icon="add")
         column.addWidget(header)
 
         stats = CardGrid(columns=4)
@@ -70,17 +70,17 @@ class CodingWorkspace(QWidget):
         activity.set_items(
             [
                 (
-                    "✅",
+                    "commit",
                     "CI passed on jarvis-os @ 8f3a1c",
                     (datetime.now() - timedelta(minutes=12)).strftime("%H:%M"),
                 ),
                 (
-                    "🔀",
+                    "merge",
                     'Opened PR #142: "Milestone 5 completion pass"',
                     (datetime.now() - timedelta(hours=1)).strftime("%H:%M"),
                 ),
                 (
-                    "🐛",
+                    "bug",
                     "Fixed lint warning in update_service.py",
                     (datetime.now() - timedelta(hours=4)).strftime("%H:%M"),
                 ),
@@ -90,9 +90,9 @@ class CodingWorkspace(QWidget):
 
         actions = QuickActionsRow(
             [
-                ("new_project", "＋", "New Project"),
-                ("open_terminal", "⌘", "Open Terminal"),
-                ("run_tests", "▶", "Run Tests"),
+                ("new_project", "add", "New Project"),
+                ("open_terminal", "terminal", "Open Terminal"),
+                ("run_tests", "play", "Run Tests"),
             ]
         )
         column.addWidget(actions)

@@ -1,0 +1,98 @@
+/*
+ * Theme color tokens -- ported verbatim from the shipped PySide6 palette
+ * (`src/jarvis/ui/themes/palette.py`'s DARK_PALETTE / LIGHT_PALETTE /
+ * JARVIS_PALETTE), not invented. Same three themes, same hex values, now
+ * expressed as CSS custom properties instead of Qt QPalette entries.
+ *
+ * Mapped onto shadcn/ui's semantic token names so every generated
+ * component (Button, Card, Dialog, ...) themes correctly with zero
+ * per-component color overrides. `success`/`warning` are JARVIS-specific
+ * additions the base shadcn token set doesn't include, carried forward
+ * from the same source palette.
+ *
+ * Theme selection is a `data-theme` attribute on <html> (see
+ * providers/theme-provider.tsx) -- `data-theme` is the ONLY selector
+ * that carries color values below. ThemeProvider also toggles a `.dark`
+ * class for third-party components that only recognize Tailwind's `dark:`
+ * convention, but `.dark` deliberately carries no color declarations of
+ * its own here: giving it a second, independent copy of the dark palette
+ * let it desync from `data-theme` and win the cascade on stale state
+ * (verified as a real bug during Phase 1 browser testing) -- `data-theme`
+ * must stay the single source of truth for color.
+ */
+
+:root,
+[data-theme="light"] {
+  --background: #f7f9fc;
+  --foreground: #0b1b2b;
+  --card: #ffffff;
+  --card-foreground: #0b1b2b;
+  --popover: #ffffff;
+  --popover-foreground: #0b1b2b;
+  --primary: #0077b6;
+  --primary-foreground: #f7f9fc;
+  --secondary: #eef2f7;
+  --secondary-foreground: #0b1b2b;
+  --muted: #eef2f7;
+  --muted-foreground: #5b6b7e;
+  --accent: #0077b6;
+  --accent-hover: #005f8e;
+  --accent-foreground: #f7f9fc;
+  --destructive: #d62839;
+  --destructive-foreground: #f7f9fc;
+  --success: #0e9f6e;
+  --warning: #b76e00;
+  --border: #d6dce5;
+  --input: #d6dce5;
+  --ring: #0077b6;
+}
+
+[data-theme="dark"] {
+  --background: #0b0f14;
+  --foreground: #e6eef7;
+  --card: #111820;
+  --card-foreground: #e6eef7;
+  --popover: #111820;
+  --popover-foreground: #e6eef7;
+  --primary: #00e5ff;
+  --primary-foreground: #0b0f14;
+  --secondary: #1a2330;
+  --secondary-foreground: #e6eef7;
+  --muted: #1a2330;
+  --muted-foreground: #8a97a8;
+  --accent: #00e5ff;
+  --accent-hover: #00b8cc;
+  --accent-foreground: #0b0f14;
+  --destructive: #ff5a6e;
+  --destructive-foreground: #0b0f14;
+  --success: #4ce0b3;
+  --warning: #ffc857;
+  --border: #22303c;
+  --input: #22303c;
+  --ring: #00e5ff;
+}
+
+[data-theme="jarvis"] {
+  --background: #050914;
+  --foreground: #dff6ff;
+  --card: #0a1122;
+  --card-foreground: #dff6ff;
+  --popover: #0a1122;
+  --popover-foreground: #dff6ff;
+  --primary: #00e5ff;
+  --primary-foreground: #050914;
+  --secondary: #0f1a33;
+  --secondary-foreground: #dff6ff;
+  --muted: #0f1a33;
+  --muted-foreground: #6d8baa;
+  --accent: #00e5ff;
+  --accent-hover: #39fff6;
+  --accent-foreground: #050914;
+  --destructive: #ff3860;
+  --destructive-foreground: #050914;
+  --success: #00e39a;
+  --warning: #ffd166;
+  --border: #12253f;
+  --input: #12253f;
+  --ring: #00e5ff;
+}

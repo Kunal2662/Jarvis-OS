@@ -6,8 +6,8 @@
 QWidget {
     background-color: #F7F9FC;
     color: #0B1B2B;
-    font-family: "Inter", "Segoe UI", "Helvetica Neue", sans-serif;
-    font-size: 13px;
+    font-family: "Inter", "Segoe UI", "SF Pro Text", "Helvetica Neue", "Arial", sans-serif;
+    font-size: 14px;
     selection-background-color: #0077B6;
     selection-color: #FFFFFF;
 }

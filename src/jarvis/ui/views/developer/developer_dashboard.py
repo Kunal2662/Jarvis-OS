@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from jarvis.ui.components import KeyValueRow, SectionCard, StatTile
 from jarvis.ui.components.buttons import NavItemButton
+from jarvis.ui.components.icons import Icon
 from jarvis.ui.views.developer.agent_trace_view import AgentTraceView
 from jarvis.ui.views.developer.ai_model_manager_view import AiModelManagerView
 from jarvis.ui.views.developer.api_center_view import ApiCenterView
@@ -80,23 +81,24 @@ class _DashboardOverview(QWidget):
         outer.addStretch(1)
 
 
-# (id, icon, label, builder) -- builder returns a fresh QWidget for that section.
+# (id, icon_registry key, label, builder) -- builder returns a fresh
+# QWidget for that section.
 _SECTIONS: list[tuple[str, str, str]] = [
-    ("dashboard", "📊", "Developer Dashboard"),
-    ("api_center", "🔌", "API Center"),
-    ("update_center", "⬆", "Update Center"),
-    ("modules", "🧩", "Module Manager"),
-    ("plugins", "🧷", "Plugin Manager"),
-    ("ai_models", "🤖", "AI Model Manager"),
-    ("performance", "📈", "Performance Monitor"),
-    ("logs", "📜", "Logs & Diagnostics"),
-    ("configuration", "⚙", "Configuration Manager"),
-    ("security", "🛡", "Security Center"),
-    ("backup", "💾", "Backup & Restore"),
-    ("console", "⌁", "Developer Console"),
-    ("system_info", "🖥", "System Information"),
-    ("agent_trace", "🧠", "Agent Trace"),
-    ("vision_status", "👁", "Vision Status"),
+    ("dashboard", "dashboard", "Developer Dashboard"),
+    ("api_center", "api_center", "API Center"),
+    ("update_center", "upload", "Update Center"),
+    ("modules", "module", "Module Manager"),
+    ("plugins", "plugin", "Plugin Manager"),
+    ("ai_models", "ai_models", "AI Model Manager"),
+    ("performance", "performance", "Performance Monitor"),
+    ("logs", "logs", "Logs & Diagnostics"),
+    ("configuration", "configuration", "Configuration Manager"),
+    ("security", "security", "Security Center"),
+    ("backup", "backup", "Backup & Restore"),
+    ("console", "terminal", "Developer Console"),
+    ("system_info", "system_info", "System Information"),
+    ("agent_trace", "agent_trace", "Agent Trace"),
+    ("vision_status", "vision_status", "Vision Status"),
 ]
 
 
@@ -119,9 +121,14 @@ class DeveloperDashboard(QDialog):
         nav_layout.setContentsMargins(16, 18, 16, 16)
         nav_layout.setSpacing(2)
 
-        header = QLabel("🔒 Developer Mode")
+        header_row = QHBoxLayout()
+        header_row.setSpacing(6)
+        header_row.addWidget(Icon("lock", size=16))
+        header = QLabel("Developer Mode")
         header.setObjectName("devModeTitle")
-        nav_layout.addWidget(header)
+        header_row.addWidget(header)
+        header_row.addStretch(1)
+        nav_layout.addLayout(header_row)
         nav_layout.addSpacing(10)
 
         self._stack = QStackedWidget()

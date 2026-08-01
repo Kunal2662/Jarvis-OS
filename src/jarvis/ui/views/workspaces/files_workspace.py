@@ -53,9 +53,9 @@ class FilesWorkspace(QWidget):
         column.addWidget(self._header)
 
         toolbar = Toolbar()
-        toolbar.add_button("Upload", icon="⬆")
-        toolbar.add_button("New Folder", icon="📁")
-        toolbar.add_button("Connect Drive", icon="🔗")
+        toolbar.add_button("Upload", icon="upload")
+        toolbar.add_button("New Folder", icon="files")
+        toolbar.add_button("Connect Drive", icon="link")
         column.addWidget(toolbar)
 
         stats = CardGrid(columns=3)
@@ -66,7 +66,7 @@ class FilesWorkspace(QWidget):
 
         files_card = SectionCard("All Files")
         self._table = SimpleTable(["Name", "Type", "Size", "Modified"])
-        empty = EmptyState("No files found", "Try a different search term.", glyph="📁")
+        empty = EmptyState("No files found", "Try a different search term.", glyph="files")
         self._state_stack = WorkspaceStateStack(self._table, empty=empty)
         files_card.body.addWidget(self._state_stack)
         column.addWidget(files_card)
@@ -75,17 +75,17 @@ class FilesWorkspace(QWidget):
         activity.set_items(
             [
                 (
-                    "⬆",
+                    "upload",
                     'Uploaded "Q3 Roadmap.docx"',
                     (datetime.now() - timedelta(hours=2)).strftime("%H:%M"),
                 ),
                 (
-                    "✏",
+                    "edit",
                     'Edited "Meeting Notes.md"',
                     (datetime.now() - timedelta(days=5)).strftime("%H:%M"),
                 ),
                 (
-                    "🔗",
+                    "link",
                     "Connected Google Drive",
                     (datetime.now() - timedelta(days=6)).strftime("%H:%M"),
                 ),
@@ -95,9 +95,9 @@ class FilesWorkspace(QWidget):
 
         actions = QuickActionsRow(
             [
-                ("upload", "⬆", "Upload"),
-                ("new_folder", "📁", "New Folder"),
-                ("connect_drive", "🔗", "Connect Drive"),
+                ("upload", "upload", "Upload"),
+                ("new_folder", "files", "New Folder"),
+                ("connect_drive", "link", "Connect Drive"),
             ]
         )
         column.addWidget(actions)

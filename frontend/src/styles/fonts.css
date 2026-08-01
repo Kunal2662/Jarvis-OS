@@ -1,0 +1,15 @@
+/*
+ * Self-hosted Inter font -- carried forward unchanged from the PySide6-era
+ * UI Foundation pass (`resources/fonts/Inter.ttf`, OFL-licensed), per
+ * TECH_STACK.md section 2 and ARCHITECTURE.md section 14. Loaded as a
+ * variable font (Inter.ttf ships variable weight axes 100-900); we only
+ * ever select the four weights the typography scale allows (400/500/600/700).
+ */
+
+@font-face {
+  font-family: "Inter";
+  src: url("../assets/fonts/Inter.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}

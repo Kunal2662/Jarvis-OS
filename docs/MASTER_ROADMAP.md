@@ -9,7 +9,7 @@
 **Version:** 3.0 · Jul 2026 — reorganized long-term engineering roadmap
 (see the changelog note at the very end of this file for what changed
 and why).
-**Companion docs:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`CONFIGURATION.md`](CONFIGURATION.md) · [`DEPENDENCY_INJECTION.md`](DEPENDENCY_INJECTION.md) · [`THEMING.md`](THEMING.md) · [`LOGGING.md`](LOGGING.md)
+**Companion docs:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`ARCHITECTURE_LEGACY.md`](ARCHITECTURE_LEGACY.md) · [`TECH_STACK.md`](TECH_STACK.md) · [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) · [`CONFIGURATION.md`](CONFIGURATION.md) · [`DEPENDENCY_INJECTION.md`](DEPENDENCY_INJECTION.md) · [`THEMING.md`](THEMING.md) · [`LOGGING.md`](LOGGING.md)
 **Delivery records:** [`MILESTONE_4_DELIVERY.md`](../MILESTONE_4_DELIVERY.md) · [`MILESTONE_5_DELIVERY.md`](../MILESTONE_5_DELIVERY.md) · [`MILESTONE_5_AGENTS_DELIVERY.md`](../MILESTONE_5_AGENTS_DELIVERY.md) · [`AUDIT_REPORT_M0-M5.md`](../AUDIT_REPORT_M0-M5.md) · [`AUDIT_REPORT_M5-AGENTS.md`](../AUDIT_REPORT_M5-AGENTS.md) · [`CHANGELOG.md`](../CHANGELOG.md)
 
 ---
@@ -66,16 +66,39 @@ where the product is going. It exists so that:
 
 ## 2. Current status
 
-**Current version:** `0.5.0`
+**Current version:** `0.5.2`
 
 **Milestones shipped:** M0 Foundation → M6 Vision & Multimodal
-(Architecture Layer) (8 completed milestones, all feature-frozen — see
+(Architecture Layer) (10 completed milestones, all feature-frozen — see
 §3). M6 shipped its provider-abstraction layer only (interfaces,
 settings, mock providers, service, agent tool, Developer Mode/Settings
 UI) — real vision/OCR capability remains future work; see M6's own §3
 entry for the full scope note.
 
-**Next milestone:** M7 — Workflow Intelligence (see §8).
+**In progress:** M7 — Workflow Intelligence (see §8) — Phase 1 (Domain
+Foundation) and Phase 2 (Parallel Automation Execution) shipped; Phase
+3 (Structured Graph Planning) deferred; Phases 4–6 (Workflow Builder,
+Recorder, Scheduler) pending, paused pending review of the "UI
+Foundation" cross-cutting initiative (Typography, SVG Icon System,
+and an application-state Logic Foundation — a design-system hardening
+pass, not its own roadmap milestone; see §7). See M7's own §8 entry
+for the full phase-by-phase status, including acceptance-criteria
+detail.
+
+**Technology direction (Aug 2026):** JARVIS's frontend is migrating
+from PySide6 to React + Tauri, starting at M8 — see
+[`TECH_STACK.md`](TECH_STACK.md) for the full technology decision and
+[`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) for the
+active, phase-by-phase execution plan. This is a UI-technology
+migration only: M0–M7 shipped and remain historically accurate on
+PySide6 (§3); the Python backend (`services → agents →
+core.interfaces`) is unchanged and gains only a FastAPI/WebSocket-
+facing adapter. §8's M8–M11 entries were retitled accordingly (React
+Frontend & Desktop Experience, Runtime & Core Services, AI
+Orchestrator, Integrations & Cloud Platform), with three new lettered
+companions — M10A, M10B, M11B — added to house scope displaced by the
+retitling, none of it dropped. See each entry's own "Retitled Aug
+2026" note for what moved where.
 
 **Version history summary:** `0.1` → `0.2` → `0.3` → `0.3.1` shipped on
 schedule; Milestones 4, 5, and the 5.5 stabilization pass all shipped
@@ -83,8 +106,12 @@ under an unbumped `0.3.0` (a drift, closed retroactively — see §15);
 `0.4.0` is the first version bump since `0.3.1` and is the first
 version built under this document's now-codified
 [Versioning policy](#6-versioning-policy) (§6); `0.5.0` (M6,
-Architecture Layer) follows the same policy. Every version from here
-forward increments on milestone completion, not on a calendar.
+Architecture Layer) follows the same policy. `0.5.1` and `0.5.2` are
+out-of-band PATCH releases per §6 (cryptography security upgrade;
+DI container startup-time architecture fix) — neither is a milestone
+and neither bumps past `0.5.x`; M7's own MINOR bump to `0.6.0` still
+lands only once M7 itself completes. Every version from here forward
+increments on milestone completion, not on a calendar.
 
 ---
 
@@ -110,6 +137,7 @@ forward increments on milestone completion, not on a calendar.
 | **M5** | Desktop Platform | Jul 2026 | [`MILESTONE_5_DELIVERY.md`](../MILESTONE_5_DELIVERY.md) |
 | **M5.5** | Production Stabilization Pass | Jul 2026 | [`AUDIT_REPORT_M0-M5.md`](../AUDIT_REPORT_M0-M5.md) |
 | **M5A** | Agent Runtime | Jul 2026 | [`MILESTONE_5_AGENTS_DELIVERY.md`](../MILESTONE_5_AGENTS_DELIVERY.md), [`AUDIT_REPORT_M5-AGENTS.md`](../AUDIT_REPORT_M5-AGENTS.md) |
+| **M6** | Vision & Multimodal (Architecture Layer) | Jul 2026 | [`MILESTONE_6_VISION_DELIVERY.md`](../MILESTONE_6_VISION_DELIVERY.md) |
 
 > **Naming note.** `M5A` is this document's short code for what earlier
 > revisions called "Milestone 5-Agents." Same milestone, same delivery
@@ -149,6 +177,25 @@ Core Framework.
 - PyInstaller build script (`scripts/build_windows.py`).
 - Comprehensive companion docs + this master roadmap.
 
+**Architecture Evolution**
+
+Introduced in this milestone: the layered architecture itself, the DI
+Container (`core/di/container.py`), the async `EventBus`, the
+`pydantic-settings` config system, and the `JarvisError` exception
+hierarchy.
+
+Later reused by: every subsequent milestone without exception — this
+is the foundational substrate the rest of the codebase is built on, not
+an optional dependency any later milestone chose to adopt. Two notable
+extensions rather than mere reuse: the DI Container gained 14 lazy
+`_build_*` adapter factories across M2–M6, then had its remaining
+eager string-path providers converted to the same pattern in the DI
+Container Architecture Fix (`v0.5.2`, out-of-band between M6 and M7);
+the `EventBus` gained its first concrete event types in M4
+(`AutomationStepEvent`) and M5A (`AgentStepEvent`), a pattern every
+later milestone (M6, M7) has continued rather than inventing a second
+notification mechanism.
+
 ### M1 — Chat Engine ✅ *(Jan 2026)*
 
 **Scope:** Conversation, Streaming, LLM Providers, Context Management.
@@ -170,6 +217,23 @@ Core Framework.
   Selection · API Keys.
 - `IMemoryRecallHook` + `NoopMemoryRecall` injected into `ChatService`
   — M3 later swapped the implementation without touching chat.
+
+**Architecture Evolution**
+
+Introduced in this milestone: `ChatService`, `ConversationService`,
+`SQLiteDatabase` (SQLAlchemy 2.x async), and the `IMemoryRecallHook`
+port.
+
+Later reused by: M3 (swapped `NoopMemoryRecall` for
+`SemanticMemoryRecallHook` behind the same port — the exact
+"implementation swapped, chat untouched" outcome this milestone's own
+delivered-list entry called out); M4 (`TaskHistoryRepository` follows
+the same SQLAlchemy-repository pattern `ConversationService`
+established); M5A (`agents/tools/chat_tools.py` wraps `ChatService` as
+an agent tool). `SQLiteDatabase` itself is now the one shared database
+connection every later milestone's repositories (`MemoryRepository`,
+`TaskHistoryRepository`) are built against — no second database
+technology was ever introduced.
 
 ### M2 — Voice Platform ✅ *(Jan 2026)*
 
@@ -203,6 +267,18 @@ Core Framework.
 - Auto-TTS on assistant reply, streamed sentence-by-sentence.
 - Implemented pages: Voice (all TTS providers, pitch/volume/device
   controls) · Wake Word (Porcupine / openWakeWord, fully enabled).
+
+**Architecture Evolution**
+
+Introduced in this milestone: `VoiceService`, `HotkeyService`, the
+`IAudioRecorder`/`IAudioPlayer`/`IHotkeyListener`/`IWakeWordDetector`
+ports, and the `VoiceOrb`/`PushToTalkButton` widgets.
+
+Later reused by: M5A (`agents/tools/voice_tools.py` wraps
+`VoiceService` as an agent tool); M5 (`VoiceOrb` reused verbatim in the
+Home dashboard's hero panel and in the dedicated Voice workspace,
+`ui/views/workspaces/voice_workspace.py`, at a different fixed size —
+same widget, two placements, not two implementations).
 
 ### M3 — Memory Platform ✅ *(core Jul 2026, polish Jul 2026 as M3.1)*
 
@@ -255,6 +331,19 @@ Recall.
   supports it — `list_filtered(start_date=…, end_date=…)` — just not
   wired to a widget); no PII redaction before embedding.
 
+**Architecture Evolution**
+
+Introduced in this milestone: `MemoryService`,
+`SemanticMemoryRecallHook`, and `MemoryRepository`.
+
+Later reused by: M5A (`agents/tools/memory_tools.py` wraps
+`MemoryService` as an agent tool); M5 (`MemoryTimelineView`/
+`MemoryTimelineDialog`, the Home dashboard, and `greeting_service.py`'s
+context-gathering all consume `MemoryService` directly). The
+`SemanticMemoryRecallHook`/`IMemoryRecallHook` pairing introduced in M1
+and completed here is the one recall mechanism every later
+memory-aware surface uses — no second recall implementation exists.
+
 ### M4 — Automation Platform ✅ *(Jul 2026)*
 
 **Scope:** Desktop Automation, Browser Automation, Safety, Undo,
@@ -291,6 +380,24 @@ actions across apps/files/system/search; task history persistence
   volume/brightness shells out to the optional `nircmd` tool if
   present, no bundled fallback.
 
+**Architecture Evolution**
+
+Introduced in this milestone: `AutomationService`, `ActionExecutor`,
+`RecipeManager`, `TaskPlanner`, and the `Step`/`ExecutionPlan` domain
+model (`domain/automation/models.py`).
+
+Later reused by: M5A (`agents/tools/automation_tools.py` routes the
+agent's `run_automation` tool straight through
+`AutomationService.run_command()` — the agent never touches the
+parser/planner/executor directly); M7 Phase 2, which rewrote
+`ActionExecutor.run_plan()`'s dispatch loop in place (sequential →
+wave-based) without changing `Step`/`ExecutionPlan`'s shape at all —
+the dependency-graph data model (`Step.depends_on`) this milestone
+introduced turned out to already be exactly what M7 needed, unused
+until then. `RecipeManager`'s storage approach is also the direct
+model M7 Phase 1's `WorkflowDefinition` was deliberately shaped to sit
+alongside for its own future Workflow Builder phase.
+
 ### M5 — Desktop Platform ✅ *(Jul 2026)*
 
 **Scope:** Premium UI, Dashboard, Developer Mode, Theme Engine,
@@ -312,14 +419,65 @@ LLM-generated, context-aware startup greetings). Full file list:
 - **Files / modules touched:** ~120+ across three delivery passes.
 - **Tests:** 205+ dedicated UI/service tests.
 - **Still open:** no real SVG/Lucide icon assets (registry supports
-  them, none ship); Update Terminal is edge-snapped, not a true
-  `QDockWidget`; no real plugin loader (architecture only, as
-  instructed — see M8); most `AnnouncementEvent` values aren't fired
+  them, none ship — later shipped by the UI Foundation pass, see
+  Architecture Evolution below); Update Terminal is edge-snapped, not
+  a true `QDockWidget`; no real plugin loader (architecture only, as
+  instructed — plugin-loader scope now lives in M9's Runtime & Core
+  Services, not M8, per the Aug 2026 frontend migration — see the
+  Frontend Migration Note below); most `AnnouncementEvent` values aren't fired
   from their subsystem yet; no custom-theme picker; every
   Gmail/Spotify/Weather/Finance/Smart-Home integration is still mock
   data by the brief's own instruction (see
   [`FUTURE_INTEGRATION_GUIDE.md`](FUTURE_INTEGRATION_GUIDE.md) for
   swapping a mock provider for a real one).
+
+**Architecture Evolution**
+
+Introduced in this milestone: the PySide6 desktop shell itself
+(`MainWindow`, `Sidebar`, the workspace views), the Theme Engine
+(`ThemeService`, `theme_manager.py`, `resources/themes/*.qss`), and
+Developer Mode as an extensible gated panel (Module Manager, Plugin
+Manager, API Center, Update Center, Developer Console, Security
+Center, Backup/Restore, System Information, Performance Monitor).
+
+Later reused by: M5A, which added its **Agent Trace** section directly
+into this milestone's Developer Mode panel rather than building a new
+gated surface; the UI Overhaul cross-cutting initiative (see §7 "UI
+Foundation"), which built Typography and the SVG Icon System directly
+on top of this milestone's `ThemeService`/`theme_manager.py` and
+existing widget set (`buttons.py`, `card.py`, `service_widget.py`,
+`sidebar.py`, every workspace view) rather than introducing a parallel
+styling system.
+
+**Frontend Migration Note (Aug 2026).** Everything above is preserved
+exactly as it shipped — this milestone's scope, delivered list, and
+"still open" items are not being rewritten. What's changing is only
+where the codebase is going *next*: JARVIS's frontend technology
+decision (see [`TECH_STACK.md`](TECH_STACK.md)) moves from PySide6 to
+React + Tauri starting at M8. Concretely:
+- The PySide6 desktop shell, Theme Engine, and Developer Mode panels
+  this milestone delivered remain the real, shipped, historically
+  accurate UI — nothing about them is retroactively false.
+- Going forward, this milestone is understood internally as having
+  delivered JARVIS's **backend platform** (the real services a UI
+  needs to exist before it can be built around them — see
+  Dependencies above) bundled together with a PySide6 frontend that
+  is now superseded. The backend half was never Qt-specific to begin
+  with (`services → agents → core.interfaces`, per
+  `ARCHITECTURE_LEGACY.md`) and needs no rework; only the UI-rendering
+  half is being replaced. See the new `ARCHITECTURE.md` for the
+  forward-looking standard M8 onward is built against.
+- M8's own scope (§8) is retitled "React Frontend & Desktop
+  Experience" and rebuilds this milestone's UI surface (dashboard,
+  workspaces, Developer Mode panels, Theme Engine equivalent) on the
+  new stack, feature-by-feature — see `IMPLEMENTATION_ROADMAP.md` for
+  the active, phase-by-phase execution plan.
+- The §7 "UI Foundation" pass (Typography, SVG Icon System,
+  `ModuleStateMachine`) is likewise being ported rather than
+  discarded — its design tokens and Lucide icon set carry forward
+  unchanged into the React stack; only the Qt-specific rendering code
+  (`QFontDatabase`, `QSvgRenderer`/`QPainter`, QSS) is left behind. See
+  §7's own note for detail.
 
 ### M5.5 — Production Stabilization Pass ✅ *(Jul 2026)*
 
@@ -413,6 +571,24 @@ pass that followed the initial build:
   exposes "resume thread X" yet); `run_automation` never passes a
   confirmation callback, so any action needing interactive
   confirmation is auto-denied.
+
+**Architecture Evolution**
+
+Introduced in this milestone: `AgentOrchestrator` and its compiled
+LangGraph `StateGraph`, the `agents/tools/` registry, the SQLite
+checkpointer, and `AgentStepEvent`.
+
+Later reused by: M7 Phase 1's `WorkflowStep` domain model
+(`domain/workflow/models.py`), whose `WorkflowStepKind.AGENT_TOOL`
+variant is explicitly modelled to invoke "a registered agent tool (see
+`agents/tools/registry.py`)" by name and arguments — a design-time
+reference to this milestone's tool registry, not yet a runtime one
+(Phase 1 deliberately shipped domain models only; no scheduler,
+executor, or LangGraph wiring exists yet for that step kind — see M7
+Phase 4+). No other milestone extends `AgentOrchestrator`,
+`AgentState`, or the graph nodes themselves yet; the cross-tool
+parallelism envisioned for those was explicitly scoped as M7 Phase 3
+and deferred, not built.
 
 ### Architecture, technologies, and tests as of M5A
 
@@ -568,6 +744,20 @@ than risk an error-prone mass renumbering of every milestone after it
 for a documentation-only finalization pass; flagged here as minor,
 optional follow-up cleanup, not a functional gap.
 
+**Architecture Evolution**
+
+Introduced in this milestone: `IVisionProvider`/`IOCRProvider` ports,
+`VisionService`, the `vision_status` agent tool, and
+`VisionProviderStatusEvent`.
+
+Later reused by: no later milestone yet — M7 Phase 1's domain models
+(`WorkflowStep`, `ScheduleDefinition`) are vision-agnostic and don't
+reference this layer, and M7 Phase 2 only touched
+`features/automation/executor.py`. This abstraction layer is built and
+tested but currently awaits either M6's own deferred feature phases or
+a future milestone to build on top of it — recorded here as fact, not
+projected reuse.
+
 ---
 
 ## 4. Engineering standards
@@ -617,6 +807,21 @@ past and future — not repeated per milestone entry below.
 - **Architecture diagrams stay current.** The ASCII diagrams in §11
   and in `ARCHITECTURE.md` are updated whenever a layer gains a new
   component category (not on every individual class addition).
+- **Module Logic Contract.** *(Added Aug 2026 as part of the roadmap
+  architecture review — see the changelog addendum.)* Every module,
+  frontend or backend, must have its Logic Contract written and
+  reviewed before implementation begins. A Logic Contract defines:
+  Purpose, Responsibilities, Business Logic, Inputs, Outputs,
+  Dependencies, Permission Model, State Machine, Validation Rules,
+  Failure Behaviour, Recovery Behaviour, Logging, Telemetry, Events,
+  Tests, and Acceptance Criteria. This formalizes a practice this
+  roadmap's milestone entries already follow informally (every
+  milestone's own Objective/Dependencies/Acceptance Criteria
+  breakdown) — the Logic Contract is that same discipline applied at
+  the individual-module level, in `ARCHITECTURE.md`'s Module Manifest
+  spec (§10) or the module's own design doc, not restated in this
+  roadmap. **No implementation may begin until its module's Logic
+  Contract is complete.**
 
 ---
 
@@ -755,9 +960,48 @@ asked to remove.
   documents, emails) must apply the same fencing pattern, not
   reinvent it.
 - **Developer tools** — the Developer Console, Module/Plugin Manager,
-  and API Center (all M5) grow real backends incrementally as M8
-  Plugin Platform, M9 Integration Platform, and later milestones ship,
-  rather than being "finished" by one milestone.
+  and API Center (all M5) grow real backends incrementally as M9's
+  Plugin Platform / Developer Platform Tools, M11's Integrations &
+  Cloud Platform, and later milestones ship, rather than being
+  "finished" by one milestone.
+- **UI Foundation** — a design-system hardening pass (Jul 2026,
+  post-M6/pre-M7-Phase-3) that upgraded the M5 desktop shell in place
+  rather than shipping as its own numbered milestone: a centralized
+  `Typography` scale (`ui/themes/typography.py`, sizes 32/24/20/18/16/
+  14/12px, weights 400/500/600/700 only) backed by a real bundled
+  Inter font (`resources/fonts/`, loaded via `QFontDatabase` in
+  `ui/themes/fonts.py`); an `IconRegistry`-based SVG icon system
+  (`ui/components/icons.py`) vendoring 84 Lucide icons
+  (`resources/icons/`, ISC-licensed) with theme-aware `currentColor`
+  recoloring, replacing emoji glyphs across the app's own UI code
+  (mock-data providers were deliberately left untouched — see M5's
+  "still open" note on mock providers); and a pure-logic UI State
+  Machine Foundation (`domain/app_state/`) — `ConnectionState`,
+  `ModuleState`, `ModuleStateMachine` — establishing the lifecycle
+  contract every future module's Service Layer (Gmail, Spotify,
+  Calendar, Smart Home, and the rest) is expected to build on. This is
+  **not** part of M7 — M7 is Workflow Intelligence (§8, below) and
+  this work shares no domain model or acceptance criteria with it —
+  and it is **not itself a completed milestone**: it shipped no new
+  service, provider, or user-facing module, only the typography,
+  icon, and state-machine substrate later milestones' UI work is
+  expected to consume. No later milestone has wired a real service
+  through `ModuleStateMachine` yet; it is logic-only, unit-tested, and
+  currently unconsumed outside its own test suite.
+  **Frontend migration note (Aug 2026):** the Qt-specific rendering
+  half of this pass (`QFontDatabase` font loading, `QSvgRenderer`/
+  `QPainter`-based icon recoloring, QSS theme files) is superseded by
+  M8's React + Tauri rebuild (see `TECH_STACK.md`) and is not carried
+  forward as code. The design decisions this pass made — the
+  Typography scale's exact values, the Lucide icon set, and the
+  `ModuleStateMachine` lifecycle contract's shape — do carry forward:
+  M8's Phase 1 (React Foundation) ports the same token values into
+  Tailwind config, the same vendored Lucide SVGs into the React icon
+  set, and M8's Phase 2 (Universal Application Framework) ports the
+  same state-machine contract into TypeScript rather than redesigning
+  it. This module's own `ui/themes/typography.py`,
+  `ui/components/icons.py`, and `domain/app_state/` code remains
+  exactly as shipped and untouched by this note.
 
 ---
 
@@ -819,15 +1063,219 @@ workflow engine orchestrates).
 3. A scheduled workflow fires unattended and its result is visible in
    the Agent Trace panel.
 
-### M8 — Plugin Platform
+**Implementation status (2026-08-01) — M7 is in progress, not
+complete.** Six phases were scoped; two have shipped, one is
+deliberately deferred, three are pending. Grouped by disposition:
 
-*(Formerly "Plugin System" — see §9 for the full carry-forward map.)*
+- **Completed:**
+  - Phase 1 (Domain Foundation) — `WorkflowDefinition` / `WorkflowStep`
+    / `ScheduleDefinition` domain models, `AutomationSettings.max_parallel_steps`
+    / `AgentSettings.max_parallel_steps` / `SchedulerSettings`,
+    `WorkflowStepEvent` / `ScheduledJobFiredEvent`. 21 dedicated tests.
+    Domain-only by design — no scheduler, executor, or LangGraph
+    wiring for these models exists yet (that's Phases 4–6, below).
+  - Phase 2 (Parallel Automation Execution) — `ActionExecutor`
+    rewritten for wave-based dispatch using the pre-existing
+    `Step.depends_on` / `gather_with_concurrency()`, with rollback and
+    `PermissionGate` serialization preserved under concurrency. 11
+    dedicated tests, measured (not estimated) parallel-vs-sequential
+    speedup.
+- **Deferred:**
+  - Phase 3 (Structured Graph Planning) — would extend `AgentState` /
+    `planner.py` / `tool_executor.py` / `graph.py` for cross-tool
+    parallelism inside the agent runtime itself. Explicitly deferred
+    pending its own separate approval per the original phase plan;
+    not started.
+- **Pending** (paused after Phase 2, not resumed until the UI overhaul
+  work in §7's "UI Foundation" has been reviewed and approved):
+  - Phase 4 — Workflow Builder (a visual/declarative authoring surface
+    on top of the existing `RecipeManager`, M4).
+  - Phase 5 — Recorder (Macro Engine / Automation Recorder).
+  - Phase 6 — Scheduler (cron-style recurring agent/automation runs).
 
-**Objective:** third-party extensions with a documented SDK.
+**Acceptance criteria status:**
+1. *A workflow with two independent steps measurably runs them in
+   parallel, not sequentially* — ✅ **Met**, by Phase 2.
+2. *A recorded macro can be replayed without re-authoring it by hand*
+   — ❌ **Not met** — Phase 5 (Recorder) is pending.
+3. *A scheduled workflow fires unattended and its result is visible in
+   the Agent Trace panel* — ❌ **Not met** — Phase 6 (Scheduler) is
+   pending, and no workflow-to-Agent-Trace wiring exists yet.
 
-**Key features:**
+Per §6's versioning policy, an in-progress/paused milestone doesn't
+bump the version or earn its own `CHANGELOG.md` entry yet — that lands
+when M7 actually completes, not before.
+
+### M8 — React Frontend & Desktop Experience
+
+*(Retitled Aug 2026 from "Plugin Platform" as part of the frontend
+technology migration to React + Tauri — see `TECH_STACK.md` and the
+changelog addendum at the end of this document for what changed and
+why. Plugin Platform's own scope — SDK, Loader, Extension API,
+Permission Model, Store, Marketplace — is preserved in full, not
+dropped: it now lives under M9's expanded Runtime & Core Services
+scope, below, since a plugin loader is a backend runtime concern, not
+a frontend one. Nothing about the plugin system's design changed —
+only which milestone number owns it.)*
+
+**Objective:** rebuild JARVIS's entire user-facing surface on React +
+Tauri, replacing the PySide6 desktop shell M5 delivered, feature by
+feature, on the technology decision in `TECH_STACK.md`. This is a UI
+rendering-technology migration, not a product redesign — every
+screen, workspace, and Developer Mode panel M5 shipped gets a React
+equivalent with the same functional scope before any new capability is
+added on top. See `IMPLEMENTATION_ROADMAP.md` for the active,
+checkbox-level execution plan this section summarizes.
+
+**Key features** *(organized into 7 phases — see
+`IMPLEMENTATION_ROADMAP.md` for the full checklist per phase)*:
+
+#### Phase 1 — React Foundation
+React 19, TypeScript, Vite, Tauri, Tailwind CSS, shadcn/ui, Radix UI,
+Motion, Lucide Icons, React Router, Zustand, TanStack Query, React
+Hook Form, Zod, the Inter font, design tokens, a Theme Engine
+equivalent to M5's, and a base component library. Full technology
+rationale in `TECH_STACK.md`.
+
+#### Phase 2 — Universal Application Framework & Logic
+The mandatory shape every application in the new frontend follows:
+Business Logic → State Machine → Service Layer → React Hooks → State
+Store → Authentication → Permissions → Storage → Settings → API Layer
+→ Voice Integration → AI Integration → Automation Integration →
+Offline Support → Error Handling. Ports the §7 UI Foundation's
+`ModuleStateMachine` lifecycle contract into TypeScript rather than
+redesigning it (see §7's own frontend migration note). **No fake
+data** — every screen renders a real value, a real loading state, or a
+real empty state; never a placeholder dressed up to look real.
+
+#### Phase 3 — Desktop Workspace
+Dashboard, Sidebar, Dock, Workspace views (one per M5 workspace:
+Voice, Files & Drive, Browser, Coding, Finance, Smart Home, Calendar,
+Gmail, Spotify), Window Management, Command Palette, Responsive
+Layout, DPI Scaling, Multi-Monitor support.
+
+#### Phase 4 — Voice Experience & Motion
+Removes the Orb (a standing instruction from the earlier PySide6-era
+UI overhaul brief, never carried out there — executed once, directly,
+here). Replaces it with a Voice Waveform, Live Transcript, and real
+Thinking/Streaming-Response/Speaking states driven by the voice/agent
+state machine (Phase 2) rather than cosmetic animation. Conversation
+Timeline. Motion animations across hover, Sidebar, Dock, Cards, and
+Notifications.
+
+#### Phase 5 — Settings & User Profiles
+Dynamic Settings (schema-driven, preserving M5's self-registering
+Settings-page pattern), Developer Mode (ports M5's full gated panel
+set), Profile Service, Guest Mode, Profile Switching, Profile Storage.
+
+#### Phase 6 — Premium UI Polish
+Spacing, Typography, Cards, Animations, and Icons audited against the
+design-token scale; a production-quality pass across every view built
+in Phases 1–5.
+
+#### Phase 7 — Optimization & QA
+Accessibility, performance, lazy loading, bundle optimization,
+responsive testing, regression testing, cross-platform testing. See
+`TECH_STACK.md` §6 for the testing-tool assignment (Vitest, React
+Testing Library, Playwright).
+
+**Backend counterpart work** *(not this milestone's own scope, but
+required alongside it — see `IMPLEMENTATION_ROADMAP.md` §3)*: FastAPI
+routers + WebSocket handlers exposing the existing `services →
+agents → core.interfaces` layers this frontend consumes. No
+`services`, `agents`, `domain`, or `infrastructure` code changes shape
+— only a new HTTP/WebSocket-facing adapter, the same way every
+existing port already has a concrete adapter.
+
+**Dependencies:** M0–M7 (every backend service this frontend renders
+must already be real — unchanged from the original Plugin Platform's
+own dependency reasoning, now applied to the frontend as a whole
+rather than to a plugin surface specifically).
+
+**Complexity:** XL *(a full frontend-technology migration across every
+screen M5 shipped, not an incremental feature — sized consistently
+with this roadmap's other XL "platform" milestones)*.
+
+**Acceptance criteria:**
+1. Every workspace, Dashboard, and Developer Mode panel M5 shipped has
+   a React equivalent with matching functional scope.
+2. No screen renders fake, simulated, or placeholder data — every
+   value traces to a real FastAPI/WebSocket response, a real loading
+   state, or a real empty state.
+3. The Orb no longer exists anywhere in the shipped UI; the Voice
+   Waveform is its sole replacement.
+4. The full Vitest + React Testing Library + Playwright suite passes,
+   and the existing Python backend's pytest suite remains unaffected
+   (zero regressions in either).
+
+### M9 — Runtime & Core Services
+
+*(Retitled Aug 2026 from "Integration Platform" as part of the
+frontend technology migration — see `TECH_STACK.md` and the changelog
+addendum at the end of this document. Integration Platform's own scope
+— API Gateway, OAuth, API Manager, Webhooks, Queue, Retry Policies,
+Caching, Monitoring — is preserved in full, not dropped: it now lives
+under the new M11 Integrations & Cloud Platform, below, since
+outbound/inbound external-API governance is an integrations concern,
+not a core-runtime one. The old M8 Plugin Platform's full scope — SDK,
+Loader, Extension API, Permission Model, Store, Marketplace — moves
+here instead, since a plugin loader is squarely a runtime/service
+concern. Nothing about either milestone's design changed — only which
+number owns which piece.)*
+
+**Objective:** the backend runtime layer every other Python-side
+service, and now every plugin, runs on top of — application lifecycle,
+service management, health, and resource governance — plus the
+plugin system this milestone inherits from the original M8. This is
+the layer M8's FastAPI routers call into, and the layer a plugin's
+`IPlugin` lifecycle hooks run inside.
+
+**Key features** *(organized into 4 modules)*:
+
+#### Runtime Core
+- Runtime Manager — process/service startup and shutdown ordering,
+  generalizing the existing `ShutdownManager`
+  (`core.lifecycle.shutdown_manager`, shipped in the M5.5
+  stabilization pass) into the single place every subsystem registers
+  a lifecycle hook, not just a cleanup one.
+- Application Lifecycle — cold-start, warm-restart, and graceful-exit
+  states, exposed to M8's frontend over WebSocket so the UI can show a
+  real "backend starting/ready/shutting down" state rather than a
+  spinner with no backing signal.
+- Service Manager — a registry of every running service (`ChatService`,
+  `VoiceService`, `AutomationService`, etc.) with health status, built
+  on the existing `core/di/container.py` rather than a second registry.
+- Session Manager — one backend session per connected frontend client
+  (relevant once M8's FastAPI/WebSocket layer supports more than a
+  single local Tauri window).
+- Configuration Manager — the existing `pydantic-settings`
+  configuration layer, now with a live-reload path exposed to Settings
+  (M8 Phase 5) instead of requiring a restart for every change.
+- Dependency Injection — the existing `core/di/container.py`; this
+  module owns its continued evolution (e.g. the accepted-debt
+  `PLC0415` lazy-import pattern noted in §15) rather than introducing
+  a second DI mechanism.
+
+#### Reliability
+- Health Monitor — generalizes M5.5's one-time stabilization audit
+  into a standing health-check surface (foundational; M18 Self-Healing
+  & Diagnostics Platform later builds the full self-healing layer on
+  top of this module's signals, not a competing one).
+- Background Tasks — a supervised task-queue for long-running
+  non-request work (distinct from M7's `ActionExecutor`, which is
+  user-triggered automation, not background runtime maintenance).
+- Crash Recovery — process-level recovery, extending `ShutdownManager`'s
+  cleanup-on-exit guarantee to cleanup-and-restart-on-crash.
+- Resource Manager — CPU/GPU/memory/disk budget tracking across
+  everything the runtime supervises (services, plugins, background
+  tasks), the consumer-side counterpart to M22 Edge AI Platform's own
+  Resource Allocation module once that milestone exists (see §15's
+  Technical Debt "Resource Manager" entry).
+
+#### Plugin Platform *(preserves the original M8 scope in full)*
 - Plugin SDK — `IPlugin` protocol, lifecycle hooks (`on_load` /
-  `on_start` / `on_stop`).
+  `on_start` / `on_stop`), now running under this module's Runtime
+  Manager rather than a standalone loader process.
 - Plugin Loader — reads `plugins/*/manifest.json`, sandboxes with
   permission scopes (network, filesystem, hotkey, agent-tools).
 - Extension API — a stable, versioned subset of services exposed via
@@ -836,76 +1284,184 @@ workflow engine orchestrates).
 - Permission Model — declared in `manifest.json`, granted explicitly
   on install (`network`, `filesystem`, `hotkey`, `agent_tools`,
   `voice.stt`/`voice.tts`, `memory.read`/`memory.write`,
-  `smart_home`, `notifications`).
+  `smart_home`, `notifications`); enforced through M14's Authorization
+  Engine once that milestone ships, not a parallel permission check.
 - Plugin Store — no hosted infra for v1; a signed JSON index on
   GitHub (`{name, description, author, versions[], sdk_range,
   homepage}`), community-curated via PRs.
 - Marketplace — the discoverable, in-app browse/install/uninstall
   experience over the Plugin Store index; replaces M5's mock Plugin
-  Manager backend with a real one.
+  Manager backend with a real one, rendered by M8's React frontend.
 
-**Dependencies:** M3, M4, M5 (services worth exposing as plugin
-surface must already be real).
+**Plugin Safe Core Architecture** *(binding design principle, added
+Aug 2026 as part of the roadmap architecture review — see the
+changelog addendum)*: JARVIS Core — the services, agents, and
+`core.interfaces` layers §4 already governs — is treated as
+**immutable** from a plugin's perspective. Any future domain-specific
+module built *after* this principle takes effect (illustrative
+examples: a Children Module, Family Module, Medical Module, or
+Business Module — none of these are scoped milestones today) ships as
+a plugin under this section's Plugin SDK/Loader, not as a new core
+service. This does **not** retroactively convert any existing,
+already-scoped milestone (e.g. M12 Smart Home & IoT Platform, or the
+Finance workspace tracked under M5/M11) into a plugin — that would be
+a separate, explicit decision with its own migration plan, not implied
+here. Requirements, extending the Permission Model bullet above:
+- Plugin Isolation — a plugin's failure, exception, or resource
+  exhaustion is contained to its own `IPlugin` instance.
+- Version Compatibility — enforced via the existing `sdk_version`
+  check (Extension API bullet above), not a new mechanism.
+- Rollback Support — a failed plugin update reverts to the last-known
+  good version without operator intervention.
+- Crash Isolation — a plugin crash is caught by Crash Recovery (this
+  milestone's Reliability module above) and does not propagate to
+  Runtime Manager or any other plugin.
+- Safe Disable — any plugin can be disabled at runtime without an
+  application restart, leaving no orphaned hooks (Marketplace
+  uninstall's existing "no orphan files or registered hooks"
+  acceptance criterion, applied to disable as well as uninstall).
+- Dependency Validation — a plugin declaring a dependency on another
+  plugin or a core service version it's incompatible with fails to
+  load, with a clear reason, rather than loading into a broken state.
 
-**Complexity:** L.
+**Plugin failures must never crash JARVIS Core** — the binding
+acceptance test for this principle, folded into this milestone's own
+acceptance criteria below.
+
+#### Developer Platform Tools *(Developer Mode)*
+- Debug Console — a live, filterable view over the runtime's own
+  structured logs (loguru/structlog), rendered by M8's frontend.
+- Live Logs — streamed over the same WebSocket channel M8's Agent
+  Trace / voice-state panels use.
+- Performance Profiler — surfaces Resource Manager's per-service data.
+- State Inspector — a live view into Service Manager's registry and
+  each service's `ModuleStateMachine` state (§7 UI Foundation).
+- API Inspector — request/response inspection for this milestone's
+  own runtime API surface (distinct from M11's Workspace Developer
+  Tools, which inspect *external* API calls).
+- Plugin Marketplace Foundation — the backend index/install/uninstall
+  API that M8's Marketplace UI (above) renders.
+
+Lands in Developer Mode alongside M5's existing panels and M5A's Agent
+Trace, following the established §7 Cross-Platform Systems pattern.
+
+**Dependencies:** M0 (DI container, config, events — this module's own
+foundation), M3, M4, M5 (services worth exposing as plugin surface
+must already be real — kept from the original M8's own dependency
+reasoning), M8 (the React frontend is this module's Developer Platform
+Tools' and Marketplace's consumer).
+
+**Complexity:** L *(consolidates two previously-separate L-sized
+milestones' scope — the original Integration Platform's runtime-
+adjacent reasoning was already thin, and Plugin Platform's own scope
+is unchanged — not elevated to XL since neither module list approaches
+M12–M14's dozen-module breadth)*.
 
 **Acceptance criteria:**
 1. A hello-world plugin registers a slash command and a hotkey.
 2. A plugin without the `network` permission cannot make outbound
    requests (blocked with `PermissionError`).
 3. Uninstall leaves no orphan files or registered hooks.
+4. Service Manager's health status for every registered service is
+   visible in Developer Mode's State Inspector in real time.
+5. A simulated backend crash triggers Crash Recovery and the affected
+   service resumes without a full application restart.
+6. A plugin that throws an unhandled exception during any lifecycle
+   hook (`on_load`/`on_start`/`on_stop`) is caught by Plugin Isolation
+   and disabled; JARVIS Core and every other running plugin remain
+   unaffected.
 
-### M9 — Integration Platform
+### M10 — AI Orchestrator
 
-**Objective:** a real, governed surface for connecting JARVIS to
-external APIs and services — generalizing what M5's API Center started
-as CRUD-only.
+*(Retitled Aug 2026 from "Knowledge Engine" as part of the frontend
+technology migration — see `TECH_STACK.md` and the changelog addendum
+at the end of this document. Knowledge Engine's own scope — Knowledge
+Graph, Persistent Memory, Reflection foundation, Learning, Relationship
+Graph, Digital Twin Foundation — is preserved in full, not dropped: it
+moves to the new **M10A Universal Search & Knowledge Platform**,
+below, a lettered companion rather than a renumbering, per the
+"zero renumbering" rule this migration pass follows throughout §8.)*
+
+**Objective:** formalize and expand the M5A `AgentOrchestrator`
+(the compiled LangGraph `StateGraph`: `planner → tool_selector →
+tool_executor → critic → responder`) into a dedicated orchestration
+platform — the central Intent → Plan → Execute → Verify pipeline every
+AI-driven feature in JARVIS routes through, rather than each milestone
+building its own ad-hoc agent loop. This is also the milestone M7
+Phase 3 (Structured Graph Planning — cross-tool parallelism inside the
+agent runtime, deferred since M7's own status review) now belongs to,
+rather than reopening M7 for it: extending `AgentState` / `planner.py`
+/ `tool_executor.py` / `graph.py` for parallel tool dispatch is this
+milestone's own scope now.
 
 **Key features:**
-- API Gateway — a single, audited egress point for outbound
-  integration traffic.
-- OAuth — a reusable authorization-code flow, replacing the
-  read-only-mock integrations M5 shipped (Gmail, Spotify) with real
-  ones.
-- API Manager — grows M5's API Center from credential CRUD into full
-  lifecycle management (health checks, quota tracking, rotation
-  reminders).
-- Webhooks — inbound event delivery for integrations that push rather
-  than get polled.
-- Queue — durable outbound-call queueing so a transient integration
-  outage doesn't lose work.
-- Retry Policies — standardized backoff/retry across every
-  integration, not reimplemented per provider.
-- Caching — response caching for expensive/rate-limited external
-  calls.
-- Monitoring — integration health surfaced in Developer Mode.
+- Intent Engine — classifies a request into an actionable intent
+  before planning starts, upstream of M5A's existing `planner.py` node.
+- Planning — multi-step plan generation, extending M5A's planner node;
+  absorbs M7 Phase 3's deferred cross-tool-parallelism work as this
+  milestone's own acceptance criterion (below), not M7's.
+- Context Engine — assembles the context window from M10A's knowledge
+  substrate and M3 Memory, replacing context assembly scattered
+  per-tool with one shared pipeline stage.
+- Tool Selection — extends M5A's existing `tool_selector` node.
+- Permission Validation — routes every tool invocation through M14's
+  Authorization Engine once that milestone ships, replacing M5A's
+  ad-hoc per-tool checks (e.g. `run_automation`'s confirmation-callback
+  gap, noted in M5A's own "still open" list) with one enforcement
+  point.
+- Execution — extends M5A's existing `tool_executor` node.
+- Verification — extends M5A's existing `critic` node.
+- Learning / Feedback — closes the loop through M16's Reflection
+  Engine (Workflow Reflection, Behaviour Reflection) rather than a
+  second, competing learning mechanism.
+- Streaming — real token-level streaming over M8's WebSocket layer,
+  replacing M5A's `stream()` limitation ("re-chunks the already-
+  composed final answer word-by-word," §15) with true incremental
+  generation.
+- Decision Engine — the `responder` node's successor, deciding final
+  response shape and routing.
 
-**Dependencies:** M8 (plugins are the primary consumer of this
-platform's integrations).
+**Dependencies:** M5A (this milestone extends `AgentOrchestrator`
+directly, not a rewrite), M8 (WebSocket transport for real streaming),
+M10A (knowledge/context substrate), M14 (Permission Validation).
 
 **Complexity:** L.
 
 **Acceptance criteria:**
-1. A real OAuth-backed Gmail connection replaces the M5 mock without
-   changing the Gmail workspace's UI contract.
-2. A webhook delivery is received, verified, and routed to the
-   correct plugin/service.
-3. An integration outage triggers retry-with-backoff, not an
-   immediate user-facing failure.
+1. A request needing two independent tool calls dispatches them in
+   parallel inside a single graph run, not sequentially — the M7
+   Phase 3 acceptance criterion, now delivered here.
+2. Token-level streaming is measurably real, not a word-chunked
+   re-display of an already-composed response.
+3. Every tool invocation passes through Permission Validation before
+   executing; a denied permission blocks execution the same way a
+   `PermissionGate` denial already does in M4's automation layer.
 
-### M10 — Knowledge Engine
+### M10A — Universal Search & Knowledge Platform
+
+*(New lettered companion to M10, Aug 2026 — houses the original M10
+Knowledge Engine's full scope, carried forward unchanged, alongside
+the "Universal Search" scope from the Aug 2026 frontend migration
+brief. Not a renumbering: M10A is additive, per the "zero renumbering"
+rule.)*
 
 **Objective:** turn the M3 Memory Platform's flat semantic store into
 a real, queryable knowledge base — the foundation every "companion
-intelligence" milestone later in this roadmap (M15–M20) builds on.
+intelligence" milestone later in this roadmap (M15–M20) builds on —
+and provide the one unified search surface every other searchable
+JARVIS data source (memory, files, commands) queries through, rather
+than each maintaining its own index. Backs M8 Phase 3's Command
+Palette shell and M11B's full Command Palette feature.
 
 **Key features:**
 - Knowledge Graph — entities and relationships extracted from
   conversations/memories, not just embedded text blobs.
 - Persistent Memory — long-horizon memory that survives well beyond
   M3's retention-policy window for explicitly "durable" facts.
-- Reflection (foundation only — the full Reflection Engine is M16) —
-  periodic summarization of what's been learned.
+- Reflection Foundation — periodic summarization of what's been
+  learned; the substrate M16 Reflection Engine's own objective
+  describes as "building on, and now fully realizing, M10's original
+  reflection foundation" — that foundation now lives here.
 - Learning — feedback signals (corrections, confirmations) feed back
   into memory confidence scoring.
 - Relationship Graph — how entities (people, projects, files) relate
@@ -913,9 +1469,21 @@ intelligence" milestone later in this roadmap (M15–M20) builds on.
 - Digital Twin Foundation — the data model this milestone establishes
   is the substrate M19 Intelligence Graph later builds a full digital
   twin on top of; this milestone does not itself claim to build one.
+- Universal Search — one query surface spanning every source below,
+  rather than a separate search box per data type.
+- Memory Search — semantic + keyword search over M3's memory store.
+- File Search — indexed search over M11B's File Manager surface.
+- Command Search — the backing index for M8's Command Palette shell
+  and M11B's full Command Palette feature.
+- Semantic Search — vector-similarity search reused across every
+  source above, not reimplemented per source.
+- Search Indexing — the shared indexing pipeline every search type
+  above is built on.
+- AI Search — natural-language query answering over indexed content,
+  distinct from Command Search's literal command matching.
 
-**Dependencies:** M3 (Memory Platform), M5A (exposed as an agent
-tool the same way every other service is).
+**Dependencies:** M3 (Memory Platform), M5A (exposed as an agent tool
+the same way every other service is).
 
 **Complexity:** L.
 
@@ -926,51 +1494,256 @@ tool the same way every other service is).
 2. The knowledge graph survives an export/import round-trip.
 3. A correction ("actually, my meeting is on Thursday not Wednesday")
    measurably updates future recall.
+4. A single Universal Search query returns relevant results spanning
+   at least two distinct source types (e.g. memory + files) in one
+   response.
 
-### M11 — Productivity Platform
+### M10B — Intelligence Layer
 
-*(Absorbs the previously-separate "Command Palette & Productivity"
-and "Domain Assistants" scope — see §9 for the full carry-forward
-map.)*
+*(New lettered companion to M10, Aug 2026, from the frontend migration
+brief's "Intelligence" scope. Deliberately scoped as an engine, not a
+duplicate of M15's Proactive Intelligence module or M16's Goal
+Reflection/Behaviour Reflection modules — both already exist, are
+already detailed, and are explicitly left untouched by this migration.
+This milestone is their shared backing implementation, not a
+competing one — see Objective.)*
 
-**Objective:** the everyday productivity surface — browser
-intelligence, communications, documents, and the coding/research
-assistants that ride on the M5A agent runtime.
+**Objective:** the goal-tracking, routine/preference-learning, and
+predictive-suggestion engine that M15's Proactive Intelligence module
+(communication/delivery layer) and M16's Goal Reflection / Behaviour
+Reflection modules (retrospective analysis layer) both consume as
+their backing implementation, rather than each maintaining its own.
+M20 Predictive Intelligence Platform is this engine's full-scale,
+cross-milestone realization once that milestone ships; this milestone
+is its foundation, not a second, parallel implementation.
 
 **Key features:**
+- Goal Manager — goal CRUD + hierarchy; the data model M23B's own,
+  much larger Goal Management module later extends at full
+  orchestration scale, not a competing one.
+- Routine Learning.
+- Preference Learning.
+- Predictive Suggestions — the ranking engine behind M15's Smart
+  Suggestions and Contextual Recommendations bullets.
+- Context Awareness — signal aggregation (time, location if granted,
+  active conversation, recent activity) feeding Predictive Suggestions.
+- Daily Briefing — the concrete scheduled deliverable (via M7's
+  Scheduler) that M15's Proactive Intelligence "Daily Briefings" bullet
+  renders through its own personality/tone layer; this module supplies
+  *what*, M15 supplies *how*, matching the existing M15↔M7/M17/M20
+  "how vs. what" pattern already established in M15's own Acceptance
+  Criterion 10.
+- Assistant Intelligence — the umbrella capability M17 Companion
+  Intelligence later synthesizes alongside M10A and M16.
+
+**Dependencies:** M3 (memory substrate), M7 (Scheduler for Daily
+Briefing), M10A (knowledge/context substrate).
+
+**Complexity:** M.
+
+**Acceptance criteria:**
+1. Goal Manager persists a goal across sessions with measurable
+   progress tracking.
+2. A learned routine or preference measurably changes a future
+   Predictive Suggestion.
+3. Daily Briefing fires on its configured schedule via M7 and is
+   rendered through M15's Proactive Intelligence delivery layer,
+   without this milestone needing its own delivery UI.
+
+### M11 — Integrations & Cloud Platform
+
+*(Retitled Aug 2026 from "Productivity Platform" as part of the
+frontend technology migration — see `TECH_STACK.md` and the changelog
+addendum at the end of this document. Absorbs the old M9 Integration
+Platform's full scope (API Gateway, OAuth, API Manager, Webhooks,
+Queue, Retry Policies, Caching, Monitoring — see M9's own note) plus
+old M11 Productivity Platform's integration-facing features (Email,
+Calendar, Browser Intelligence, Google Workspace). Old M11's
+non-integration productivity features — Tasks, Documents, Research
+Assistant, Coding Assistant, Command Palette, Clipboard Manager, File
+Manager, Native notifications, Media Controls — are preserved in full,
+not dropped: they move to the new **M11B Productivity Suite**, below,
+a lettered companion rather than a renumbering.)*
+
+**Objective:** the one governed surface for every external connection
+JARVIS makes — outbound API integrations, OAuth-backed accounts, and
+optional cloud sync — generalizing what M5's API Center started as
+CRUD-only, and folding in what M9 originally scoped as a separate
+milestone.
+
+**Key features:**
+- API Gateway — a single, audited egress point for outbound
+  integration traffic.
+- OAuth — a reusable authorization-code flow, replacing the
+  read-only-mock integrations M5 shipped (Gmail, Spotify) with real
+  ones.
+- **API Center Architecture** — grows M5's API Center from credential
+  CRUD into full lifecycle management (real-time activation, health
+  checks, quota tracking, rotation reminders, usage analytics); see
+  the dedicated module below.
+- Webhooks — inbound event delivery for integrations that push rather
+  than get polled.
+- Queue — durable outbound-call queueing so a transient integration
+  outage doesn't lose work.
+- Retry Policies — standardized backoff/retry across every
+  integration, not reimplemented per provider.
+- Caching — response caching for expensive/rate-limited external
+  calls.
+- Monitoring — integration health surfaced in Developer Mode.
+- Email — Gmail/Outlook, real (via this milestone's own OAuth),
+  replacing M5's mock.
+- Calendar — same treatment.
 - Browser Intelligence — deeper automation over M4's `BrowserService`
   (multi-tab awareness, session persistence, structured extraction).
-- Email — Gmail/Outlook, real (via M9's OAuth), replacing M5's mock.
-- Calendar — same treatment.
-- Tasks — a personal to-do list that syncs with M3 memories (absorbs
-  the previously-planned standalone "Task Manager").
-- Documents — PDF/docx/xlsx ingestion + Q&A over embedded stores (the
-  "Document Assistant").
-- Research Assistant — web-search + citation compiler.
-- Coding Assistant — repo-aware, uses ripgrep + tree-sitter.
-- Command Palette (`Ctrl+Shift+P`) — fuzzy search over commands,
-  conversations, memories, plugin actions (absorbed from the
-  previously-planned standalone Command Palette milestone).
-- Clipboard Manager — history, pin, search, paste-back.
-- File Manager tool — safe, scoped filesystem access with previews.
-- Native notifications (Windows toast).
-- Media Controls — Spotify / system media keys.
+- Spotify, Weather, Finance — real providers replacing M5's mocks,
+  per M5's own "still open" note naming these three as pending real
+  integrations.
+- Oracle Cloud — the optional outbound sync target (see `TECH_STACK.md`
+  §5); local-first remains the default, nothing here requires a cloud
+  account.
+- Android Companion — the account-linking/pairing integration only;
+  the mobile app's own UI and feature set remain M21 Mobile Platform's
+  scope, not duplicated here (mirrors the Google Workspace module's
+  own "provider abstraction, not a UI" boundary below).
+- Sync, Conflict Resolution, Offline Queue — the mechanics underneath
+  Oracle Cloud sync and Android Companion pairing.
 - **Google Workspace Integration** — full G Suite provider suite +
   AI Meeting Assistant; see the dedicated module below.
 
-**Dependencies:** M5, M8 (each domain assistant is naturally a
-plugin), M9 (OAuth for Email/Calendar).
+**Explicitly not duplicated here:** Smart Home integration is M12
+Smart Home & IoT Platform's own dedicated, already-detailed scope —
+not restated in this milestone despite Smart Home appearing in this
+milestone's original brief category list. Cloud file storage (Drive/
+OneDrive/Dropbox/Box) is already covered by the Google Workspace
+module below and its Future Expansion list — this milestone doesn't
+define a second, competing file-storage integration. Local filesystem
+access (the File Manager tool) is a different concern entirely and
+lives in M11B, below.
 
-**Complexity:** L *(intrinsically parallel — each domain assistant can
-be built independently once the platform primitives — Command
-Palette, Clipboard, File Manager — exist)*.
+**Dependencies:** M0 (core), M5 (extends M5's mock API Center and mock
+Gmail/Spotify/Weather/Finance integrations into real ones), M14
+(Secrets Management for OAuth tokens and cloud-sync credentials, once
+that milestone ships — mirrored from the Google Workspace module's own
+dependency below).
+
+**Complexity:** XL *(merges two previously-separate L-sized
+milestones' scope — the original Integration Platform and Productivity
+Platform's integration half — plus new Oracle Cloud sync and Android
+Companion pairing scope; sized consistently with this roadmap's other
+XL "platform" milestones, e.g. M8, M12, M13, M14)*.
 
 **Acceptance criteria:**
-1. Command Palette returns results in <50 ms over 10,000 indexed
-   items.
-2. Clipboard history survives a restart.
-3. Each domain assistant (Coding, Document, Research) passes its own
-   golden-file smoke test.
+1. A real OAuth-backed Gmail connection replaces the M5 mock without
+   changing the Gmail workspace's UI contract.
+2. A webhook delivery is received, verified, and routed to the
+   correct plugin/service.
+3. An integration outage triggers retry-with-backoff, not an
+   immediate user-facing failure.
+4. A sync operation against Oracle Cloud completes, and a subsequent
+   edit conflict resolves without silent data loss.
+
+#### Module: API Center Architecture
+
+> This subsection is the official roadmap for the API Center's full
+> lifecycle-management design — expanding the API Center Architecture
+> bullet above from credential CRUD into a governed, self-activating
+> provider surface. It is a module within M11 — it does not introduce
+> a new milestone code and does not change M11's numbering,
+> dependencies, or acceptance criteria above. Planning only; no
+> implementation exists yet.
+
+**Objective:** one governed registry for every provider JARVIS talks
+to — built-in (internal services) and external (credential-backed) —
+with instant activation, health/usage visibility, and automatic
+failover, replacing today's static, restart-required provider wiring
+in `core/di/container.py`.
+
+**Provider Activation Rule** *(binding, applies to every provider from
+this milestone onward)*:
+- Saving a valid API key **immediately activates** its provider — no
+  restart, no separate "enable" step.
+- Every module that depends on that provider **instantly uses it** the
+  moment it activates, via the existing `ILLMProvider`-style port each
+  module already depends on (§4's provider-abstraction standard),
+  never a direct concrete-class reference.
+- **Mock providers are permitted only when Developer Mode explicitly
+  enables them** — never as a silent default when a real key is
+  missing or invalid; the module instead surfaces its real
+  `not_configured` state (§7 UI Foundation `ConnectionState`), the
+  same rule M6's Vision/OCR mocks already follow.
+
+**Runtime provider lifecycle**
+- Real API Activation — a saved key transitions the provider straight
+  from `not_configured` to `connecting`/`connected` (§7
+  `ConnectionState`), with no separate build/deploy step.
+- Runtime Provider Registration — providers register into the API
+  Center's registry at activation time, not only at process startup;
+  extends `core/di/container.py`'s existing Singleton-provider pattern
+  with a live, post-startup registration path.
+- API Key Validation — a lightweight round-trip check against the
+  provider's own API before it is marked active.
+- Connection Testing — an explicit, user-triggered "Test Connection"
+  action per provider, independent of the passive health check below.
+- Provider Health Check — periodic background health polling per
+  active provider, feeding the same signal M9's Reliability module's
+  Health Monitor already defines.
+- Automatic Provider Discovery — the API Center enumerates every
+  adapter already implementing the relevant port (e.g. every
+  `ILLMProvider` adapter under `infrastructure/llm/`) rather than
+  requiring a manually maintained registration list.
+- Runtime Provider Switching — a module's active provider can change
+  without restart, per §13's existing Provider switching mechanics
+  (fallback chain, per-conversation override).
+- Retry Strategy / Failure Recovery — standardized backoff-and-retry on
+  a failed call, then automatic fallback to the next configured
+  provider before surfacing an error to the user (this milestone's own
+  Retry Policies feature above, applied specifically to
+  provider-selection failures).
+- Provider Priority / Provider Fallback — an ordered preference list
+  per capability (chat, vision, STT, TTS, embeddings), reusing §13's
+  existing fallback-chain concept rather than a second mechanism.
+
+**Provider taxonomy**
+
+*A. Built-in Providers* — internal JARVIS services, never API-key
+gated: Memory, Automation, Workflow, Security, Database,
+Authentication, Notifications, Configuration, Logging, Scheduler,
+Backup, Plugin Runtime. Never expose an API key field. Display: Name,
+Status, Endpoint, Version, Health.
+
+*B. External Providers* — outbound, credential-backed integrations:
+OpenAI, Claude, Gemini, OpenRouter, Groq, ElevenLabs, Google, GitHub,
+Discord, Slack, Notion, and every other provider already tracked in
+§13's per-capability tables (this taxonomy is the API Center's UI/
+registry grouping layered over those tables, not a replacement for
+them). Display: Provider Name, Masked API Key, Status, Test
+Connection, Health, Last Used, Latency, Remaining Quota, Monthly
+Usage.
+
+**API Usage Analytics** *(Developer Mode)*
+An Analytics Dashboard, per external provider, tracking: Request
+Count, Token Usage, Monthly Usage, Cost, Budget %, Average Latency,
+Failed Requests, Success Rate, Module Usage, Estimated Monthly Cost,
+and Remaining Budget — plus Usage Timeline, Cost Trend, Provider
+Comparison, and Monthly Statistics charts. Purpose: let the user see
+which providers are worth keeping. Lands in Developer Mode alongside
+M9's Developer Platform Tools and this milestone's own Monitoring
+feature above; the underlying cost-analytics engine this dashboard
+visualizes is M20A Analytics & Observability Platform's scope (see
+also §13's Cost-Aware Model Router, which consumes the same usage data
+for routing decisions) — this module owns the display surface, not a
+second analytics backend.
+
+**Rendered by:** M8's React frontend (API Center UI, Phase 5 — see
+`IMPLEMENTATION_ROADMAP.md`), following the same "backend owns state,
+frontend only renders it" rule as every other M8 workspace.
+
+**Dependencies:** this milestone's own API Manager/Monitoring features
+above (this module is their detailed design, not a parallel system),
+M9 (Health Monitor, DI container), §13 (provider tables and
+fallback-chain mechanics), M14 (Secrets Management for API key
+storage — the same dependency this milestone's OAuth flow already
+declares).
 
 #### Module: Google Workspace Integration & AI Meeting Intelligence
 
@@ -984,7 +1757,7 @@ Palette, Clipboard, File Manager — exist)*.
 integration — centralized authentication, the full Workspace API
 surface, and an AI Meeting Assistant that turns calendar/Meet/Gmail/
 Drive activity into searchable, actionable memory via the M3 Memory
-Platform / M10 Knowledge Engine.
+Platform / M10A Universal Search & Knowledge Platform.
 
 **Authentication**
 - Google OAuth 2.0
@@ -1133,8 +1906,8 @@ Platform / M10 Knowledge Engine.
 - Store Email Context
 - Store Decisions
 - Store Action Items
-- Link Workspace Data to Long-Term Memory (M3 Memory Platform / M10
-  Knowledge Engine)
+- Link Workspace Data to Long-Term Memory (M3 Memory Platform / M10A
+  Universal Search & Knowledge Platform)
 - Semantic Search Across Workspace Content
 
 **Workspace Search**
@@ -1240,9 +2013,10 @@ adapters second" rule)*:
   `core.interfaces` Protocol per capability area (Calendar, Meet,
   Gmail, Drive, Docs, Sheets, Slides, Chat, Tasks, People), concrete
   adapters second. No Google SDK import outside `infrastructure/`.
-- OAuth is centralized through M9's Integration Platform OAuth flow —
-  one authorization-code implementation reused across every Workspace
-  API, not reimplemented per service.
+- OAuth is centralized through this milestone's own OAuth flow (see
+  the top-level M11 Key features above) — one authorization-code
+  implementation reused across every Workspace API, not reimplemented
+  per service.
 - Every Workspace API surface is designed for future extension — new
   scopes/endpoints are additive to the provider interface, never
   breaking.
@@ -1284,7 +2058,7 @@ adapters second" rule)*:
   call feeds the same M14 Security Platform audit log as every other
   auditable action in the system — not a separate, Workspace-only log.
 - **Security — resilience:** API Retry Policies and API Circuit
-  Breakers reuse M9 Integration Platform's existing retry/backoff and
+  Breakers reuse this milestone's own top-level retry/backoff and
   monitoring infrastructure rather than a Workspace-specific
   reimplementation; Request Idempotency is required on every
   write-side Workspace API call (event creation, email send, task
@@ -1299,11 +2073,13 @@ Trello, ClickUp, Zoom, Discord, Dropbox, Box, Confluence, and Asana**
 module establishes, not a parallel integration pattern built from
 scratch.
 
-**Dependencies:** M9 (Integration Platform — OAuth, API Gateway,
-webhooks, retry/caching), M3 / M10 (Memory Platform / Knowledge Engine
-— Workspace Memory Integration's storage target), M14 (Security
-Platform — Secrets Management, audit log), M7 (Workflow Intelligence —
-Workspace Automation's scheduling/multi-step workflow engine).
+**Dependencies:** this milestone's own top-level OAuth/API Gateway/
+webhooks/retry/caching (no longer a separate M9 dependency — see M11's
+Aug 2026 retitling note), M3 / M10A (Memory Platform / Universal
+Search & Knowledge Platform — Workspace Memory Integration's storage
+target), M14 (Security Platform — Secrets Management, audit log), M7
+(Workflow Intelligence — Workspace Automation's scheduling/multi-step
+workflow engine).
 
 **Module acceptance criteria:**
 1. A user connects a Google account via OAuth and every listed
@@ -1329,9 +2105,10 @@ Workspace Automation's scheduling/multi-step workflow engine).
 ### M11A — SEO Intelligence
 
 **Objective:** a dedicated SEO/marketing-analytics vertical, riding on
-M11's Productivity Platform and M9's Integration Platform — expanded
-significantly beyond the original "SEO Assistant" bullet it grew from
-(see §9).
+M11's Integrations & Cloud Platform (OAuth + API Gateway; formerly a
+separate M9 Integration Platform dependency, now part of M11 itself —
+see M11's Aug 2026 retitling note) — expanded significantly beyond the
+original "SEO Assistant" bullet it grew from (see §9).
 
 **Key features:**
 - Google Search Console integration.
@@ -1346,9 +2123,9 @@ significantly beyond the original "SEO Assistant" bullet it grew from
 - Automated Reports — scheduled (via M7's Scheduler), delivered
   through chat or export.
 
-**Dependencies:** M9 (OAuth + API Gateway for every listed
-integration), M11 (Productivity Platform primitives), M7 (Scheduler
-for automated reports).
+**Dependencies:** M11 (Integrations & Cloud Platform — OAuth + API
+Gateway for every listed integration; no longer a separate M9
+dependency), M7 (Scheduler for automated reports).
 
 **Complexity:** M.
 
@@ -1359,6 +2136,58 @@ for automated reports).
    cadence.
 3. Competitor analysis returns a structured, exportable comparison,
    not just prose.
+
+### M11B — Productivity Suite
+
+*(New lettered companion to M11, Aug 2026 — preserves the non-
+integration half of the original M11 Productivity Platform's scope
+(Tasks, Documents, Research Assistant, Coding Assistant, Command
+Palette, Clipboard Manager, File Manager, Native notifications, Media
+Controls) unchanged, after M11 itself was retitled Integrations &
+Cloud Platform and absorbed the integration-facing half. Not a
+renumbering — additive, per the "zero renumbering" rule this
+migration pass follows throughout §8.)*
+
+**Objective:** the everyday local-productivity surface — task
+tracking, document/research/coding assistants, and the
+system-integration primitives (Command Palette, Clipboard, File
+Manager) every domain assistant rides on — distinct from M11's
+external-account integrations.
+
+**Key features:**
+- Tasks — a personal to-do list that syncs with M3 memories (absorbs
+  the previously-planned standalone "Task Manager").
+- Documents — PDF/docx/xlsx ingestion + Q&A over embedded stores (the
+  "Document Assistant").
+- Research Assistant — web-search + citation compiler.
+- Coding Assistant — repo-aware, uses ripgrep + tree-sitter.
+- Command Palette (`Ctrl+Shift+P`) — fuzzy search over commands,
+  conversations, memories, plugin actions; backed by M10A's Universal
+  Search & Knowledge Platform (Command Search) rather than a
+  standalone index.
+- Clipboard Manager — history, pin, search, paste-back.
+- File Manager tool — safe, scoped **local** filesystem access with
+  previews — distinct from M11's cloud file-storage integrations
+  (Google Drive and friends), which are a different concern entirely.
+- Native notifications (Windows toast).
+- Media Controls — system media keys, playback control UI over M11's
+  Spotify integration.
+
+**Dependencies:** M5, M3 (Tasks' memory sync), M10A (Command Palette's
+search index), M11 (each domain assistant is naturally a plugin, and
+Media Controls reads M11's Spotify integration).
+
+**Complexity:** L *(intrinsically parallel — each domain assistant can
+be built independently once the platform primitives — Command
+Palette, Clipboard, File Manager — exist; unchanged from the original
+M11's own complexity reasoning)*.
+
+**Acceptance criteria:**
+1. Command Palette returns results in <50 ms over 10,000 indexed
+   items.
+2. Clipboard history survives a restart.
+3. Each domain assistant (Coding, Document, Research) passes its own
+   golden-file smoke test.
 
 ### M12 — Smart Home & IoT Platform
 
@@ -1625,7 +2454,7 @@ first, adapters second" rule)*:
   requires.
 - All Smart Home features integrate with Long-Term Memory — see Smart
   Home Memory above; there is no Smart-Home-specific memory store
-  outside M3/M10.
+  outside M3/M10A.
 - The platform must support multiple homes without architectural
   changes — `Home Profiles` / `Multi-Home Support` (Smart Home Core)
   is a first-class dimension of the data model from day one, not a
@@ -1653,9 +2482,11 @@ first" rule from §4/§11.
 M5A (Agent Runtime — Natural Language Commands / predictive
 automation exposed as agent tools), M7 (Workflow Intelligence — the
 Home Automation rule engine's scheduling and multi-step workflow
-execution), M9 (Integration Platform — cloud-vendor OAuth/API access
-where a device ecosystem requires it), M10 (Knowledge Engine — Smart
-Home Memory's storage target), M14 (Security Platform — credential
+execution), M11 (Integrations & Cloud Platform — cloud-vendor OAuth/API
+access where a device ecosystem requires it; formerly a separate M9
+dependency, now part of M11 itself), M10A (Universal Search & Knowledge
+Platform — Smart Home Memory's storage target), M14 (Security
+Platform — credential
 storage for device pairing secrets, Home Assistant tokens, and
 cloud-vendor API keys).
 
@@ -1845,8 +2676,9 @@ Engine rather than maintaining a separate learning loop.
 - User Preferences
 - Automation History
 
-Flows into the existing M3 Memory Platform / M10 Knowledge Engine via
-`MemoryService.remember()`, the same integration pattern M11's
+Flows into the existing M3 Memory Platform / M10A Universal Search &
+Knowledge Platform via `MemoryService.remember()`, the same
+integration pattern M11's
 Workspace Memory Integration and M12's Smart Home Memory already
 established — no separate, disconnected Desktop-only store.
 
@@ -1934,11 +2766,11 @@ first, adapters second" rule)*:
   confirmation mechanism already used app-wide, not a new approval UI.
 - Automation history should integrate with Long-Term Memory — see
   Desktop Memory above; there is no Desktop-only history store outside
-  M3/M10.
+  M3/M10A.
 - Desktop context should integrate with the Knowledge Graph — Activity
   Awareness and Workspace Profiles (AI Desktop Assistant / Desktop
-  Memory) feed M10's Knowledge Engine as first-class context, not a
-  side channel M10 is unaware of.
+  Memory) feed M10A's Universal Search & Knowledge Platform as
+  first-class context, not a side channel it is unaware of.
 - All interactions should support future cross-platform expansion —
   the provider abstraction in the first bullet is what makes a future
   macOS/Linux desktop-control adapter possible without redesigning
@@ -1963,10 +2795,12 @@ establishes, without changing the core architecture)*:
 **Dependencies:** M5 (Desktop Platform — the shell this operates
 within), M5A (Agent Runtime — desktop commands exposed as agent
 tools), M6 (Vision & Multimodal — Desktop Vision's provider), M7
-(Workflow Intelligence — Workflow Execution's engine), M9 (Integration
-Platform — Application Intelligence adapters that need external API
-access, e.g. some Office/IDE integrations), M10 (Knowledge Engine —
-Desktop Memory's storage target and Desktop context), M13A (AI
+(Workflow Intelligence — Workflow Execution's engine), M11
+(Integrations & Cloud Platform — Application Intelligence adapters
+that need external API access, e.g. some Office/IDE integrations;
+formerly a separate M9 dependency, now part of M11 itself), M10A
+(Universal Search & Knowledge Platform — Desktop Memory's storage
+target and Desktop context), M13A (AI
 Sandbox — every automation's dry-run/risk-analysis path; built
 alongside M13 rather than strictly before it, exactly as §16
 Recommended Development Order already pairs them), M14 (Security
@@ -2017,7 +2851,7 @@ Graph, M21 Mobile Platform)*.
     Debugger, Execution Timeline, Performance Dashboard) has a stated
     Developer Mode home before implementation begins.
 11. **Desktop memory integration is documented** — every Desktop
-    Memory item is mapped to M3/M10 with no separate storage model
+    Memory item is mapped to M3/M10A with no separate storage model
     implied.
 12. **Future cross-platform support is documented** — all 10
     Supported frameworks are named, with the provider-abstraction
@@ -2066,16 +2900,36 @@ Security Platform serving as the central, cross-cutting security
 architecture for every subsystem in JARVIS OS — see the changelog
 addendum at the end of this document for what changed and why.)*
 
+**Aug 2026 frontend-migration review note.** The migration brief that
+retitled M8–M11 separately asked to "CREATE NEW MILESTONE — Security &
+Privacy" (Credential Vault, Encryption, Secrets Management, Permission
+Auditing, Privacy Controls, Audit Logs, Secure Storage, Backup
+Encryption, Consent Management). Reviewed against this milestone's
+existing 12 modules below: every one of those items already exists
+here verbatim or near-verbatim — Credential Vault and Secrets
+Management (Secrets Management module), Encryption/Secure Storage/
+Backup Encryption (Data Protection module: Encryption at Rest,
+Encryption in Transit, Secure Local Storage, Secure Backups),
+Permission Auditing/Audit Logs (Monitoring & Auditing module: Audit
+Trail, Compliance Reports), Privacy Controls/Consent Management
+(Privacy module: Consent Management, Data Retention Policies, Privacy
+Dashboard). No new content was added — duplicating already-detailed
+scope under a second milestone would violate this document's own
+"no duplicate milestones" rule. This milestone remains Security
+Platform, unchanged, per the "M14 remains Security Platform, do not
+replace it" instruction.
+
 **Objective:** make JARVIS safe to leave running on a personal machine
 24/7, and — expanded scope — make security a **shared platform every
 other milestone builds on**, not an isolated feature bolted onto one.
 This milestone is the single place identity, authorization, secrets,
 encryption, network security, AI-specific security, monitoring,
 incident response, and privacy controls live, consumed identically by
-M11 Productivity Platform, M12 Smart Home & IoT Platform, M13 Desktop
-Intelligence & Computer Control Platform, M6 Vision & Multimodal, M7
-Workflow Intelligence, M9 Integration Platform, M10 Knowledge Engine,
-M13A AI Sandbox, and M5A Agent Runtime — none of which implement their
+M11 Integrations & Cloud Platform, M11B Productivity Suite, M12 Smart
+Home & IoT Platform, M13 Desktop Intelligence & Computer Control
+Platform, M6 Vision & Multimodal, M7 Workflow Intelligence, M9 Runtime
+& Core Services, M10A Universal Search & Knowledge Platform, M13A AI
+Sandbox, and M5A Agent Runtime — none of which implement their
 own parallel security mechanism.
 
 **Key features** *(organized into 12 modules — see below for each
@@ -2169,7 +3023,7 @@ Platform rather than defining a second backup-encryption scheme.
 - Secure Pairing
 
 API Security and Certificate Validation are the security layer
-underneath every M9 Integration Platform connection; Remote Access
+underneath every M11 Integrations & Cloud Platform connection; Remote Access
 Security is the security layer underneath M21 Mobile Platform and M23
 Distributed JARVIS's remote-device transport.
 
@@ -2333,15 +3187,18 @@ platform each scope their own future-provider expansion — every
 "platform" milestone in this roadmap follows the same "provider
 abstraction first" rule from §4/§11.
 
-**Dependencies:** M8 (plugin permission model to unify with — kept
-from the original scope), M5 (Desktop Platform — Security Center is
-the Developer Security Tools landing surface), M5A (Agent Runtime —
-AI Security's tool-permission validation and agent isolation), M7
-(Workflow Intelligence — Incident Response's automated recovery
-workflows), M9 (Integration Platform — Network Security's API/OAuth
-security layer), M10 (Knowledge Engine — Privacy's data-retention and
-export/deletion guarantees over stored knowledge), M11 (Productivity
-Platform — Secrets Management's OAuth credential consumer), M12
+**Dependencies:** M9 (plugin permission model to unify with — kept
+from the original scope, formerly a separate M8 dependency before M8
+was retitled React Frontend & Desktop Experience), M5 (Desktop
+Platform — Security Center is the Developer Security Tools landing
+surface), M5A (Agent Runtime — AI Security's tool-permission
+validation and agent isolation), M7 (Workflow Intelligence — Incident
+Response's automated recovery workflows), M11 (Integrations & Cloud
+Platform — Network Security's API/OAuth security layer, formerly a
+separate M9 dependency), M10A (Universal Search & Knowledge Platform —
+Privacy's data-retention and export/deletion guarantees over stored
+knowledge), M11B (Productivity Suite — Secrets Management's OAuth
+credential consumer, e.g. Media Controls' Spotify token), M12
 (Smart Home & IoT Platform — Smart Home Security's consumer), M13
 (Desktop Intelligence & Computer Control Platform — Safety &
 Permissions' consumer), M13A (AI Sandbox — the dry-run/risk-analysis
@@ -2389,7 +3246,7 @@ M13 Desktop Intelligence & Computer Control Platform)*.
     Security & Safety) it supplies primitives to.
 11. **Privacy controls are documented** — Consent Management, Data
     Retention Policies, and Export & Deletion are each named and
-    mapped to the M3/M10 data they govern, with no undocumented
+    mapped to the M3/M10A data they govern, with no undocumented
     retention/deletion gap left open.
 12. **Monitoring is documented** — every Monitoring & Auditing item is
     mapped to either the Security Center (M5) UI surface or the M20A
@@ -2451,8 +3308,9 @@ the existing `UISettings.system_prompt` mechanism as its base
 substrate (per the original scope), never a parallel one, but it is
 no longer just a set of tunable dials on top of it — it is the
 cross-cutting behavioral layer that M3 Memory, M5A Agent Runtime, M6
-Vision & Multimodal, M7 Workflow Intelligence, M10 Knowledge Engine,
-M11 Productivity Platform, M12 Smart Home & IoT Platform, M13 Desktop
+Vision & Multimodal, M7 Workflow Intelligence, M10A Universal Search &
+Knowledge Platform, M11 Integrations & Cloud Platform / M11B
+Productivity Suite, M12 Smart Home & IoT Platform, M13 Desktop
 Intelligence, and M14 Security Platform all express themselves
 through, rather than each defining their own tone/behavior
 independently.
@@ -2566,8 +3424,9 @@ language (see Architecture notes below and Acceptance criteria).
 - Trust Development
 - Personal Milestones
 
-Sourced from M3 Memory Platform and M10 Knowledge Engine as durable
-personalization facts, not a separate preferences store — the same
+Sourced from M3 Memory Platform and M10A Universal Search & Knowledge
+Platform as durable personalization facts, not a separate preferences
+store — the same
 non-negotiable the original scope already established for
 Preferences, now generalized across the whole module.
 
@@ -2597,7 +3456,7 @@ loop.
 - Positive Reinforcement
 - Emotional Boundaries
 
-Tone-appropriate, informed by actual conversation context via M3/M10
+Tone-appropriate, informed by actual conversation context via M3/M10A
 — not sentiment-analysis theater — carried forward unchanged from the
 original scope's own framing; Emotional Boundaries is new: emotional
 intelligence stays assistive, never manipulative (see Architecture
@@ -2697,7 +3556,7 @@ first, adapters second" rule)*:
   configuration/profile record), never a code change.
 - Personality decisions should integrate with Long-Term Memory —
   Relationship Intelligence and Adaptive Behaviour both read and write
-  through M3/M10, not a Personality-Engine-only store.
+  through M3/M10A, not a Personality-Engine-only store.
 - Relationship intelligence should build over time — Interaction
   History, Trust Development, and Personal Milestones accumulate
   across sessions by design; there is no "reset to zero familiarity"
@@ -2758,7 +3617,7 @@ first, adapters second" rule)*:
   knows, decides, or is willing to do.
 - Long-Term Memory should store semantic meaning rather than
   language-specific text — Multilingual Long-Term Memory and
-  Conversation Language Memory persist meaning (via M3/M10), not a
+  Conversation Language Memory persist meaning (via M3/M10A), not a
   language-locked transcript, so a fact learned in one language is
   recallable and expressible correctly in any other supported
   language.
@@ -2805,10 +3664,11 @@ Intelligence's durable-fact substrate), M5A (Agent Runtime —
 personality/persona expressed through agent responses and tool
 narration), M6 (Vision & Multimodal — personality expressed through
 Vision Trace and multimodal responses), M7 (Workflow Intelligence —
-Proactive Intelligence's scheduled briefings/suggestions), M10
-(Knowledge Engine — Relationship Intelligence and Adaptive Behaviour's
-knowledge substrate, alongside M3), M11 (Productivity Platform —
-personality expressed through the chat/productivity surface), M12
+Proactive Intelligence's scheduled briefings/suggestions), M10A
+(Universal Search & Knowledge Platform — Relationship Intelligence and
+Adaptive Behaviour's knowledge substrate, alongside M3), M11 / M11B
+(Integrations & Cloud Platform / Productivity Suite — personality
+expressed through the chat/productivity surface), M12
 (Smart Home & IoT Platform — AI Home Assistant's personality
 consumer), M13 (Desktop Intelligence & Computer Control Platform — AI
 Desktop Assistant's personality consumer), M14 (Security Platform —
@@ -2846,10 +3706,10 @@ Control Platform, M14 Security Platform)*.
    permission boundary was already active.
 6. **Adaptive behaviour is documented** — Communication Learning,
    Preference Learning, and Routine Recognition are each named and
-   mapped to their M3/M10 data source and, where applicable, to M16's
+   mapped to their M3/M10A data source and, where applicable, to M16's
    Reflection Engine.
 7. **Relationship intelligence is documented** — every Relationship
-   Intelligence item is mapped to the specific M3/M10 storage it reads
+   Intelligence item is mapped to the specific M3/M10A storage it reads
    and writes, with no separate Personality-only relationship store
    implied.
 8. **Emotional intelligence is documented** — Emotion Recognition,
@@ -2963,7 +3823,7 @@ existing workflow.
 - Knowledge Quality Monitoring
 - Knowledge Evolution
 
-Reads M10's Knowledge Engine and M3's Memory Platform to analyze
+Reads M10A's Universal Search & Knowledge Platform and M3's Memory Platform to analyze
 quality and structure — per the Architecture notes below, this module
 never rewrites a memory or knowledge-graph entry automatically; every
 finding here is a recommendation back to the user or to M10, not a
@@ -3065,7 +3925,7 @@ and M15's Personality Developer Tools, following the same established
 milestone is built, per §4 Engineering Standards and §11's "ports
 first, adapters second" rule)*:
 - Reflection must remain independent of Long-Term Memory storage — the
-  Reflection Engine reads M3/M10 through their existing repository/
+  Reflection Engine reads M3/M10A through their existing repository/
   service interfaces; it does not maintain a parallel copy of memory
   or knowledge data.
 - Reflection analyzes memories but does not rewrite them
@@ -3096,7 +3956,7 @@ first, adapters second" rule)*:
   suggestion with no traceable reasoning.
 - Reflection should operate locally by default — consistent with M12's
   and M13's own local-first-preferred posture, Reflection Sessions run
-  against local M3/M10 data with no required cloud dependency.
+  against local M3/M10A data with no required cloud dependency.
 - Reflection must respect Security Platform policies — every
   Reflection module routes through M14's Authorization Engine, Privacy
   module (Sensitive Data Protection), and Audit Trail (Reflection
@@ -3123,7 +3983,7 @@ roadmap follows the same "provider abstraction first" rule from
 §4/§11.
 
 **Dependencies:** M3 (Memory Platform — the primary data source, kept
-from the original scope), M10 (Knowledge Engine foundation — kept
+from the original scope), M10A (Universal Search & Knowledge Platform foundation — kept
 from the original scope), M5A (Agent Runtime — Reflection Sessions
 run as orchestrated agent tasks), M7 (Workflow Intelligence —
 Reflection Scheduler's cadence engine), M14 (Security Platform —
@@ -3162,7 +4022,7 @@ Control Platform, M14 Security Platform, M15 Personality Engine)*.
    item is mapped to the M4/M7 execution history it analyzes, with
    Workflow Recommendations explicitly stated as non-automatic.
 7. **Knowledge reflection is documented** — every Knowledge Reflection
-   item is mapped to the M3/M10 data it reads, with an explicit
+   item is mapped to the M3/M10A data it reads, with an explicit
    statement that no item in this module writes back automatically.
 8. **Behaviour reflection is documented** — Behaviour Consistency and
    Personality Consistency are each mapped to the specific M15 module
@@ -3266,8 +4126,8 @@ long term, not a second, competing relationship model.
 - Calendar Awareness
 - Contextual Suggestions
 
-Calendar Awareness reads M11 Productivity Platform's Google Workspace
-Calendar Intelligence module; Goal Progress Updates read M16's Goal
+Calendar Awareness reads M11 Integrations & Cloud Platform's Google
+Workspace Calendar Intelligence module; Goal Progress Updates read M16's Goal
 Reflection — Daily Companion supplies the *when and how it's
 communicated*, not a second calendar or goal-tracking data model.
 
@@ -3343,7 +4203,7 @@ enforced behavior change (see Architecture notes).
 - Important Event Tracking
 - Memory Confidence
 
-Reads M3 Memory Platform and M10 Knowledge Engine through their
+Reads M3 Memory Platform and M10A Universal Search & Knowledge Platform through their
 existing interfaces — the same "no parallel data copy" discipline
 M16's Reflection Engine already established for itself; Memory
 Confidence surfaces M10's own confidence scoring, not a new one.
@@ -3402,7 +4262,7 @@ first, adapters second" rule)*:
   Engine adaptation can be undone or reset by the user; nothing here
   is a one-way, irreversible profile change.
 - Long-Term Memory should remain user-controlled — Memory & Continuity
-  reads M3/M10 but every retention/deletion decision routes through
+  reads M3/M10A but every retention/deletion decision routes through
   M14's Privacy module and the user's own Data Ownership rights
   (Safety & Boundaries), never a Companion-only retention policy.
 - Relationship intelligence should be based on explicit interactions
@@ -3439,7 +4299,7 @@ scope their own future-provider expansion — every "platform"
 milestone in this roadmap follows the same "provider abstraction
 first" rule from §4/§11.
 
-**Dependencies:** M10 (Knowledge Engine — kept from the original
+**Dependencies:** M10A (Universal Search & Knowledge Platform — kept from the original
 scope), M15 (Personality Engine — kept from the original scope, and
 the milestone this one explicitly extends rather than replaces), M16
 (Reflection Engine — kept from the original scope, and the other
@@ -3447,7 +4307,7 @@ milestone this one extends), M3 (Memory Platform — Memory &
 Continuity's data source), M5A (Agent Runtime — proactive suggestions
 and companion behavior expressed through agent tools), M7 (Workflow
 Intelligence — Automation Suggestions' execution path once accepted),
-M11 (Productivity Platform — Daily Companion and Social &
+M11 (Integrations & Cloud Platform — Daily Companion and Social &
 Communication Intelligence's Calendar/Meet/People data), M12 (Smart
 Home & IoT Platform — AI Home Assistant's companion consumer), M13
 (Desktop Intelligence & Computer Control Platform — AI Desktop
@@ -3494,7 +4354,7 @@ Engine, M16 Reflection Engine)*.
    is mapped to the M15 Emotional Intelligence signal it consumes,
    with an explicit non-manipulation, encouragement-only framing.
 9. **Memory continuity is documented** — every Memory & Continuity
-   item is mapped to the specific M3/M10 data it reads, with no
+   item is mapped to the specific M3/M10A data it reads, with no
    Companion-only memory store implied.
 10. **Safety boundaries are documented** — User Consent, Companion
     Permissions, and Relationship Reset are each named and mapped to
@@ -3794,8 +4654,9 @@ redaction, authorization, and audit for every recovery action, kept
 from the original scope), M5 (Desktop Platform — Performance Monitor
 and Logs & Diagnostics are this milestone's permanent successor), M5A
 (Agent Runtime — AI Diagnostics' data source), M7 (Workflow
-Intelligence — Self-Healing Engine's retry/recovery scheduling), M10
-(Knowledge Engine — diagnostic/incident history storage), M13 (Desktop
+Intelligence — Self-Healing Engine's retry/recovery scheduling), M10A
+(Universal Search & Knowledge Platform — diagnostic/incident history
+storage), M13 (Desktop
 Intelligence & Computer Control Platform — Component Health Tracking's
 consumer for desktop-control subsystems), M16 (Reflection Engine —
 Predictive Reliability's forecasting substrate, read-only per the
@@ -3876,7 +4737,7 @@ Intelligence)*.
 ### M19 — Knowledge Graph & Digital Twin Platform
 
 *(Redesigned Jul 2026 from "Intelligence Graph" — the full
-digital-twin realization of the M10 Knowledge Engine's foundation —
+digital-twin realization of the M10A Universal Search & Knowledge Platform's foundation —
 into a complete enterprise-grade platform. See the changelog addendum
 at the end of this document.)*
 
@@ -3902,7 +4763,7 @@ the user's digital ecosystem.
 
 The foundational graph substrate every other module in this milestone
 — and every other milestone that reads from the graph — builds on;
-this is the M10 Knowledge Engine's storage/indexing foundation
+this is the M10A Universal Search & Knowledge Platform's storage/indexing foundation
 completed into a real queryable graph, not a second, competing data
 model.
 
@@ -3918,7 +4779,7 @@ model.
 
 Each twin is a semantic projection of Knowledge Graph Core data for
 one facet of the user's ecosystem (M13 Desktop Intelligence, M12
-Smart Home & IoT, M11 Productivity Platform, M15/M16/M17's AI-facing
+Smart Home & IoT, M11B Productivity Suite, M15/M16/M17's AI-facing
 state) — never a second copy of raw data, and always covered by the
 same export/deletion guarantees as the rest of the graph.
 
@@ -3939,8 +4800,8 @@ same export/deletion guarantees as the rest of the graph.
 - Smart Devices
 
 The canonical entity catalog the graph reasons over; entities are
-sourced from existing subsystems (M3 Memory, M9 Integration Platform,
-M11 Productivity Platform, M12 Smart Home & IoT, M13 Desktop
+sourced from existing subsystems (M3 Memory, M11 Integrations & Cloud
+Platform, M11B Productivity Suite, M12 Smart Home & IoT, M13 Desktop
 Intelligence) rather than re-collected independently.
 
 #### Relationship Intelligence
@@ -4079,9 +4940,10 @@ Connectors — all documented as future scope only; none require
 changes to the core architecture defined above.
 
 **Dependencies:** M3 (Memory), M5A (Agent Runtime), M6 (Vision &
-Multimodal), M7 (Workflow Intelligence), M9 (Integration Platform),
-M10 (Knowledge Engine — foundation), M11 (Productivity Platform), M12
-(Smart Home & IoT Platform), M13 (Desktop Intelligence), M14 (Security
+Multimodal), M7 (Workflow Intelligence), M11 (Integrations & Cloud
+Platform), M10A (Universal Search & Knowledge Platform — foundation),
+M11B (Productivity Suite), M12 (Smart Home & IoT Platform), M13
+(Desktop Intelligence), M14 (Security
 Platform), M15 (Personality Engine), M16 (Reflection Engine — data
 feeds the graph), M17 (Companion Intelligence — context data feeds the
 graph), M18 (Self-Healing & Diagnostics).
@@ -4219,7 +5081,7 @@ Security Platform rather than acting on risk itself.
 
 The "full version" of the original milestone's Predictive Scheduling
 bullet, extended to goals and projects; grounded in M7 Workflow
-Intelligence and M11 Productivity Platform's existing scheduling
+Intelligence and M11/M11B's existing Calendar/Tasks scheduling
 surfaces rather than a competing planner.
 
 #### Recommendation Engine
@@ -4327,8 +5189,9 @@ future scope only; none require changes to the core architecture
 defined above.
 
 **Dependencies:** M3 (Memory), M5A (Agent Runtime), M7 (Workflow
-Intelligence), M10 (Knowledge Engine), M11 (Productivity Platform),
-M12 (Smart Home & IoT Platform), M13 (Desktop Intelligence), M14
+Intelligence), M10A (Universal Search & Knowledge Platform), M11 /
+M11B (Integrations & Cloud Platform / Productivity Suite), M12 (Smart
+Home & IoT Platform), M13 (Desktop Intelligence), M14
 (Security Platform), M15 (Personality Engine), M16 (Reflection
 Engine), M17 (Companion Intelligence), M18 (Self-Healing &
 Diagnostics), M19 (Knowledge Graph & Digital Twin Platform — kept from
@@ -4574,7 +5437,7 @@ changes to the core architecture defined above.
 
 **Dependencies:** M5 (Desktop Platform), M5A (Agent Runtime — AI
 metrics source data), M7 (Workflow Intelligence), M9 (cost data
-source — kept from the original scope), M10 (Knowledge Engine), M11
+source — kept from the original scope), M10A (Universal Search & Knowledge Platform), M11
 (Productivity Platform), M12 (Smart Home & IoT Platform), M13 (Desktop
 Intelligence), M14 (Security Platform), M16 (Reflection Engine), M18
 (Self-Healing & Diagnostics — diagnostics data source, kept from the
@@ -4652,9 +5515,11 @@ platform-independent wherever possible.
 - Platform Services
 
 The foundational mobile substrate every other module in this milestone
-builds on; establishes the Android/iOS runtime and reuses M9
-Integration Platform's transport rather than a separate mobile-only
-API layer.
+builds on; establishes the Android/iOS runtime and reuses M11
+Integrations & Cloud Platform's transport (including its Android
+Companion pairing/account-linking scope, per M11's Aug 2026 retitling
+note) rather than a separate mobile-only API layer — this milestone
+builds the full mobile app on top of the pairing M11 establishes.
 
 #### Mobile Companion
 - Voice Conversations
@@ -4816,10 +5681,11 @@ future scope only; none require changes to the core architecture
 defined above.
 
 **Dependencies:** M5 (Desktop Platform), M5A (Agent Runtime), M6
-(Vision & Multimodal), M7 (Workflow Intelligence), M9 (Integration
-Platform — API Gateway is the transport, kept from the original
-scope), M10 (Knowledge Engine), M11 (Productivity Platform), M12
-(Smart Home & IoT Platform), M13 (Desktop Intelligence), M14 (Security
+(Vision & Multimodal), M7 (Workflow Intelligence), M11 (Integrations &
+Cloud Platform — API Gateway is the transport, kept from the original
+scope), M10A (Universal Search & Knowledge Platform), M11B
+(Productivity Suite), M12 (Smart Home & IoT Platform), M13 (Desktop
+Intelligence), M14 (Security
 Platform — mobile auth must meet the same security bar as desktop,
 kept from the original scope), M15 (Personality Engine), M16
 (Reflection Engine), M17 (Companion Intelligence), M18 (Self-Healing &
@@ -5056,7 +5922,7 @@ above.
 
 **Dependencies:** M1 (Ollama provider foundation — kept from the
 original scope), M5 (Desktop Platform), M5A (Agent Runtime), M6
-(Vision & Multimodal), M9 (Integration Platform), M10 (Knowledge
+(Vision & Multimodal), M11 (Integrations & Cloud Platform), M10 (Knowledge
 Engine), M13 (Desktop Intelligence), M14 (Security Platform), M18
 (Self-Healing & Diagnostics), M19 (Knowledge Graph & Digital Twin
 Platform), M20 (Predictive Intelligence Platform), M20A (Analytics &
@@ -5125,7 +5991,7 @@ and, optionally, a team.
 
 **Dependencies:** M21 (Mobile Platform, for the multi-device
 transport), M14 (Security Platform, for shared/enterprise access
-control), M10 (Knowledge Engine, for what gets synced/shared).
+control), M10A (Universal Search & Knowledge Platform, for what gets synced/shared).
 
 **Complexity:** XL.
 
@@ -5366,7 +6232,7 @@ architecture defined above.
 **Dependencies:** M1 (Ollama provider foundation), M5 (Desktop
 Platform), M5A (Agent Runtime), M6 (Vision & Multimodal), M7 (Workflow
 Intelligence — reused for Device Automation), M9 (Integration
-Platform), M10 (Knowledge Engine), M13 (Desktop Intelligence), M14
+Platform), M10A (Universal Search & Knowledge Platform), M13 (Desktop Intelligence), M14
 (Security Platform), M18 (Self-Healing & Diagnostics), M19 (Knowledge
 Graph & Digital Twin Platform), M20 (Predictive Intelligence
 Platform), M20A (Analytics & Observability Platform), M21 (Mobile
@@ -5656,7 +6522,7 @@ require changes to the core architecture defined above.
 
 **Dependencies:** M1 (Ollama provider foundation), M5 (Desktop
 Platform), M5A (Agent Runtime — agents this milestone orchestrates),
-M6 (Vision & Multimodal), M9 (Integration Platform), M10 (Knowledge
+M6 (Vision & Multimodal), M11 (Integrations & Cloud Platform), M10 (Knowledge
 Engine), M13 (Desktop Intelligence), M14 (Security Platform), M18
 (Self-Healing & Diagnostics), M19 (Knowledge Graph & Digital Twin
 Platform — decision context), M20 (Predictive Intelligence Platform —
@@ -5986,9 +6852,10 @@ all documented as future scope only; none require changes to the core
 architecture defined above.
 
 **Dependencies:** M1 (Ollama provider foundation), M5 (Desktop
-Platform), M5A (Agent Runtime), M6 (Vision & Multimodal), M9
-(Integration Platform), M10 (Knowledge Engine), M13 (Desktop
-Intelligence), M14 (Security Platform), M18 (Self-Healing &
+Platform), M5A (Agent Runtime), M6 (Vision & Multimodal), M11
+(Integrations & Cloud Platform), M10A (Universal Search & Knowledge
+Platform), M13 (Desktop Intelligence), M14 (Security Platform), M18
+(Self-Healing &
 Diagnostics), M19 (Knowledge Graph & Digital Twin Platform — knowledge
 this milestone evolves), M20 (Predictive Intelligence Platform), M20A
 (Analytics & Observability Platform), M21 (Mobile Platform), M22 (Edge
@@ -6279,7 +7146,7 @@ defined above.
 
 **Dependencies:** M1 (Ollama provider foundation), M5 (Desktop
 Platform), M5A (Agent Runtime — skills feed its tool registry), M6
-(Vision & Multimodal), M9 (Integration Platform), M10 (Knowledge
+(Vision & Multimodal), M11 (Integrations & Cloud Platform), M10 (Knowledge
 Engine), M13 (Desktop Intelligence), M14 (Security Platform), M18
 (Self-Healing & Diagnostics), M19 (Knowledge Graph & Digital Twin
 Platform — knowledge this milestone refines), M20 (Predictive
@@ -6465,7 +7332,7 @@ Security Platform's privacy guarantees.
 - Dependency mapping
 
 The digital-world counterpart to Spatial/Object Intelligence — tracks
-M9 Integration Platform's connected services and M21 Mobile Platform's
+M11 Integrations & Cloud Platform's connected services and M21 Mobile Platform's
 registered devices as World Model Core entities alongside physical
 ones, one unified world model rather than two disconnected ones.
 
@@ -6579,8 +7446,9 @@ none require changes to the core architecture defined above.
 
 **Dependencies:** M1 (Ollama provider foundation), M5 (Desktop
 Platform), M5A (Agent Runtime), M6 (Vision & Multimodal — object/scene
-recognition), M9 (Integration Platform — digital world sources), M10
-(Knowledge Engine), M13 (Desktop Intelligence), M14 (Security
+recognition), M11 (Integrations & Cloud Platform — digital world
+sources), M10A (Universal Search & Knowledge Platform), M13 (Desktop
+Intelligence), M14 (Security
 Platform), M18 (Self-Healing & Diagnostics), M19 (Knowledge Graph &
 Digital Twin Platform — World Model Core extends this), M20
 (Predictive Intelligence Platform), M20A (Analytics & Observability
@@ -6662,20 +7530,25 @@ Every planned feature from the previous version of this roadmap is
 preserved — nothing was dropped in this reorganization. Where a
 feature's original milestone number no longer matches the new
 milestone scheme (§8), this table is the traceable record of where it
-moved and why.
+moved and why. **"Now" column updated Aug 2026** to reflect the
+frontend-migration retitling of M8–M11 (§8) — the "Previously"→original-
+"Now" mapping below is unchanged history; only the milestone *names* in
+the rightmost two columns were refreshed so this table doesn't drift
+from §8. See §8's own "Retitled Aug 2026" notes for the full reasoning
+behind each rename.
 
 | Feature | Previously | Now | Why |
 |---------|-----------|-----|-----|
 | Vision & Multimodal (screen/camera/OCR) | old M6 | **M6** | Same slot — expanded with the full feature list from this reorganization's brief. |
-| Plugin SDK / Loader / Store | old M7 | **M8** Plugin Platform | Renumbered to make room for M6/M7's new agent-workflow scope ahead of it. |
-| Command Palette | old M8 | **M11** Productivity Platform | Folded in as a productivity primitive alongside Clipboard/Files/Tasks rather than kept as a standalone milestone. |
-| Clipboard Manager | old M8 | **M11** Productivity Platform | Same reasoning as Command Palette. |
-| File Manager tool | old M8 | **M11** Productivity Platform | Same reasoning. |
-| Native notifications | old M8 | **M11** Productivity Platform | Same reasoning. |
-| Task Manager | old M8 | **M11** Productivity Platform (as "Tasks") | Merged with the personal-tasks feature already implied by "Productivity." |
+| Plugin SDK / Loader / Store | old M7 | **M9** Plugin Platform *(moved again, Aug 2026, from M8 — see §8)* | Renumbered to make room for M6/M7's new agent-workflow scope ahead of it; then moved a second time when M8 itself was retitled React Frontend & Desktop Experience. |
+| Command Palette | old M8 | **M11B** Productivity Suite *(moved again, Aug 2026, from M11 — see §8)* | Folded in as a productivity primitive alongside Clipboard/Files/Tasks rather than kept as a standalone milestone; then split into its own lettered companion when M11 itself was retitled Integrations & Cloud Platform. |
+| Clipboard Manager | old M8 | **M11B** Productivity Suite *(moved again, Aug 2026, from M11)* | Same reasoning as Command Palette. |
+| File Manager tool | old M8 | **M11B** Productivity Suite *(moved again, Aug 2026, from M11)* | Same reasoning. |
+| Native notifications | old M8 | **M11B** Productivity Suite *(moved again, Aug 2026, from M11)* | Same reasoning. |
+| Task Manager | old M8 | **M11B** Productivity Suite *(moved again, Aug 2026, from M11)* (as "Tasks") | Merged with the personal-tasks feature already implied by "Productivity." |
 | Smart Home Bridge (HA, MQTT, vendors) | old M9 | **M12** Smart Home | Renumbered only — feature list unchanged. |
 | Wake Word & Always-Listening / streaming STT / VAD | old M10 | **§7 Cross-Platform Systems** | Reclassified as a continuous voice-quality workstream rather than a one-time milestone — it never had a natural "done" state distinct from ongoing tuning. |
-| Coding / Document / Research Assistant, Email, Calendar, Media Controls | old M11 | **M11** Productivity Platform | Same milestone number, expanded scope (now explicitly includes Browser Intelligence). |
+| Coding / Document / Research Assistant, Email, Calendar, Media Controls | old M11 | **M11** Integrations & Cloud Platform (Email/Calendar) / **M11B** Productivity Suite (Coding/Document/Research/Media Controls) *(split, Aug 2026 — see §8)* | Originally one milestone number, expanded scope; split in the Aug 2026 pass into its external-integration half (M11) and local-productivity half (M11B). |
 | SEO Assistant | old M11 | **M11A** SEO Intelligence | Split out into its own dedicated, significantly expanded milestone (GSC/GA4/Semrush/Ahrefs/rank tracking/technical SEO/content intelligence — far beyond the original one-line "SEO Assistant" bullet). |
 | OS keyring, audit log, PII redaction, encryption at rest, kill-switch, per-plugin permission prompts, prompt-injection guardrails | old M12 | **M14** Security Platform | Renumbered to make room for M6–M13's new scope ahead of it. |
 | E2EE cloud sync (own bucket) | old M13 | **M23** Distributed JARVIS | Moved later — now correctly sequenced after the Mobile Platform (M21) and Security Platform (M14) it depends on, rather than shipping before either existed. |
@@ -6684,13 +7557,29 @@ moved and why.
 
 **Entirely new scope in this reorganization** (no prior-roadmap
 predecessor — genuinely new, long-term vision, not a renumbering):
-M7 Workflow Intelligence, M9 Integration Platform, M10 Knowledge
-Engine, M13 Computer Control, M13A AI Sandbox, M14A Backup Platform,
-M15 Personality Engine, M16 Reflection Engine, M17 Companion
-Intelligence, M17A Training Studio, M18 Diagnostics, M19 Intelligence
-Graph, M20 Predictive Intelligence, M20A Analytics Platform, M22 Edge
-AI Platform, M23 Distributed JARVIS (the distributed-systems half; the
-cloud-sync half carries forward from old M13, see above).
+M7 Workflow Intelligence, M11 Integrations & Cloud Platform, M10A
+Universal Search & Knowledge Platform, M13 Computer Control, M13A AI
+Sandbox, M14A Backup Platform, M15 Personality Engine, M16 Reflection
+Engine, M17 Companion Intelligence, M17A Training Studio, M18
+Diagnostics, M19 Intelligence Graph, M20 Predictive Intelligence, M20A
+Analytics Platform, M22 Edge AI Platform, M23 Distributed JARVIS (the
+distributed-systems half; the cloud-sync half carries forward from old
+M13, see above).
+
+**Aug 2026 frontend-migration carry-forward** (§8's own retitling —
+distinct from the historical reorganization above; nothing here is a
+renumbering, per the "zero renumbering" rule this pass follows):
+
+| Feature | Previously | Now | Why |
+|---------|-----------|-----|-----|
+| Plugin SDK / Loader / Extension API / Permission Model / Store / Marketplace | M8 Plugin Platform | **M9** Runtime & Core Services (Plugin Platform module) + **M8** (Marketplace's React UI) | M8 retitled React Frontend & Desktop Experience; the plugin *system* is a runtime concern and moved to M9, the Marketplace's *UI* stays a React screen in M8. |
+| API Gateway / OAuth / API Manager / Webhooks / Queue / Retry / Caching / Monitoring | M9 Integration Platform | **M11** Integrations & Cloud Platform | M9 retitled Runtime & Core Services; this scope merged into M11 alongside old M11's own integration-facing features. |
+| Knowledge Graph / Persistent Memory / Reflection Foundation / Learning / Relationship Graph / Digital Twin Foundation | M10 Knowledge Engine | **M10A** Universal Search & Knowledge Platform | M10 retitled AI Orchestrator (formalizing the M5A agent graph); Knowledge Engine's own scope moved to a new lettered companion rather than being dropped. |
+| Email / Calendar / Browser Intelligence / Google Workspace Integration | M11 Productivity Platform | **M11** Integrations & Cloud Platform | Kept at M11 alongside the absorbed M9 scope — the integration-facing half of the original Productivity Platform. |
+| Tasks / Documents / Research Assistant / Coding Assistant / Command Palette / Clipboard Manager / File Manager / Native notifications / Media Controls | M11 Productivity Platform | **M11B** Productivity Suite | The local-productivity half of the original Productivity Platform, split into a new lettered companion when M11 itself was retitled. |
+| Intent Engine / Planning / Context Engine / Tool Selection / Permission Validation / Execution / Verification / Learning / Streaming / Decision Engine | *(new)* | **M10** AI Orchestrator | Genuinely new scope from the Aug 2026 migration brief, formalizing M5A's existing `AgentOrchestrator` and absorbing M7 Phase 3's deferred cross-tool-parallelism work. |
+| Goal Manager / Routine Learning / Preference Learning / Predictive Suggestions / Context Awareness / Daily Briefing / Assistant Intelligence | *(new)* | **M10B** Intelligence Layer | Genuinely new scope from the Aug 2026 migration brief, scoped as the backing engine M15/M16's existing modules consume rather than a duplicate of either. |
+| Oracle Cloud sync / Android Companion pairing / Conflict Resolution / Offline Queue | *(new)* | **M11** Integrations & Cloud Platform | Genuinely new scope from the Aug 2026 migration brief. |
 
 ---
 
@@ -6793,7 +7682,7 @@ lives inside the module table that follows.)*
 | List / focus windows          | ✅     | M4        |
 | Launch applications           | ✅     | M4        |
 | Send text / hotkey            | ✅     | M4        |
-| Parallel step execution       | 🟡     | M7        |
+| Parallel step execution       | ✅ wave-based `ActionExecutor` dispatch via `gather_with_concurrency`, satisfies M7's Acceptance Criterion 1 | M7 Phase 2 |
 | Autonomous mouse/keyboard      | 🟡     | M13       |
 | Native notifications          | 🟡     | M11       |
 | File Manager tool             | 🟡     | M11       |
@@ -6840,9 +7729,9 @@ row below.)*
 | Checkpointer (SQLite)         | ✅ `AsyncSqliteSaver`, falls back to in-memory if disabled/not installed | M5A |
 | Multi-agent (planner+critic)  | ✅     | M5A       |
 | Agent trace panel             | ✅ (no per-step timings yet) | M5A |
-| Parallel execution             | 🟡     | M7        |
-| Workflow builder / macro engine / automation recorder | 🟡 | M7 |
-| Scheduler                      | 🟡     | M7        |
+| Parallel execution             | 🟡 automation-level dispatch shipped (M7 Phase 2, see Windows Automation table above); LangGraph-level cross-tool parallel branches remain Phase 3, deferred pending separate approval | M7 |
+| Workflow builder / macro engine / automation recorder | 🟡 (domain foundation only — `WorkflowDefinition`/`WorkflowStep`/`ScheduleDefinition` shipped in Phase 1; builder/recorder/scheduler themselves not yet built) | M7 |
+| Scheduler                      | 🟡 (domain foundation only, see above) | M7        |
 | Vision agent tool               | 🟡     | M6        |
 | Chat view routed through agent  | 🟡     | not yet scheduled — deliberate M5A deferral (§3) |
 | True token-level agent streaming | 🟡   | not yet scheduled — deliberate M5A deferral (§3) |
@@ -6892,17 +7781,23 @@ row below.)*
 | Training Studio (teach by demonstration) | 🟡 | M17A |
 
 ### Plugin & Integration Platform
+
+*(Milestone column updated Aug 2026 — Plugin Platform moved from M8 to
+M9, and Integration Platform's scope moved from M9 to M11, per the
+frontend migration's retitling of M8–M11. See §8 for the full
+reasoning.)*
+
 | Feature                       | Status | Milestone |
 |-------------------------------|--------|-----------|
-| Plugin SDK                    | 🟡     | M8        |
-| Manifest schema               | 🟡     | M8        |
-| Permission scopes             | 🟡     | M8        |
-| Local plugin store             | 🟡     | M8        |
-| Auto-update                   | 🟡     | M8        |
-| Marketplace                    | 🟡     | M8        |
+| Plugin SDK                    | 🟡     | M9        |
+| Manifest schema               | 🟡     | M9        |
+| Permission scopes             | 🟡     | M9        |
+| Local plugin store             | 🟡     | M9        |
+| Auto-update                   | 🟡     | M9        |
+| Marketplace                    | 🟡     | M9 (backend) / M8 (React UI) |
 | Signed plugins                | 🟡     | M14       |
-| API Gateway / OAuth / Webhooks | 🟡    | M9        |
-| Retry policies / caching / monitoring | 🟡 | M9  |
+| API Gateway / OAuth / Webhooks | 🟡    | M11       |
+| Retry policies / caching / monitoring | 🟡 | M11  |
 
 ### Smart Home & IoT Platform
 
@@ -7295,6 +8190,16 @@ preserved unchanged for roadmap history.)*
 
 ### Current architecture (as of M5A)
 
+*(Diagram predates M6's vision layer and the UI Foundation pass — see
+§3's M6 entry and §7's "UI Foundation" bullet for what each actually
+added; not redrawn here to avoid an error-prone ASCII-art edit in a
+documentation-only pass. It also predates the Aug 2026 decision to
+migrate the top `UI` layer from PySide6 to React + Tauri, starting at
+M8 — see `TECH_STACK.md`. Every layer below `UI` in this diagram
+(`Features` down through `Infrastructure`) is unaffected by that
+migration and remains accurate; only the top box's technology changes,
+not its position or responsibilities in the stack.)*
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                       UI  (PySide6)                          │
@@ -7346,26 +8251,42 @@ preserved unchanged for roadmap history.)*
 
 ### Future architecture (v1.0, post-M24)
 
-Additions layered on top of the current one — **no existing layer
-changes shape**, only new adapters, services, and features:
+Additions layered on top of the current one. **One exception to "no
+existing layer changes shape":** the `UI` layer itself is fully
+replaced (PySide6 → React + Tauri, M8 — see `TECH_STACK.md`), reached
+through a new FastAPI/WebSocket boundary rather than in-process Qt
+calls; every layer from `Features` down is otherwise unaffected — new
+adapters, services, and features only:
 
-- **Agents layer** grows real parallel execution (M7), a vision tool
-  (M6), and computer-control tools (M13) — same registry pattern M5A
-  already established.
-- **Vision layer** (new, at the infra boundary) — `IVisionProvider` /
-  `IOCRProvider` adapters (M6).
-- **Plugins layer** (new, above features) — sandbox with permission
-  scopes; plugins register services, controllers, widgets, and agent
-  tools (M8).
+- **UI layer** — PySide6 → React + Tauri (M8), talking to the Python
+  backend over REST/WebSocket instead of in-process calls. See
+  `TECH_STACK.md` §1 for the full boundary diagram.
+- **Runtime layer** (new, above services) — Runtime Manager, Service
+  Manager, Health Monitor, Resource Manager, and the plugin
+  loader/sandbox (permission scopes; plugins register services,
+  controllers, widgets, and agent tools) — M9.
+- **Agents layer** grows real cross-tool parallel execution (absorbed
+  into M10 AI Orchestrator, formerly M7 Phase 3 — see §8) and
+  computer-control tools (M13); the vision tool (M6) already shipped
+  through this same registry pattern M5A established — see §3's M6
+  entry and the Reuse Matrix (§11) rather than treating it as
+  still-future here.
+- **Vision layer** (at the infra boundary) — `IVisionProvider` /
+  `IOCRProvider` adapters already shipped in M6 (mock providers only;
+  real backends remain M6's own deferred "Not delivered" scope, per
+  §3).
 - **Integration layer** (new, at the infra boundary) — API Gateway,
-  OAuth, webhooks, queue (M9).
-- **Knowledge layer** (new, above services) — the M10/M19 knowledge
+  OAuth, webhooks, queue (M11, formerly scoped as a separate M9 — see
+  §8's retitling note).
+- **Knowledge layer** (new, above services) — the M10A/M19 knowledge
   graph, queryable by the agent runtime as a tool.
 - **Sync layer** (new, at the infra boundary) — outbound-only,
-  end-to-end-encrypted push/pull to the user's own bucket (M23).
+  end-to-end-encrypted push/pull to the user's own bucket (M23), plus
+  M11's own Oracle Cloud sync target for optional cloud features ahead
+  of M23's full distributed story.
 - **Companion transport** (new, at the infra boundary) — the mobile
-  app + wearable transport (M21), and the distributed-agent transport
-  (M23).
+  app + wearable transport (M21, building on M11's Android Companion
+  pairing scope), and the distributed-agent transport (M23).
 - **Smart Home layer** — an "adapters of adapters" pattern: Home
   Assistant is the primary bus; other vendors plug in either through
   HA or directly via MQTT (M12).
@@ -7403,6 +8324,52 @@ ui  ──►  features  ──►  services  ──►  agents  ──►  core
    convention" note that has followed every version of this roadmap
    since M0 should become a lint rule, not a convention, before the
    plugin surface (M8) makes violating it a third-party concern too.
+
+### Architecture Reuse Matrix
+
+Cross-cutting systems, where each was introduced, and which later
+milestones actually build on it — as opposed to the per-milestone
+"Architecture Evolution" notes in §3, this table gathers the same
+facts across all eleven systems in one place. Status markers match
+§10's legend: ✅ Completed · 🟡 Planned (scheduled milestone) · ⚪
+Future (post-1.0).
+
+| System | Introduced In | Reused By | Current Status |
+|--------|---------------|-----------|-----------------|
+| Event Bus | M0 (`core/events/`) | Nearly every milestone since — M2 (voice state events), M4 (automation task events), M5 (`AnnouncementEvent`), M5A (`AgentStepEvent`), M6 (`VisionProviderStatusEvent`), M7 Phase 1 (`WorkflowStepEvent`, `ScheduledJobFiredEvent`) | ✅ Stable core contract, actively extended with new event types every milestone |
+| DI Container | M0 (`core/di/container.py`) | Every milestone registers new providers here — M1 (chat services), M3 (memory), M4 (automation), M5A (agent orchestrator + tool registry), M6 (vision/OCR providers) | ✅ Stable; received one out-of-band patch (v0.5.2) for a lazy-provider performance fix, not a milestone |
+| Plugin Runtime | Not yet built — planned M8 | None yet | ⚪ Referenced only as a future layer in this section's "Future architecture" diagram; no code exists |
+| Automation Engine | M4 (`AutomationService`, `ActionExecutor`, `Step`/`ExecutionPlan`) | M5A (`agents/tools/automation_tools.py` wraps it as an agent tool); M7 Phase 1 (`WorkflowDefinition` shaped to sit alongside `RecipeManager`'s storage model); M7 Phase 2 (`ActionExecutor`'s dispatch loop rewritten in place for wave-based parallel execution — the most direct extension of any milestone's own code in this table) | ✅ Built, actively evolving — most recently extended by M7 Phase 2 |
+| Agent Runtime | M5A (`AgentOrchestrator`, LangGraph `StateGraph`, `agents/tools/` registry, SQLite checkpointer) | M6 (added the `vision_status` tool + an optional `vision` constructor kwarg on `AgentOrchestrator`); M7 Phase 1 (`WorkflowStep.AGENT_TOOL` is modelled to reference the tool registry by name/arguments — a design-time reference only, no runtime wiring yet) | 🟡 Stable core, incrementally extended twice; cross-tool parallelism (M7 Phase 3) explicitly deferred, not built |
+| Memory | M3 / M3.1 (`MemoryService`, `SemanticMemoryRecallHook`, `MemoryRepository`, ChromaDB) | M5A (`agents/tools/memory_tools.py`); M5 (Timeline views, Home dashboard, `greeting_service.py`) | ✅ Stable since M3.1 polish; contract unchanged, only consumed by later milestones |
+| Knowledge Graph | Not yet built — planned M10 (foundation), extended M19 (full) | None yet | ⚪ Foundation and full-graph work both still ahead; no code exists |
+| Workflow Engine | M7 Phase 1 (`WorkflowDefinition`/`WorkflowStep`/`ScheduleDefinition` domain models only) | None yet — M7 Phase 2 extended the separate Automation Engine above, not these models; Workflow Builder / Scheduler / Recorder (Phases 4–6) remain pending | 🟡 Domain foundation shipped; no execution layer yet |
+| Security Layer | Not yet built as a dedicated milestone — planned M14 | Piecemeal hardening exists ahead of the dedicated milestone: M5 (PBKDF2-HMAC-SHA256 Developer Mode gate); M5.5 (fixed a Developer Mode timing-attack pattern and a browser `file://`/`javascript:`/`data:` URL-scheme validation gap) | 🟡 Hardening work done opportunistically in M5/M5.5; the dedicated audit log, encrypted settings overrides, and Security Center backend are still M14 |
+| Analytics Platform | Not yet built — planned M20A | None yet | ⚪ No code exists |
+| Edge AI Runtime | Not yet built — planned M22 | None yet | ⚪ Described in this section's "Future architecture" diagram as the same architecture deployed to constrained hardware with quantized models; no code exists |
+
+### Architecture Stability Index
+
+A maturity read on the same systems, using only repository evidence
+(test coverage existing today, whether the contract has changed since
+it shipped, and how many later milestones depend on it) — not a
+subjective quality judgment. ★★★★★ = shipped, stable contract, tested,
+multiple real consumers. Fewer stars mean less of that is true yet;
+☆-only entries have no code to evaluate.
+
+| System | Stability | Basis |
+|--------|-----------|-------|
+| DI Container | ★★★★★ | Present since M0, one patch fix in v0.5.2, every milestone since registers through it without incident |
+| Event Bus | ★★★★★ | Present since M0, contract unchanged, new event types added every milestone with no breaking changes to existing ones |
+| Memory | ★★★★☆ | Stable since M3.1; two independent real consumers (M5A, M5); Timeline search and PII redaction still open per §3's M3 entry |
+| Automation Engine | ★★★★☆ | Shipped M4, rewritten in place for M7 Phase 2 without breaking its M5A consumer — survived a real internal rewrite, which is stronger evidence than an untouched module |
+| Agent Runtime | ★★★☆☆ | Shipped M5A with a pre-merge validation pass (308/309 tests) and one real incompatibility bug found and fixed; extended twice since, but its own cross-tool parallelism work (M7 Phase 3) is deferred |
+| Workflow Engine | ★★☆☆☆ | Domain models only (M7 Phase 1), 21 dedicated tests, but zero runtime consumers yet — nothing has executed a `WorkflowDefinition` yet |
+| Security Layer | ★★☆☆☆ | Real fixes exist (M5.5) but they're incident-driven patches to other milestones' code, not a dedicated, tested subsystem yet |
+| Plugin Runtime | ☆☆☆☆☆ | Not started |
+| Knowledge Graph | ☆☆☆☆☆ | Not started |
+| Analytics Platform | ☆☆☆☆☆ | Not started |
+| Edge AI Runtime | ☆☆☆☆☆ | Not started |
 
 ---
 
@@ -7559,11 +8526,32 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
   settings.
 - **Per-conversation override** — a conversation can pin a
   provider/model, stored on `conversations.metadata` — 🟡 not yet
-  built, candidate for M11 (Productivity Platform) alongside the other
+  built, candidate for M11B (Productivity Suite) alongside the other
   chat-surface improvements there.
-- **Cost/latency router** (post-1.0) — route by heuristics (short
-  prompt → mini model; vision → GPT-4o; local for privacy); natural
-  fit once M20A's cost analytics exist to inform the routing.
+- **Cost-Aware Model Router** (post-1.0) — expands the earlier
+  cost/latency heuristic above into a full router, natural fit once
+  M20A's cost analytics (surfaced via M11's API Center Architecture
+  module — see §8 M11) exist to inform routing decisions:
+  - Automatic Provider Selection / Automatic Model Selection — pick
+    the provider and model per request, not just per conversation.
+  - Cost vs Quality Decision — weigh a cheaper/faster model against a
+    higher-cost one per the user's configured preference, not a fixed
+    rule.
+  - Latency Optimization — short prompt → mini model; vision →
+    capable multimodal model; the original heuristic, generalized.
+  - Offline Model Selection — prefer a local Ollama model when
+    privacy mode is on or connectivity is unavailable, never silently
+    falling back to a cloud provider.
+  - Intelligent Fallback / Retry Strategy — reuses M11's API Center
+    Architecture's own Retry Strategy / Provider Fallback mechanics
+    rather than a second retry implementation.
+  - Budget Protection — refuses (or downgrades) a request that would
+    exceed a provider's configured monthly budget, surfaced via the
+    same Usage Analytics data (M11's API Center module).
+  - Emergency Provider Switching — an exhausted-quota or hard-failed
+    primary provider triggers an immediate switch to the next
+    Provider Priority entry (M11 API Center Architecture), not a
+    user-facing dead end.
 
 ---
 
@@ -7580,35 +8568,45 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | *(no bump)* | M5.5   | Production Stabilization Pass — shipped under `0.3.0` | ✅ Shipped |
 | **0.4** | M5A       | Agent Runtime                   | ✅ Shipped |
 | **0.5** | M6        | Vision & Multimodal             | ✅ Shipped (Architecture Layer) |
-| **0.6** | M7        | Workflow Intelligence           | 🟡 Next |
-| **0.7** | M8        | Plugin Platform                 | 🟡      |
-| **0.8** | M9        | Integration Platform            | 🟡      |
-| **0.9** | M10       | Knowledge Engine                | 🟡      |
-| **0.10**| M11       | Productivity Platform           | 🟡      |
-| **0.11**| M11A      | SEO Intelligence                | 🟡      |
-| **0.12**| M12       | Smart Home                      | 🟡      |
-| **0.13**| M13       | Computer Control                | 🟡      |
-| **0.14**| M13A      | AI Sandbox                      | 🟡      |
-| **0.15**| M14       | Security Platform               | 🟡      |
-| **0.16**| M14A      | Backup Platform                 | 🟡      |
-| **0.17**| M15       | Personality Engine              | 🟡      |
-| **0.18**| M16       | Reflection Engine               | 🟡      |
-| **0.19**| M17       | Companion Intelligence          | 🟡      |
-| **0.20**| M17A      | Training Studio                 | 🟡      |
-| **0.21**| M18       | Self-Healing & Diagnostics Platform | 🟡  |
-| **0.22**| M19       | Knowledge Graph & Digital Twin Platform | 🟡 |
-| **0.23**| M20       | Predictive Intelligence Platform | 🟡     |
-| **0.24**| M20A      | Analytics & Observability Platform | 🟡   |
-| **0.25**| M21       | Mobile Platform                 | 🟡      |
-| **0.26**| M22       | Edge AI Platform                | 🟡      |
-| **0.27**| M23       | Distributed JARVIS              | 🟡      |
-| **0.28**| M23A      | Robotics & Hardware Control Platform | 🟡 |
-| **0.29**| M23B      | Autonomous Planning & Decision Engine | 🟡 |
+| *(patch)* | —       | `0.5.1` security patch (cryptography upgrade), `0.5.2` DI container architecture fix — both out-of-band per §6, not milestones | ✅ Shipped |
+| **0.6** | M7        | Workflow Intelligence           | 🟢 In Progress (Phase 1–2 shipped; Phases 3–6 paused) |
+| **0.7** | M8        | React Frontend & Desktop Experience | 🟡  |
+| **0.8** | M9        | Runtime & Core Services          | 🟡      |
+| **0.9** | M10       | AI Orchestrator                  | 🟡      |
+| **0.10**| M10A      | Universal Search & Knowledge Platform | 🟡 |
+| **0.11**| M10B      | Intelligence Layer               | 🟡      |
+| **0.12**| M11       | Integrations & Cloud Platform    | 🟡      |
+| **0.13**| M11A      | SEO Intelligence                | 🟡      |
+| **0.14**| M11B      | Productivity Suite               | 🟡      |
+| **0.15**| M12       | Smart Home                      | 🟡      |
+| **0.16**| M13       | Computer Control                | 🟡      |
+| **0.17**| M13A      | AI Sandbox                      | 🟡      |
+| **0.18**| M14       | Security Platform               | 🟡      |
+| **0.19**| M14A      | Backup Platform                 | 🟡      |
+| **0.20**| M15       | Personality Engine              | 🟡      |
+| **0.21**| M16       | Reflection Engine               | 🟡      |
+| **0.22**| M17       | Companion Intelligence          | 🟡      |
+| **0.23**| M17A      | Training Studio                 | 🟡      |
+| **0.24**| M18       | Self-Healing & Diagnostics Platform | 🟡  |
+| **0.25**| M19       | Knowledge Graph & Digital Twin Platform | 🟡 |
+| **0.26**| M20       | Predictive Intelligence Platform | 🟡     |
+| **0.27**| M20A      | Analytics & Observability Platform | 🟡   |
+| **0.28**| M21       | Mobile Platform                 | 🟡      |
+| **0.29**| M22       | Edge AI Platform                | 🟡      |
+| **0.30**| M23       | Distributed JARVIS              | 🟡      |
+| **0.31**| M23A      | Robotics & Hardware Control Platform | 🟡 |
+| **0.32**| M23B      | Autonomous Planning & Decision Engine | 🟡 |
 | **1.0** | M24       | Production Release              | 🟡      |
 | **1.1** | M25       | Cognitive Intelligence Platform  | 🟡      |
 | **1.2** | M26       | Self-Learning & Autonomous Evolution Platform | 🟡 |
 | **1.3** | M27       | World Model & Environmental Intelligence Platform | 🟡 |
 | **1.x** | —         | Post-1.0 improvements (🔵 & ⚪ backlog items) | future |
+
+*(Version numbers 0.10 onward shifted by three slots, Aug 2026, to
+accommodate the new lettered companions M10A, M10B, and M11B — these
+are version-string sequence positions, not milestone identities;
+no milestone was renumbered, per the frontend migration's "zero
+renumbering" rule. See §8 for the full retitling rationale.)*
 
 Version bumps are **feature-driven**, not time-boxed — see §6 for the
 full policy. A version ships when its milestone's acceptance criteria
@@ -7618,156 +8616,195 @@ pass the [Validation gate](#5-validation-gate) (§5).
 
 ## 15. Technical debt
 
-### Known limitations
-- ~~**Version drift**~~ — **cleared in M5A:** `pyproject.toml`,
-  `Settings.app_version`, and `src/jarvis/__version__.py` were stuck
-  at `"0.3.0"` since M3.1 despite M4, M5, and M5.5 all shipping real
-  work since; all three now read `"0.4.0"`. Still open: the CI check
-  that fails when these three strings diverge from each other doesn't
-  exist yet (manual discipline only) — a real candidate for M24's CI
-  workflow.
+Reorganized (this documentation pass) from the previous
+category-by-topic layout into a Resolved / Pending / Future timeline —
+same underlying items, regrouped by disposition instead of subsystem,
+so "what's actually still owed" reads in one pass. Every item below is
+either a direct repository fact (a file, a test, a commit-verified
+fix) or an explicit forward-reference to a not-yet-started milestone;
+nothing here is a new claim invented for this pass.
+
+### Resolved
+
+- **Version drift** — `pyproject.toml`, `Settings.app_version`, and
+  `src/jarvis/__version__.py` were stuck at `"0.3.0"` since M3.1
+  despite M4, M5, and M5.5 all shipping real work since; all three now
+  read `"0.5.2"` in lockstep (verified during the roadmap audit that
+  added this note). *Cleared in M5A.*
 - **Static analysis was never actually enforced against this
-  codebase until the M5A pre-merge validation pass** (see
-  [`AUDIT_REPORT_M5-AGENTS.md`](../AUDIT_REPORT_M5-AGENTS.md)):
-  `ruff` found 588 pre-existing findings repo-wide, `black` would
-  reformat 262 of 304 files, `mypy --strict` found 288 pre-existing
-  errors — all confirmed to predate M5A. Every M5A file itself is
-  clean; the pre-existing debt is tracked here, not silently absorbed
-  into any one milestone's diff. **Recommend a dedicated,
-  separately-reviewed formatting/lint-fix pass** before M6 begins, or
-  at minimum before M8 (Plugin Platform) makes the codebase's internal
-  consistency a third-party-visible concern.
-- **`pytest --cov` is currently broken** by a pre-existing
-  subprocess-coverage propagation gap in
-  `tests/unit/test_performance_lazy_imports.py` (its subprocess's
-  coverage data doesn't inherit the project's `branch = true`
-  setting, crashing `pytest-cov`'s combine step). Root-caused during
-  the M5A validation pass; not yet fixed. Coverage percentages are
-  currently unobtainable via the documented command — use `pytest -q
-  --no-cov` until this is resolved.
-- **24 known CVEs across 12 pre-existing pinned dependencies**
-  (`langchain*`, `langgraph`, `cryptography`, `black`, `pytest`) as of
-  the M5A validation pass — none introduced by M5A, all requiring
-  major-version bumps that cross this project's existing `<1.0`-style
-  pins to fix. Recommend a dedicated, separately-tested
-  dependency-upgrade effort, not bundled into a feature milestone.
-  One CVE (`CVE-2025-67644`, SQL injection via checkpoint-metadata
-  filter keys in `langgraph-checkpoint-sqlite`) is in a dependency M5A
-  itself added — confirmed not exploitable by anything M5A ships (see
-  §3's M5A entry and the delivery doc for the constraint this places
-  on future checkpoint-browsing UI work).
-- **`aiosqlite` pinned `<0.21`** — `langgraph-checkpoint-sqlite`
-  2.0.11's `AsyncSqliteSaver.setup()` calls a method
-  (`Connection.is_alive()`) that only exists because older `aiosqlite`
-  subclassed `threading.Thread`; `aiosqlite` 0.21+ dropped that base
-  class. Fixed with a version pin + regression test during the M5A
-  validation pass — tracked here so a future, unrelated dependency
-  bump doesn't silently reintroduce it.
+  codebase** — every pre-existing finding from the M5A validation
+  pass baseline (588 ruff / 262-of-304-files black / 288 mypy) was
+  triaged (safe-fix / manual-review / accepted-debt / false-positive),
+  the safe-fix tier applied, and `.pre-commit-config.yaml` +
+  `.github/workflows/ci.yml` added so this can't silently regress
+  again. Remaining pre-existing findings (e.g. `PLC0415` on
+  intentionally-lazy imports, widespread in `container.py` and
+  elsewhere) are deliberately accepted debt, not an enforcement gap —
+  see the per-file-ignore pattern in `pyproject.toml`. *Cleared by the
+  Repository Stabilization pass (between M6 and M7).*
+- **`pytest --cov` was broken** — the subprocess-coverage propagation
+  gap in `tests/unit/test_performance_lazy_imports.py` (its
+  subprocess's `cwd` change broke `COV_CORE_*` env-var resolution) was
+  root-caused and fixed by stripping those env vars from that one
+  subprocess's environment. `pytest --cov` now runs cleanly; 64% total
+  coverage was measured for the first time. *Cleared by the Repository
+  Stabilization pass.*
+- **CI was manual** — `.github/workflows/ci.yml` (added during the
+  Repository Stabilization pass) now runs on every PR/push to `main`:
+  ruff/black/mypy (advisory, `continue-on-error: true` while
+  pre-existing lint debt is worked down), `pytest --cov` as a hard
+  gate, `pip check`, and `pip-audit` (advisory). Verified present in
+  the repository as of this pass. Still open, correctly scoped to a
+  future milestone rather than left implicit here: the workflow runs
+  `windows-latest` only, not the Windows+Ubuntu matrix originally
+  envisioned, and ruff/black/mypy aren't hard gates yet — both remain
+  M24 scope (see Future, below).
+- **`cryptography`'s share of the dependency CVE backlog** — of 24
+  known CVEs across 12 pre-existing pinned dependencies, `cryptography`
+  43.0.3→48.0.1 (the `0.5.1` patch) resolved `PYSEC-2026-35`,
+  `PYSEC-2026-1284`, `PYSEC-2026-2141`, `GHSA-537c-gmf6-5ccf`, and
+  `CVE-2026-39892` — confirmed via `pip-audit`: 24 → 19 total findings
+  repo-wide, all 5 removed entries were `cryptography`'s. *Cleared in
+  the `0.5.1` patch.* (The remaining ~19 are Pending, below.)
+- **`aiosqlite` / `langgraph-checkpoint-sqlite` incompatibility** —
+  `langgraph-checkpoint-sqlite` 2.0.11's `AsyncSqliteSaver.setup()`
+  calls a method (`Connection.is_alive()`) that only exists because
+  older `aiosqlite` subclassed `threading.Thread`; `aiosqlite` 0.21+
+  dropped that base class. Fixed with a version pin (`aiosqlite<0.21`)
+  + a permanent regression test during the M5A pre-merge validation
+  pass, so an unrelated future dependency bump can't silently
+  reintroduce it.
+- **`PlaywrightBrowser` / `WindowsAutomationAdapter` / `AutomationService.launch`
+  / `BrowserService.open`** (all previously raised `NotImplementedError`)
+  — real implementations. *Cleared in M4.*
+- **`AgentOrchestrator`** (previously a placeholder) — real compiled
+  LangGraph `StateGraph`; see §3's M5A entry. *Cleared in M5A.*
+- **`SystemService.status()`** (previously a stub) — real
+  `psutil`-backed implementation, needed as the agent's
+  `get_system_status` tool. *Cleared in M5A.* (Its own small follow-up
+  — System Information and Performance Monitor still calling `psutil`
+  directly instead of through this service — is Pending, below.)
+- **`ChromaVectorStore` / `MemoryService.remember` / `recall`**
+  (previously placeholders) — real implementations. *Cleared in M3.*
+- **No Alembic migrations** — real migration chain added. *Cleared in
+  M3.1.*
+- **No dedicated Timeline UI view** — real Timeline view shipped.
+  *Cleared in M3.1.* (Its own small follow-up — no keyword/semantic
+  search box or date-range control in the dialog — is Pending, below.)
+- **`retention_days` changes didn't retroactively re-stamp existing
+  rows** — fixed. *Cleared in M3.1.*
+- **No background scheduler for `enforce_policies()`** — a scheduler
+  now runs it. *Cleared in M3.1.* (The interval still isn't
+  user-configurable — folded into the same Pending item as the
+  archive/hard-delete follow-up, below.)
+- **`IVisionProvider` / `IOCRProvider`** — this section previously
+  listed these as reserved interfaces "will land in M6." M6 has since
+  shipped (see §3): both ports are real, in `core/interfaces/`, with
+  `MockVisionProvider`/`MockOCRProvider` wired in `infrastructure/`.
+  *Correcting a stale forward-reference during this documentation
+  pass — reclassified from "reserved" to resolved, no code changed.*
+- **Whisper model loaded eagerly on first call** — now lazy. *Cleared
+  in M3.1.*
+
+### Pending
+
+Open items with no assigned future milestone — either genuinely
+unscheduled, or explicitly tracked as continuous work under §7 rather
+than a numbered milestone.
+
+- The remaining ~19 dependency CVEs (mostly across
+  `langchain*`/`langgraph`/`black`/`pytest`) each require a
+  major-version bump crossing this project's `<1.0`-style pins —
+  recommended as its own dedicated, separately-tested effort rather
+  than bundled into a feature milestone (same rationale as the
+  `cryptography` pass). One of the 19, `CVE-2025-67644` (SQL injection
+  via checkpoint-metadata filter keys in `langgraph-checkpoint-sqlite`),
+  is confirmed not exploitable by anything M5A ships (see §3's M5A
+  entry). Note: `.github/workflows/ci.yml`'s `pip-audit` step comment
+  still says "24 pre-existing known vulnerabilities," not updated
+  after the `0.5.1` upgrade — flagged here, not fixed as part of this
+  documentation-only pass (it's a CI file, not the roadmap).
 - Pydantic warning: `LoggingSettings.json` shadows a parent attribute
   — cosmetic; consider renaming to `emit_json` in a future refactor.
 - pynput requires a display server — global hotkeys unavailable in
-  headless environments (documented; degrades gracefully).
+  headless environments (documented; degrades gracefully — a
+  permanent platform constraint, not a bug to fix).
 - Chat streaming's "chunk" vs "typewriter" UX difference is currently
-  identical (both append every token); real chunked mode with typing
-  indicator is a polish task, not yet scheduled to a specific
-  milestone.
+  identical (both append every token); real chunked mode with a
+  typing indicator is a polish task, not yet scheduled.
 - Screen-shot generation via Qt's `grab()` on
   `QT_QPA_PLATFORM=offscreen` produces empty images — dev tool only,
   works on Windows/mac/X11.
-
-### Placeholder implementations (raise `NotImplementedError`)
-- ~~`PlaywrightBrowser` (all methods)~~ — **cleared in M4.**
-- ~~`WindowsAutomationAdapter` (all methods)~~ — **cleared in M4.**
-- ~~`AutomationService.launch` / `BrowserService.open`~~ — **cleared in
-  M4.**
-- ~~`AgentOrchestrator` (all methods)~~ — **cleared in M5A.** Real
-  compiled `StateGraph`; see §3.
-- ~~`SystemService.status()`~~ — **cleared in M5A**: real
-  `psutil`-backed implementation. Still open, lower priority: System
-  Information and Performance Monitor's developer views still call
-  `psutil` directly rather than going through this service —
-  de-duplicating those two call sites remains a nice-to-have.
-- ~~`ChromaVectorStore`~~ / ~~`MemoryService.remember` / `recall`~~ —
-  **cleared in M3.**
-
-### Memory Platform (M3 / M3.1) follow-ups
-- ~~No Alembic migrations~~ — **cleared in M3.1.**
-- ~~No dedicated Timeline UI view~~ — **cleared in M3.1**: still open —
-  no keyword/semantic search box and no date-range control in the
-  dialog itself (repository/service layer already supports date
-  filtering; just not wired to a widget).
-- ~~`retention_days` changes don't retroactively re-stamp existing
-  rows~~ — **cleared in M3.1.**
-- ~~No background scheduler for `enforce_policies()`~~ — **cleared in
-  M3.1** (still manual in the sense that the interval isn't
-  user-configurable).
-- `enforce_policies()` still *archives* (not hard-deletes)
-  expired/pruned rows — call `delete_archived()` to reclaim space, or
-  wire a "Clear Memory" confirmation that also purges archives.
-- No PII redaction toggle before embedding — content is embedded and
-  stored verbatim. Candidate before any cloud-embedding provider ships
-  (see M14).
+- System Information and Performance Monitor's developer views call
+  `psutil` directly rather than through `SystemService.status()` —
+  de-duplicating those two call sites is a nice-to-have, no milestone
+  assigned.
+- No keyword/semantic search box and no date-range control in the
+  Timeline dialog itself — the repository/service layer already
+  supports date filtering, just not wired to a widget.
+- `enforce_policies()`'s interval still isn't user-configurable, and
+  it still *archives* (not hard-deletes) expired/pruned rows — call
+  `delete_archived()` to reclaim space, or wire a "Clear Memory"
+  confirmation that also purges archives.
 - `OllamaLLMProvider.embed` exists but its embedding model default is
   whatever `settings.ollama.model` is — no dedicated
   `nomic-embed-text` fallback wiring yet as originally scoped.
-
-### Reserved interfaces (contract locked, no implementation yet)
 - `IWakeWordDetector` — real engines shipped (Porcupine/openWakeWord);
-  ongoing accuracy tuning tracked as continuous work (§7).
+  ongoing accuracy tuning tracked as continuous work (§7), not a fixed
+  milestone.
 - STT backend `DEEPGRAM` — enum declared, factory raises
-  `ConfigError("reserved")`.
-- Plugin SDK interfaces — will land in M8.
-- `IVisionProvider` / `IOCRProvider` — will land in M6.
-
-### Future refactoring
+  `ConfigError("reserved")`; tracked as continuous work (§7).
 - Extract `RecordingSession` from `VoiceService` so PTT and toggle
-  modes share one state machine.
-- Move DI provider builders out of `container.py` into a per-domain
-  `providers/` package once factory count grows further (candidate:
-  M8, when the plugin loader adds its own factories).
+  modes share one state machine — no milestone assigned.
 - Introduce an `AppContext` façade so widgets receive one dependency
   (`ctx`) instead of many — reduces constructor noise as features
-  grow.
+  grow; no milestone assigned.
 - Consolidate CSV/list env parsing into a reusable validator
   (currently duplicated in `ApiSettings.cors_origins` and
-  `WakeWordSettings.keywords`).
-- Promote the "strict dependency rule enforced by convention" note
-  (§11) into an actual lint rule before M8's plugin surface makes
-  violating it externally visible.
-
-### Performance improvements
-- ~~Whisper model loaded eagerly on first call~~ — **cleared in
-  M3.1.**
+  `WakeWordSettings.keywords`) — no milestone assigned.
 - ChromaDB warms up in-process; consider spawning it as a subprocess
-  when memory count > 100k.
-- QTextBrowser append is O(n) per token — swap to a custom scroll area
-  with row widgets once messages exceed ~2k / conversation (candidate:
-  M11, alongside the other chat-surface work there).
+  when memory count > 100k — no milestone assigned.
 - Log JSON sink uses `sys.stdout.write` sync — move to a queued
-  handler with `enqueue=True` (currently the file sink already does).
+  handler with `enqueue=True` (the file sink already does this) — no
+  milestone assigned.
+- No `pytest-qt` widget tests beyond the headless smoke suite —
+  introduce one QtBot smoke per major widget as new UI ships; no
+  milestone assigned.
 
-### Security improvements
-- Fernet key today lives in `.env`. M14 moves it to OS keyring by
+### Future
+
+Open items with an explicit, named future-milestone owner — listed
+here, not implemented, per this pass's documentation-only scope.
+
+- The CI version-match step (fails the build if `pyproject.toml`,
+  `Settings.app_version`, and `__version__.py` diverge) and the
+  Windows+Ubuntu CI matrix (today `windows-latest` only) — **M24**,
+  alongside promoting ruff/black/mypy from advisory to hard gates.
+- No PII redaction toggle before embedding — content is embedded and
+  stored verbatim. Candidate before any cloud-embedding provider ships
+  — **M14**.
+- Plugin SDK interfaces — **M8**.
+- Move DI provider builders out of `container.py` into a per-domain
+  `providers/` package once factory count grows further — **M8**,
+  when the plugin loader adds its own factories.
+- Promote the "strict dependency rule enforced by convention" note
+  (§11) into an actual lint rule before the plugin surface makes
+  violating it externally visible — **M8**.
+- QTextBrowser append is O(n) per token — swap to a custom scroll area
+  with row widgets once messages exceed ~2k / conversation — **M11**,
+  alongside the other chat-surface work there.
+- No property-based tests — consider `hypothesis` for the memory
+  search ranking — **M10**, a natural place given the ranking logic
+  it will add.
+- Fernet key today lives in `.env` — **M14** moves it to OS keyring by
   default with a one-time migration.
-- `.env` writes are line-based; a race could corrupt a concurrent
-  edit. Move to atomic tempfile+rename in M14.
-- API keys are visible in memory once read. M14 introduces
+- `.env` writes are line-based; a race could corrupt a concurrent edit
+  — **M14** moves this to atomic tempfile+rename.
+- API keys are visible in memory once read — **M14** introduces
   `SecretProxy` with time-boxed decryption.
 - Plugin sandbox (M8) is permission-based, not process-isolated at
-  first — M14 hardens it to process isolation for plugins requesting
-  `network` + `filesystem` simultaneously.
-
-### Testing debt
-- No `pytest-qt` widget tests beyond the headless smoke suite —
-  introduce one QtBot smoke per major widget as new UI ships.
-- No property-based tests. Consider `hypothesis` for the memory
-  search ranking (M10's Knowledge Engine is a natural place to
-  introduce this, given the ranking logic it will add).
-- CI is manual today. Add a GitHub Actions workflow in M24 covering
-  Windows + Ubuntu with unit + integration tests.
-- `pytest --cov` currently broken (see "Known limitations" above) —
-  coverage regression detection is not currently automatable until
-  fixed.
+  first — **M14** hardens it to process isolation for plugins
+  requesting `network` + `filesystem` simultaneously.
 
 ---
 
@@ -7796,21 +8833,23 @@ purpose still holds for M7 onward.)*
 | Order | Milestone | Reason |
 |-------|-----------|--------|
 | 1 | **M6** Vision & Multimodal ✅ *(Architecture Layer — shipped)* | M5A explicitly deferred the vision tool here; unblocked immediately, no new dependency to wait on. |
-| 2 | **M7** Workflow Intelligence | Turns the M5A agent graph from single-run into a real workflow engine before anything else builds on top of "one prompt, one graph run." |
-| 3 | **M8** Plugin Platform | With a maturing agent + workflow surface, third-party extensions become meaningful rather than speculative. |
-| 4 | **M9** Integration Platform | Plugins need somewhere governed to make real external calls — this generalizes M5's mock API Center into that surface. |
-| 5 | **M10** Knowledge Engine | Only needs M3 (already done); scheduled here because M15–M20 all depend on it and it's cheaper to build once, early, than to retrofit under six later milestones. |
-| 6 | **M11** Productivity Platform (+ **M11A** SEO Intelligence in parallel) | Wraps M1–M10 in a discoverable, everyday-useful surface; SEO Intelligence is independent enough to build in parallel with a second contributor. |
-| 7 | **M12** Smart Home | Best delivered as a group of plugins on top of M8, same as before. |
+| 2 | **M7** Workflow Intelligence 🟢 *(Phase 1–2 shipped, Phase 3 deferred, Phases 4–6 pending)* | Turns the M5A agent graph from single-run into a real workflow engine before anything else builds on top of "one prompt, one graph run." |
+| 3 | **M8** React Frontend & Desktop Experience | With a maturing agent + workflow surface, and the Aug 2026 decision to migrate off PySide6 (see `TECH_STACK.md`), the UI is rebuilt before new backend surfaces need a home to render into. |
+| 4 | **M9** Runtime & Core Services | Third-party extensions (this milestone's own Plugin Platform scope, formerly M8's) need a governed runtime to load into; scheduled right after the new frontend so Developer Mode's ported panels have a real backend from the start. |
+| 5 | **M10** AI Orchestrator | Formalizes the M5A agent graph into a dedicated orchestration platform, absorbing M7 Phase 3's deferred cross-tool-parallelism scope — scheduled early since M15–M20's "companion intelligence" arc all route through it. |
+| 5A | **M10A** Universal Search & Knowledge Platform | Only needs M3 (already done); scheduled alongside M10 because M15–M20 all depend on it and it's cheaper to build once, early, than to retrofit under six later milestones — unchanged reasoning from the original (pre-migration) M10 Knowledge Engine slot. |
+| 5B | **M10B** Intelligence Layer | The backing engine M15's Proactive Intelligence and M16's Goal/Behaviour Reflection modules both consume; scheduled alongside M10A since both are M15/M16 prerequisites. |
+| 6 | **M11** Integrations & Cloud Platform (+ **M11A** SEO Intelligence, + **M11B** Productivity Suite alongside it) | Plugins (M9) need somewhere governed to make real external calls — this generalizes M5's mock API Center into that surface, now merged with the original Productivity Platform's integration half; SEO Intelligence and Productivity Suite are independent enough to build in parallel with additional contributors. |
+| 7 | **M12** Smart Home | Best delivered as a group of plugins on top of M9's Plugin Platform, same as before. |
 | 8 | **M13** Computer Control (+ **M13A** AI Sandbox alongside it) | Needs M6 (vision) and M7 (workflow engine) both in place; the sandbox is scheduled *with* it, not after, given the risk profile. |
-| 9 | **M14** Security Platform (+ **M14A** Backup Platform alongside it) | Harden everything now that the feature surface (through M13) is stable; backup strategy depends on knowing the final encryption-at-rest scheme. |
-| 10 | **M15** Personality Engine | Needs M10's knowledge substrate; otherwise low-risk, could parallelize with M16. |
-| 11 | **M16** Reflection Engine | Builds on M10; feeds M17. |
-| 12 | **M17** Companion Intelligence (+ **M17A** Training Studio alongside it) | The synthesis milestone for M10/M15/M16; Training Studio pairs naturally since both extend M7's recorder. |
+| 9 | **M14** Security Platform (+ **M14A** Backup Platform alongside it) | Harden everything now that the feature surface (through M13) is stable; backup strategy depends on knowing the final encryption-at-rest scheme. Already absorbs the Aug 2026 migration brief's "Security & Privacy" scope in full — see M14's own Aug 2026 review note. |
+| 10 | **M15** Personality Engine | Needs M10A's knowledge substrate and M10B's intelligence engine; otherwise low-risk, could parallelize with M16. |
+| 11 | **M16** Reflection Engine | Builds on M10A; feeds M17. |
+| 12 | **M17** Companion Intelligence (+ **M17A** Training Studio alongside it) | The synthesis milestone for M10A/M10B/M15/M16; Training Studio pairs naturally since both extend M7's recorder. |
 | 13 | **M18** Self-Healing & Diagnostics Platform | Generalizes M5.5's one-time audit into a permanent, self-healing subsystem once there's enough surface area (M6–M17) worth monitoring. |
-| 14 | **M19** Knowledge Graph & Digital Twin Platform | The full realization of M10's foundation, now informed by M16/M17's real usage data. |
+| 14 | **M19** Knowledge Graph & Digital Twin Platform | The full realization of M10A's foundation, now informed by M16/M17's real usage data. |
 | 15 | **M20** Predictive Intelligence Platform (+ **M20A** Analytics & Observability Platform alongside it) | Needs M19; the analytics dashboard is scheduled with it since both consume the same underlying event/metrics data. |
-| 16 | **M21** Mobile Platform | Needs M9 (transport) and M14 (security bar); intrinsically parallel with a dedicated mobile team once started. |
+| 16 | **M21** Mobile Platform | Needs M11 (transport, including its Android Companion pairing scope) and M14 (security bar); intrinsically parallel with a dedicated mobile team once started. |
 | 17 | **M22** Edge AI Platform | Only needs M1 (Ollama); could in principle move earlier, kept here since it's a lower-priority hardware-specific investment relative to the companion-intelligence arc above it. |
 | 18 | **M23** Distributed JARVIS | Needs M21 (mobile transport) and M14 (security); the natural conclusion of the multi-device story before final release. |
 | 18A | **M23A** Robotics & Hardware Control Platform | Needs M21 (mobile transport) and M22 (edge inference for on-device robotics/sensor intelligence); scheduled alongside M23 rather than dependent on it — both are independent extensions of the M14-hardened platform. |
@@ -7822,8 +8861,12 @@ purpose still holds for M7 onward.)*
 
 **Parallelisation opportunities**
 
-- M11A (SEO Intelligence) alongside M11 (Productivity Platform) — a
-  focused, independent vertical.
+- M11A (SEO Intelligence) and M11B (Productivity Suite) alongside M11
+  (Integrations & Cloud Platform) — focused, independent verticals.
+- M10A (Universal Search & Knowledge Platform) and M10B (Intelligence
+  Layer) alongside M10 (AI Orchestrator) — both are lettered
+  companions with their own dependency chain (M3, M7), not sequential
+  extensions of M10 itself.
 - M13A (AI Sandbox) alongside M13 (Computer Control) — the sandbox
   exists specifically to de-risk M13, most efficient built alongside
   it rather than after.
@@ -7834,9 +8877,9 @@ purpose still holds for M7 onward.)*
 - M20A (Analytics Platform) alongside M20 (Predictive Intelligence) —
   both consume the same metrics substrate.
 - M12 (Smart Home) vendor adapters are independent and parallel once
-  M8 (Plugin Platform) exists.
+  M9 (Plugin Platform) exists.
 - M21 (Mobile Platform) is intrinsically parallelizable with a
-  dedicated mobile team once M9/M14 land.
+  dedicated mobile team once M11/M14 land.
 
 **Deferred (post-1.0)**
 
@@ -7858,20 +8901,23 @@ duplicated back into this file:
 
 | Document | Covers |
 |----------|--------|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | The Aug 2026 architecture standard — layered architecture, module architecture/lifecycle/state machine, API/WebSocket/Event Bus/service/error/manifest/settings/storage/developer/UI/AI/automation/security/testing/performance standards. Governs M8 onward. |
+| [`ARCHITECTURE_LEGACY.md`](ARCHITECTURE_LEGACY.md) | The as-shipped M0–M7 PySide6-era architecture (renamed from `ARCHITECTURE.md`, Aug 2026) — package responsibilities, dependency rules, provider-registration pattern. Historical reference, not updated going forward. |
+| [`TECH_STACK.md`](TECH_STACK.md) | The Aug 2026 frontend technology decision — React 19 + Tauri + the full stack table, architecture diagram, folder structure, coding standards. Governs M8 onward; does not change M0–M7's shipped PySide6 history. |
+| [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) | Active, phase-by-phase execution checklist for M8 (React Frontend & Desktop Experience) — narrower and more actionable than this document's own §8 entry, which remains the authoritative source for M8's dependencies/AC. |
 | [`MILESTONE_4_DELIVERY.md`](../MILESTONE_4_DELIVERY.md) | M4 Automation Platform — full file list, architecture diagram, manual testing checklist. |
 | [`MILESTONE_5_DELIVERY.md`](../MILESTONE_5_DELIVERY.md) | M5 Desktop Platform — full file list across all three delivery passes, manual testing checklist. |
 | [`AUDIT_REPORT_M0-M5.md`](../AUDIT_REPORT_M0-M5.md) | M5.5 Production Stabilization Pass — per-finding evidence, fix, and verification. |
 | [`MILESTONE_5_AGENTS_DELIVERY.md`](../MILESTONE_5_AGENTS_DELIVERY.md) | M5A Agent Runtime — full file list, architecture, request-flow walkthrough, manual testing checklist. |
 | [`AUDIT_REPORT_M5-AGENTS.md`](../AUDIT_REPORT_M5-AGENTS.md) | M5A pre-merge validation pass — environment, static analysis, test results, security/performance findings, production-readiness assessment. |
 | [`CHANGELOG.md`](../CHANGELOG.md) | Chronological, version-tagged summary of every shipped change. |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Package responsibilities, dependency rules, provider-registration pattern. |
 | [`CONFIGURATION.md`](CONFIGURATION.md) | `Settings` structure, `.env` conventions. |
 | [`DEPENDENCY_INJECTION.md`](DEPENDENCY_INJECTION.md) | `Container` wiring conventions. |
 | [`THEMING.md`](THEMING.md) | `ThemeManager` / QSS theme structure. |
 | [`LOGGING.md`](LOGGING.md) | Logging sinks and conventions. |
 | [`PACKAGING.md`](PACKAGING.md) | PyInstaller/Inno Setup packaging status (foundational as of M5.5; verified build is M24 scope). |
 | [`FUTURE_INTEGRATION_GUIDE.md`](FUTURE_INTEGRATION_GUIDE.md) | How to swap a mock M5 integration (Gmail, Spotify, etc.) for a real one. |
-| [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) | Plugin architecture notes ahead of the real M8 loader. |
+| [`PLUGIN_GUIDE.md`](PLUGIN_GUIDE.md) | Plugin architecture notes ahead of the real M9 loader (moved from M8 in the Aug 2026 frontend migration — see §8). |
 | [`ROADMAP.md`](ROADMAP.md) | Lighter-weight milestone summary — explicitly *not* the source of truth; kept loosely in sync with this document. |
 
 ---
@@ -7898,7 +8944,7 @@ Docs, Sheets, Slides, Chat, Tasks, People, Events), Calendar/Meet/
 Gmail/Drive/Docs/Sheets/Slides/Chat/Tasks/People "Intelligence"
 feature groups, an AI Meeting Assistant (transcript processing,
 summaries, decisions, action items, deadlines), and Workspace Memory
-Integration into M3/M10. Provider-abstracted and DI-wired by design,
+Integration into M3/M10A. Provider-abstracted and DI-wired by design,
 explicitly scoped to extend later to Microsoft 365, Slack, Notion,
 Jira, Trello, ClickUp, Zoom, Discord, and Dropbox without an
 architecture change. Planning only — no implementation exists yet, no
@@ -8143,7 +9189,7 @@ Reflection, Knowledge Reflection, Behaviour Reflection, Learning &
 Improvement, Goal Reflection, Reflection Analytics, Safety &
 Governance, and Developer Reflection Tools. Architecture notes were
 expanded with ten binding constraints, the two most important being
-that Reflection reads M3/M10 through their existing interfaces without
+that Reflection reads M3/M10A through their existing interfaces without
 maintaining a parallel data copy, and that Reflection generates
 recommendations rather than silently changing behaviour, memory,
 personality, or security policy — every module's description was
@@ -8772,5 +9818,127 @@ continuing the same MINOR-bump policy established for M25/M26 (§6).
 §16's Recommended Development Order gained a new `22 | M27` row after
 M26's `21`. Milestone numbering, ordering, and every completed
 milestone (§3) remain untouched; M24's, M25's, and M26's own history is
-preserved verbatim and unmodified throughout. Bump this line whenever
-you edit the roadmap.*
+preserved verbatim and unmodified throughout.
+
+*Aug 2026 — Addendum 21:* **frontend technology migration** — JARVIS's
+UI moves from PySide6 to **React 19 + TypeScript + Vite + Tauri**
+(full stack in the new [`TECH_STACK.md`](TECH_STACK.md); active
+execution plan in the new [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md)).
+Per explicit user direction: **zero milestone renumbering** — M12
+through M27 keep their exact existing numbers, and no milestone's
+completed history (§3, M0–M7) was rewritten. What changed is §8's
+content at M8 through M11, plus three new lettered companions:
+- **M8** retitled Plugin Platform → **React Frontend & Desktop
+  Experience** (7 phases: React Foundation; Universal Application
+  Framework & Logic; Desktop Workspace; Voice Experience & Motion;
+  Settings & User Profiles; Premium UI Polish; Optimization & QA).
+  Plugin Platform's own scope (SDK, Loader, Extension API, Permission
+  Model, Store, Marketplace) was not dropped — it moved to M9.
+- **M9** retitled Integration Platform → **Runtime & Core Services**
+  (Runtime Core, Reliability, Plugin Platform — inheriting M8's full
+  original scope — and Developer Platform Tools). Integration
+  Platform's own scope (API Gateway, OAuth, Webhooks, Queue, Retry,
+  Caching, Monitoring) was not dropped — it moved to M11.
+- **M10** retitled Knowledge Engine → **AI Orchestrator** (Intent
+  Engine, Planning, Context Engine, Tool Selection, Permission
+  Validation, Execution, Verification, Learning, Streaming, Decision
+  Engine — formalizing M5A's `AgentOrchestrator` and absorbing M7
+  Phase 3's deferred cross-tool-parallelism scope). Knowledge Engine's
+  own scope was not dropped — it moved to the new **M10A**.
+- **M10A — Universal Search & Knowledge Platform** *(new lettered
+  companion)* — the original M10 Knowledge Engine's full scope
+  (Knowledge Graph, Persistent Memory, Reflection Foundation,
+  Learning, Relationship Graph, Digital Twin Foundation), plus
+  Universal/Memory/File/Command/Semantic/AI Search and Search
+  Indexing.
+- **M10B — Intelligence Layer** *(new lettered companion)* — Goal
+  Manager, Routine Learning, Preference Learning, Predictive
+  Suggestions, Context Awareness, Daily Briefing, Assistant
+  Intelligence. Deliberately scoped as the backing engine M15's
+  Proactive Intelligence and M16's Goal/Behaviour Reflection modules
+  consume, not a duplicate of either — **M15 (Personality Engine) and
+  M16 (Reflection Engine) were reviewed and left completely
+  unchanged**, per explicit user direction, after their existing scope
+  (450+ and similarly large, respectively, with real cross-references
+  from M11/M12/M13/M17) was found to already be large, shipped-in-doc
+  content that a naive "replace with Search/Intelligence" instruction
+  would have destroyed.
+- **M11** retitled Productivity Platform → **Integrations & Cloud
+  Platform** — absorbs M9's original Integration Platform scope in
+  full, plus M11's own original integration-facing features (Email,
+  Calendar, Browser Intelligence, Google Workspace), plus new Spotify/
+  Weather/Finance real-provider scope, Oracle Cloud sync, Android
+  Companion pairing, Conflict Resolution, and Offline Queue. Smart
+  Home integration was explicitly **not** duplicated here — it remains
+  M12's own dedicated scope.
+- **M11B — Productivity Suite** *(new lettered companion)* — the
+  non-integration half of the original M11 Productivity Platform
+  (Tasks, Documents, Research Assistant, Coding Assistant, Command
+  Palette, Clipboard Manager, File Manager, Native notifications,
+  Media Controls), preserved in full.
+- **M14 — Security Platform** was reviewed against a request to
+  "create a new Security & Privacy milestone" and found to already
+  cover every listed item (Credential Vault, Encryption, Secrets
+  Management, Permission Auditing, Privacy Controls, Audit Logs,
+  Secure Storage, Backup Encryption, Consent Management) verbatim or
+  near-verbatim across its existing 12 modules — no duplicate
+  milestone was created; M14 itself is unchanged beyond a review note.
+
+Every one of the ~50 stale cross-references this retitling created
+across M12–M27, §2, §7, §9, §10, §11, §14, §15, §16, and §17 (other
+milestones' Dependencies lists, Architecture notes, and backlog tables
+naming the old "M9 Integration Platform," "M10 Knowledge Engine," or
+"M11 Productivity Platform" by name) was located and corrected to
+point at the renamed milestone or the correct new lettered companion —
+tracked in §9's new "Aug 2026 frontend-migration carry-forward" table.
+§14's Version Timeline shifted three version-string slots (0.10
+onward) to fit M10A/M10B/M11B — a sequence-position change only, not a
+milestone renumbering. M5's completed entry (§3) gained a
+non-destructive "Frontend Migration Note" clarifying it is now
+understood as having delivered JARVIS's backend platform bundled with
+a since-superseded PySide6 frontend, without altering its Delivered/
+Still-open bullets. §7's "UI Foundation" bullet gained an equivalent
+note. Milestone numbering M12–M27, every completed milestone (§3), and
+M15/M16's own scope remain untouched throughout. Bump this line
+whenever you edit the roadmap.*
+
+*Aug 2026 addendum — roadmap architecture review (pre-Phase-3
+directive):* six additions integrated into existing milestones, no new
+milestone numbers introduced, no completed milestone (§3) touched.
+(1) **API Center Architecture** — new module under M11 (§8), expanding
+the API Manager bullet into a full Built-in/External provider
+registry with the binding Provider Activation Rule ("saving a key
+activates it immediately; mocks only under explicit Developer Mode"),
+runtime lifecycle (activation, registration, validation, connection
+testing, health checks, discovery, switching, retry/fallback,
+priority), and an API Usage Analytics dashboard (cross-referencing
+M20A for the underlying cost-analytics engine). (2) **Cost-Aware Model
+Router** — the previously one-line §13 "Cost/latency router" bullet
+expanded into automatic provider/model selection, cost-vs-quality,
+latency optimization, offline model preference, intelligent fallback,
+budget protection, and emergency provider switching, explicitly wired
+to consume M11's new API Center Architecture module's usage data
+rather than inventing a second mechanism. (3) **Module Logic
+Contract** — new permanent §4 Engineering standard: every module
+defines Purpose/Responsibilities/Business Logic/Inputs/Outputs/
+Dependencies/Permission Model/State Machine/Validation/Failure/
+Recovery/Logging/Telemetry/Events/Tests/Acceptance Criteria before
+implementation begins; formalizes a discipline this roadmap's
+milestone entries already followed informally. (4) **Plugin Safe Core
+Architecture** — new binding principle inside M9's existing Plugin
+Platform module (§8): JARVIS Core is immutable from a plugin's
+perspective; future *not-yet-scoped* domain modules (illustrative
+only — Children/Family/Medical/Business; none are roadmap milestones
+today) ship as plugins, with Plugin Isolation, Version Compatibility,
+Rollback Support, Crash Isolation, Safe Disable, and Dependency
+Validation: added as M9's acceptance criterion 6. Explicitly does
+**not** retroactively convert any existing scoped milestone (M12 Smart
+Home & IoT Platform, or the Finance workspace under M5/M11) into a
+plugin — that remains a separate future decision. (5–6) Corresponding
+checklist items added to `IMPLEMENTATION_ROADMAP.md`'s active M8
+Phase 2 (API Integration Rework), Phase 3 (Adaptive Sidebar), and
+Phase 5 (API Center UI + Developer API Analytics) — the only
+milestone that document tracks. No dependency, acceptance-criterion,
+or numbering conflict was found against M0–M27; M8 Phase 3
+implementation (paused mid-task, before this review) resumes after
+this addendum. Bump this line whenever you edit the roadmap.*

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWi
 
 from jarvis.ui.async_utils import fire_and_forget
 from jarvis.ui.components.card import ServiceCard
+from jarvis.ui.components.icons import Icon, icon_or_literal, icon_registry
 
 RefreshResult = dict[str, Any]
 RefreshCallback = Callable[[], Awaitable[RefreshResult]]
@@ -74,17 +75,24 @@ class ServiceWidget(ServiceCard):
         self._actions_row.setSpacing(6)
         self.body.addLayout(self._actions_row)
 
+        self._error_row = QWidget()
+        error_row_layout = QHBoxLayout(self._error_row)
+        error_row_layout.setContentsMargins(0, 0, 0, 0)
+        error_row_layout.setSpacing(6)
+        self._error_icon = Icon("warning", size=14)
+        error_row_layout.addWidget(self._error_icon)
         self._error_label = QLabel()
         self._error_label.setObjectName("serviceErrorText")
         self._error_label.setWordWrap(True)
-        self._error_label.setVisible(False)
+        error_row_layout.addWidget(self._error_label, 1)
+        self._error_row.setVisible(False)
         self._retry_button = QPushButton("Retry")
         self._retry_button.setObjectName("cardAction")
         self._retry_button.setFlat(True)
         self._retry_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._retry_button.setVisible(False)
         self._retry_button.clicked.connect(lambda: fire_and_forget(self.refresh()))
-        self.body.addWidget(self._error_label)
+        self.body.addWidget(self._error_row)
         self.body.addWidget(self._retry_button)
 
         fire_and_forget(self.refresh())
@@ -102,7 +110,7 @@ class ServiceWidget(ServiceCard):
 
     # ------------------------------------------------------------------
     def _set_loading(self, loading: bool) -> None:
-        self._error_label.setVisible(False)
+        self._error_row.setVisible(False)
         self._retry_button.setVisible(False)
         if loading:
             self._summary_label.setText("Loading…")
@@ -110,8 +118,8 @@ class ServiceWidget(ServiceCard):
 
     def _show_error(self, message: str) -> None:
         self._summary_label.setText("")
-        self._error_label.setText(f"⚠ Couldn't refresh: {message}")
-        self._error_label.setVisible(True)
+        self._error_label.setText(f"Couldn't refresh: {message}")
+        self._error_row.setVisible(True)
         self._retry_button.setVisible(True)
         self._indicator.setObjectName("connectionIndicatorOffline")
 
@@ -129,9 +137,12 @@ class ServiceWidget(ServiceCard):
         for icon, text, when in data.get("activity", [])[:3]:
             row = QHBoxLayout()
             row.setSpacing(6)
-            glyph = QLabel(icon)
-            glyph.setFixedWidth(16)
-            row.addWidget(glyph)
+            # `icon` is a semantic icon_registry key for activity rows
+            # this widget itself defines; mock-provider-sourced activity
+            # (see features/integrations/mocks.py, intentionally left
+            # untouched) still supplies a raw glyph -- icon_or_literal
+            # renders whichever this is correctly either way.
+            row.addWidget(icon_or_literal(icon, size=16))
             text_label = QLabel(text)
             text_label.setObjectName("rowSubtitle")
             text_label.setWordWrap(True)
@@ -152,9 +163,11 @@ class ServiceWidget(ServiceCard):
             if item.widget():
                 item.widget().deleteLater()
         for action_id, icon, label in data.get("quick_actions", []):
-            button = QPushButton(f"{icon} {label}".strip())
+            button = QPushButton(label)
             button.setObjectName("pillButtonSmall")
             button.setCursor(Qt.CursorShape.PointingHandCursor)
+            if icon:
+                button.setIcon(icon_registry.qicon(icon, size=14))
             button.clicked.connect(lambda _c=False, a=action_id: self._handle_action(a))
             self._actions_row.addWidget(button)
         self._actions_row.addStretch(1)

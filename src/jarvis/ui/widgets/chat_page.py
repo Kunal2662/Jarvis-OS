@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidgetAction,
 )
 
+from jarvis.ui.components.icons import icon_registry
 from jarvis.ui.widgets.chat_view import ChatView
 from jarvis.ui.widgets.prompt_input import PromptInput
 from jarvis.ui.widgets.push_to_talk_button import PushToTalkButton
@@ -53,7 +54,8 @@ class ChatPage(QWidget):
         new_button.clicked.connect(self.new_conversation_requested)
         toolbar.addWidget(new_button)
 
-        self._history_button = QPushButton("🕘 History")
+        self._history_button = QPushButton("History")
+        self._history_button.setIcon(icon_registry.qicon("history", size=14))
         self._history_button.setObjectName("cardAction")
         self._history_list = QListWidget()
         self._history_list.setFixedSize(320, 320)

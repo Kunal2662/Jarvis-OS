@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from jarvis.core.logging.logger import get_logger
 from jarvis.core.types import ThemeName
+from jarvis.ui.themes.palette import DARK_PALETTE, JARVIS_PALETTE, LIGHT_PALETTE
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication
@@ -24,6 +25,12 @@ if TYPE_CHECKING:
     from jarvis.services.theme_service import ThemeService
 
 _logger = get_logger("jarvis.ui.themes")
+
+_PALETTES = {
+    ThemeName.JARVIS: JARVIS_PALETTE,
+    ThemeName.DARK: DARK_PALETTE,
+    ThemeName.LIGHT: LIGHT_PALETTE,
+}
 
 
 class ThemeManager:
@@ -39,8 +46,25 @@ class ThemeManager:
         qss = self._service.load(active)
         app.setStyleSheet(qss)
         self._current = active
+        self._apply_icon_colors(active)
         _logger.info("Applied theme: {}", active.value)
         return active
+
+    def _apply_icon_colors(self, theme: ThemeName) -> None:
+        """Every SVG icon re-renders in the newly-active theme's colors
+        -- see IconRegistry.set_theme_colors()'s docstring for why this
+        is one centralized call rather than threading the palette
+        through every Icon(...) call site."""
+        from jarvis.ui.components.icons import icon_registry
+
+        palette = _PALETTES.get(theme, JARVIS_PALETTE)
+        icon_registry.set_theme_colors(
+            default=palette.text,
+            hover=palette.accent,
+            success=palette.success,
+            danger=palette.danger,
+            warning=palette.warning,
+        )
 
     def current(self) -> ThemeName | None:
         return self._current

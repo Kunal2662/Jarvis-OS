@@ -130,11 +130,14 @@ class MemoryTimelineView(QWidget):
 
     @staticmethod
     def _format_record(record: MemoryRecord) -> str:
+        # QListWidgetItem is plain text -- a real icon per flag would need
+        # a per-row custom widget, out of scope for this pass; short
+        # bracketed text markers replace the previous emoji instead.
         flags = []
         if record.pinned:
-            flags.append("📌")
+            flags.append("[Pinned]")
         if record.archived:
-            flags.append("🗄")
+            flags.append("[Archived]")
         flag_str = " ".join(flags) + (" " if flags else "")
         type_label = _TYPE_LABELS.get(record.memory_type, record.memory_type)
         preview = record.content.replace("\n", " ").strip()

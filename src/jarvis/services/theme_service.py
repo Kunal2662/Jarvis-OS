@@ -43,6 +43,7 @@ from jarvis.core.config import paths
 from jarvis.core.exceptions import ThemeNotFoundError
 from jarvis.core.types import ThemeName
 from jarvis.ui.themes.palette import DARK_PALETTE, JARVIS_PALETTE, LIGHT_PALETTE
+from jarvis.ui.themes.typography import Typography
 
 if TYPE_CHECKING:
     from jarvis.core.config.settings import Settings
@@ -85,8 +86,8 @@ class ThemeTokens:
     QSS remains the actual source of truth for rendering."""
 
     accent: str
-    font_family: str = "Segoe UI, -apple-system, sans-serif"
-    base_font_size_px: int = 13
+    font_family: str = Typography.FONT_FAMILY_STACK
+    base_font_size_px: int = Typography.SECONDARY.size_px
     spacing_unit_px: int = 8
     border_radius_px: int = 10
     animation_duration_ms: int = 180

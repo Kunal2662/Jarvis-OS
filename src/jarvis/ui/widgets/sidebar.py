@@ -26,12 +26,12 @@ from PySide6.QtWidgets import (
 )
 
 from jarvis.ui.components.buttons import NavItemButton
-from jarvis.ui.components.icons import icon_registry
+from jarvis.ui.components.icons import Icon
 
-# (id, icon key, label) -- order matches the official UI exactly. The
-# glyph shown is resolved through ``icon_registry`` (Milestone 5,
-# section 3) so every nav icon is replaceable from one central place
-# instead of being a literal emoji scattered through this file.
+# (id, icon key, label) -- order matches the official UI exactly. Every
+# id here is also its own icon_registry key (see
+# jarvis.ui.components.icons) by design, so nav icons stay a single
+# source of truth -- add a nav item, add the matching SVG, done.
 _NAV_KEYS: list[tuple[str, str]] = [
     ("home", "Home"),
     ("chat", "Chat"),
@@ -48,9 +48,7 @@ _NAV_KEYS: list[tuple[str, str]] = [
     ("spotify", "Spotify"),
     ("settings", "Settings"),
 ]
-NAV_ITEMS: list[tuple[str, str, str]] = [
-    (item_id, icon_registry.glyph(item_id), label) for item_id, label in _NAV_KEYS
-]
+NAV_ITEMS: list[tuple[str, str, str]] = [(item_id, item_id, label) for item_id, label in _NAV_KEYS]
 
 
 class Sidebar(QWidget):
@@ -130,6 +128,7 @@ class Sidebar(QWidget):
         history_layout.setContentsMargins(8, 4, 8, 4)
         history_layout.setSpacing(6)
 
+        history_layout.addWidget(Icon("history", size=14))
         self._history_summary_label = QLabel("No updates yet")
         self._history_summary_label.setObjectName("rowSubtitle")
         history_layout.addWidget(self._history_summary_label, 1)
@@ -149,11 +148,18 @@ class Sidebar(QWidget):
         # as a normal nav item so it doesn't compete visually with the
         # official UI's fixed nav list). ------------------------------------
         dev_row = QHBoxLayout()
-        dev_button = QLabel("🔒  Developer Mode")
+        dev_row.setSpacing(6)
+        dev_icon = Icon("lock", size=14)
+        dev_button = QLabel("Developer Mode")
         dev_button.setObjectName("rowSubtitle")
-        dev_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        dev_button.mousePressEvent = lambda _e: self.developer_mode_requested.emit()  # type: ignore[assignment]
+        dev_row.addWidget(dev_icon)
         dev_row.addWidget(dev_button)
+        dev_row.addStretch(1)
+        for widget in (dev_icon, dev_button):
+            widget.setCursor(Qt.CursorShape.PointingHandCursor)
+            widget.mousePressEvent = (  # type: ignore[method-assign]
+                lambda _e: self.developer_mode_requested.emit()
+            )
         outer.addLayout(dev_row)
         outer.addSpacing(8)
 
@@ -164,16 +170,22 @@ class Sidebar(QWidget):
         outer.addWidget(divider)
 
         profile = QHBoxLayout()
-        avatar = QLabel("🧑")
+        avatar = Icon("avatar", size=20)
         profile.addWidget(avatar)
         name_col = QVBoxLayout()
         name_col.setSpacing(0)
         self._name_label = QLabel("You")
         self._name_label.setObjectName("rowTitle")
         name_col.addWidget(self._name_label)
-        status = QLabel("● Online")
+        status_row = QHBoxLayout()
+        status_row.setSpacing(4)
+        status_dot = Icon("connected", size=8)
+        status_row.addWidget(status_dot)
+        status = QLabel("Online")
         status.setObjectName("serviceStatus")
-        name_col.addWidget(status)
+        status_row.addWidget(status)
+        status_row.addStretch(1)
+        name_col.addLayout(status_row)
         profile.addLayout(name_col)
         profile.addStretch(1)
         outer.addLayout(profile)
@@ -207,7 +219,7 @@ class Sidebar(QWidget):
             status = f"Updated to {latest.to_version}"
         else:
             status = "Update failed"
-        self._history_summary_label.setText(f"🕘 {status} · {when}")
+        self._history_summary_label.setText(f"{status} · {when}")
 
         failures = sum(1 for s in sessions if s.succeeded is False)
         if failures:

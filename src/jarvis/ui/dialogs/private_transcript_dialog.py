@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 )
 
 from jarvis.core.types import Role
+from jarvis.ui.components.icons import Icon
 from jarvis.ui.widgets.chat_view import ChatView
 
 _PINNED_SIZE = (360, 420)
@@ -66,7 +67,9 @@ class PrivateTranscriptDialog(QDialog):
         outer.setSpacing(10)
 
         header = QHBoxLayout()
-        title = QLabel("🔒  PRIVATE LIVE TRANSCRIPT")
+        header.setSpacing(6)
+        header.addWidget(Icon("lock", size=16))
+        title = QLabel("PRIVATE LIVE TRANSCRIPT")
         title.setObjectName("cardTitle")
         header.addWidget(title)
         header.addStretch(1)
@@ -128,9 +131,13 @@ class PrivateTranscriptDialog(QDialog):
         actions.addStretch(1)
         outer.addLayout(actions)
 
-        footer = QLabel("🔒 Private. Secure. Encrypted. Only you can see this.")
+        footer_row = QHBoxLayout()
+        footer_row.setSpacing(6)
+        footer_row.addWidget(Icon("lock", size=12))
+        footer = QLabel("Private. Secure. Encrypted. Only you can see this.")
         footer.setObjectName("rowSubtitle")
-        outer.addWidget(footer)
+        footer_row.addWidget(footer, 1)
+        outer.addLayout(footer_row)
 
     # ------------------------------------------------------------------
     # Finalized turns (backward-compatible with the original API)

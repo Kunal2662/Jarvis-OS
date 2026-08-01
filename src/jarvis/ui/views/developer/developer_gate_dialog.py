@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from jarvis.core.exceptions import InvalidAdminPasswordError
+from jarvis.ui.components.icons import Icon
 from jarvis.utils.async_utils import fire_and_forget
 
 if TYPE_CHECKING:
@@ -40,9 +42,14 @@ class DeveloperGateDialog(QDialog):
         outer.setContentsMargins(24, 24, 24, 20)
         outer.setSpacing(14)
 
-        title = QLabel("🔒  Developer Mode")
+        title_row = QHBoxLayout()
+        title_row.setSpacing(6)
+        title_row.addWidget(Icon("lock", size=16))
+        title = QLabel("Developer Mode")
         title.setObjectName("devModeTitle")
-        outer.addWidget(title)
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        outer.addLayout(title_row)
 
         first_run = not dev_mode.is_configured()
         subtitle = QLabel(

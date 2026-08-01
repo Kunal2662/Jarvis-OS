@@ -47,8 +47,8 @@ class VoiceWorkspace(QWidget):
             status_state="success",
             search_placeholder="Search voice sessions…",
         )
-        header.add_tool_button("Push to Talk", icon="🎙")
-        header.add_tool_button("Mute", icon="🔇")
+        header.add_tool_button("Push to Talk", icon="voice")
+        header.add_tool_button("Mute", icon="mute")
         column.addWidget(header)
 
         orb_card = SectionCard("Voice Console")
@@ -87,7 +87,7 @@ class VoiceWorkspace(QWidget):
                     (datetime.now() - timedelta(seconds=secs)).strftime("%H:%M"),
                 )
                 for icon, (title, detail, secs) in zip(
-                    ["🎙", "🗣", "🗣", "⏱"], _MOCK_SESSIONS, strict=False
+                    ["voice", "speaking", "speaking", "timer"], _MOCK_SESSIONS, strict=False
                 )
             ]
         )
@@ -95,9 +95,9 @@ class VoiceWorkspace(QWidget):
 
         actions = QuickActionsRow(
             [
-                ("test_mic", "🎚", "Test Microphone"),
-                ("retrain_wake", "🔁", "Retrain Wake Word"),
-                ("voice_settings", "⚙", "Open Settings"),
+                ("test_mic", "configuration", "Test Microphone"),
+                ("retrain_wake", "refresh", "Retrain Wake Word"),
+                ("voice_settings", "settings", "Open Settings"),
             ]
         )
         column.addWidget(actions)

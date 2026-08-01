@@ -1,0 +1,87 @@
+import { AnimatePresence, motion } from "motion/react";
+import { Lock, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { DEVELOPER_PANEL_SECTIONS } from "@/features/developer/panel-sections";
+import { ModuleStateInspector } from "@/features/developer/module-state-inspector";
+import { useDeveloperModeStore } from "@/stores/developer-mode.store";
+import { MOTION_DURATIONS } from "@/lib/motion";
+
+/**
+ * The Developer Panel foundation (Task 13): empty placeholder sections
+ * only, no functionality. Toggled by Ctrl+Shift+D (providers/developer-provider.tsx).
+ * Real content requires the backend Runtime Manager, WebSocket log relay,
+ * and Plugin Platform API (all M9 scope) -- until then this honestly
+ * shows what each section *will* do, never fake data standing in for it.
+ */
+export function DeveloperPanel() {
+  const activePanelId = useDeveloperModeStore((s) => s.activePanelId);
+  const setActivePanel = useDeveloperModeStore((s) => s.setActivePanel);
+  const isOpen = activePanelId !== null;
+  const activeSection =
+    DEVELOPER_PANEL_SECTIONS.find((s) => s.id === activePanelId) ?? DEVELOPER_PANEL_SECTIONS[0];
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.aside
+          role="dialog"
+          aria-label="Developer Panel"
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={{ duration: MOTION_DURATIONS.slow / 1000, ease: "easeOut" }}
+          className="fixed inset-y-0 right-0 z-50 flex w-96 max-w-full border-border border-l bg-card shadow-elevation-high"
+        >
+          <nav
+            aria-label="Developer Panel sections"
+            className="flex w-14 flex-col items-center gap-1 border-border border-r py-3"
+          >
+            {DEVELOPER_PANEL_SECTIONS.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                aria-label={section.label}
+                aria-current={activeSection.id === section.id ? "true" : undefined}
+                onClick={() => setActivePanel(section.id)}
+                className={cn(
+                  "flex size-10 items-center justify-center rounded-lg transition-colors duration-fast",
+                  "hover:bg-accent/10 hover:text-accent focus-visible:outline-2 focus-visible:outline-ring",
+                  activeSection.id === section.id
+                    ? "bg-accent/15 text-accent"
+                    : "text-muted-foreground",
+                )}
+              >
+                <section.icon className="size-icon-md" aria-hidden="true" />
+              </button>
+            ))}
+          </nav>
+
+          <div className="flex flex-1 flex-col">
+            <div className="flex items-center justify-between border-border border-b px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Lock className="size-icon-sm text-muted-foreground" aria-hidden="true" />
+                <h2 className="text-widget-title font-semibold">{activeSection.label}</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Close Developer Panel"
+                onClick={() => setActivePanel(null)}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-accent/10 hover:text-accent"
+              >
+                <X className="size-icon-sm" aria-hidden="true" />
+              </button>
+            </div>
+
+            {activeSection.id === "state-inspector" ? (
+              <ModuleStateInspector />
+            ) : (
+              <div className="flex flex-1 items-center justify-center p-6 text-center">
+                <p className="text-secondary text-muted-foreground">{activeSection.description}</p>
+              </div>
+            )}
+          </div>
+        </motion.aside>
+      )}
+    </AnimatePresence>
+  );
+}

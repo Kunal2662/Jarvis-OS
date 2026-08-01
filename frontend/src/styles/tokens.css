@@ -1,0 +1,72 @@
+/*
+ * Design tokens -- typography, motion, icon sizes. Ported from the
+ * PySide6-era `ui/themes/typography.py` scale (verbatim numbers) and
+ * ARCHITECTURE.md section 14's UI Standards. Nothing outside this file
+ * declares a font size, weight, or motion duration of its own -- see
+ * ARCHITECTURE.md section 14's binding rule.
+ *
+ * Color tokens live in `themes.css` (three themes, not a single scale).
+ * Spacing is NOT redefined here: our 4/8/12/16/24/32/48/64px scale is
+ * already exactly Tailwind's default spacing scale (p-1 through p-16,
+ * 4px steps) -- see ARCHITECTURE.md section 14's Spacing row. Radius is
+ * shadcn's existing `--radius`-derived scale (sm/md/lg/xl/2xl/3xl/4xl),
+ * kept as-is in index.css. Breakpoints are Tailwind's own defaults
+ * (sm/md/lg/xl/2xl at 640/768/1024/1280/1536px), intentionally not
+ * overridden -- see ARCHITECTURE.md section 14.
+ */
+
+@theme {
+  /* --- Typography -------------------------------------------------- */
+  --font-sans:
+    "Inter", "Segoe UI", "SF Pro Text", "Helvetica Neue", "Arial", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+
+  /* Named scale, matching Typography.py's seven styles exactly -- size
+     only; weight is applied separately via font-weight utilities
+     (font-normal/medium/semibold/bold) since Tailwind's `--text-*`
+     tokens don't carry weight. */
+  --text-app-title: 2rem; /* 32px */
+  --text-app-title--line-height: 1.2;
+  --text-section-title: 1.5rem; /* 24px */
+  --text-section-title--line-height: 1.25;
+  --text-card-title: 1.25rem; /* 20px */
+  --text-card-title--line-height: 1.3;
+  --text-widget-title: 1.125rem; /* 18px */
+  --text-widget-title--line-height: 1.35;
+  --text-body: 1rem; /* 16px */
+  --text-body--line-height: 1.5;
+  --text-secondary: 0.875rem; /* 14px */
+  --text-secondary--line-height: 1.5;
+  --text-caption: 0.75rem; /* 12px */
+  --text-caption--line-height: 1.4;
+
+  /* --- Motion -------------------------------------------------------
+     Three tiers only, per ARCHITECTURE.md section 14 -- no per-component
+     bespoke duration. */
+  --duration-fast: 100ms; /* hover / press feedback */
+  --duration-base: 200ms; /* most transitions */
+  --duration-slow: 350ms; /* panel open/close, page transitions */
+
+  /* --- Icon sizes -----------------------------------------------------
+     Maps to `size-icon-*` utilities (width + height). Lucide's own
+     default stroke width (2px) stays legible at every tier. */
+  --size-icon-xs: 0.75rem; /* 12px */
+  --size-icon-sm: 1rem; /* 16px */
+  --size-icon-md: 1.25rem; /* 20px */
+  --size-icon-lg: 1.5rem; /* 24px */
+  --size-icon-xl: 2rem; /* 32px */
+
+  /* --- Elevation ------------------------------------------------------
+     Semantic shadow tiers, tuned for a dark-first design (Tailwind's
+     stock shadow-* utilities remain available for anything that doesn't
+     need a named tier). */
+  --shadow-elevation-low: 0 1px 2px 0 rgb(0 0 0 / 0.08);
+  --shadow-elevation-medium: 0 4px 12px -2px rgb(0 0 0 / 0.16);
+  --shadow-elevation-high: 0 12px 32px -4px rgb(0 0 0 / 0.28);
+}
+
+/* Font weights: the only four allowed anywhere in the JARVIS UI, matching
+   FontWeight(IntEnum) in typography.py. Tailwind's default font-weight
+   utilities already cover exactly these four (font-normal=400,
+   font-medium=500, font-semibold=600, font-bold=700) -- documented here,
+   not redefined, so there is one obvious place this rule lives. */

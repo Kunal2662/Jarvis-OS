@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 from jarvis.ui.components.badges import StatusBadge
 from jarvis.ui.components.buttons import PillButton
 from jarvis.ui.components.card import SectionCard
+from jarvis.ui.components.icons import Icon, icon_or_literal
 
 
 class WorkspaceHeader(QWidget):
@@ -98,7 +99,12 @@ class WorkspaceHeader(QWidget):
 
 class _CenteredMessageState(QWidget):
     def __init__(
-        self, glyph: str, title: str, message: str, object_name: str, parent: QWidget | None = None
+        self,
+        glyph_key: str,
+        title: str,
+        message: str,
+        object_name: str,
+        parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.setObjectName(object_name)
@@ -106,10 +112,11 @@ class _CenteredMessageState(QWidget):
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer.setSpacing(6)
 
-        glyph_label = QLabel(glyph)
-        glyph_label.setObjectName("stateGlyph")
-        glyph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        outer.addWidget(glyph_label)
+        glyph_row = QHBoxLayout()
+        glyph_row.addStretch(1)
+        glyph_row.addWidget(Icon(glyph_key, size=24))
+        glyph_row.addStretch(1)
+        outer.addLayout(glyph_row)
 
         title_label = QLabel(title)
         title_label.setObjectName("cardTitle")
@@ -127,7 +134,7 @@ class _CenteredMessageState(QWidget):
 
 class LoadingState(_CenteredMessageState):
     def __init__(self, message: str = "Loading…", parent: QWidget | None = None) -> None:
-        super().__init__("◐", "Loading", message, "workspaceLoadingState", parent)
+        super().__init__("loading", "Loading", message, "workspaceLoadingState", parent)
 
 
 class EmptyState(_CenteredMessageState):
@@ -139,7 +146,7 @@ class EmptyState(_CenteredMessageState):
         message: str = "",
         *,
         action_text: str = "",
-        glyph: str = "○",
+        glyph: str = "offline",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(glyph, title, message, "workspaceEmptyState", parent)
@@ -158,7 +165,7 @@ class ErrorState(_CenteredMessageState):
         message: str = "That request failed. This is mock data, so nothing was actually lost.",
         parent: QWidget | None = None,
     ) -> None:
-        super().__init__("⚠", title, message, "workspaceErrorState", parent)
+        super().__init__("warning", title, message, "workspaceErrorState", parent)
         self.action_button = PillButton("", "Retry")
         self.action_button.clicked.connect(self.retry_clicked)
         self.layout().addWidget(self.action_button, 0, Qt.AlignmentFlag.AlignCenter)
@@ -209,15 +216,13 @@ class ActivityFeed(SectionCard):
                 item.widget().deleteLater()
 
     def set_items(self, items: list[tuple[str, str, str]]) -> None:
-        """items: list of (glyph, text, timestamp_text)."""
+        """items: list of (icon key or literal glyph, text, timestamp_text)."""
         self.clear()
         self._empty_label.setVisible(not items)
         for glyph, text, when in items:
             row = QHBoxLayout()
             row.setSpacing(8)
-            glyph_label = QLabel(glyph)
-            glyph_label.setFixedWidth(20)
-            row.addWidget(glyph_label)
+            row.addWidget(icon_or_literal(glyph, size=20))
             text_label = QLabel(text)
             text_label.setObjectName("rowTitle")
             text_label.setWordWrap(True)
@@ -232,7 +237,7 @@ class ActivityFeed(SectionCard):
         self._empty_label.setVisible(False)
         row = QHBoxLayout()
         row.setSpacing(8)
-        row.addWidget(QLabel(glyph))
+        row.addWidget(icon_or_literal(glyph, size=20))
         text_label = QLabel(text)
         text_label.setObjectName("rowTitle")
         row.addWidget(text_label, 1)

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from jarvis.domain.api_center.models import ApiDefinition, ApiHealthStatus
 from jarvis.ui.components import Card, StatusBadge
+from jarvis.ui.components.icons import Icon, icon_registry
 from jarvis.ui.views.developer.api_add_edit_dialog import ApiAddEditDialog
 from jarvis.utils.async_utils import fire_and_forget
 
@@ -50,18 +51,12 @@ class _ApiRow(Card):
         outer.setContentsMargins(14, 10, 14, 10)
         outer.setSpacing(10)
 
-        star = QPushButton("★" if api.favorite else "☆")
-        star.setFlat(True)
-        star.setFixedWidth(28)
-        star.clicked.connect(self._toggle_favorite)
-        outer.addWidget(star)
-        self._star = star
+        self._star = self._build_star_button(api.favorite)
+        outer.addWidget(self._star)
 
         text_col = QVBoxLayout()
         text_col.setSpacing(0)
-        name = QLabel(f"{api.name}" + ("  🔧" if api.is_builtin else "  ✏"))
-        name.setObjectName("rowTitle")
-        text_col.addWidget(name)
+        text_col.addLayout(self._build_name_row(api))
         sub = QLabel(f"{api.provider} · {api.category.value.replace('_', ' ').title()}")
         sub.setObjectName("rowSubtitle")
         text_col.addWidget(sub)
@@ -99,10 +94,32 @@ class _ApiRow(Card):
             delete_btn.clicked.connect(self._delete)
             outer.addWidget(delete_btn)
 
+    def _build_star_button(self, favorite: bool) -> QPushButton:
+        star = QPushButton()
+        star.setIcon(icon_registry.qicon(self._star_key(favorite), size=16))
+        star.setFlat(True)
+        star.setFixedWidth(28)
+        star.clicked.connect(self._toggle_favorite)
+        return star
+
+    def _build_name_row(self, api: ApiDefinition) -> QHBoxLayout:
+        name_row = QHBoxLayout()
+        name_row.setSpacing(4)
+        name = QLabel(api.name)
+        name.setObjectName("rowTitle")
+        name_row.addWidget(name)
+        name_row.addWidget(Icon("builtin_badge" if api.is_builtin else "edit", size=12))
+        name_row.addStretch(1)
+        return name_row
+
+    @staticmethod
+    def _star_key(favorite: bool) -> str:
+        return "star_filled" if favorite else "star_outline"
+
     def _toggle_favorite(self) -> None:
         updated = self._view.service.set_favorite(self._api.id, not self._api.favorite)
         self._api = updated
-        self._star.setText("★" if updated.favorite else "☆")
+        self._star.setIcon(icon_registry.qicon(self._star_key(updated.favorite), size=16))
 
     def _toggle_enabled(self) -> None:
         self._view.service.set_enabled(self._api.id, not self._api.enabled)

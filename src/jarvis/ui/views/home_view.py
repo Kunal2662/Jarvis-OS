@@ -49,6 +49,7 @@ from jarvis.ui.components import (
     ServiceWidget,
     SimpleListPanel,
 )
+from jarvis.ui.components.icons import Icon, icon_registry
 from jarvis.ui.widgets.voice_orb import VoiceOrb
 from jarvis.utils.async_utils import fire_and_forget
 
@@ -110,7 +111,7 @@ class HomeView(QWidget):
         salutation = (
             "Good Morning" if hour < 12 else "Good Afternoon" if hour < 18 else "Good Evening"
         )
-        title = QLabel(f"{salutation}, {user_name} 👋")
+        title = QLabel(f"{salutation}, {user_name}")
         title.setObjectName("greetingTitle")
         self._greeting_title = title
         subtitle = QLabel(now.strftime("%A, %d %B %Y · %I:%M %p"))
@@ -127,8 +128,9 @@ class HomeView(QWidget):
         self._search.returnPressed.connect(self._on_search_submitted)
         row.addWidget(self._search)
 
-        bell = QPushButton("🔔")
+        bell = QPushButton()
         bell.setObjectName("cardAction")
+        bell.setIcon(icon_registry.qicon("notification", size=18))
         row.addWidget(bell)
         return row
 
@@ -192,10 +194,10 @@ class HomeView(QWidget):
         prompts_row = QHBoxLayout()
         prompts_row.setSpacing(8)
         for icon, text in [
-            ("✉", "Summarize my emails"),
-            ("📅", "What's on my schedule?"),
-            ("🎵", "Open Spotify"),
-            ("✅", "Show my tasks"),
+            ("gmail", "Summarize my emails"),
+            ("calendar", "What's on my schedule?"),
+            ("spotify", "Open Spotify"),
+            ("task", "Show my tasks"),
         ]:
             btn = PillButton(icon, text)
             btn.clicked.connect(lambda _c=False, t=text: self.ask_jarvis_requested.emit(t))
@@ -253,11 +255,14 @@ class HomeView(QWidget):
                 "connected": status.connected,
                 "summary": f"{unread} unread · {status.detail}",
                 "activity": [(a.icon, a.text, a.timestamp.strftime("%H:%M")) for a in activity],
-                "quick_actions": [("compose", "✎", "Compose"), ("refresh", "⟳", "Refresh")],
+                "quick_actions": [
+                    ("compose", "edit", "Compose"),
+                    ("refresh", "refresh", "Refresh"),
+                ],
                 "last_sync": status.last_sync,
             }
 
-        gmail = ServiceWidget("📧", "Gmail", on_refresh=_load_gmail)
+        gmail = ServiceWidget("gmail", "Gmail", on_refresh=_load_gmail)
         row.addWidget(gmail, 1)
 
         spotify_provider = MockSpotifyProvider()
@@ -274,11 +279,15 @@ class HomeView(QWidget):
                 "connected": status.connected,
                 "summary": summary,
                 "activity": [(a.icon, a.text, a.timestamp.strftime("%H:%M")) for a in activity],
-                "quick_actions": [("play", "▶", ""), ("pause", "⏸", ""), ("next", "⏭", "")],
+                "quick_actions": [
+                    ("play", "play", ""),
+                    ("pause", "pause", ""),
+                    ("next", "skip_next", ""),
+                ],
                 "last_sync": status.last_sync,
             }
 
-        spotify = ServiceWidget("🎵", "Spotify", on_refresh=_load_spotify)
+        spotify = ServiceWidget("spotify", "Spotify", on_refresh=_load_spotify)
         row.addWidget(spotify, 1)
 
         weather_provider = MockWeatherProvider()
@@ -289,12 +298,12 @@ class HomeView(QWidget):
             return {
                 "connected": status.connected,
                 "summary": f"{current['temp_c']}°C · {current['condition']} · Humidity {current['humidity']}%",
-                "activity": [("💨", f"Wind {current['wind_kph']} kph", "now")],
-                "quick_actions": [("forecast", "📅", "5-Day Forecast")],
+                "activity": [("wind", f"Wind {current['wind_kph']} kph", "now")],
+                "quick_actions": [("forecast", "calendar", "5-Day Forecast")],
                 "last_sync": status.last_sync,
             }
 
-        weather = ServiceWidget("⛅", "Weather", on_refresh=_load_weather)
+        weather = ServiceWidget("weather", "Weather", on_refresh=_load_weather)
         row.addWidget(weather, 1)
 
         finance_provider = MockFinanceProvider()
@@ -308,11 +317,11 @@ class HomeView(QWidget):
                 "connected": status.connected,
                 "summary": f"Portfolio ₹{summary_data['total_value']:,.0f} ({sign}{summary_data['day_change_pct']:.2f}%)",
                 "activity": [(a.icon, a.text, a.timestamp.strftime("%H:%M")) for a in activity],
-                "quick_actions": [("holdings", "📊", "Holdings")],
+                "quick_actions": [("holdings", "chart", "Holdings")],
                 "last_sync": status.last_sync,
             }
 
-        finance = ServiceWidget("💹", "Finance Overview", on_refresh=_load_finance)
+        finance = ServiceWidget("finance", "Finance Overview", on_refresh=_load_finance)
         row.addWidget(finance, 1)
 
         smart_home_provider = MockSmartHomeProvider()
@@ -324,11 +333,11 @@ class HomeView(QWidget):
                 "connected": status.connected,
                 "summary": status.detail,
                 "activity": [(a.icon, a.text, a.timestamp.strftime("%H:%M")) for a in activity],
-                "quick_actions": [("devices", "🏡", "All Devices")],
+                "quick_actions": [("devices", "smart_home", "All Devices")],
                 "last_sync": status.last_sync,
             }
 
-        smart_home = ServiceWidget("🏡", "Smart Home", on_refresh=_load_smart_home)
+        smart_home = ServiceWidget("smart_home", "Smart Home", on_refresh=_load_smart_home)
         row.addWidget(smart_home, 1)
 
         return row
@@ -345,19 +354,23 @@ class HomeView(QWidget):
         transcript_list.add_row("You · 09:28 AM", "Jarvis, summarize my emails.")
         transcript_list.add_row("Jarvis · 09:28 AM", "You have 3 unread emails. 2 are important.")
         transcript.body.addWidget(transcript_list)
-        note = QLabel("🔒 This conversation is private and visible only to you.")
+        note_row = QHBoxLayout()
+        note_row.setSpacing(6)
+        note_row.addWidget(Icon("lock", size=12))
+        note = QLabel("This conversation is private and visible only to you.")
         note.setObjectName("rowSubtitle")
-        transcript.body.addWidget(note)
+        note_row.addWidget(note, 1)
+        transcript.body.addLayout(note_row)
         row.addWidget(transcript, 2)
 
         quick = SectionCard("Quick Actions")
         grid = QGridLayout()
         grid.setSpacing(10)
         actions = [
-            ("📸", "Take Screenshot", "take screenshot"),
-            ("🧮", "Open Calculator", "open calculator"),
-            ("🔍", "Search Anything", None),
-            ("📝", "Create Note", None),
+            ("screenshot", "Take Screenshot", "take screenshot"),
+            ("calculator", "Open Calculator", "open calculator"),
+            ("search", "Search Anything", None),
+            ("note", "Create Note", None),
         ]
         for index, (icon, label, command) in enumerate(actions):
             btn = IconTextButton(icon, label)

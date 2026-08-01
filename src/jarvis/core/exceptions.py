@@ -90,6 +90,11 @@ class CheckpointError(AgentError):
     """Raised when the agent's checkpoint store cannot be opened or closed."""
 
 
+class InvalidStateTransitionError(JarvisError):
+    """Raised by ModuleStateMachine when asked to move to a state that
+    isn't reachable from the current one (see domain/app_state)."""
+
+
 class ServiceError(JarvisError):
     """Base class for application-service failures."""
 

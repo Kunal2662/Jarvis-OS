@@ -78,7 +78,10 @@ UI (PySide6)  →  Features  →  Services  →  Agents (LangGraph)  →  core.i
 **Dependency rule**: `ui → features → services → agents → core.interfaces`;
 `infrastructure → core.interfaces` (never the other way).
 
-Deep-dive: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Deep-dive on the as-shipped architecture above:
+[`docs/ARCHITECTURE_LEGACY.md`](docs/ARCHITECTURE_LEGACY.md). For the
+Aug 2026 forward-looking architecture standard (React + Tauri +
+FastAPI, M8 onward), see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Project layout
 

@@ -82,7 +82,7 @@ an Alembic revision, not a `models.py` edit alone.
 
 ## 7. Adding a new provider
 
-See §5 of [`ARCHITECTURE.md`](ARCHITECTURE.md).
+See §5 of [`ARCHITECTURE_LEGACY.md`](ARCHITECTURE_LEGACY.md).
 
 ## 8. Git workflow
 

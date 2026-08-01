@@ -7,6 +7,8 @@ from typing import ClassVar
 
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
 
+from jarvis.ui.components.icons import Icon, icon_registry
+
 
 class LabeledProgressBar(QWidget):
     def __init__(self, label: str = "", parent: QWidget | None = None) -> None:
@@ -42,25 +44,23 @@ class StepProgress(QWidget):
     """Vertical list of pipeline phases with a status glyph per row --
     Download / Install / Verify / Optimize / Restart, etc."""
 
-    _GLYPHS: ClassVar[dict[str, str]] = {
-        "pending": "○",
-        "running": "◐",
-        "succeeded": "✓",
-        "failed": "✗",
-        "skipped": "—",
+    _ICON_KEYS: ClassVar[dict[str, str]] = {
+        "pending": "pending",
+        "running": "running",
+        "succeeded": "check",
+        "failed": "error",
+        "skipped": "skipped",
     }
 
     def __init__(self, steps: list[str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._rows: dict[str, QLabel] = {}
+        self._rows: dict[str, Icon] = {}
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(6)
         for step in steps:
             row = QHBoxLayout()
-            glyph = QLabel(self._GLYPHS["pending"])
-            glyph.setObjectName("stepGlyphPending")
-            glyph.setFixedWidth(18)
+            glyph = Icon(self._ICON_KEYS["pending"], size=16)
             text = QLabel(step)
             row.addWidget(glyph)
             row.addWidget(text)
@@ -72,7 +72,11 @@ class StepProgress(QWidget):
         glyph = self._rows.get(step)
         if glyph is None:
             return
-        glyph.setText(self._GLYPHS.get(status, "○"))
-        glyph.setObjectName(f"stepGlyph{status.capitalize()}")
-        glyph.style().unpolish(glyph)
-        glyph.style().polish(glyph)
+        glyph.set_key(self._ICON_KEYS.get(status, "pending"))
+        glyph.set_color(
+            {
+                "succeeded": icon_registry.success_color,
+                "failed": icon_registry.danger_color,
+                "running": icon_registry.hover_color,
+            }.get(status)
+        )

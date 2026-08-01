@@ -45,7 +45,7 @@ class BrowserWorkspace(QWidget):
             status_state="neutral",
             search_placeholder="Search browsing history…",
         )
-        header.add_tool_button("New Automation", icon="＋")
+        header.add_tool_button("New Automation", icon="add")
         column.addWidget(header)
 
         stats = CardGrid(columns=4)
@@ -66,17 +66,17 @@ class BrowserWorkspace(QWidget):
         activity.set_items(
             [
                 (
-                    "🌐",
+                    "browser",
                     "Filled checkout form on amazon.in",
                     (datetime.now() - timedelta(minutes=8)).strftime("%H:%M"),
                 ),
                 (
-                    "🔍",
+                    "search",
                     'Searched "PySide6 QDockWidget" on Google',
                     (datetime.now() - timedelta(minutes=35)).strftime("%H:%M"),
                 ),
                 (
-                    "📧",
+                    "gmail",
                     "Opened Gmail and archived 4 emails",
                     (datetime.now() - timedelta(hours=1)).strftime("%H:%M"),
                 ),
@@ -86,9 +86,9 @@ class BrowserWorkspace(QWidget):
 
         actions = QuickActionsRow(
             [
-                ("new_tab", "＋", "New Tab"),
-                ("run_automation", "▶", "Run Automation"),
-                ("clear_history", "🗑", "Clear History"),
+                ("new_tab", "add", "New Tab"),
+                ("run_automation", "play", "Run Automation"),
+                ("clear_history", "delete", "Clear History"),
             ]
         )
         column.addWidget(actions)

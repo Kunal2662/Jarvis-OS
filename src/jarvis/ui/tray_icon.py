@@ -14,6 +14,8 @@ from PySide6.QtCore import Signal
 from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from jarvis.ui.components.icons import icon_registry
+
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QMainWindow
 
@@ -50,7 +52,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         voice_action.triggered.connect(self.voice_mode_requested)
         menu.addAction(voice_action)
 
-        transcript_action = QAction("🔒  Private Transcript", menu)
+        transcript_action = QAction(
+            icon_registry.qicon("lock", size=16), "Private Transcript", menu
+        )
         transcript_action.triggered.connect(self.private_transcript_requested)
         menu.addAction(transcript_action)
 

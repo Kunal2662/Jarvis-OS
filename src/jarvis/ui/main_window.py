@@ -40,6 +40,7 @@ from jarvis.core.logging.logger import get_logger
 from jarvis.core.types import VoiceMode
 from jarvis.features.conversation.controller import ConversationController
 from jarvis.features.voice.controller import VoiceController
+from jarvis.ui.components.icons import icon_registry
 from jarvis.ui.dialogs.memory_timeline_dialog import MemoryTimelineDialog
 from jarvis.ui.dialogs.private_transcript_dialog import PrivateTranscriptDialog
 from jarvis.ui.dialogs.settings_dialog import SettingsDialog
@@ -419,13 +420,15 @@ class MainWindow(QMainWindow):
                 else "in progress"
             )
             if session.rollback_report is not None:
-                icon = "↺" if session.rollback_report.succeeded else "⚠"
-                label = f"{icon} Rolled back to {session.from_version} · {when}"
+                icon_key = "history" if session.rollback_report.succeeded else "warning"
+                label = f"Rolled back to {session.from_version} · {when}"
             elif session.succeeded:
-                label = f"✓ Updated to {session.to_version} · {when}"
+                icon_key = "check"
+                label = f"Updated to {session.to_version} · {when}"
             else:
-                label = f"✗ Failed: {session.from_version} → {session.to_version} · {when}"
-            menu.addAction(label)
+                icon_key = "error"
+                label = f"Failed: {session.from_version} → {session.to_version} · {when}"
+            menu.addAction(icon_registry.qicon(icon_key, size=14), label)
         menu.addSeparator()
         menu.addAction("Open Update Terminal…").triggered.connect(self._reopen_update_terminal)
         self._update_history_menu = menu  # keep alive -- popup() is non-blocking
@@ -509,7 +512,7 @@ class MainWindow(QMainWindow):
         self._chat_page.voice_orb.set_state(state, detail)
 
     def _on_error(self, message: str) -> None:
-        self._chat_page.chat_view.add_message("system", f"⚠  {message}")
+        self._chat_page.chat_view.add_message("system", message)
         self._chat_page.prompt.set_enabled_input(True)
 
     # ------------------------------------------------------------------
