@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router-dom";
 import { createBrowserRouter } from "react-router-dom";
 import { DesktopShell } from "@/components/layout/desktop-shell";
+import { DashboardGrid } from "@/features/dashboard/dashboard-grid";
 import { MODULE_DEFINITIONS } from "@/modules/module-definitions";
 import { PlaceholderRoute } from "@/routes/placeholder-route";
 
@@ -32,12 +33,17 @@ import { PlaceholderRoute } from "@/routes/placeholder-route";
  * -- one lazy import per real feature module, following
  * `components/common/loading-spinner.tsx`'s `LoadingState` as the
  * fallback, consistent with every other module's own code-split chunk.
+ *
+ * `home` is the first module to actually take this path (Phase 3, Task
+ * Group F's Dashboard Widget Grid) -- imported eagerly rather than
+ * lazily since it's the app's own landing route, always needed on first
+ * paint; lazy-loading it would just delay the very first thing a user
+ * sees.
  */
 const childRoutes: RouteObject[] = MODULE_DEFINITIONS.map((manifest) => {
   const route = manifest.routes[0] ?? "/";
-  return route === "/"
-    ? { index: true, element: <PlaceholderRoute label={manifest.displayName} /> }
-    : { path: route.slice(1), element: <PlaceholderRoute label={manifest.displayName} /> };
+  const element = manifest.name === "home" ? <DashboardGrid /> : <PlaceholderRoute label={manifest.displayName} />;
+  return route === "/" ? { index: true, element } : { path: route.slice(1), element };
 });
 
 export const router = createBrowserRouter([

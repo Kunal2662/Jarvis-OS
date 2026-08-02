@@ -1174,24 +1174,37 @@ plugin registers.
   set only) and an optional `parentGroup` (how "AI" nests its three
   children) — both are manifest *data*, so Sidebar's own code stays
   generic regardless of how many modules exist.
-- **Dashboard Widget Grid.** The Dashboard becomes a customizable
-  widget grid, not a single static view. Built-in system widgets ship
-  with Core JARVIS: Tasks, Calendar, Notes, Notifications, Recent
-  Activity, Quick Actions, System Status. Everything else (Gmail,
+- **Dashboard Widget Grid.** The Dashboard is a customizable widget
+  grid, not a single static view — shipped in Aug 2026's Task Group F
+  (see the changelog addendum). Built-in system widgets ship with Core
+  JARVIS: **Notifications, Recent Activity, Quick Actions, System
+  Status** ship real, each backed by an actual store/hook (the
+  notification center, background task tracking, real navigation
+  links, and the real WebSocket connection status respectively) — no
+  fabricated content. **Tasks, Calendar, and Notes do not ship yet**:
+  no real backing feature exists anywhere in the codebase for any of
+  the three, and a widget with a title but no real feature behind it
+  would be exactly the fake implementation this project's standing "no
+  fake data" rule forbids. Each becomes a real Dashboard widget once
+  its own feature ships (Tasks/Notes most naturally under M11B
+  Productivity Suite; Calendar once real Google Workspace/OAuth data
+  exists per M11) — `DashboardWidgetRegistry` places no cap on widget
+  count, so this is additive, not a rework. Everything else (Gmail,
   Slack, Spotify, GitHub, an SEO Dashboard, Home Assistant, a
   Portfolio widget, and any future plugin's own) registers through
-  `DashboardWidgetRegistry` (new, mirrors `ApplicationRegistry`'s own
-  pattern) — the same extension point every other plugin surface uses
-  (M9's expanded Plugin Registration System, below), not a
-  Core-JARVIS-maintained special case per widget. Users can add,
-  remove, resize, move, and pin widgets, and save/import/export their
-  layout.
+  `DashboardWidgetRegistry` (mirrors `ApplicationRegistry`'s own
+  pattern, and is itself one named `ContributionRegistry` instance
+  alongside Navigation and Status Bar — see the Task Group D/E
+  addendum below) — the same extension point every other plugin
+  surface uses (M9's expanded Plugin Registration System, below), not
+  a Core-JARVIS-maintained special case per widget. Users can add,
+  remove, resize (through 4 fixed grid footprints, not free-form
+  drag), move, and pin widgets, and export/import their layout as one
+  JSON document.
 
-Both are frontend registries/foundations as of this addendum — the
-widget *grid UI itself* (drag/resize/pin/layout persistence) is this
-phase's own next task group, tracked in
-`IMPLEMENTATION_ROADMAP.md`; real third-party plugin *code loading*
-remains M9's Plugin Loader, below, unchanged by this addendum.
+Both are fully shipped as of the Task Group F addendum below — real
+third-party plugin *code loading* remains M9's Plugin Loader, below,
+unchanged by this addendum.
 
 #### Phase 4 — Voice Experience & Motion
 Removes the Orb (a standing instruction from the earlier PySide6-era
@@ -1400,8 +1413,11 @@ bespoke implementation per surface:
   `ContributionRegistry` in the same pass), the same mechanism every
   first-party module already registers navigation through; a loaded
   plugin is not a special case.
-- Dashboard widgets — via `DashboardWidgetRegistry` (M8 Phase 3), a
-  named `ContributionRegistry` instance, not a parallel class.
+- Dashboard widgets — via `DashboardWidgetRegistry` (M8 Phase 3, Task
+  Group F), a named `ContributionRegistry` instance, not a parallel
+  class; Core JARVIS's own 4 built-in widgets (Notifications, Recent
+  Activity, Quick Actions, System Status) register through this exact
+  path.
 - Status bar items — via `statusBarRegistry` (M8 Phase 3, Task Group
   E), another named `ContributionRegistry` instance; Core JARVIS's own
   9 built-in items (Current Workspace, Active Module, Current Running
@@ -10158,3 +10174,44 @@ component (which would violate React's Rules of Hooks over a
 variable-length list). No dependency, acceptance-criterion, or
 numbering conflict was found against M0–M27. Bump this line whenever
 you edit the roadmap.*
+
+*Aug 2026 addendum — Task Group F (Dashboard Widget Grid):* the
+Dashboard's `home` route became a real page (`features/dashboard/
+dashboard-grid.tsx`), replacing `PlaceholderRoute`, and
+`DashboardWidgetContribution` gained an `isCore` field — the same
+reasoning `StatusBarContribution.isCore` already established, since
+Core JARVIS's widgets register under the reserved `moduleId: "core"`,
+which isn't a real `ApplicationRegistry` entry an enablement check
+could otherwise resolve `isCore` from. A new `stores/dashboard-
+layout.store.ts` (persisted, key `jarvis.dashboard-layout`) is the
+grid's own preference layer — which registered+enabled widgets are
+currently visible, at what size, in what order, and whether pinned —
+kept separate from the registry describing *what widgets exist*, the
+same split `stores/dock.store.ts` (preference) and
+`core/application-registry.ts` (existence) already established.
+Widgets resize through 4 fixed grid footprints (1×1, 2×1, 1×2, 2×2)
+rather than free-form drag-resize: no grid-layout or drag-and-drop
+library is installed in `frontend/package.json`, and introducing one
+unannounced was judged worse than a small, fully-functional, honestly-
+scoped fixed-tier resize control. Export/import round-trips one JSON
+document shaped like `core/settings-framework.ts`'s existing
+`{schemaVersion, values}`-style envelope, validated (not blindly
+trusted) before being applied — this repo's first real client-side
+file download/upload, added deliberately rather than left as an inert
+button.
+
+Of the roadmap's originally-listed 7 built-in widgets, **4 shipped
+real** (Notifications, Recent Activity, Quick Actions, System Status)
+and **3 were deliberately not built** (Tasks, Calendar, Notes) — a
+repo-wide search confirmed zero backing store, data model, or backend
+endpoint exists for any of the three, so a widget for them today would
+be exactly the fake/placeholder implementation this project's standing
+rule forbids. This is the same "build only what's honestly real, and
+document the rest" resolution this same UI Architecture Update review
+established for `StatusBarContribution`'s three "Not configured"
+items — applied here to whole widgets rather than individual status
+fields, since there is no partial-honest state between "a real Tasks
+feature" and "no Tasks widget at all." `DashboardWidgetRegistry` places
+no cap on widget count, so each becomes additive once its own feature
+ships. No dependency, acceptance-criterion, or numbering conflict was
+found against M0–M27. Bump this line whenever you edit the roadmap.*

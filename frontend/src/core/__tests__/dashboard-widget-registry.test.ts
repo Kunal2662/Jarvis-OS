@@ -8,6 +8,7 @@ function widget(overrides: Partial<DashboardWidgetContribution> = {}): Dashboard
     title: "Test Widget",
     render: () => null,
     defaultSize: { width: 2, height: 2 },
+    isCore: false,
     ...overrides,
   };
 }

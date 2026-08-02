@@ -1,11 +1,11 @@
 import { applicationRegistry } from "@/core/application-registry";
 import { statusBarRegistry, type StatusBarContribution } from "@/core/interfaces/status-bar-interface";
 import { useConnectionStatus } from "@/hooks/use-connection-status";
+import { CONNECTION_STATUS_DOT_CLASS, CONNECTION_STATUS_LABEL } from "@/lib/connection-status-display";
 import { cn } from "@/lib/utils";
 import { useBackgroundTasksStore } from "@/stores/background-tasks.store";
 import { useNotificationsStore } from "@/stores/notifications.store";
 import { useWorkspaceStore } from "@/stores/workspace.store";
-import type { ConnectionStatus } from "@/services/websocket";
 
 /**
  * Core JARVIS's own 9 built-in Status Bar items (Phase 3, Task Group E)
@@ -68,24 +68,6 @@ function BackgroundTaskProgressItem() {
 function NotConfiguredItem() {
   return <span className="text-muted-foreground">Not configured</span>;
 }
-
-const CONNECTION_STATUS_LABEL: Record<ConnectionStatus, string> = {
-  not_configured: "Not connected",
-  connecting: "Connecting…",
-  connected: "Connected",
-  reconnecting: "Reconnecting…",
-  offline: "Offline",
-  error: "Connection error",
-};
-
-const CONNECTION_STATUS_DOT_CLASS: Record<ConnectionStatus, string> = {
-  not_configured: "bg-muted-foreground",
-  connecting: "bg-warning animate-pulse",
-  connected: "bg-success",
-  reconnecting: "bg-warning animate-pulse",
-  offline: "bg-muted-foreground",
-  error: "bg-destructive",
-};
 
 /** The real WebSocket backend connectivity indicator -- carried over
  *  verbatim from the pre-Task-Group-E `StatusBar`, not a new "internet

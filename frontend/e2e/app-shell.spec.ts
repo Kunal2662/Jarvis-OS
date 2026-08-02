@@ -32,11 +32,19 @@ test.describe("App shell foundation", () => {
   test("navigating the sidebar updates the route and active state", async ({ page }) => {
     await page.goto("/");
 
-    await page.getByRole("link", { name: "Automation" }).click();
+    // `exact: true` -- the Dashboard's Quick Actions widget (Phase 3,
+    // Task Group F) has its own "Open Automation" shortcut link, whose
+    // accessible name contains "Automation" as a substring; Playwright's
+    // default name matching is substring-based, so an unscoped, inexact
+    // match here would ambiguously resolve to both links.
+    await page.getByRole("link", { name: "Automation", exact: true }).click();
 
     await expect(page).toHaveURL(/\/automations$/);
     await expect(page.getByRole("heading", { name: "Automation", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Automation" })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("link", { name: "Automation", exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     await expect(page.getByRole("link", { name: "Dashboard", exact: true })).not.toHaveAttribute(
       "aria-current",
       "page",
@@ -54,7 +62,12 @@ test.describe("App shell foundation", () => {
     await page.goto("/");
 
     // No backend WebSocket route exists yet (see services/websocket) --
-    // this must never read "Connected".
-    await expect(page.getByText("Not connected")).toBeVisible();
+    // this must never read "Connected". Scoped to the status bar's own
+    // <footer> landmark: the Dashboard's System Status widget (Phase 3,
+    // Task Group F) honestly reports the exact same real connection
+    // state via the same shared label table
+    // (`lib/connection-status-display.ts`), so an unscoped text lookup
+    // for "Not connected" would be ambiguous on this page, not broken.
+    await expect(page.locator("footer").getByText("Not connected")).toBeVisible();
   });
 });

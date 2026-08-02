@@ -3,6 +3,59 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.3] — M8 Phase 3, Task Group F (Dashboard Widget Grid)
+
+### Added
+- **Dashboard (Home) view** is now a real page
+  (`features/dashboard/dashboard-grid.tsx`), replacing
+  `PlaceholderRoute` for the `home` module -- registry- and
+  enablement-driven, the same pattern Sidebar/Dock/Status Bar
+  establish. Widgets support add/remove, resize (4 fixed grid
+  footprints: 1×1, 2×1, 1×2, 2×2), move (reorder among same-pinned-
+  state peers), pin/unpin, and layout export/import as one validated
+  JSON document.
+- `stores/dashboard-layout.store.ts` (new, persisted) -- the grid's own
+  preference layer (visible/size/order/pinned per widget id), kept
+  separate from `DashboardWidgetRegistry`'s "what widgets exist," the
+  same split `dock.store.ts`/`application-registry.ts` already
+  establish.
+- `DashboardWidgetContribution` gained `isCore`, matching
+  `StatusBarContribution.isCore`'s reasoning (Core JARVIS's widgets
+  register under the reserved `moduleId: "core"`, which isn't a real
+  `ApplicationRegistry` entry an enablement check could resolve
+  `isCore` from otherwise).
+- Core JARVIS's 4 built-in widgets, all backed by real state: **Notifications**
+  (the notification center), **Recent Activity** (a merged timeline of
+  notifications and background task completions/failures, sorted by
+  real timestamps), **Quick Actions** (real navigation links to core
+  modules), **System Status** (real connection status, background task
+  state, and honest "Not configured" for AI Provider/Voice/Automation,
+  reusing the exact same labels as the Status Bar via the new shared
+  `lib/connection-status-display.ts`).
+- `BackgroundTask` gained a `timestamp` field (set internally on every
+  status transition, never caller-supplied) so Recent Activity has a
+  real ordering signal.
+
+### Fixed
+- The root `.gitignore`'s Python-oriented `lib/`/`lib64/` patterns
+  (unanchored) were silently matching `frontend/src/lib/` too --
+  `icon-registry.ts`, `motion.ts`, and `utils.ts` had **never actually
+  been committed to `origin/main`** despite being depended on
+  throughout the frontend since Phase 1; a fresh clone would not have
+  built. Anchored both patterns to the repo root (`/lib/`, `/lib64/`)
+  and committed the previously-invisible files.
+
+### Not shipped (documented, not faked)
+- **Tasks, Calendar, and Notes widgets were not built.** No real
+  backing store, data model, or backend endpoint exists anywhere in
+  this codebase for any of the three -- a widget with a title but no
+  real feature behind it would be exactly the fake/placeholder
+  implementation this project's standing rule forbids. Each becomes a
+  real widget once its own feature ships (see `MASTER_ROADMAP.md`'s
+  Task Group F addendum for the reasoning and target milestones).
+  `DashboardWidgetRegistry` places no cap on widget count, so this is
+  additive later, not a rework.
+
 ## [0.6.2] — M8 Phase 3, Task Group E (Status Bar)
 
 ### Added

@@ -915,6 +915,7 @@ implements against the design tokens already established.
 | Dock behavior | Pinned items persist across restarts; unpin/repin is instant, no confirmation dialog (low-risk, reversible action). |
 | Sidebar behavior | Collapsible, state persists across restarts; exactly one nav item active at a time — unchanged UX contract from the shipped PySide6 sidebar (`ui/widgets/sidebar.py`), just re-rendered in React. |
 | Status bar behavior | Left/center/right, sorted by ascending `priority` within each — no hardcoded item order. A module that has no real backing data for an item shows an honest "Not configured"/idle state, never a fabricated value (added Aug 2026, M8 Phase 3 Task Group E). |
+| Dashboard widget grid behavior | Registry- and enablement-driven, no hardcoded widget list; per-widget size/order/pin/visibility is a separate user-preference store from the registry describing what widgets exist (same split as Dock behavior above). Resize cycles 4 fixed grid footprints (1×1, 2×1, 1×2, 2×2), not free-form drag-resize. A widget with no real backing feature is not registered at all, never shipped as an empty shell (added Aug 2026, M8 Phase 3 Task Group F). |
 
 **UI extension points are registry-driven, not per-surface bespoke
 code** *(added Aug 2026, UI Architecture Update)*: Sidebar, Dashboard
@@ -925,7 +926,10 @@ its own registration mechanism. A module contributes to any of these
 surfaces the same way regardless of which one — register, unregister,
 query by owning module — full detail in `MASTER_ROADMAP.md` §8 M9's
 Plugin Registration System subsection, which also tracks which surfaces
-are real today versus still pending the Plugin Loader.
+are real today versus still pending the Plugin Loader. As of Task
+Group F, all three surfaces have a real rendering consumer (Sidebar,
+the Dashboard Widget Grid, and the Status Bar itself) — none is
+registry-only scaffolding anymore.
 
 ---
 

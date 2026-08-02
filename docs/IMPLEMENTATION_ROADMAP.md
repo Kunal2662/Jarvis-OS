@@ -145,7 +145,10 @@ no simulated completed functionality. Every screen renders a real
 value, a real loading state, or a real empty state.
 
 ### Phase 3 — Desktop Workspace
-- [ ] Dashboard (Home) view.
+- [x] Dashboard (Home) view -- `features/dashboard/dashboard-grid.tsx`
+      is now the `home` module's real route element (`routes/router.tsx`),
+      replacing the shared `PlaceholderRoute` the way that file's own
+      header comment describes for a route's first real feature module.
 - [x] Sidebar (ports the existing 14-item nav list from
       `ui/widgets/sidebar.py` — same nav structure, new renderer).
   - [x] **Adaptive Sidebar** *(added Aug 2026 per the roadmap
@@ -178,16 +181,46 @@ value, a real loading state, or a real empty state.
           optional/disabled-by-default.
     - [x] Keyboard roving-focus updated for variable visible-item sets
           (collapsed groups skip their hidden children).
-- [ ] **Dashboard Widget Grid** *(added Aug 2026 per the UI
-      Architecture Update review — see `MASTER_ROADMAP.md` §8 M8
-      Phase 3)*:
+- [x] **Dashboard Widget Grid** *(added Aug 2026 per the UI
+      Architecture Update review; built out Aug 2026, Task Group F —
+      see `MASTER_ROADMAP.md` §8 M8 Phase 3)*:
   - [x] `DashboardWidgetRegistry` + `DashboardWidgetContribution`
-        (foundation only — mirrors `ApplicationRegistry`'s pattern;
-        no widget grid UI renders these yet -- that's the next task).
-  - [ ] Built-in widgets: Tasks, Calendar, Notes, Notifications,
-        Recent Activity, Quick Actions, System Status.
-  - [ ] Grid layout (add/remove/resize/move/pin).
-  - [ ] Layout persistence + import/export.
+        (extended with `isCore`, matching `StatusBarContribution`'s own
+        reasoning — Core JARVIS's widgets register under the reserved
+        `moduleId: "core"`, which isn't a real `ApplicationRegistry`
+        entry).
+  - [x] Built-in widgets — **4 of the originally-listed 7 shipped**:
+        Notifications, Recent Activity, Quick Actions, System Status.
+        **Tasks, Calendar, and Notes were deliberately NOT built** — no
+        real backing store or feature exists anywhere in this codebase
+        for any of the three (confirmed by search: no `tasks.store.ts`,
+        no calendar data model, no notes data model, no backend
+        endpoint for any of them). Per this project's standing "no fake
+        data"/"no placeholder business logic" rule, a widget with a
+        title and an empty shell but no real feature behind it would be
+        exactly the fake implementation this milestone forbids. Each
+        needs its own real feature build first — Tasks and Notes most
+        naturally belong under a future Productivity milestone (see
+        `MASTER_ROADMAP.md` M11B Productivity Suite), Calendar under its
+        own module once Google Workspace/OAuth integration (M11) ships
+        real data — before it can honestly register a Dashboard widget.
+        `dashboardWidgetRegistry` and the grid UI place no limit on
+        widget count, so adding these later is additive, not a rework.
+  - [x] Grid layout (add/remove/resize/move/pin) — `stores/dashboard-
+        layout.store.ts`. Resize cycles a widget through 4 fixed grid
+        footprints (1×1, 2×1, 1×2, 2×2) rather than free-form drag
+        resizing (no drag/grid-layout library is installed or
+        pre-approved for this stack — see `docs/TECH_STACK.md`); move
+        reorders a widget among its own same-pinned-state peers only,
+        so a pinned widget's "up"/"down" never silently swaps with an
+        unrelated unpinned neighbor.
+  - [x] Layout persistence (`localStorage`, key `jarvis.dashboard-
+        layout`, same `jarvis.<name>` convention as `sidebar.store.ts`/
+        `dock.store.ts`) + import/export (one JSON document, the same
+        `{schemaVersion, values}`-shaped envelope `core/settings-
+        framework.ts`'s `ModuleSettings.export()`/`.import()` already
+        establishes; validated before being applied, never trusts an
+        imported file's shape blindly).
 - [x] Dock (registry- and enablement-driven, same pattern as Sidebar --
       pinned modules only render if also registered *and* enabled;
       active state from `WorkspaceManager`, not the route).
