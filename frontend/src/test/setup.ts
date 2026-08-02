@@ -40,3 +40,14 @@ if (typeof window !== "undefined" && !window.ResizeObserver) {
     disconnect(): void {}
   };
 }
+
+/**
+ * jsdom doesn't implement `Element.scrollIntoView` either -- needed by
+ * cmdk's `CommandList` (`components/ui/command.tsx`), which scrolls the
+ * selected item into view on selection/keyboard nav (Phase 3, Task
+ * Group G's Command Palette). A no-op stub is enough for component
+ * tests; nothing here asserts on actual scroll position.
+ */
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

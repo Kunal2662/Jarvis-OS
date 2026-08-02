@@ -3,6 +3,39 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.4] — M8 Phase 3, Task Group G (Command Palette)
+
+### Added
+- **Command Palette** -- fills in `components/layout/command-palette-
+  layer.tsx`, the DesktopShell region reserved since Phase 3's own
+  foundation pass. Opens on `Ctrl+K` **and** `Ctrl+Shift+P`
+  (`providers/command-palette-provider.tsx`) -- the roadmap's canonical
+  binding is `Ctrl+Shift+P`, but the header's Search button has
+  visually promised "Ctrl+K" since Phase 1; both are honored so neither
+  promise is silently broken.
+- "Navigate" entries: real, registry- and enablement-driven module
+  links (`ApplicationRegistry` + `ModuleEnablementStore`), the same
+  data Sidebar/Dock already read.
+- "Commands" entries: `getAllCommandPaletteEntries()`
+  (`core/interfaces/navigation-interface.ts`, M8 Phase 2) -- confirmed
+  real, already-wired infrastructure (every module's mount/unmount
+  already calls `registerNavigation()` via `BaseApplication`), not dead
+  code. **No new `ContributionRegistry` instance was built for this** --
+  reusing the mechanism that already exists rather than duplicating it.
+
+### Fixed
+- `components/ui/command.tsx`'s `CommandDialog` never wrapped its
+  `children` in cmdk's own `<Command>` root -- any `CommandInput`/
+  `CommandList`/`CommandItem` rendered inside it threw at render time
+  ("Cannot read properties of undefined (reading 'subscribe')"), since
+  there was no cmdk context above them. Never caught before because
+  nothing had used `CommandDialog` until this task group. Fixed at the
+  primitive.
+- Added a `scrollIntoView` no-op stub to `test/setup.ts` -- jsdom
+  doesn't implement it and cmdk's list uses it internally; same
+  category as the existing `ResizeObserver`/`matchMedia` stubs already
+  there.
+
 ## [0.6.3] — M8 Phase 3, Task Group F (Dashboard Widget Grid)
 
 ### Added

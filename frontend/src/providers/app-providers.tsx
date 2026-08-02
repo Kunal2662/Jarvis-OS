@@ -1,4 +1,5 @@
 import { MotionConfig } from "motion/react";
+import { CommandPaletteProvider } from "@/providers/command-palette-provider";
 import { DeveloperProvider } from "@/providers/developer-provider";
 import { ErrorBoundary } from "@/providers/error-boundary";
 import { NotificationProvider } from "@/providers/notification-provider";
@@ -28,9 +29,11 @@ export function AppProviders() {
           <MotionConfig reducedMotion="user">
             <QueryProvider>
               <DeveloperProvider>
-                <NotificationProvider>
-                  <RouterProvider />
-                </NotificationProvider>
+                <CommandPaletteProvider>
+                  <NotificationProvider>
+                    <RouterProvider />
+                  </NotificationProvider>
+                </CommandPaletteProvider>
               </DeveloperProvider>
             </QueryProvider>
           </MotionConfig>

@@ -1449,7 +1449,10 @@ bespoke implementation per surface:
   point (M8 Phase 3, planned — not yet built; will itself be a
   `ContributionRegistry` instance, per the pattern above).
 - Command Palette actions — via `NavigationContribution`'s existing
-  `commandPaletteEntries` field (M8 Phase 2) — already real, not new.
+  `commandPaletteEntries` field (M8 Phase 2) — already real, not new,
+  and as of M8 Phase 3 Task Group G has a real UI consumer
+  (`components/layout/command-palette-layer.tsx`, `Ctrl+K`/
+  `Ctrl+Shift+P`) rendering whatever it aggregates.
 
 **What's already real vs. what still depends on the Plugin Loader
 above:** every frontend-side registry this list points at
@@ -10215,3 +10218,40 @@ feature" and "no Tasks widget at all." `DashboardWidgetRegistry` places
 no cap on widget count, so each becomes additive once its own feature
 ships. No dependency, acceptance-criterion, or numbering conflict was
 found against M0–M27. Bump this line whenever you edit the roadmap.*
+
+*Aug 2026 addendum — Task Group G (Command Palette):* filled in
+`components/layout/command-palette-layer.tsx`, the reserved DesktopShell
+region that had rendered nothing since Phase 3's own foundation pass.
+Both `Ctrl+K` and `Ctrl+Shift+P` open it
+(`providers/command-palette-provider.tsx`, following the same
+`useEffect` + `window` keydown + cleanup idiom `providers/developer-
+provider.tsx` established for `Ctrl+Shift+D`) — the roadmap's canonical
+binding has always been `Ctrl+Shift+P`, but `components/layout/
+header.tsx`'s Search button has visually promised "Ctrl+K" since Phase
+1; binding only one would silently break the other's promise.
+
+Before building, confirmed `NavigationContribution.commandPaletteEntries`
++ `getAllCommandPaletteEntries()` (`core/interfaces/navigation-
+interface.ts`, M8 Phase 2) is real, already-wired infrastructure —
+every module's `mount()`/`unmount()` already calls `registerNavigation()`
+via `BaseApplication`, confirmed by tracing the call chain through
+`WorkspaceManager.switchTo()`. **No new `ContributionRegistry` instance
+was built for commands** — the M9 Plugin Registration System's own text
+already calls this mechanism "already real, not new"; building a
+parallel one would have repeated the exact "multiple unrelated
+registries" mistake the Task Group D/E addendum above fixed. The
+Command Palette's "Navigate" entries instead come from
+`ApplicationRegistry` + `ModuleEnablementStore`, the same data
+Sidebar/Dock already read.
+
+Found and fixed a real bug in the process: `components/ui/command.tsx`'s
+`CommandDialog` (scaffolded in Phase 1, never previously given a real
+consumer) didn't wrap its `children` in cmdk's own `<Command>` root —
+every `CommandInput`/`CommandList`/`CommandItem` rendered inside it
+threw at render time with no cmdk context to read from. Fixed at the
+primitive, not worked around per-consumer. Also added a `scrollIntoView`
+no-op stub to `test/setup.ts` (jsdom doesn't implement it; cmdk's list
+uses it internally) — same category as the existing `ResizeObserver`/
+`matchMedia` stubs already there. No dependency, acceptance-criterion,
+or numbering conflict was found against M0–M27. Bump this line whenever
+you edit the roadmap.*

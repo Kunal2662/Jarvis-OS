@@ -247,10 +247,38 @@ value, a real loading state, or a real empty state.
       Gmail, Spotify — ported feature-by-feature, not redesigned
       unless the feature itself changed).
 - [ ] Window management (Tauri window APIs).
-- [ ] Command Palette (`Ctrl+Shift+P`) — see `MASTER_ROADMAP.md`
-      M11B Productivity Suite for its full feature scope; this phase
-      ships the shell/keybinding, M11B ships the full indexed-search
-      backend.
+- [x] **Command Palette** *(Aug 2026, Task Group G)* — shell/keybinding
+      only, per this phase's scope; see `MASTER_ROADMAP.md` M11B
+      Productivity Suite for the full indexed-search feature.
+  - [x] `Ctrl+K` **and** `Ctrl+Shift+P` both open it
+        (`providers/command-palette-provider.tsx`) — the roadmap's
+        canonical binding is `Ctrl+Shift+P`, but `components/layout/
+        header.tsx`'s Search button has visually promised "Ctrl+K"
+        since Phase 1; binding both keeps that promise honest rather
+        than silently breaking it.
+  - [x] Built on the already-scaffolded `CommandDialog`/`cmdk`
+        primitive (`components/ui/command.tsx`, Phase 1) — fixed a
+        real bug found while wiring it up: `CommandDialog` never
+        wrapped its children in cmdk's own `<Command>` root, so
+        `CommandInput`/`CommandList`/`CommandItem` threw at render
+        time with no root context to read from. Never exercised until
+        this task group gave it a real consumer.
+  - [x] "Navigate" entries come from `ApplicationRegistry` +
+        `ModuleEnablementStore` -- the same registry+enablement data
+        Sidebar/Dock already read, not a separate nav-item list.
+  - [x] "Commands" entries come from `getAllCommandPaletteEntries()`
+        (`core/interfaces/navigation-interface.ts`) -- confirmed this
+        is real, already-wired M8 Phase 2 infrastructure (every
+        module's `mount()`/`unmount()` already calls
+        `registerNavigation()`/its unregister fn via
+        `BaseApplication`), not dead code. **No new `ContributionRegistry`
+        instance was built for commands** -- one already exists for
+        exactly this purpose; duplicating it would repeat the
+        "multiple unrelated registries" mistake this project's rules
+        warn against. Renders no "Commands" group today only because
+        no module overrides `getNavigationContribution()` yet
+        (`modules/placeholder-module.ts` deliberately doesn't) --
+        honest emptiness, not a missing feature.
 - [ ] Responsive layout.
 - [ ] DPI scaling.
 - [ ] Multi-monitor support.

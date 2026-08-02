@@ -59,7 +59,13 @@ function CommandDialog({
         )}
         showCloseButton={showCloseButton}
       >
-        {children}
+        {/* cmdk's `CommandInput`/`CommandList`/`CommandItem` etc. all
+            read from the context `Command` (cmdk's `Command.Root`)
+            provides -- without this wrapper, any of them rendered as
+            `children` here throws at render time ("Cannot read
+            properties of undefined (reading 'subscribe')"), since
+            there is no cmdk context above them. */}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   )
