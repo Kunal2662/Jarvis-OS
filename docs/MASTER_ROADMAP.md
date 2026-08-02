@@ -1208,12 +1208,24 @@ unchanged by this addendum.
 
 #### Phase 4 — Voice Experience & Motion
 Removes the Orb (a standing instruction from the earlier PySide6-era
-UI overhaul brief, never carried out there — executed once, directly,
-here). Replaces it with a Voice Waveform, Live Transcript, and real
-Thinking/Streaming-Response/Speaking states driven by the voice/agent
-state machine (Phase 2) rather than cosmetic animation. Conversation
-Timeline. Motion animations across hover, Sidebar, Dock, Cards, and
-Notifications.
+UI overhaul brief, never carried out there — satisfied by construction
+here, since the React frontend never had one to begin with). Replaces
+it with **Voice String** *(shipped Aug 2026, Task Group H — renamed
+from "Voice Waveform" per the Premium UI & Voice Experience brief;
+same role)*: a continuous animated wave whose color/speed/amplitude
+communicate state (Idle/Wake/Listening/Thinking/Speaking/Success/Error)
+— no visible state label ever renders. Backed by a real, validated
+state machine (`core/voice-state-machine.ts`, mirrors
+`core/module-lifecycle.ts`'s pattern) and a single source-of-truth
+store (`stores/voice-state.store.ts`) that starts and stays `idle`,
+since no real voice backend exists yet — never a cosmetic animation
+with no backing state. Developer Mode's Voice State Preview panel can
+manually drive or auto-cycle the same real store for animation QA
+(disabled by default, never an end-user surface). Live Transcript
+(word-by-word, fades after inactivity) ships alongside it, honestly
+empty until a real STT stream exists. Conversation Timeline and the
+broader motion pass (hover, Sidebar, Dock, Cards, Notifications) remain
+pending.
 
 #### Phase 5 — Settings & User Profiles
 Dynamic Settings (schema-driven, preserving M5's self-registering
@@ -10255,3 +10267,46 @@ uses it internally) — same category as the existing `ResizeObserver`/
 `matchMedia` stubs already there. No dependency, acceptance-criterion,
 or numbering conflict was found against M0–M27. Bump this line whenever
 you edit the roadmap.*
+
+*Aug 2026 addendum — Premium UI & Voice Experience initiative, Task
+Group H (Voice State Architecture):* the first task group of a new,
+larger visual-modernization pass (glassmorphism, an original startup
+sequence, Sidebar/Command Palette visual polish, accessibility settings
+for motion/glass/contrast — tracked as sequential task groups I–L,
+this one first since it was the most architecturally sensitive). Ships
+M8 Phase 4's Voice String (renamed from the original "Voice Waveform"
+wording) and Live Transcript.
+
+Before building, confirmed no real voice state machine exists on the
+frontend today: `core/interfaces/voice-integration.ts` only covers
+command bindings, and no WebSocket voice event relay exists (same gap
+Status Bar's "AI Provider"/"Voice Status" items already honestly
+report as "Not configured"). Resolved by building the real thing now,
+kept honest: `core/voice-state-machine.ts` (mirrors `core/module-
+lifecycle.ts`'s already-established pattern — fixed states, a
+validated transition graph, a typed error on an illegal jump, rather
+than a bare mutable field) and `stores/voice-state.store.ts` (the one
+real entry point, `transition()`, that a future voice pipeline will
+call — Developer Mode's new Voice State Preview panel
+(`features/developer/voice-state-preview.tsx`) calls the exact same
+function, so there is no separate "fake preview" code path). The store
+starts and stays `idle` in normal operation; the preview panel is
+Developer-Mode-gated, off by default, and never simulates a
+conversation outside itself — manual transition buttons only ever
+offer legal next states (`reachableVoiceStates()`), so a click can
+never hit the store's own validation and throw.
+
+`components/voice/voice-string.tsx` renders the wave via `motion/react`'s
+`useTime`/`useTransform` (a continuous, GPU-friendly animation loop,
+not a discrete `animate` transition) and branches on Motion's own
+`useReducedMotion()` hook directly, since `MotionConfig`'s app-wide
+`reducedMotion="user"` (`providers/app-providers.tsx`) only covers
+declarative transitions, not a manually-driven per-frame loop.
+`components/voice/live-transcript.tsx` is a thin view over
+`stores/voice-transcript.store.ts`, empty (renders nothing) until a
+real STT stream exists, fading 4s after the last real word arrives.
+Both wired as the `voice` module's real route element
+(`features/voice/voice-page.tsx`), replacing its `PlaceholderRoute` the
+same way Task Group F did for `home`. No dependency, acceptance-
+criterion, or numbering conflict was found against M0–M27. Bump this
+line whenever you edit the roadmap.*

@@ -3,6 +3,44 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.0] — M8 Phase 4, Task Group H (Voice State Architecture)
+
+First task group of the Premium UI & Voice Experience initiative.
+
+### Added
+- **Voice String** (`components/voice/voice-string.tsx`) -- JARVIS's
+  voice identity, replacing the Orb concept (never built in this
+  frontend to begin with). A continuous animated wave whose color,
+  speed, and amplitude communicate Idle/Wake/Listening/Thinking/
+  Speaking/Success/Error -- no visible state label ("Listening...")
+  ever renders; an `aria-label` carries the state name for screen
+  readers only. Respects `useReducedMotion()` directly, since it's a
+  continuous `useTime()`/`useTransform` loop, not a discrete `animate`
+  transition `MotionConfig`'s app-wide `reducedMotion="user"` already
+  covers.
+- `core/voice-state-machine.ts` -- a real, validated state machine
+  (mirrors `core/module-lifecycle.ts`'s established pattern: fixed
+  states, a transition graph, a typed `InvalidVoiceStateTransitionError`
+  on an illegal jump) for the full 7-state set.
+- `stores/voice-state.store.ts` -- the single source of truth. Starts
+  and stays `idle`: no real voice backend exists yet
+  (`core/interfaces/voice-integration.ts` only covers command
+  bindings; no WebSocket voice event relay exists). The one real entry
+  point, `transition()`, is exactly what a future voice pipeline will
+  call.
+- **Live Transcript** (`components/voice/live-transcript.tsx` +
+  `stores/voice-transcript.store.ts`) -- streaming word-by-word,
+  fades 4s after the last word. Starts and stays empty until a real
+  STT stream exists.
+- **Developer Mode's Voice State Preview** panel
+  (`features/developer/voice-state-preview.tsx`) -- manually drives or
+  auto-cycles the real `useVoiceStateStore`, for animation QA only.
+  Disabled by default, never an end-user surface. Manual buttons only
+  ever offer legal next states, so a click can never hit the store's
+  own validation and throw.
+- `voice` module now has a real route element
+  (`features/voice/voice-page.tsx`), replacing its `PlaceholderRoute`.
+
 ## [0.6.4] — M8 Phase 3, Task Group G (Command Palette)
 
 ### Added

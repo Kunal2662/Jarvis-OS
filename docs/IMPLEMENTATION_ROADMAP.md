@@ -284,16 +284,48 @@ value, a real loading state, or a real empty state.
 - [ ] Multi-monitor support.
 
 ### Phase 4 — Voice Experience & Motion
-- [ ] Remove the Orb (per the standing instruction from the earlier UI
-      overhaul brief — never carried out on the PySide6 side, now
-      executed directly in the new frontend instead of twice).
-- [ ] Voice Waveform component, replacing the Orb.
-- [ ] Live Transcript view.
-- [ ] Thinking / Streaming Response / Speaking states — each a real
-      state from the voice/agent state machine (Phase 2), never a
-      cosmetic animation with no backing state.
+- [x] Remove the Orb (per the standing instruction from the earlier UI
+      overhaul brief) — satisfied by construction: the React frontend
+      never had an Orb to begin with (built fresh), so there was
+      nothing to remove; **Task Group H** built its replacement
+      directly.
+- [x] **Voice String** *(Aug 2026, Task Group H — renamed from "Voice
+      Waveform" per the Premium UI & Voice Experience brief; same
+      role, replaces the Orb)*: `components/voice/voice-string.tsx`,
+      a continuous animated SVG wave (`motion/react`'s `useTime`/
+      `useTransform`, not a discrete transition) whose color/amplitude/
+      frequency communicate state -- no visible text label
+      ("Listening...", "Thinking...") ever renders, per the brief's own
+      rule; an `aria-label` carries the state name for screen readers
+      only. Respects `useReducedMotion()` (freezes the wave rather than
+      animating) since `MotionConfig`'s app-wide `reducedMotion="user"`
+      doesn't cover a manually-driven `useTime()` loop.
+  - [x] `core/voice-state-machine.ts` -- a real, validated state machine
+        (mirrors `core/module-lifecycle.ts`'s pattern exactly: fixed
+        states, a transition graph, a typed error on an illegal jump)
+        for the full Idle/Wake/Listening/Thinking/Speaking/Success/Error
+        set, superseding this line's earlier, vaguer "Thinking /
+        Streaming Response / Speaking" wording.
+  - [x] `stores/voice-state.store.ts` -- the single source of truth,
+        starts and stays `idle` since no real voice backend exists yet
+        (`core/interfaces/voice-integration.ts` only covers command
+        bindings, no live state; no WebSocket voice event relay
+        exists). Never a cosmetic animation with no backing state: the
+        wave always renders whatever this store's real value is.
+  - [x] Developer Mode's **Voice State Preview** panel
+        (`features/developer/voice-state-preview.tsx`) -- manually
+        drives or auto-cycles the same real store, for animation QA
+        only; disabled by default, never an end-user surface, never
+        simulates a fake conversation.
+- [x] Live Transcript view -- `components/voice/live-transcript.tsx`,
+      streaming word-by-word (`voice-transcript.store.ts`), fades 4s
+      after the last word arrives. Starts and stays empty (renders
+      nothing) until a real speech-to-text stream exists -- no
+      placeholder text.
 - [ ] Conversation Timeline.
-- [ ] Motion animations: hover, Sidebar, Dock, Cards, Notifications.
+- [ ] Motion animations: hover, Sidebar, Dock, Cards, Notifications --
+      broader premium-UI motion pass, still pending (see the Premium
+      UI & Voice Experience initiative's later task groups).
 
 ### Phase 5 — Settings & User Profiles
 - [ ] Dynamic Settings (schema-driven, mirrors the existing

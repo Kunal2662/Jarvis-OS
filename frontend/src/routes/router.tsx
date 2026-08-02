@@ -1,7 +1,9 @@
+import type { ReactElement } from "react";
 import type { RouteObject } from "react-router-dom";
 import { createBrowserRouter } from "react-router-dom";
 import { DesktopShell } from "@/components/layout/desktop-shell";
 import { DashboardGrid } from "@/features/dashboard/dashboard-grid";
+import { VoicePage } from "@/features/voice/voice-page";
 import { MODULE_DEFINITIONS } from "@/modules/module-definitions";
 import { PlaceholderRoute } from "@/routes/placeholder-route";
 
@@ -34,15 +36,22 @@ import { PlaceholderRoute } from "@/routes/placeholder-route";
  * `components/common/loading-spinner.tsx`'s `LoadingState` as the
  * fallback, consistent with every other module's own code-split chunk.
  *
- * `home` is the first module to actually take this path (Phase 3, Task
- * Group F's Dashboard Widget Grid) -- imported eagerly rather than
- * lazily since it's the app's own landing route, always needed on first
- * paint; lazy-loading it would just delay the very first thing a user
- * sees.
+ * `home` and `voice` are the first modules to actually take this path
+ * (Phase 3 Task Group F's Dashboard Widget Grid; Phase 4 Task Group H's
+ * Voice String) -- both imported eagerly rather than lazily: `home` is
+ * the app's own landing route, and `voice` is small enough (two
+ * components) that splitting it would add a round-trip for no real
+ * benefit, same reasoning `PlaceholderRoute` itself gets eager-imported
+ * above.
  */
+const REAL_ROUTE_ELEMENTS: Partial<Record<string, ReactElement>> = {
+  home: <DashboardGrid />,
+  voice: <VoicePage />,
+};
+
 const childRoutes: RouteObject[] = MODULE_DEFINITIONS.map((manifest) => {
   const route = manifest.routes[0] ?? "/";
-  const element = manifest.name === "home" ? <DashboardGrid /> : <PlaceholderRoute label={manifest.displayName} />;
+  const element = REAL_ROUTE_ELEMENTS[manifest.name] ?? <PlaceholderRoute label={manifest.displayName} />;
   return route === "/" ? { index: true, element } : { path: route.slice(1), element };
 });
 

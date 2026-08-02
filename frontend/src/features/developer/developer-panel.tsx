@@ -3,15 +3,19 @@ import { Lock, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DEVELOPER_PANEL_SECTIONS } from "@/features/developer/panel-sections";
 import { ModuleStateInspector } from "@/features/developer/module-state-inspector";
+import { VoiceStatePreview } from "@/features/developer/voice-state-preview";
 import { useDeveloperModeStore } from "@/stores/developer-mode.store";
 import { MOTION_DURATIONS } from "@/lib/motion";
 
 /**
- * The Developer Panel foundation (Task 13): empty placeholder sections
- * only, no functionality. Toggled by Ctrl+Shift+D (providers/developer-provider.tsx).
- * Real content requires the backend Runtime Manager, WebSocket log relay,
- * and Plugin Platform API (all M9 scope) -- until then this honestly
- * shows what each section *will* do, never fake data standing in for it.
+ * The Developer Panel foundation (Task 13). Toggled by Ctrl+Shift+D
+ * (providers/developer-provider.tsx). Most sections still honestly show
+ * "not built yet" -- real content requires the backend Runtime Manager,
+ * WebSocket log relay, and Plugin Platform API (all M9 scope). Two
+ * sections are real today because what they inspect has no backend
+ * dependency: State Inspector reads `ApplicationRegistry` directly
+ * (Task 16), and Voice State Preview (Phase 4, Task Group H) drives the
+ * real `useVoiceStateStore` for animation QA.
  */
 export function DeveloperPanel() {
   const activePanelId = useDeveloperModeStore((s) => s.activePanelId);
@@ -74,6 +78,8 @@ export function DeveloperPanel() {
 
             {activeSection.id === "state-inspector" ? (
               <ModuleStateInspector />
+            ) : activeSection.id === "voice-state-preview" ? (
+              <VoiceStatePreview />
             ) : (
               <div className="flex flex-1 items-center justify-center p-6 text-center">
                 <p className="text-secondary text-muted-foreground">{activeSection.description}</p>

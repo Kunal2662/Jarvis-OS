@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, Blocks, Bug, ScrollText, SquareTerminal, Store } from "lucide-react";
+import { Activity, AudioLines, Blocks, Bug, ScrollText, SquareTerminal, Store } from "lucide-react";
 
 export interface DeveloperPanelSection {
   id: string;
@@ -51,5 +51,17 @@ export const DEVELOPER_PANEL_SECTIONS: DeveloperPanelSection[] = [
     label: "Plugin Marketplace",
     icon: Store,
     description: "Backend index/install/uninstall UI -- renders once M9's Plugin Platform API exists.",
+  },
+  {
+    id: "voice-state-preview",
+    label: "Voice State Preview",
+    icon: AudioLines,
+    // Unlike every section above, this one IS real today -- it drives
+    // the real `useVoiceStateStore` (Phase 4, Task Group H), the same
+    // one a real voice pipeline will call `transition()` on once it
+    // exists. Kept in this list (Developer Mode-gated, off by default)
+    // rather than shipped as a real end-user surface, since manually
+    // forcing voice states has no legitimate end-user use case.
+    description: "Manually drive or auto-cycle the real voice state machine, for animation QA.",
   },
 ];
