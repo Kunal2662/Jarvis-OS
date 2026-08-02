@@ -12,7 +12,17 @@
  * URL-based routing (`routes/router.tsx`) already *is* deep linking --
  * every module's route is a real, bookmarkable, shareable URL from the
  * moment it's registered.
+ *
+ * Storage is the same `ContributionRegistry` (`core/contribution-registry.ts`)
+ * `dashboard-widget-registry.ts` uses -- one shared mechanism, not a
+ * bespoke `Map` per surface. `NavigationContribution` is 1:1 per module
+ * (unlike a dashboard widget, where one module can contribute several),
+ * so `id === moduleId` internally; this is transparent to callers --
+ * `NavigationContribution`'s own public shape is unchanged, still no
+ * `id` field to supply.
  */
+
+import { ContributionRegistry, type Contribution } from "@/core/contribution-registry";
 
 export interface CommandPaletteEntry {
   id: string;
@@ -44,7 +54,9 @@ export interface NavigationContribution {
   keyboardShortcuts: KeyboardShortcut[];
 }
 
-const contributions = new Map<string, NavigationContribution>();
+interface StoredNavigationContribution extends NavigationContribution, Contribution {}
+
+const registry = new ContributionRegistry<StoredNavigationContribution>();
 const shortcutListeners = new Map<string, (event: KeyboardEvent) => void>();
 
 function matchesShortcut(event: KeyboardEvent, keys: string): boolean {
@@ -63,9 +75,16 @@ function matchesShortcut(event: KeyboardEvent, keys: string): boolean {
  * function -- called from `BaseApplication.mount()`/`unmount()` (Task 1)
  * so a module's shortcuts and Command Palette entries only exist while
  * it's actually mounted, never leaking after the user navigates away.
+ *
+ * Re-registering the same `moduleId` (e.g. an unpaired `mount()` call)
+ * replaces the previous contribution rather than throwing --
+ * `ContributionRegistry.register()` itself is strict about duplicates,
+ * so this unregisters first, preserving the original, more permissive
+ * "last write wins" behavior every `mount()` call has always relied on.
  */
 export function registerNavigation(contribution: NavigationContribution): () => void {
-  contributions.set(contribution.moduleId, contribution);
+  registry.unregister(contribution.moduleId);
+  registry.register({ ...contribution, id: contribution.moduleId });
 
   const listener = (event: KeyboardEvent) => {
     for (const shortcut of contribution.keyboardShortcuts) {
@@ -79,7 +98,7 @@ export function registerNavigation(contribution: NavigationContribution): () => 
   shortcutListeners.set(contribution.moduleId, listener);
 
   return () => {
-    contributions.delete(contribution.moduleId);
+    registry.unregister(contribution.moduleId);
     const registeredListener = shortcutListeners.get(contribution.moduleId);
     if (registeredListener) window.removeEventListener("keydown", registeredListener);
     shortcutListeners.delete(contribution.moduleId);
@@ -87,9 +106,12 @@ export function registerNavigation(contribution: NavigationContribution): () => 
 }
 
 export function getAllCommandPaletteEntries(): CommandPaletteEntry[] {
-  return [...contributions.values()].flatMap((c) => c.commandPaletteEntries);
+  return registry.getAll().flatMap((c) => c.commandPaletteEntries);
 }
 
 export function getSearchableModuleIds(): string[] {
-  return [...contributions.values()].filter((c) => c.searchable).map((c) => c.moduleId);
+  return registry
+    .getAll()
+    .filter((c) => c.searchable)
+    .map((c) => c.moduleId);
 }

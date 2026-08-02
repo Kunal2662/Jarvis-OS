@@ -3,6 +3,30 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.1] — M8 Phase 3, Task Group D (Dock) + Contribution Registry unification
+
+### Fixed
+- `DashboardWidgetRegistry`, added in `[0.6.0]`, was its own bespoke
+  class mirroring `ApplicationRegistry`'s pattern -- exactly the
+  "multiple unrelated registries" anti-pattern to avoid. Extracted the
+  shared mechanism into `core/contribution-registry.ts`'s generic
+  `ContributionRegistry<T>`; `DashboardWidgetRegistry` is now a thin
+  named instance of it. `NavigationContribution`'s internal storage
+  (previously its own raw `Map`) migrated onto the same class. Both
+  public APIs are unchanged -- no consuming code needed to change.
+
+### Added
+- **Phase 3, Task Group D — Dock**: registry- and enablement-driven,
+  same pattern as Sidebar (Task Group C) -- pinned modules only render
+  if also registered *and* enabled; a pinned-but-disabled module
+  disappears from the Dock. Active-state highlighting from
+  `WorkspaceManager`, not the route. `routes/nav-items.ts` is now read
+  by nothing in the app.
+- Test coverage for `core/contribution-registry.ts` (the canonical
+  suite every contribution-holding registry's own tests now stay thin
+  against) and `core/interfaces/navigation-interface.ts` (had none
+  before this pass).
+
 ## [0.6.0] — Milestone 8 (in progress): React Frontend Foundation & Desktop Workspace
 
 Consolidated entry -- M8's earlier phases (React Foundation, Universal

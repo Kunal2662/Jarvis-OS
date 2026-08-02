@@ -1383,17 +1383,25 @@ acceptance test for this principle, folded into this milestone's own
 acceptance criteria below.
 
 **Plugin Registration System** *(added Aug 2026 per the UI
-Architecture Update review — see the changelog addendum)*: the
+Architecture Update review, revised the same month once
+`ContributionRegistry` shipped — see the changelog addendum)*: the
 concrete list of what a plugin can register once the Plugin Loader
 above actually loads it — extends the Extension API bullet with the
 specific surfaces every plugin gets, rather than leaving "a stable,
-versioned subset of services" undefined:
+versioned subset of services" undefined. Every surface below except
+`ApplicationRegistry` itself (which owns module-level concerns —
+dependency resolution, manifest validation — none of these need) is a
+named instance of the *same* generic `ContributionRegistry` (M8 Phase
+3) — one register/unregister/getAll/getByModule mechanism, not a
+bespoke implementation per surface:
 
 - Sidebar entries — via `ApplicationRegistry`/`NavigationContribution`
-  (M8 Phase 2), the same mechanism every first-party module already
-  registers navigation through; a loaded plugin is not a special case.
-- Dashboard widgets — via `DashboardWidgetRegistry` (M8 Phase 3,
-  added this same review pass), the identical pattern one level up.
+  (M8 Phase 2, `NavigationContribution`'s storage itself migrated onto
+  `ContributionRegistry` in the same pass), the same mechanism every
+  first-party module already registers navigation through; a loaded
+  plugin is not a special case.
+- Dashboard widgets — via `DashboardWidgetRegistry` (M8 Phase 3), a
+  named `ContributionRegistry` instance, not a parallel class.
 - Pages / Routes — a plugin's own React route(s), mounted through
   M8 Phase 3's Workspace Routing, never a route that bypasses
   `BaseApplication`.
@@ -1415,23 +1423,24 @@ versioned subset of services" undefined:
   module (Reliability, above); a plugin's background work is
   supervised, not a bare, unmanaged process.
 - Context menu actions — via a reusable context-menu registration
-  point (M8 Phase 3, planned — not yet built).
+  point (M8 Phase 3, planned — not yet built; will itself be a
+  `ContributionRegistry` instance, per the pattern above).
 - Command Palette actions — via `NavigationContribution`'s existing
   `commandPaletteEntries` field (M8 Phase 2) — already real, not new.
 
 **What's already real vs. what still depends on the Plugin Loader
 above:** every frontend-side registry this list points at
-(`ApplicationRegistry`, `DashboardWidgetRegistry`, the Permission/
-Settings/Notification Frameworks, `NavigationContribution`) already
-exists and works for first-party modules today — a registered
-`BaseApplication` instance can already contribute navigation, a
-dashboard widget, settings, and command palette entries with zero
-further backend work. What doesn't exist yet is the mechanism that
-loads *third-party* plugin code into that same registry in the first
-place — the Plugin Loader, sandboxing, and Marketplace install/
-uninstall flow above. The landing pad is built; the delivery truck
-isn't. A plugin author cannot ship a real, installable plugin until
-this milestone's Plugin Loader ships; a first-party module can use
+(`ApplicationRegistry`, `ContributionRegistry` and its named instances,
+the Permission/Settings/Notification Frameworks) already exists and
+works for first-party modules today — a registered `BaseApplication`
+instance can already contribute navigation, a dashboard widget,
+settings, and command palette entries with zero further backend work.
+What doesn't exist yet is the mechanism that loads *third-party*
+plugin code into that same registry in the first place — the Plugin
+Loader, sandboxing, and Marketplace install/uninstall flow above. The
+landing pad is built; the delivery truck isn't. A plugin author cannot
+ship a real, installable plugin until this milestone's Plugin Loader
+ships; a first-party module can use
 every one of these extension points today.
 
 #### Developer Platform Tools *(Developer Mode)*
@@ -10089,3 +10098,29 @@ extension today — the new `DashboardWidgetRegistry` and
 rather than inventing a parallel one. No dependency, acceptance-
 criterion, or numbering conflict was found against M0–M27. Bump this
 line whenever you edit the roadmap.*
+
+*Aug 2026 addendum — Contribution Registry unification & Task Group D
+(Dock):* corrects a real architectural gap this same review cycle
+introduced: `DashboardWidgetRegistry`, added the prior pass as its own
+bespoke class mirroring `ApplicationRegistry`'s pattern, was exactly
+the "multiple unrelated registries" anti-pattern the Plugin
+Registration System addendum above warns against. Fixed by extracting
+the shared register/unregister/getAll(cached)/getByModule mechanism
+into `core/contribution-registry.ts`'s generic `ContributionRegistry<T>`,
+then migrating both `DashboardWidgetRegistry` (now a thin named
+instance) and `NavigationContribution`'s internal storage (previously
+its own raw `Map`) onto it — public APIs unchanged for both, so no
+consuming code (`BaseApplication`, Sidebar, tests) needed to change.
+`ApplicationRegistry` itself is deliberately not refactored to compose
+the generic class — it owns module-specific concerns (dependency
+resolution, manifest validation) neither `ContributionRegistry` nor
+its consumers need, and refactoring already-tested, widely-depended-
+upon code for zero externally-visible benefit was judged not worth the
+risk. M9's Plugin Registration System subsection (§8) updated to name
+`ContributionRegistry` as the actual shared mechanism throughout.
+Also: **M8 Phase 3, Task Group D (Dock)** shipped in the same pass —
+registry- and enablement-driven, the same pattern Task Group C
+established for Sidebar, the last consumer of the now-fully-retired
+`routes/nav-items.ts`. No dependency, acceptance-criterion, or
+numbering conflict was found against M0–M27. Bump this line whenever
+you edit the roadmap.*

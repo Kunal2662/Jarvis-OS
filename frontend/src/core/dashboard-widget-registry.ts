@@ -1,20 +1,15 @@
-/**
- * The Dashboard Widget Registry (UI Architecture Update) -- the
- * Dashboard's equivalent of `application-registry.ts`: the single
- * place every widget a module contributes is registered, looked up,
- * and enumerated. Deliberately mirrors `ApplicationRegistry`'s own
- * shape (register/unregister/getAll, duplicate-id guard, a cached
- * `getAll()` so `useSyncExternalStore` consumers stay stable) rather
- * than inventing a second registry pattern -- a plugin author who
- * already understands one understands both. No React import: this is
- * a `core/` framework file, the same rule `base-application.ts`
- * follows; the widget grid UI that will eventually render these
- * contributions is a separate, later task.
- */
+import { ContributionRegistry, type Contribution } from "@/core/contribution-registry";
 
-export interface DashboardWidgetContribution {
-  id: string;
-  moduleId: string;
+/**
+ * The Dashboard's contribution surface (UI Architecture Update) -- a
+ * module registers a widget here exactly the same way it registers
+ * navigation (`core/interfaces/navigation-interface.ts`): both are
+ * instances of the one generic `ContributionRegistry`
+ * (`core/contribution-registry.ts`), not separate, unrelated
+ * implementations. No widget grid UI renders these yet -- that's a
+ * separate, later task; this is the registration surface only.
+ */
+export interface DashboardWidgetContribution extends Contribution {
   title: string;
   /** Renders the widget's content. A function reference, not
    *  serialized data -- the same shape `NavigationContribution`'s own
@@ -28,45 +23,6 @@ export interface DashboardWidgetContribution {
   defaultSize: { width: number; height: number };
 }
 
-export class DuplicateWidgetError extends Error {}
-
-export class DashboardWidgetRegistry {
-  private readonly widgets = new Map<string, DashboardWidgetContribution>();
-  private cachedAll: DashboardWidgetContribution[] | null = null;
-
-  register(widget: DashboardWidgetContribution): void {
-    if (this.widgets.has(widget.id)) {
-      throw new DuplicateWidgetError(`Widget "${widget.id}" is already registered.`);
-    }
-    this.widgets.set(widget.id, widget);
-    this.cachedAll = null;
-  }
-
-  unregister(widgetId: string): void {
-    this.widgets.delete(widgetId);
-    this.cachedAll = null;
-  }
-
-  get(widgetId: string): DashboardWidgetContribution | undefined {
-    return this.widgets.get(widgetId);
-  }
-
-  /** Referentially stable between mutations -- required by
-   *  `useSyncExternalStore` consumers (see
-   *  `core/application-registry.ts`'s own header comment for the
-   *  exact bug this cache exists to prevent). */
-  getAll(): DashboardWidgetContribution[] {
-    if (!this.cachedAll) {
-      this.cachedAll = [...this.widgets.values()];
-    }
-    return this.cachedAll;
-  }
-
-  getByModule(moduleId: string): DashboardWidgetContribution[] {
-    return this.getAll().filter((widget) => widget.moduleId === moduleId);
-  }
-}
-
 /** One shared instance -- widget registration is process-wide, matching
  *  `applicationRegistry`'s own singleton pattern. */
-export const dashboardWidgetRegistry = new DashboardWidgetRegistry();
+export const dashboardWidgetRegistry = new ContributionRegistry<DashboardWidgetContribution>();

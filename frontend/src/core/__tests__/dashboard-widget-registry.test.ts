@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  DashboardWidgetRegistry,
-  DuplicateWidgetError,
-  type DashboardWidgetContribution,
-} from "@/core/dashboard-widget-registry";
+import { dashboardWidgetRegistry, type DashboardWidgetContribution } from "@/core/dashboard-widget-registry";
 
 function widget(overrides: Partial<DashboardWidgetContribution> = {}): DashboardWidgetContribution {
   return {
@@ -16,54 +12,30 @@ function widget(overrides: Partial<DashboardWidgetContribution> = {}): Dashboard
   };
 }
 
-describe("DashboardWidgetRegistry", () => {
-  let registry: DashboardWidgetRegistry;
-
+/**
+ * Thin smoke test only -- the actual register/unregister/getAll/
+ * getByModule contract is proven once, generically, in
+ * `core/__tests__/contribution-registry.test.ts`. This just confirms
+ * `dashboardWidgetRegistry` is really a working instance of that shared
+ * mechanism with widget-shaped data, not a parallel reimplementation.
+ */
+describe("dashboardWidgetRegistry", () => {
   beforeEach(() => {
-    registry = new DashboardWidgetRegistry();
+    for (const w of dashboardWidgetRegistry.getAll()) {
+      dashboardWidgetRegistry.unregister(w.id);
+    }
   });
 
-  it("registers and looks up a widget", () => {
+  it("registers and retrieves a widget contribution", () => {
     const w = widget();
-    registry.register(w);
-    expect(registry.get("test-widget")).toBe(w);
+    dashboardWidgetRegistry.register(w);
+    expect(dashboardWidgetRegistry.get("test-widget")).toBe(w);
   });
 
-  it("rejects a duplicate widget id", () => {
-    registry.register(widget());
-    expect(() => registry.register(widget())).toThrow(DuplicateWidgetError);
-  });
+  it("getByModule() filters to a single module's widgets", () => {
+    dashboardWidgetRegistry.register(widget({ id: "tasks", moduleId: "automations" }));
+    dashboardWidgetRegistry.register(widget({ id: "notes", moduleId: "files" }));
 
-  it("getAll() returns a referentially-stable array between mutations", () => {
-    registry.register(widget());
-    // Same regression guard as ApplicationRegistry's own test --
-    // a future consumer via useSyncExternalStore needs this.
-    expect(registry.getAll()).toBe(registry.getAll());
-  });
-
-  it("getAll() returns a new reference after register()/unregister()", () => {
-    registry.register(widget({ id: "a" }));
-    const before = registry.getAll();
-    registry.register(widget({ id: "b" }));
-    expect(registry.getAll()).not.toBe(before);
-
-    const beforeUnregister = registry.getAll();
-    registry.unregister("b");
-    expect(registry.getAll()).not.toBe(beforeUnregister);
-  });
-
-  it("getByModule() filters to a single module's contributions", () => {
-    registry.register(widget({ id: "tasks", moduleId: "automations" }));
-    registry.register(widget({ id: "notes", moduleId: "files" }));
-    registry.register(widget({ id: "quick-actions", moduleId: "automations" }));
-
-    const automationsWidgets = registry.getByModule("automations").map((w) => w.id);
-    expect(automationsWidgets).toEqual(["tasks", "quick-actions"]);
-  });
-
-  it("unregister() removes a widget", () => {
-    registry.register(widget());
-    registry.unregister("test-widget");
-    expect(registry.get("test-widget")).toBeUndefined();
+    expect(dashboardWidgetRegistry.getByModule("automations").map((w) => w.id)).toEqual(["tasks"]);
   });
 });

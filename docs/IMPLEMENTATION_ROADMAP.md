@@ -188,7 +188,9 @@ value, a real loading state, or a real empty state.
         Recent Activity, Quick Actions, System Status.
   - [ ] Grid layout (add/remove/resize/move/pin).
   - [ ] Layout persistence + import/export.
-- [ ] Dock.
+- [x] Dock (registry- and enablement-driven, same pattern as Sidebar --
+      pinned modules only render if also registered *and* enabled;
+      active state from `WorkspaceManager`, not the route).
 - [ ] Workspace views (one per existing PySide6 workspace: Voice,
       Files & Drive, Browser, Coding, Finance, Smart Home, Calendar,
       Gmail, Spotify — ported feature-by-feature, not redesigned
