@@ -10,7 +10,10 @@ describe("registerPlaceholderModules", () => {
     }
   });
 
-  it("MODULE_DEFINITIONS contains exactly the 14 workspace ids ported from nav-items.ts", () => {
+  it("MODULE_DEFINITIONS contains exactly the 14 workspace ids, core modules grouped first", () => {
+    // Order changed in the UI Architecture Update: the 7 core modules
+    // (isCore: true) are grouped first, then the 7 optional ones --
+    // see modules/module-definitions.ts's own header comment.
     expect(MODULE_DEFINITIONS.map((m) => m.name)).toEqual([
       "home",
       "chat",
@@ -18,6 +21,7 @@ describe("registerPlaceholderModules", () => {
       "memory",
       "automations",
       "files",
+      "settings",
       "browser",
       "coding",
       "finance",
@@ -25,7 +29,6 @@ describe("registerPlaceholderModules", () => {
       "calendar",
       "gmail",
       "spotify",
-      "settings",
     ]);
   });
 

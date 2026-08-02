@@ -697,9 +697,12 @@ not just third-party plugins.
 ```jsonc
 {
   "name": "gmail",
+  "display_name": "Gmail",
   "version": "1.0.0",
   "sdk_range": ">=1.0.0,<2.0.0",
   "dependencies": ["memory"],
+  "is_core": false,
+  "parent_group": null,
   "permissions": [
     "network", "memory.read", "memory.write"
   ],
@@ -729,9 +732,12 @@ not just third-party plugins.
 | Field | Required | Notes |
 |---|---|---|
 | `name` | Yes | Lowercase, matches the module's DI-container key. |
+| `display_name` | Yes | Human-readable label a UI renders (e.g. "Files") — distinct from `name`. Added Aug 2026 (UI Architecture Update); the frontend's `ModuleManifest.displayName` (`core/module-manifest.ts`) already required this — this table previously omitted it. |
 | `version` | Yes | Semver. |
 | `sdk_range` | Yes (plugins) / N/A (first-party) | Same `sdk_range` check M9's Plugin Loader already performs — JARVIS refuses to load a mismatched plugin. |
 | `dependencies` | Yes (may be empty) | Other module `name`s this one requires present. |
+| `is_core` | No, defaults `false` | True only for the fixed default-enabled set (Dashboard, AI's children, Automation, Files, Settings) — added Aug 2026 (UI Architecture Update). Every other module ships disabled until a user enables it (Settings → Plugins, M8 Phase 5) — see M8 Phase 3's Dynamic Sidebar. |
+| `parent_group` | No | Groups this module under a synthetic parent nav entry (e.g. `"ai"`) — added Aug 2026 (UI Architecture Update). `null`/absent renders as a top-level entry. |
 | `permissions` | Yes (may be empty) | From the fixed vocabulary already defined for M9's Permission Model: `network`, `filesystem`, `hotkey`, `agent_tools`, `voice.stt`, `voice.tts`, `memory.read`, `memory.write`, `smart_home`, `notifications`. |
 | `commands` | No | Command Palette-indexed actions (M10A Command Search). |
 | `voice_commands` | No | Phrase → command bindings (§15). |

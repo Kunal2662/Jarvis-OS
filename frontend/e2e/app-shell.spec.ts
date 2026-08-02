@@ -5,27 +5,49 @@ import { expect, test } from "@playwright/test";
  * itself works against a real running app. No application/module
  * behavior is tested here since no real module exists yet; a future
  * feature-module phase adds its own spec file under this directory.
+ *
+ * Updated for the UI Architecture Update's minimal default nav: only
+ * the 7 core modules (Dashboard, AI's 3 children, Automation, Files,
+ * Settings) render by default -- the other 7 (including Gmail) are
+ * optional and disabled until a user enables them, so this suite picks
+ * a core module (Automation) to exercise navigation instead.
  */
 test.describe("App shell foundation", () => {
-  test("loads, defaults to Home, and shows the full nav rail", async ({ page }) => {
+  test("loads, defaults to Dashboard, and shows the minimal core nav", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Home", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
 
     const nav = page.getByRole("navigation", { name: "Primary" });
-    await expect(nav.getByRole("link")).toHaveCount(14);
+    // 7 core links (Dashboard, Conversation, Voice, Memory, Automation,
+    // Files, Settings) -- the "AI" group header is a button, not a
+    // link, and no optional module is enabled by default.
+    await expect(nav.getByRole("link")).toHaveCount(7);
   });
 
   test("navigating the sidebar updates the route and active state", async ({ page }) => {
     await page.goto("/");
 
-    await page.getByRole("link", { name: "Gmail" }).click();
+    await page.getByRole("link", { name: "Automation" }).click();
 
-    await expect(page).toHaveURL(/\/gmail$/);
-    await expect(page.getByRole("heading", { name: "Gmail", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Gmail" })).toHaveAttribute("aria-current", "page");
-    await expect(page.getByRole("link", { name: "Home", exact: true })).not.toHaveAttribute("aria-current", "page");
+    await expect(page).toHaveURL(/\/automations$/);
+    await expect(page.getByRole("heading", { name: "Automation", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Automation" })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("link", { name: "Dashboard", exact: true })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  test("an optional module (Gmail) is hidden until enabled", async ({ page }) => {
+    await page.goto("/");
+
+    const nav = page.getByRole("navigation", { name: "Primary" });
+    await expect(nav.getByRole("link", { name: "Gmail" })).toHaveCount(0);
   });
 
   test("the status bar reports an honest, non-fake connection state", async ({ page }) => {

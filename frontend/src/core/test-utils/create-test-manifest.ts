@@ -22,6 +22,7 @@ export function createTestManifest(overrides: Partial<ModuleManifest> = {}): Mod
     icon: "square",
     routes: [],
     capabilities: [],
+    isCore: false,
     developerMetadata: { author: "test", homepage: null, repository: null },
     ...overrides,
   };

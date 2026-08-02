@@ -2,12 +2,11 @@ import type { ModuleManifest } from "@/core/module-manifest";
 
 /**
  * The 14 workspace module manifests -- the `ApplicationRegistry`-driven
- * replacement for the static array in `routes/nav-items.ts`. Same 14
- * modules, same ids (kebab-cased where nav-items.ts's id wasn't already),
- * same routes, same icons, ported 1:1 from that file, not redesigned.
- * This array is now the authoritative source of module data; Sidebar/Dock
- * still read `nav-items.ts` directly until they're rewritten to be
- * registry-driven, at which point that file retires.
+ * replacement for the static array in `routes/nav-items.ts`. This array
+ * is the authoritative source of module data; `routes/router.tsx` and
+ * `components/layout/header.tsx` both read from here now, not
+ * `nav-items.ts` -- the only remaining reader is `components/layout/dock.tsx`,
+ * whose own rewrite is Task Group D's job, not this one's.
  *
  * Every optional field below (permissions, commands, voiceCommands,
  * automationSupport, settingsSchema, capabilities) is deliberately empty:
@@ -28,8 +27,18 @@ import type { ModuleManifest } from "@/core/module-manifest";
  * for an external, authenticated account (Gmail, Calendar, Spotify --
  * Google Workspace/OAuth per MASTER_ROADMAP.md's M11), Finance and Smart
  * Home (external providers/paired devices per M11 and M12), and
- * `"local"` for everything else -- pure local state or a local tool with
- * no external account concept.
+ * `"local"` for everything else.
+ *
+ * `isCore`/`parentGroup` (UI Architecture Update, Aug 2026): the 7 core
+ * modules (Dashboard, AI's three children, Automation, Files, Settings)
+ * ship enabled and cannot be disabled; the other 7 (Browser, Coding,
+ * Finance, Smart Home, Calendar, Gmail, Spotify) ship disabled by
+ * default and only appear once a user enables them (Settings ->
+ * Plugins, Phase 5) -- see `stores/module-enablement.store.ts`. A few
+ * display labels changed to match the approved minimal taxonomy
+ * exactly (Home -> Dashboard, Chat -> Conversation, Automations ->
+ * Automation, "Files & Drive" -> Files); ids, routes, and icons are
+ * unchanged.
  */
 
 interface ModuleDefinitionInput {
@@ -38,9 +47,19 @@ interface ModuleDefinitionInput {
   icon: string;
   route: string;
   category?: ModuleManifest["category"];
+  isCore?: boolean;
+  parentGroup?: string;
 }
 
-function definition({ name, displayName, icon, route, category = "local" }: ModuleDefinitionInput): ModuleManifest {
+function definition({
+  name,
+  displayName,
+  icon,
+  route,
+  category = "local",
+  isCore = false,
+  parentGroup,
+}: ModuleDefinitionInput): ModuleManifest {
   return {
     name,
     displayName,
@@ -55,26 +74,46 @@ function definition({ name, displayName, icon, route, category = "local" }: Modu
     icon,
     routes: [route],
     capabilities: [],
+    isCore,
+    parentGroup,
     developerMetadata: { author: "JARVIS OS", homepage: null, repository: null },
   };
 }
 
 export const MODULE_DEFINITIONS: ModuleManifest[] = [
-  definition({ name: "home", displayName: "Home", icon: "home", route: "/" }),
-  definition({ name: "chat", displayName: "Chat", icon: "sparkles", route: "/chat" }),
-  definition({ name: "voice", displayName: "Voice", icon: "mic", route: "/voice" }),
-  definition({ name: "memory", displayName: "Memory", icon: "zap", route: "/memory" }),
-  definition({ name: "automations", displayName: "Automations", icon: "workflow", route: "/automations" }),
-  definition({ name: "files", displayName: "Files & Drive", icon: "folder-open", route: "/files" }),
+  // --- Core (always enabled, cannot be disabled) --------------------------
+  definition({ name: "home", displayName: "Dashboard", icon: "home", route: "/", isCore: true }),
+  definition({
+    name: "chat",
+    displayName: "Conversation",
+    icon: "sparkles",
+    route: "/chat",
+    isCore: true,
+    parentGroup: "ai",
+  }),
+  definition({ name: "voice", displayName: "Voice", icon: "mic", route: "/voice", isCore: true, parentGroup: "ai" }),
+  definition({
+    name: "memory",
+    displayName: "Memory",
+    icon: "zap",
+    route: "/memory",
+    isCore: true,
+    parentGroup: "ai",
+  }),
+  definition({
+    name: "automations",
+    displayName: "Automation",
+    icon: "workflow",
+    route: "/automations",
+    isCore: true,
+  }),
+  definition({ name: "files", displayName: "Files", icon: "folder-open", route: "/files", isCore: true }),
+  definition({ name: "settings", displayName: "Settings", icon: "settings", route: "/settings", isCore: true }),
+
+  // --- Optional (disabled by default, enable via Settings -> Plugins) -----
   definition({ name: "browser", displayName: "Browser", icon: "globe", route: "/browser" }),
   definition({ name: "coding", displayName: "Coding", icon: "code-2", route: "/coding" }),
-  definition({
-    name: "finance",
-    displayName: "Finance",
-    icon: "wallet",
-    route: "/finance",
-    category: "connected",
-  }),
+  definition({ name: "finance", displayName: "Finance", icon: "wallet", route: "/finance", category: "connected" }),
   definition({
     name: "smart-home",
     displayName: "Smart Home",
@@ -97,5 +136,4 @@ export const MODULE_DEFINITIONS: ModuleManifest[] = [
     route: "/spotify",
     category: "connected",
   }),
-  definition({ name: "settings", displayName: "Settings", icon: "settings", route: "/settings" }),
 ];

@@ -1154,6 +1154,45 @@ Voice, Files & Drive, Browser, Coding, Finance, Smart Home, Calendar,
 Gmail, Spotify), Window Management, Command Palette, Responsive
 Layout, DPI Scaling, Multi-Monitor support.
 
+**Dynamic Sidebar & Dashboard Widget Grid** *(added Aug 2026 per the
+UI Architecture Update review — see the changelog addendum)*: both
+are registry- and enablement-driven, not a fixed list rendered by
+hand — Core JARVIS requires no code change when a new module or
+plugin registers.
+
+- **Dynamic Sidebar.** Renders only modules that are both
+  *registered* (`ApplicationRegistry`) and *enabled*
+  (`ModuleEnablementStore`, new) — "installed and enabled" in product
+  terms. A **minimal default core set** ships enabled and cannot be
+  disabled: Dashboard, AI (a nested group — Conversation, Voice,
+  Memory), Automation, Files, Settings. Every other module (Browser,
+  Coding, Finance, Smart Home, Calendar, Gmail, Spotify today; SEO,
+  SEM, Vision, and any future plugin tomorrow) ships **disabled by
+  default** and appears only once the user turns it on (Settings →
+  Plugins, Phase 5 below) — never a permanent slot for a module the
+  user hasn't opted into. `ModuleManifest` gains `isCore` (this fixed
+  set only) and an optional `parentGroup` (how "AI" nests its three
+  children) — both are manifest *data*, so Sidebar's own code stays
+  generic regardless of how many modules exist.
+- **Dashboard Widget Grid.** The Dashboard becomes a customizable
+  widget grid, not a single static view. Built-in system widgets ship
+  with Core JARVIS: Tasks, Calendar, Notes, Notifications, Recent
+  Activity, Quick Actions, System Status. Everything else (Gmail,
+  Slack, Spotify, GitHub, an SEO Dashboard, Home Assistant, a
+  Portfolio widget, and any future plugin's own) registers through
+  `DashboardWidgetRegistry` (new, mirrors `ApplicationRegistry`'s own
+  pattern) — the same extension point every other plugin surface uses
+  (M9's expanded Plugin Registration System, below), not a
+  Core-JARVIS-maintained special case per widget. Users can add,
+  remove, resize, move, and pin widgets, and save/import/export their
+  layout.
+
+Both are frontend registries/foundations as of this addendum — the
+widget *grid UI itself* (drag/resize/pin/layout persistence) is this
+phase's own next task group, tracked in
+`IMPLEMENTATION_ROADMAP.md`; real third-party plugin *code loading*
+remains M9's Plugin Loader, below, unchanged by this addendum.
+
 #### Phase 4 — Voice Experience & Motion
 Removes the Orb (a standing instruction from the earlier PySide6-era
 UI overhaul brief, never carried out there — executed once, directly,
@@ -1167,6 +1206,21 @@ Notifications.
 Dynamic Settings (schema-driven, preserving M5's self-registering
 Settings-page pattern), Developer Mode (ports M5's full gated panel
 set), Profile Service, Guest Mode, Profile Switching, Profile Storage.
+
+**Settings page structure** *(added Aug 2026 per the UI Architecture
+Update review — see the changelog addendum)*: General, Appearance,
+Voice, AI Models, Memory, Automation, Devices, Accounts, **Plugins**,
+Security, Developer Mode, Backup & Restore, About — the concrete page
+list Dynamic Settings' self-registering pattern renders. **Plugins**
+here is the user-facing enable/disable surface for already-registered
+modules (reads/writes Phase 3's `ModuleEnablementStore` — a simple,
+reversible toggle, no install/uninstall) — distinct from Developer
+Mode's existing Plugin Manager panel, which is the gated browse/
+install/uninstall experience over M9's Marketplace. A module can be
+*installed* (Marketplace, Developer Mode, privileged) without being
+*enabled* (this page, unprivileged, reversible any time) — the two
+states Phase 3's "installed and enabled" sidebar/dashboard rule
+depends on.
 
 #### Phase 6 — Premium UI Polish
 Spacing, Typography, Cards, Animations, and Icons audited against the
@@ -1327,6 +1381,58 @@ here. Requirements, extending the Permission Model bullet above:
 **Plugin failures must never crash JARVIS Core** — the binding
 acceptance test for this principle, folded into this milestone's own
 acceptance criteria below.
+
+**Plugin Registration System** *(added Aug 2026 per the UI
+Architecture Update review — see the changelog addendum)*: the
+concrete list of what a plugin can register once the Plugin Loader
+above actually loads it — extends the Extension API bullet with the
+specific surfaces every plugin gets, rather than leaving "a stable,
+versioned subset of services" undefined:
+
+- Sidebar entries — via `ApplicationRegistry`/`NavigationContribution`
+  (M8 Phase 2), the same mechanism every first-party module already
+  registers navigation through; a loaded plugin is not a special case.
+- Dashboard widgets — via `DashboardWidgetRegistry` (M8 Phase 3,
+  added this same review pass), the identical pattern one level up.
+- Pages / Routes — a plugin's own React route(s), mounted through
+  M8 Phase 3's Workspace Routing, never a route that bypasses
+  `BaseApplication`.
+- Settings pages — via the Settings Framework (M8 Phase 2) and
+  Dynamic Settings (M8 Phase 5); a plugin's settings schema renders
+  with zero central-file edits, the same guarantee first-party
+  modules get.
+- Notifications — via the Notification Framework (M8 Phase 2).
+- Voice commands — via the `voiceCommands` manifest field
+  (`ARCHITECTURE.md` section 10) and the Voice Integration interface
+  (M8 Phase 2).
+- Automation actions — via the `automationSupport` manifest field
+  (`ARCHITECTURE.md` section 10), exposed to the AI Orchestrator/
+  `ActionExecutor` (M10).
+- Permissions — via the Permission Model above; a plugin cannot
+  invent a permission scope outside the fixed vocabulary
+  (`ARCHITECTURE.md` section 10).
+- Background services — via this milestone's own Background Tasks
+  module (Reliability, above); a plugin's background work is
+  supervised, not a bare, unmanaged process.
+- Context menu actions — via a reusable context-menu registration
+  point (M8 Phase 3, planned — not yet built).
+- Command Palette actions — via `NavigationContribution`'s existing
+  `commandPaletteEntries` field (M8 Phase 2) — already real, not new.
+
+**What's already real vs. what still depends on the Plugin Loader
+above:** every frontend-side registry this list points at
+(`ApplicationRegistry`, `DashboardWidgetRegistry`, the Permission/
+Settings/Notification Frameworks, `NavigationContribution`) already
+exists and works for first-party modules today — a registered
+`BaseApplication` instance can already contribute navigation, a
+dashboard widget, settings, and command palette entries with zero
+further backend work. What doesn't exist yet is the mechanism that
+loads *third-party* plugin code into that same registry in the first
+place — the Plugin Loader, sandboxing, and Marketplace install/
+uninstall flow above. The landing pad is built; the delivery truck
+isn't. A plugin author cannot ship a real, installable plugin until
+this milestone's Plugin Loader ships; a first-party module can use
+every one of these extension points today.
 
 #### Developer Platform Tools *(Developer Mode)*
 - Debug Console — a live, filterable view over the runtime's own
@@ -9942,3 +10048,44 @@ milestone that document tracks. No dependency, acceptance-criterion,
 or numbering conflict was found against M0–M27; M8 Phase 3
 implementation (paused mid-task, before this review) resumes after
 this addendum. Bump this line whenever you edit the roadmap.*
+
+*Aug 2026 addendum — UI Architecture Update:* three additions
+integrated into existing milestones, no new milestone numbers, no
+completed milestone (§3) touched. (1) **Dynamic Sidebar & Dashboard
+Widget Grid** — new subsection under M8 Phase 3 (§8): a minimal,
+non-disableable core nav set (Dashboard, AI [nested: Conversation,
+Voice, Memory], Automation, Files, Settings) plus a
+registered-*and*-enabled gate (`ModuleEnablementStore`) for every
+other module — supersedes Task Group C's shipped flat Workspace/
+Connected grouping (that work's collapse/keyboard/accessibility
+mechanics are unaffected and carry forward). The Dashboard becomes a
+widget grid; built-in system widgets ship with Core, everything else
+registers through the new `DashboardWidgetRegistry`. (2) **Plugin
+Registration System** — new subsection inside M9's existing Plugin
+Platform module (§8): the concrete 12-surface list (sidebar, dashboard
+widgets, pages/routes, settings pages, notifications, voice commands,
+automation actions, permissions, background services, context menu
+actions, command palette actions) a plugin gets once loaded, explicit
+about which of those already work today for first-party modules via
+already-shipped Phase 2 frontend registries (`ApplicationRegistry`,
+`NavigationContribution`, the Permission/Settings/Notification
+Frameworks) versus which still require M9's own, still-unbuilt Plugin
+Loader (third-party code loading, sandboxing, Marketplace install/
+uninstall) — no scope invented for the Loader itself, only named more
+precisely. (3) **Settings page structure** — new subsection under M8
+Phase 5 (§8): the concrete page list (General/Appearance/Voice/AI
+Models/Memory/Automation/Devices/Accounts/Plugins/Security/Developer
+Mode/Backup & Restore/About), with an explicit **installed** (Developer
+Mode's Marketplace, privileged) vs. **enabled** (this page's Plugins
+toggle, unprivileged, reversible) distinction — the two states Phase
+3's sidebar/dashboard gating rule depends on. Corresponding checklist
+items added to `IMPLEMENTATION_ROADMAP.md`'s active M8 Phase 3 and
+Phase 5. Validated against the shipped codebase before this addendum:
+`ApplicationRegistry`, `NavigationContribution` (including its
+existing `commandPaletteEntries` field), and the Permission/Settings/
+Notification Frameworks are real and already support first-party
+extension today — the new `DashboardWidgetRegistry` and
+`ModuleEnablementStore` extend that same, already-proven pattern
+rather than inventing a parallel one. No dependency, acceptance-
+criterion, or numbering conflict was found against M0–M27. Bump this
+line whenever you edit the roadmap.*

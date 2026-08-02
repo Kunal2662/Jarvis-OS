@@ -1,13 +1,15 @@
 import type { RouteObject } from "react-router-dom";
 import { createBrowserRouter } from "react-router-dom";
 import { DesktopShell } from "@/components/layout/desktop-shell";
-import { NAV_ITEMS } from "@/routes/nav-items";
+import { MODULE_DEFINITIONS } from "@/modules/module-definitions";
 import { PlaceholderRoute } from "@/routes/placeholder-route";
 
 /**
- * One route per nav item (routes/nav-items.ts), all rendering the shared
- * placeholder for now -- see MASTER_ROADMAP.md section 8 for which
- * implementation phase actually builds each module's real route element.
+ * One route per registered module (`modules/module-definitions.ts`),
+ * all rendering the shared placeholder for now -- see
+ * MASTER_ROADMAP.md section 8 for which implementation phase actually
+ * builds each module's real route element. `routes/nav-items.ts` is no
+ * longer this file's source; it's read by nothing in the app anymore.
  * `createBrowserRouter` (not `HashRouter`) since Tauri serves the app
  * from its own asset protocol, which supports real paths.
  *
@@ -31,11 +33,12 @@ import { PlaceholderRoute } from "@/routes/placeholder-route";
  * `components/common/loading-spinner.tsx`'s `LoadingState` as the
  * fallback, consistent with every other module's own code-split chunk.
  */
-const childRoutes: RouteObject[] = NAV_ITEMS.map((item) =>
-  item.path === "/"
-    ? { index: true, element: <PlaceholderRoute label={item.label} /> }
-    : { path: item.path.slice(1), element: <PlaceholderRoute label={item.label} /> },
-);
+const childRoutes: RouteObject[] = MODULE_DEFINITIONS.map((manifest) => {
+  const route = manifest.routes[0] ?? "/";
+  return route === "/"
+    ? { index: true, element: <PlaceholderRoute label={manifest.displayName} /> }
+    : { path: route.slice(1), element: <PlaceholderRoute label={manifest.displayName} /> };
+});
 
 export const router = createBrowserRouter([
   {

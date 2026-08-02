@@ -65,6 +65,19 @@ export interface ModuleManifest {
   icon: string;
   routes: string[];
   capabilities: ModuleCapability[];
+  /** True only for the fixed, non-disableable default set (Dashboard,
+   *  AI's three children, Automation, Files, Settings) -- per the UI
+   *  Architecture Update, everything else ships disabled by default
+   *  and only appears once `ModuleEnablementStore` turns it on.
+   *  Manifest *data*, not a hardcoded list in the Sidebar component
+   *  itself -- Core JARVIS never needs a code change when a new
+   *  optional module registers. */
+  isCore: boolean;
+  /** Groups this module under a synthetic parent nav item (e.g. `"ai"`
+   *  for Conversation/Voice/Memory) -- `undefined` renders as a
+   *  top-level entry. Purely UI-taxonomy data; a module with no
+   *  `parentGroup` behaves exactly as before this field existed. */
+  parentGroup?: string;
   developerMetadata: {
     author: string;
     homepage: string | null;

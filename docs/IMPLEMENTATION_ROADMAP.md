@@ -146,21 +146,48 @@ value, a real loading state, or a real empty state.
 
 ### Phase 3 — Desktop Workspace
 - [ ] Dashboard (Home) view.
-- [ ] Sidebar (ports the existing 14-item nav list from
+- [x] Sidebar (ports the existing 14-item nav list from
       `ui/widgets/sidebar.py` — same nav structure, new renderer).
-  - [ ] **Adaptive Sidebar** *(added Aug 2026 per the roadmap
+  - [x] **Adaptive Sidebar** *(added Aug 2026 per the roadmap
         architecture review)*:
-    - [ ] Expanded mode
-    - [ ] Collapsed mode
-    - [ ] Smooth width animation
-    - [ ] Active indicator
-    - [ ] Hover tooltip (collapsed mode)
-    - [ ] Keyboard navigation
-    - [ ] Responsive behaviour
-    - [ ] Persistent sidebar state (expanded/collapsed survives
+    - [x] Expanded mode
+    - [x] Collapsed mode
+    - [x] Smooth width animation
+    - [x] Active indicator
+    - [x] Hover tooltip (collapsed mode)
+    - [x] Keyboard navigation
+    - [x] Responsive behaviour
+    - [x] Persistent sidebar state (expanded/collapsed survives
           restart, per Phase 1's `sidebar.store.ts`)
-    - [ ] Modern AI desktop UX — matches Phase 3's premium/minimal
+    - [x] Modern AI desktop UX — matches Phase 3's premium/minimal
           visual language, not a bolted-on toggle.
+  - [x] **Dynamic Sidebar revision** *(added Aug 2026 per the UI
+        Architecture Update review — supersedes the flat
+        Workspace/Connected grouping shipped above, not the
+        underlying collapse/keyboard/accessibility mechanics, which
+        carry forward unchanged)*: minimal core taxonomy (Dashboard,
+        AI [nested: Conversation, Voice, Memory], Automation, Files,
+        Settings) always visible; every other module hidden unless
+        both registered *and* enabled
+        (`stores/module-enablement.store.ts`, new) — see
+        `MASTER_ROADMAP.md` §8 M8 Phase 3.
+    - [x] `ModuleManifest.isCore` + `parentGroup` fields.
+    - [x] `ModuleEnablementStore` (new) — installed-vs-enabled state.
+    - [x] Nested/expandable group rendering (the "AI" parent).
+    - [x] Re-classify the 14 existing modules: 7 core, 7
+          optional/disabled-by-default.
+    - [x] Keyboard roving-focus updated for variable visible-item sets
+          (collapsed groups skip their hidden children).
+- [ ] **Dashboard Widget Grid** *(added Aug 2026 per the UI
+      Architecture Update review — see `MASTER_ROADMAP.md` §8 M8
+      Phase 3)*:
+  - [x] `DashboardWidgetRegistry` + `DashboardWidgetContribution`
+        (foundation only — mirrors `ApplicationRegistry`'s pattern;
+        no widget grid UI renders these yet -- that's the next task).
+  - [ ] Built-in widgets: Tasks, Calendar, Notes, Notifications,
+        Recent Activity, Quick Actions, System Status.
+  - [ ] Grid layout (add/remove/resize/move/pin).
+  - [ ] Layout persistence + import/export.
 - [ ] Dock.
 - [ ] Workspace views (one per existing PySide6 workspace: Voice,
       Files & Drive, Browser, Coding, Finance, Smart Home, Calendar,
@@ -191,6 +218,13 @@ value, a real loading state, or a real empty state.
 - [ ] Dynamic Settings (schema-driven, mirrors the existing
       `PAGE_REGISTRY` self-registration pattern so new settings pages
       never require a central-file edit).
+  - [ ] **Settings page structure** *(added Aug 2026 per the UI
+        Architecture Update review — see `MASTER_ROADMAP.md` §8 M8
+        Phase 5)*: General, Appearance, Voice, AI Models, Memory,
+        Automation, Devices, Accounts, **Plugins** (enable/disable
+        toggle over `ModuleEnablementStore`, distinct from Developer
+        Mode's install/uninstall Plugin Manager below), Security,
+        Developer Mode, Backup & Restore, About.
 - [ ] Developer Mode (ports M5's gated panel set — Module Manager,
       Plugin Manager, API Center, Update Center, Developer Console,
       Security Center, Backup/Restore, System Information, Performance

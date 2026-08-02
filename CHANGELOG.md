@@ -3,6 +3,74 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] — Milestone 8 (in progress): React Frontend Foundation & Desktop Workspace
+
+Consolidated entry -- M8's earlier phases (React Foundation, Universal
+Application Framework) and Phase 3's first three task groups shipped
+across several prior sessions without individual `CHANGELOG.md`
+entries; this is a single retroactive summary of where M8 actually
+stands today, not a claim that everything below landed at once.
+Milestone is **not** complete -- see `docs/IMPLEMENTATION_ROADMAP.md`
+for the live, checkbox-level status.
+
+### Added
+- **Phase 1 — React Foundation**: `frontend/` scaffolded (React 19,
+  TypeScript, Vite, Tauri shell), Tailwind + shadcn/ui + Radix + Motion
+  + Lucide, design tokens ported from the real `Typography`/palette
+  Python source, base layout components, React Router, Zustand store
+  scaffold, API/WebSocket client architecture, Vitest + Playwright
+  testing foundation.
+- **Phase 2 — Universal Application Framework**: `BaseApplication`,
+  `ApplicationRegistry`, `ModuleManifest`, `ModuleLifecycle`
+  (TypeScript port of the backend `ModuleStateMachine`), Permission/
+  Settings/Storage/Notification Frameworks, AI/Voice/Automation/API/
+  Window/Navigation interfaces -- the framework every module (first-
+  party or, eventually, plugin) is built on.
+- **Phase 3, Task Group A — Foundation**: the 14 workspace modules
+  converted from a static nav array into real, registered
+  `ApplicationRegistry` entries.
+- **Phase 3, Task Group B — Desktop Shell**: `DesktopShell`'s 8 named
+  layout regions, `WorkspaceManager` (route -> real module mount/
+  unmount lifecycle), Workspace Routing.
+- **Phase 3, Task Group C — Dynamic Sidebar**: registry-driven
+  Sidebar, initially with flat category grouping, then revised the
+  same session per the UI Architecture Update review (below) to a
+  minimal core taxonomy with a nested "AI" group and enablement
+  gating.
+- **UI Architecture Update** *(this session)*: `ModuleManifest.isCore`/
+  `parentGroup` fields; `ModuleEnablementStore` (installed-vs-enabled
+  state, distinct from registration); `DashboardWidgetRegistry` +
+  `DashboardWidgetContribution` (foundation only -- no widget grid UI
+  yet); Sidebar's default nav reduced to 7 core modules (Dashboard,
+  AI [Conversation/Voice/Memory], Automation, Files, Settings), every
+  other module (Browser, Coding, Finance, Smart Home, Calendar, Gmail,
+  Spotify) now disabled by default and hidden until a user enables it.
+  Full design in `docs/MASTER_ROADMAP.md` §8 M8/M9's Aug 2026 UI
+  Architecture Update addendum.
+
+### Fixed
+- `ApplicationRegistry.getAll()` returned a fresh array on every call,
+  which broke `useSyncExternalStore` consumers (`ModuleStateInspector`)
+  with a real, reproduced-in-browser "Maximum update depth exceeded"
+  crash once the registry held real data -- now cached, invalidated
+  only on `register()`/`unregister()`.
+- Sidebar's collapsed (icon-only) mode rendered every nav link with no
+  accessible name at all (icon `aria-hidden`, label hidden) -- fixed
+  with an explicit `aria-label` on every link, in both states.
+- `Header`/`router.tsx` still read the retired `routes/nav-items.ts`
+  static list after Sidebar moved off it, which would have shown
+  stale labels ("Home" instead of "Dashboard") the moment Sidebar's
+  taxonomy changed -- both now read `modules/module-definitions.ts`/
+  `WorkspaceManager` directly, the same source Sidebar uses.
+
+### Known gaps (tracked, not regressions)
+- `components/layout/dock.tsx` is the one remaining reader of
+  `routes/nav-items.ts` -- its own registry-driven rewrite is Phase 3
+  Task Group D.
+- Dashboard Widget Grid's actual UI (built-in widgets, drag/resize/
+  pin, layout persistence) is foundation-only as of this entry -- see
+  `docs/IMPLEMENTATION_ROADMAP.md` Phase 3.
+
 ## [0.5.2] — Critical Architecture Fix: DI container lazy loading
 
 Out-of-band architecture fix — no roadmap change, no feature addition, no
