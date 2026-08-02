@@ -1,45 +1,46 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VoiceString } from "@/components/voice/voice-string";
+import { useVoiceAudioLevelsStore } from "@/stores/voice-audio-levels.store";
 import { useVoiceStateStore } from "@/stores/voice-state.store";
+
+// VoiceString is deliberately a thin store-wiring layer (see its own
+// header comment) -- this file tests exactly that wiring, not
+// rendering, which VoiceWaveformRenderer's own dedicated test file
+// already covers.
+vi.mock("@/components/voice/voice-waveform-renderer", () => ({
+  VoiceWaveformRenderer: (props: Record<string, unknown>) => (
+    <div data-testid="renderer" data-props={JSON.stringify(props)} />
+  ),
+}));
+
+function rendererProps(): Record<string, unknown> {
+  return JSON.parse(screen.getByTestId("renderer").getAttribute("data-props") ?? "{}") as Record<string, unknown>;
+}
 
 describe("VoiceString", () => {
   beforeEach(() => {
     useVoiceStateStore.setState({ voiceState: "idle", history: [{ state: "idle", at: new Date().toISOString() }] });
+    useVoiceAudioLevelsStore.setState({ microphoneLevel: 0, ttsLevel: 0 });
   });
 
-  it("renders as an accessible image labeled with the current state, never visible state text", () => {
+  it("wires the real voice state into the renderer", () => {
+    useVoiceStateStore.getState().transition("wake");
     render(<VoiceString />);
 
-    const svg = screen.getByRole("img", { name: "Idle" });
-    expect(svg).toBeInTheDocument();
-    expect(screen.queryByText("Idle")).not.toBeInTheDocument();
-    expect(screen.queryByText(/listening/i)).not.toBeInTheDocument();
+    expect(rendererProps().voiceState).toBe("wake");
   });
 
-  it("updates its accessible label when the voice state changes", () => {
-    const { rerender } = render(<VoiceString />);
-    expect(screen.getByRole("img", { name: "Idle" })).toBeInTheDocument();
+  it("wires the real audio levels into the renderer", () => {
+    useVoiceAudioLevelsStore.setState({ microphoneLevel: 0.4, ttsLevel: 0.2 });
+    render(<VoiceString />);
 
-    useVoiceStateStore.getState().transition("wake");
-    rerender(<VoiceString />);
-
-    expect(screen.getByRole("img", { name: "Waking up" })).toBeInTheDocument();
+    expect(rendererProps().microphoneLevel).toBe(0.4);
+    expect(rendererProps().ttsLevel).toBe(0.2);
   });
 
-  it("renders a real SVG path, not an empty placeholder", () => {
-    const { container } = render(<VoiceString />);
-    const path = container.querySelector("path");
-    expect(path).not.toBeNull();
-    expect(path?.getAttribute("d")).toMatch(/^M /);
-  });
-
-  it("renders no glow layer for idle (minimal by default) but does for an active state", () => {
-    const { container: idleContainer } = render(<VoiceString />);
-    expect(idleContainer.querySelectorAll("path")).toHaveLength(1);
-
-    useVoiceStateStore.getState().transition("wake");
-    const { container: wakeContainer } = render(<VoiceString />);
-    expect(wakeContainer.querySelectorAll("path")).toHaveLength(2);
+  it("passes className through to the renderer", () => {
+    render(<VoiceString className="my-class" />);
+    expect(rendererProps().className).toBe("my-class");
   });
 });

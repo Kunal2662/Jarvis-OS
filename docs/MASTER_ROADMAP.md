@@ -1210,22 +1210,29 @@ unchanged by this addendum.
 Removes the Orb (a standing instruction from the earlier PySide6-era
 UI overhaul brief, never carried out there — satisfied by construction
 here, since the React frontend never had one to begin with). Replaces
-it with **Voice String** *(shipped Aug 2026, Task Group H — renamed
-from "Voice Waveform" per the Premium UI & Voice Experience brief;
-same role)*: a continuous animated wave whose color/speed/amplitude
-communicate state (Idle/Wake/Listening/Thinking/Speaking/Success/Error)
-— no visible state label ever renders. Backed by a real, validated
-state machine (`core/voice-state-machine.ts`, mirrors
-`core/module-lifecycle.ts`'s pattern) and a single source-of-truth
-store (`stores/voice-state.store.ts`) that starts and stays `idle`,
+it with **Voice String** *(shipped Aug 2026, Task Group H, revised
+same month to a real-time multi-bar renderer — renamed from "Voice
+Waveform" per the Premium UI & Voice Experience brief; same role)*: a
+glassmorphism panel of 40 independently-animated bars whose color,
+amplitude, and per-state envelope shape communicate state (Idle/Wake/
+Listening/Thinking/Speaking/Success/Error) — no visible state label
+ever renders. The renderer (`components/voice/voice-waveform-
+renderer.tsx`) is pure — no store dependency, accepts `voiceState`,
+`microphoneLevel`, `ttsLevel`, and `intensity` as props — so a future
+voice backend streams real audio amplitudes into it with zero renderer
+changes; `voice-string.tsx` is the thin layer wiring real store state
+in. Backed by a real, validated state machine
+(`core/voice-state-machine.ts`, mirrors `core/module-lifecycle.ts`'s
+pattern) and source-of-truth stores (`stores/voice-state.store.ts`,
+`stores/voice-audio-levels.store.ts`) that start and stay at rest,
 since no real voice backend exists yet — never a cosmetic animation
 with no backing state. Developer Mode's Voice State Preview panel can
-manually drive or auto-cycle the same real store for animation QA
-(disabled by default, never an end-user surface). Live Transcript
-(word-by-word, fades after inactivity) ships alongside it, honestly
-empty until a real STT stream exists. Conversation Timeline and the
-broader motion pass (hover, Sidebar, Dock, Cards, Notifications) remain
-pending.
+manually drive or auto-cycle the real state store, plus manual sliders
+for mic/TTS level and intensity, for full animation QA (disabled by
+default, never an end-user surface). Live Transcript (word-by-word,
+fades after inactivity) ships alongside it, honestly empty until a
+real STT stream exists. Conversation Timeline and the broader motion
+pass (hover, Sidebar, Dock, Cards, Notifications) remain pending.
 
 #### Phase 5 — Settings & User Profiles
 Dynamic Settings (schema-driven, preserving M5's self-registering
@@ -10310,3 +10317,62 @@ Both wired as the `voice` module's real route element
 same way Task Group F did for `home`. No dependency, acceptance-
 criterion, or numbering conflict was found against M0–M27. Bump this
 line whenever you edit the roadmap.*
+
+*Aug 2026 addendum — Voice String revision (real-time multi-bar
+waveform):* the single-sine-path Voice String shipped earlier this
+same task group was superseded, same day, once the Premium UI & Voice
+Experience brief asked specifically for a "premium real-time voice
+waveform" matching the visual quality of modern voice assistants
+(Google Assistant, Gemini Live, ChatGPT Voice) — composed of many
+animated bars, not a smooth curve.
+
+Split the single `voice-string.tsx` component into two, on purpose:
+`components/voice/voice-waveform-renderer.tsx` is the pure renderer —
+zero store dependency, accepts `voiceState`, `microphoneLevel`,
+`ttsLevel`, and `intensity` as plain props — and `voice-string.tsx` is
+now the thin layer wiring real store state into it. This is a direct
+answer to the brief's own requirement ("design it so the future voice
+backend can stream real audio amplitudes directly into the renderer,"
+"separate rendering from state management") — the renderer will need
+zero changes once a real audio pipeline exists; only the values fed
+into its already-real props change. Added `stores/voice-audio-
+levels.store.ts` for the two new real fields (`microphoneLevel`,
+`ttsLevel`), following the exact same "start and stay at `0`, no real
+pipeline exists yet" honesty `voice-state.store.ts` and every other
+not-yet-backed store in this app already establishes — the renderer's
+procedural ambient motion (an honest, designed animation curve per
+state, not fabricated audio data) is additively boosted by these real
+fields once they carry real values, with bars nearer the panel's
+center reacting more strongly, matching how a real center-weighted
+level meter reads.
+
+Each of the 40 bars derives its height from one shared `useTime()`
+clock via `useTransform` (one requestAnimationFrame loop feeding many
+cheap derived values, each bound straight to the DOM through Motion's
+`style` prop — no React re-render per frame, `transform`-only so it's
+GPU-compositable, no layout shifts) rather than 40 independent RAF
+subscriptions. Per-state "envelope" shapes (`flat`/`center`/`wave`/
+`random`) implement the brief's own state-by-state spec directly:
+Wake's "center pulse, wave expands outward" is a radial phase offset
+by distance from center; Thinking's "calm flowing... different from
+Listening" is a traveling left-to-right wave; Listening/Speaking's
+reactive look uses two overlapping deterministic sine terms per bar
+(a fixed per-bar phase seed, not `Math.random()`, which would reseed
+every render and read as jitter rather than the brief's own "smooth
+interpolation, no jitter" requirement). The glass-panel container
+(blurred translucent background, soft state-colored bloom) uses this
+app's existing semantic color tokens (`text-accent`/`text-warning`/
+`text-success`/`text-destructive`) for the "cyan/blue gradient" look
+the brief asks for, not new hardcoded hex values, per `ARCHITECTURE.md`
+section 14's binding color-token rule.
+
+Developer Mode's Voice State Preview panel now drives the raw renderer
+directly (not the `VoiceString` convenience wrapper) so it has full
+manual control over every prop the renderer accepts: mic/TTS level
+sliders write to the real `voice-audio-levels.store.ts` (the same
+store a real audio pipeline will publish to — no separate fake preview
+path), and a local `intensity` control (a QA-only animation-tuning
+knob, not a persistent app-wide concept, so it was deliberately not
+promoted to its own store). No dependency, acceptance-criterion, or
+numbering conflict was found against M0–M27. Bump this line whenever
+you edit the roadmap.*

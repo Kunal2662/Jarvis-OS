@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { VoiceString } from "@/components/voice/voice-string";
+import { VoiceWaveformRenderer } from "@/components/voice/voice-waveform-renderer";
 import { canTransitionVoiceState, reachableVoiceStates, type VoiceState } from "@/core/voice-state-machine";
+import { useVoiceAudioLevelsStore } from "@/stores/voice-audio-levels.store";
 import { useVoiceStateStore } from "@/stores/voice-state.store";
 
 const VOICE_STATE_LABELS: Record<VoiceState, string> = {
@@ -35,6 +36,11 @@ const AUTO_CYCLE_STEP_MS = 1800;
 export function VoiceStatePreview() {
   const voiceState = useVoiceStateStore((s) => s.voiceState);
   const transition = useVoiceStateStore((s) => s.transition);
+  const microphoneLevel = useVoiceAudioLevelsStore((s) => s.microphoneLevel);
+  const setMicrophoneLevel = useVoiceAudioLevelsStore((s) => s.setMicrophoneLevel);
+  const ttsLevel = useVoiceAudioLevelsStore((s) => s.ttsLevel);
+  const setTtsLevel = useVoiceAudioLevelsStore((s) => s.setTtsLevel);
+  const [intensity, setIntensity] = useState(1);
   const [autoCycling, setAutoCycling] = useState(false);
 
   useEffect(() => {
@@ -59,7 +65,18 @@ export function VoiceStatePreview() {
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
       <div className="flex items-center justify-center rounded-md border border-border bg-background p-6">
-        <VoiceString />
+        {/* The raw renderer, not <VoiceString>, driven manually here --
+            this panel needs full control over every input the renderer
+            accepts (mic/TTS level, intensity), not just voice state.
+            microphoneLevel/ttsLevel still write through the real
+            useVoiceAudioLevelsStore below, the same store a real audio
+            pipeline will publish to -- no separate fake preview path. */}
+        <VoiceWaveformRenderer
+          voiceState={voiceState}
+          microphoneLevel={microphoneLevel}
+          ttsLevel={ttsLevel}
+          intensity={intensity}
+        />
       </div>
 
       <div>
@@ -88,6 +105,38 @@ export function VoiceStatePreview() {
         {autoCycling ? <Square aria-hidden="true" /> : <Play aria-hidden="true" />}
         {autoCycling ? "Stop auto-cycle" : "Auto-cycle for QA"}
       </Button>
+
+      <div className="flex flex-col gap-3 border-border border-t pt-4">
+        <p className="text-caption font-medium text-muted-foreground">
+          Renderer inputs (real store fields -- what a real audio pipeline will publish to)
+        </p>
+        <LevelSlider label="Microphone level" value={microphoneLevel} onChange={setMicrophoneLevel} />
+        <LevelSlider label="TTS level" value={ttsLevel} onChange={setTtsLevel} />
+        <LevelSlider label="Intensity" value={intensity} onChange={setIntensity} />
+      </div>
+    </div>
+  );
+}
+
+function LevelSlider({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  const id = `voice-preview-${label.toLowerCase().replace(/\s+/g, "-")}`;
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="flex justify-between text-caption text-muted-foreground">
+        <span>{label}</span>
+        <span>{Math.round(value * 100)}%</span>
+      </label>
+      <input
+        id={id}
+        aria-label={label}
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="accent-accent"
+      />
     </div>
   );
 }

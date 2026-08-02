@@ -289,17 +289,38 @@ value, a real loading state, or a real empty state.
       never had an Orb to begin with (built fresh), so there was
       nothing to remove; **Task Group H** built its replacement
       directly.
-- [x] **Voice String** *(Aug 2026, Task Group H — renamed from "Voice
-      Waveform" per the Premium UI & Voice Experience brief; same
-      role, replaces the Orb)*: `components/voice/voice-string.tsx`,
-      a continuous animated SVG wave (`motion/react`'s `useTime`/
-      `useTransform`, not a discrete transition) whose color/amplitude/
-      frequency communicate state -- no visible text label
-      ("Listening...", "Thinking...") ever renders, per the brief's own
-      rule; an `aria-label` carries the state name for screen readers
-      only. Respects `useReducedMotion()` (freezes the wave rather than
-      animating) since `MotionConfig`'s app-wide `reducedMotion="user"`
-      doesn't cover a manually-driven `useTime()` loop.
+- [x] **Voice String** *(Aug 2026, Task Group H, revised same month —
+      renamed from "Voice Waveform" per the Premium UI & Voice
+      Experience brief; same role, replaces the Orb)*: a real-time
+      multi-bar waveform (40 independently-animated bars, not a single
+      sine path — the original single-path version was superseded once
+      the brief asked for a "premium real-time voice waveform" matching
+      modern voice-assistant quality), rendered as a glassmorphism panel
+      (blurred translucent background, soft state-colored bloom).
+      Color/amplitude/envelope-shape communicate state -- no visible
+      text label ("Listening...", "Thinking...") ever renders, per the
+      brief's own rule; an `aria-label` carries the state name for
+      screen readers only. Each bar derives its height from one shared
+      `motion/react` `useTime()` clock via `useTransform` (one
+      requestAnimationFrame loop feeding many cheap derived values,
+      bound straight to the DOM, `transform`-only) rather than N
+      independent loops. Respects `useReducedMotion()` (freezes the
+      wave rather than animating) since `MotionConfig`'s app-wide
+      `reducedMotion="user"` doesn't cover a manually-driven `useTime()`
+      loop.
+  - [x] `components/voice/voice-waveform-renderer.tsx` -- the pure
+        renderer, no store dependency of its own. Accepts `voiceState`,
+        `microphoneLevel`, `ttsLevel`, and `intensity` as props exactly
+        as the brief specifies, so a future voice backend can stream
+        real audio amplitudes into it with zero renderer changes.
+        `components/voice/voice-string.tsx` is now just the thin layer
+        wiring real store state into it -- state management and
+        rendering are deliberately separate.
+  - [x] `stores/voice-audio-levels.store.ts` -- real `microphoneLevel`/
+        `ttsLevel` fields, always `0` today (no audio pipeline exists),
+        additively boosting the renderer's procedural ambient motion
+        once real. Same "honest zero until real" pattern as every other
+        not-yet-backed store in this app.
   - [x] `core/voice-state-machine.ts` -- a real, validated state machine
         (mirrors `core/module-lifecycle.ts`'s pattern exactly: fixed
         states, a transition graph, a typed error on an illegal jump)
@@ -314,9 +335,13 @@ value, a real loading state, or a real empty state.
         wave always renders whatever this store's real value is.
   - [x] Developer Mode's **Voice State Preview** panel
         (`features/developer/voice-state-preview.tsx`) -- manually
-        drives or auto-cycles the same real store, for animation QA
-        only; disabled by default, never an end-user surface, never
-        simulates a fake conversation.
+        drives or auto-cycles the real `voice-state.store.ts`, plus
+        manual sliders for `microphoneLevel`/`ttsLevel` (writing to the
+        real `voice-audio-levels.store.ts`) and a local `intensity`
+        control, so every state -- and the renderer's full prop surface
+        -- can be QA'd before either real backend exists. Disabled by
+        default, never an end-user surface, never simulates a fake
+        conversation.
 - [x] Live Transcript view -- `components/voice/live-transcript.tsx`,
       streaming word-by-word (`voice-transcript.store.ts`), fades 4s
       after the last word arrives. Starts and stays empty (renders

@@ -3,6 +3,49 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.1] — Voice String revision (real-time multi-bar waveform)
+
+Same-day revision of `[0.7.0]`'s Voice String, once the Premium UI &
+Voice Experience brief asked specifically for a "premium real-time
+voice waveform" (many animated bars, matching modern voice-assistant
+quality) rather than a single sine-path line.
+
+### Changed
+- **Voice String** is now a glassmorphism panel of 40 independently-
+  animated bars, not a single SVG path. Split into
+  `components/voice/voice-waveform-renderer.tsx` (the pure renderer --
+  zero store dependency, accepts `voiceState`, `microphoneLevel`,
+  `ttsLevel`, `intensity` as props) and `components/voice/voice-
+  string.tsx` (now just the thin layer wiring real store state in) --
+  direct answer to the brief's "separate rendering from state
+  management" and "design it so the future voice backend can stream
+  real audio amplitudes directly into the renderer" requirements.
+- Each bar derives its height from one shared `useTime()` clock via
+  `useTransform` (one requestAnimationFrame loop feeding many cheap
+  derived values, bound straight to the DOM, `transform`-only --
+  GPU-compositable, no layout shifts) rather than 40 independent RAF
+  subscriptions.
+- Per-state "envelope" shapes implement the brief's state-by-state spec
+  directly: Wake's center-outward pulse, Thinking's slow traveling
+  wave (distinct from Listening), Listening/Speaking's reactive look
+  (two overlapping deterministic sine terms per bar -- a fixed
+  per-bar phase seed, not `Math.random()`, for "smooth interpolation,
+  no jitter" rather than actual jitter).
+- Glass-panel styling (blurred translucent background, soft
+  state-colored bloom) uses this app's existing semantic color tokens,
+  not new hardcoded hex values, for the brief's "cyan/blue gradient"
+  look.
+
+### Added
+- `stores/voice-audio-levels.store.ts` -- real `microphoneLevel`/
+  `ttsLevel` fields, always `0` today (no audio pipeline exists),
+  additively boosting the renderer's procedural ambient motion once
+  real, with bars nearer the panel's center reacting more strongly.
+- Developer Mode's Voice State Preview panel now drives the raw
+  renderer directly, with manual mic/TTS level sliders (writing to the
+  real store above) and a local intensity control, so the renderer's
+  full prop surface can be QA'd before either real backend exists.
+
 ## [0.7.0] — M8 Phase 4, Task Group H (Voice State Architecture)
 
 First task group of the Premium UI & Voice Experience initiative.
