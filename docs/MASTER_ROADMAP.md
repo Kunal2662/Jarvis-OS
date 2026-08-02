@@ -1402,6 +1402,13 @@ bespoke implementation per surface:
   plugin is not a special case.
 - Dashboard widgets — via `DashboardWidgetRegistry` (M8 Phase 3), a
   named `ContributionRegistry` instance, not a parallel class.
+- Status bar items — via `statusBarRegistry` (M8 Phase 3, Task Group
+  E), another named `ContributionRegistry` instance; Core JARVIS's own
+  9 built-in items (Current Workspace, Active Module, Current Running
+  Task, Background Task Progress, AI Provider, Voice Status,
+  Automation Status, Internet/Offline, Notification Indicator)
+  register through this exact path, not a special case a plugin's own
+  item has to work around.
 - Pages / Routes — a plugin's own React route(s), mounted through
   M8 Phase 3's Workspace Routing, never a route that bypasses
   `BaseApplication`.
@@ -1433,8 +1440,9 @@ above:** every frontend-side registry this list points at
 (`ApplicationRegistry`, `ContributionRegistry` and its named instances,
 the Permission/Settings/Notification Frameworks) already exists and
 works for first-party modules today — a registered `BaseApplication`
-instance can already contribute navigation, a dashboard widget,
-settings, and command palette entries with zero further backend work.
+instance can already contribute navigation, a dashboard widget, a
+status bar item, settings, and command palette entries with zero
+further backend work.
 What doesn't exist yet is the mechanism that loads *third-party*
 plugin code into that same registry in the first place — the Plugin
 Loader, sandboxing, and Marketplace install/uninstall flow above. The
@@ -10122,5 +10130,31 @@ Also: **M8 Phase 3, Task Group D (Dock)** shipped in the same pass —
 registry- and enablement-driven, the same pattern Task Group C
 established for Sidebar, the last consumer of the now-fully-retired
 `routes/nav-items.ts`. No dependency, acceptance-criterion, or
+numbering conflict was found against M0–M27. Bump this line whenever
+you edit the roadmap.*
+
+*Aug 2026 addendum — Task Group E (Status Bar):* the Status Bar became
+another `ContributionRegistry` (M8 Phase 3) instance, `statusBarRegistry`
+-- a fourth named surface alongside Navigation and Dashboard Widgets,
+not a new bespoke class. Core JARVIS's 9 built-in items (left: Current
+Workspace, Active Module; center: Current Running Task, Background
+Task Progress; right: AI Provider, Voice Status, Automation Status,
+Internet/Offline, Notification Indicator) register through the same
+path a future plugin's own status item would. Three items (AI
+Provider, Voice Status, Automation Status) have no real backend data
+source yet — no AI-provider-state API, no voice WebSocket relay, no
+automation-run status exists on the frontend today — and honestly
+render "Not configured" rather than fabricated data, the same honesty
+standard the existing connection-status indicator (folded into this
+same registry as the "Internet/Offline" item, not duplicated as a
+second mechanism) already established. `DashboardWidgetContribution`'s
+`render` field, left deliberately untyped (`() => unknown`) when it had
+no real consumer, is now typed as a proper component reference,
+matching `StatusBarContribution.render`'s contract, now that building
+an actual consumer clarified the correct shape: each contribution
+renders as its own element so it manages its own reactivity, rather
+than a value being read and interpolated by the consuming layout
+component (which would violate React's Rules of Hooks over a
+variable-length list). No dependency, acceptance-criterion, or
 numbering conflict was found against M0–M27. Bump this line whenever
 you edit the roadmap.*

@@ -914,6 +914,18 @@ implements against the design tokens already established.
 | Window behavior | Native Tauri window chrome; remembers size/position per-monitor across restarts (state stored per §12's "persistent, non-secret" row). |
 | Dock behavior | Pinned items persist across restarts; unpin/repin is instant, no confirmation dialog (low-risk, reversible action). |
 | Sidebar behavior | Collapsible, state persists across restarts; exactly one nav item active at a time — unchanged UX contract from the shipped PySide6 sidebar (`ui/widgets/sidebar.py`), just re-rendered in React. |
+| Status bar behavior | Left/center/right, sorted by ascending `priority` within each — no hardcoded item order. A module that has no real backing data for an item shows an honest "Not configured"/idle state, never a fabricated value (added Aug 2026, M8 Phase 3 Task Group E). |
+
+**UI extension points are registry-driven, not per-surface bespoke
+code** *(added Aug 2026, UI Architecture Update)*: Sidebar, Dashboard
+Widgets, and the Status Bar all read from a named instance of the same
+generic `ContributionRegistry` (`frontend/src/core/contribution-registry.ts`)
+rather than each shell component maintaining its own hardcoded list or
+its own registration mechanism. A module contributes to any of these
+surfaces the same way regardless of which one — register, unregister,
+query by owning module — full detail in `MASTER_ROADMAP.md` §8 M9's
+Plugin Registration System subsection, which also tracks which surfaces
+are real today versus still pending the Plugin Loader.
 
 ---
 

@@ -3,6 +3,34 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.2] — M8 Phase 3, Task Group E (Status Bar)
+
+### Added
+- **Status Bar** is now `ContributionRegistry`-driven -- a fourth named
+  instance (`statusBarRegistry`, `core/interfaces/status-bar-interface.ts`)
+  alongside Navigation and Dashboard Widgets, not a new bespoke
+  registry. No hardcoded status items anywhere in
+  `components/layout/status-bar.tsx`.
+- Core JARVIS's 9 built-in items, registered through the same path a
+  future plugin's own status item would use: left (Current Workspace,
+  Active Module), center (Current Running Task, Background Task
+  Progress), right (AI Provider, Voice Status, Automation Status,
+  Internet/Offline, Notification Indicator). Six are real data today
+  (`WorkspaceManager`, `background-tasks.store.ts`,
+  `notifications.store.ts`, the existing WebSocket connection hook);
+  three (AI Provider, Voice Status, Automation Status) have no real
+  backend data source yet and honestly show "Not configured" rather
+  than fabricated values.
+
+### Changed
+- `DashboardWidgetContribution.render` retyped from `() => unknown` to
+  a real component reference, matching `StatusBarContribution.render`'s
+  contract -- building an actual consumer (the Status Bar) clarified
+  the correct shape: each contribution renders as its own element and
+  manages its own reactivity, which calling a plain callback inside a
+  `.map()` over a variable-length list cannot do without violating
+  React's Rules of Hooks.
+
 ## [0.6.1] — M8 Phase 3, Task Group D (Dock) + Contribution Registry unification
 
 ### Fixed

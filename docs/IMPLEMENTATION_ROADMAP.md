@@ -191,6 +191,24 @@ value, a real loading state, or a real empty state.
 - [x] Dock (registry- and enablement-driven, same pattern as Sidebar --
       pinned modules only render if also registered *and* enabled;
       active state from `WorkspaceManager`, not the route).
+- [x] **Status Bar** *(added Aug 2026, Task Group E -- see
+      `MASTER_ROADMAP.md` §8 M9's Plugin Registration System)*:
+      registry-driven via `statusBarRegistry`, a named
+      `ContributionRegistry` instance -- no hardcoded status items.
+  - [x] `StatusBarContribution` type + `statusBarRegistry`.
+  - [x] Core JARVIS's 9 built-in items (left: Current Workspace, Active
+        Module; center: Current Running Task, Background Task
+        Progress; right: AI Provider, Voice Status, Automation Status,
+        Internet/Offline, Notification Indicator) -- all real data
+        (`WorkspaceManager`, `background-tasks.store.ts`,
+        `notifications.store.ts`, the existing WebSocket connection
+        hook) or an honest "Not configured" where no backend data
+        source exists yet (AI Provider, Voice Status, Automation
+        Status) -- never fabricated.
+  - [x] `DashboardWidgetContribution.render`'s type corrected to a real
+        component reference (was `() => unknown`), matching
+        `StatusBarContribution.render`'s contract, now that a real
+        consumer proved out the correct shape.
 - [ ] Workspace views (one per existing PySide6 workspace: Voice,
       Files & Drive, Browser, Coding, Finance, Smart Home, Calendar,
       Gmail, Spotify — ported feature-by-feature, not redesigned

@@ -1,41 +1,74 @@
-import { cn } from "@/lib/utils";
-import { useConnectionStatus } from "@/hooks/use-connection-status";
-import type { ConnectionStatus } from "@/services/websocket";
+import { useMemo, useSyncExternalStore } from "react";
+import { statusBarRegistry, type StatusBarContribution, type StatusBarPosition } from "@/core/interfaces/status-bar-interface";
 
-const STATUS_LABEL: Record<ConnectionStatus, string> = {
-  not_configured: "Not connected",
-  connecting: "Connecting…",
-  connected: "Connected",
-  reconnecting: "Reconnecting…",
-  offline: "Offline",
-  error: "Connection error",
-};
-
-const STATUS_DOT_CLASS: Record<ConnectionStatus, string> = {
-  not_configured: "bg-muted-foreground",
-  connecting: "bg-warning animate-pulse",
-  connected: "bg-success",
-  reconnecting: "bg-warning animate-pulse",
-  offline: "bg-muted-foreground",
-  error: "bg-destructive",
-};
+/** Sorted ascending by `priority` within a `category` -- lower renders
+ *  first, matching every other priority-ordered surface's convention. */
+function sortByPriority(items: StatusBarContribution[]): StatusBarContribution[] {
+  return [...items].sort((a, b) => a.priority - b.priority);
+}
 
 /**
- * Layout component only -- reports the *real* WebSocket connection state
- * from `services/websocket` (useConnectionStatus), never a hardcoded
- * "Connected". Until a backend WebSocket route exists, this will
- * honestly show "Not connected" / "Connection error", not fake data.
+ * Layout component, registry-driven (Phase 3, Task Group E) -- renders
+ * whatever `statusBarRegistry` (`core/interfaces/status-bar-interface.ts`)
+ * has registered, grouped into left/center/right and sorted by
+ * priority. No hardcoded status items: Core JARVIS's own 9 built-ins
+ * (`status-bar-contributions.tsx`) register through the exact same path
+ * a future plugin's own status item would. This component doesn't know
+ * -- and doesn't need to know -- which contributions are core and which
+ * would eventually come from a plugin.
+ *
+ * Each contribution renders as its own `<contribution.render />`
+ * element (not a value read and interpolated here), so each one
+ * subscribes to whatever store or state it needs independently --
+ * calling hooks inside this component's own `.map()` would violate
+ * React's Rules of Hooks over a variable-length list; this doesn't,
+ * because React tracks each rendered component's hooks separately.
  */
 export function StatusBar() {
-  const status = useConnectionStatus();
+  // Same "re-render on demand" pattern as Sidebar/Dock/module-state-
+  // inspector.tsx -- ContributionRegistry.getAll() (core/contribution-registry.ts)
+  // returns a referentially-stable array, so this doesn't loop.
+  const items = useSyncExternalStore(
+    () => () => {},
+    () => statusBarRegistry.getAll(),
+  );
+
+  const left = useMemo(() => sortByPriority(items.filter((item) => item.category === "left")), [items]);
+  const center = useMemo(() => sortByPriority(items.filter((item) => item.category === "center")), [items]);
+  const right = useMemo(() => sortByPriority(items.filter((item) => item.category === "right")), [items]);
 
   return (
-    <footer className="flex h-8 shrink-0 items-center justify-between border-border border-t bg-card px-4 text-caption text-muted-foreground">
-      <div className="flex items-center gap-2">
-        <span className={cn("size-2 rounded-full", STATUS_DOT_CLASS[status])} aria-hidden="true" />
-        <span>{STATUS_LABEL[status]}</span>
-      </div>
-      <span>JARVIS OS · v0.7.0-dev</span>
+    <footer className="flex h-8 shrink-0 items-center justify-between gap-4 border-border border-t bg-card px-4 text-caption text-muted-foreground">
+      <StatusBarGroup label="Workspace status" position="left" items={left} />
+      <StatusBarGroup label="Task status" position="center" items={center} />
+      <StatusBarGroup label="System status" position="right" items={right} />
     </footer>
+  );
+}
+
+function StatusBarGroup({
+  label,
+  position,
+  items,
+}: {
+  label: string;
+  position: StatusBarPosition;
+  items: StatusBarContribution[];
+}) {
+  return (
+    <div
+      aria-label={label}
+      className={
+        position === "center"
+          ? "flex flex-1 items-center justify-center gap-4"
+          : "flex items-center gap-4"
+      }
+    >
+      {items.map((item) => (
+        <span key={item.id} aria-label={item.displayName}>
+          <item.render />
+        </span>
+      ))}
+    </div>
   );
 }
