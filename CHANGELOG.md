@@ -53,6 +53,41 @@ Architecture unchanged -- Python + FastAPI + Tauri, no migration.
 - `core/lifecycle/runtime_ws_hub.py`'s `EVENT_TYPE_NAMES` gained five
   more entries for the events above.
 
+### Fixed (Project Completion Audit, ahead of M9 Task Group D)
+- **Version drift** — `pyproject.toml`, `Settings.app_version`, and
+  `src/jarvis/__version__.py` were still `"0.5.2"` despite this
+  changelog already being at `0.10.0`; all three now read `"0.10.0"`
+  in lockstep. The same drift this project's own `MASTER_ROADMAP.md`
+  §15 previously recorded as "Resolved" during the M5A pass had
+  quietly recurred.
+
+### Documentation (Project Completion Audit)
+- Full-repository sweep for TODOs, placeholders, mocks, deprecated
+  code, doc/implementation mismatches, and missing tests across M0–M9.
+  Found: three stale "M8" labels on Plugin-Platform-related
+  `MASTER_ROADMAP.md` §15 Future items (relabeled M9 Task Group D --
+  scope never changed, only the label, from before the Aug 2026
+  retitling); §16's development-order table using the pre-reconciliation
+  🟢/no-symbol convention on the M7/M8/M9 rows (now 🟡 Active,
+  consistent with §2/§14); `docs/ARCHITECTURE.md` §5 still saying "no
+  FastAPI layer exists yet" (false since M9 Task Group B); two
+  undocumented, real exceptions to §5's own contract
+  (`/api/v1/sessions`'s response isn't wrapped in the `{data, meta}`
+  envelope; the real health router mounts at `/api/health`, not
+  `/api/v1/health`, since M0) -- both now documented in place rather
+  than left as silent drift; `README.md`'s "Roadmap" section still
+  claiming only M0–M2 and the core of M3 were implemented, and its
+  project-layout diagram missing `frontend/` entirely.
+- `MASTER_ROADMAP.md` §15 Pending gained a consolidated "M8/M9-era
+  items" entry cross-referencing M8's Deferred Backlog and M9 Task
+  Group B/C's own Future Work notes, plus the two new API-contract
+  exceptions and the health-router prefix mismatch above -- so §15
+  remains the one place every open item in the repository is tracked,
+  not just M0–M7's.
+- No new source-code behavior changed beyond the version-string fix
+  above; `pytest`/`mypy`/`ruff`/`black` re-verified against the same
+  baseline M9 Task Group C already validated.
+
 ## [0.9.0] — M9, Task Group B (Service/Session/Configuration Manager, Health Monitor, Runtime WebSocket API)
 
 Second and final Runtime Core deliverable, closing out every M9

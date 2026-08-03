@@ -9,7 +9,11 @@
 > actively being built right now*, phase by phase, so day-to-day
 > development has a checklist that doesn't require reading an 8,000+
 > line file. When a phase here ships, its status updates in both
-> documents.
+> documents. A full Project Completion Audit (Aug 2026, ahead of M9
+> Task Group D) cross-checked this document's own checklists against
+> the repository and found them already current — no changes required
+> here; every new finding from that audit lives in `MASTER_ROADMAP.md`
+> §15 Pending and `docs/ARCHITECTURE.md` §5.
 
 **Document owner:** project lead
 **Status:** Aug 2026 — tracks M8 (React Frontend & Desktop Experience)

@@ -9139,6 +9139,61 @@ than a numbered milestone.
   introduce one QtBot smoke per major widget as new UI ships; no
   milestone assigned.
 
+**M8/M9-era items** *(added Aug 2026, Project Completion Audit — these
+already exist in full detail in their own task groups' changelog
+addenda and `IMPLEMENTATION_ROADMAP.md`'s per-task-group "Future Work"
+notes; consolidated here so §15 remains the one place every open item
+across the whole repository is tracked, not just M0–M7's)*:
+
+- **M8's full Deferred Backlog** — Notification Center, Context Menu
+  system, Background Task Manager's frontend surface, Workspace views,
+  Window management, Responsive/DPI/Multi-monitor, all of Phases 2/5/6/7
+  — see M8's own §8 entry's "Deferred Backlog" subsection and
+  `IMPLEMENTATION_ROADMAP.md` §6 for the full checklist. None of it
+  blocks M9.
+- **M9 Task Group B** — retrofitting `VoiceService`/`HotkeyService`/
+  `BrowserService`/`AutomationService`/`SystemService` onto `IService`
+  and migrating their lifecycle-hook ownership into `ServiceManager`;
+  cascading `ServiceManager.restart()` to a service's dependents;
+  unifying `RuntimeSession` with `Conversation`/LangGraph `thread_id`
+  beyond the optional-reference link already added; extending §6's
+  WebSocket category table to the pre-existing `voice`/`ai`/
+  `automation`/`memory`/`progress`/`notification` categories (only the
+  Runtime/Service/Session/Configuration/Health/Task/Resource
+  categories are relayed today); a genuine headless `_run_api_only()`
+  runtime mode (the embedded API server exists only inside the GUI
+  runtime path); M14's real Bearer/JWT session-token issuance (today's
+  `/api/v1/ws` auth uses a `SessionManager` session id as a real,
+  working stand-in).
+- **M9 Task Group C** — an external supervisor/watchdog process for
+  genuine automatic process restart after a crash (Crash Recovery only
+  detects and reports today, by design — a process cannot restart
+  itself after crashing); GPU/disk collectors for `HealthMonitor`
+  (`ResourceManager.register_budget()` already supports them once a
+  collector exists); enforcement (throttle/kill) on a Resource Manager
+  budget breach; persisting/resuming the Background Task Manager's
+  queue across a restart.
+- **`/api/v1/sessions`'s response shape** — returns `SessionResponse`
+  directly, not wrapped in the `{"data": ..., "meta": ...}` envelope
+  `docs/ARCHITECTURE.md` §5 mandates for every successful response.
+  Deliberately not retrofitted in this audit pass: it's the only real
+  REST resource route today, and rewriting one route's response shape
+  (plus every test asserting its current flat shape) in isolation,
+  before a second real resource route exists to prove the envelope
+  pattern is actually being followed consistently, risks getting the
+  wrapper shape wrong and having to change it twice. Revisit once M9
+  Task Group D or M10+ adds the next real REST resource.
+- **Health router mount prefix mismatch** *(found Aug 2026, Project
+  Completion Audit)* — `docs/ARCHITECTURE.md` §5/§6 document
+  `/api/v1/health` as the health-check route; the real router
+  (`infrastructure/api/routes/health.py`, shipped M0) has always
+  mounted at `/api/health`, no `/v1`. Confirmed during M9 Task Group B
+  and left alone as out of that task group's scope; still open. Low
+  risk to fix (add the `/v1` prefix, update the two doc references),
+  but touches a route that's been live and possibly polled by external
+  tooling since M0 — a deliberate, separate change, not bundled into
+  an unrelated task group.
+
 ### Future
 
 Open items with an explicit, named future-milestone owner — listed
@@ -9151,13 +9206,17 @@ here, not implemented, per this pass's documentation-only scope.
 - No PII redaction toggle before embedding — content is embedded and
   stored verbatim. Candidate before any cloud-embedding provider ships
   — **M14**.
-- Plugin SDK interfaces — **M8**.
+- Plugin SDK interfaces — **M9 Task Group D** *(relabeled Aug 2026,
+  Project Completion Audit — these three items still said "M8" from
+  before the Aug 2026 retitling moved Plugin Platform's full scope
+  from M8 to M9; no scope change, correcting a stale forward-reference
+  only)*.
 - Move DI provider builders out of `container.py` into a per-domain
-  `providers/` package once factory count grows further — **M8**,
-  when the plugin loader adds its own factories.
+  `providers/` package once factory count grows further — **M9 Task
+  Group D**, when the plugin loader adds its own factories.
 - Promote the "strict dependency rule enforced by convention" note
   (§11) into an actual lint rule before the plugin surface makes
-  violating it externally visible — **M8**.
+  violating it externally visible — **M9 Task Group D**.
 - QTextBrowser append is O(n) per token — swap to a custom scroll area
   with row widgets once messages exceed ~2k / conversation — **M11**,
   alongside the other chat-surface work there.
@@ -9201,9 +9260,9 @@ purpose still holds for M7 onward.)*
 | Order | Milestone | Reason |
 |-------|-----------|--------|
 | 1 | **M6** Vision & Multimodal ✅ *(Architecture Layer — shipped)* | M5A explicitly deferred the vision tool here; unblocked immediately, no new dependency to wait on. |
-| 2 | **M7** Workflow Intelligence 🟢 *(Phase 1–2 shipped, Phase 3 deferred, Phases 4–6 pending)* | Turns the M5A agent graph from single-run into a real workflow engine before anything else builds on top of "one prompt, one graph run." |
-| 3 | **M8** React Frontend & Desktop Experience | With a maturing agent + workflow surface, and the Aug 2026 decision to migrate off PySide6 (see `TECH_STACK.md`), the UI is rebuilt before new backend surfaces need a home to render into. |
-| 4 | **M9** Runtime & Core Services | Third-party extensions (this milestone's own Plugin Platform scope, formerly M8's) need a governed runtime to load into; scheduled right after the new frontend so Developer Mode's ported panels have a real backend from the start. |
+| 2 | **M7** Workflow Intelligence 🟡 *(Active — Phase 1–2 shipped, Phase 3 deferred, Phases 4–6 pending)* | Turns the M5A agent graph from single-run into a real workflow engine before anything else builds on top of "one prompt, one graph run." |
+| 3 | **M8** React Frontend & Desktop Experience 🟡 *(Active — Phase 1+4 shipped, rest deferred; see §8's Deferred Backlog)* | With a maturing agent + workflow surface, and the Aug 2026 decision to migrate off PySide6 (see `TECH_STACK.md`), the UI is rebuilt before new backend surfaces need a home to render into. |
+| 4 | **M9** Runtime & Core Services 🟡 *(Active — Runtime Core + Reliability shipped, Task Groups A–C; Plugin Platform + Developer Platform Tools pending)* | Third-party extensions (this milestone's own Plugin Platform scope, formerly M8's) need a governed runtime to load into; scheduled right after the new frontend so Developer Mode's ported panels have a real backend from the start. |
 | 5 | **M10** AI Orchestrator | Formalizes the M5A agent graph into a dedicated orchestration platform, absorbing M7 Phase 3's deferred cross-tool-parallelism scope — scheduled early since M15–M20's "companion intelligence" arc all route through it. |
 | 5A | **M10A** Universal Search & Knowledge Platform | Only needs M3 (already done); scheduled alongside M10 because M15–M20 all depend on it and it's cheaper to build once, early, than to retrofit under six later milestones — unchanged reasoning from the original (pre-migration) M10 Knowledge Engine slot. |
 | 5B | **M10B** Intelligence Layer | The backing engine M15's Proactive Intelligence and M16's Goal/Behaviour Reflection modules both consume; scheduled alongside M10A since both are M15/M16 prerequisites. |

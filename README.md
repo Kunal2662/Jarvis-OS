@@ -90,13 +90,16 @@ jarvis-os/
 ├── src/jarvis/                    # main package (src-layout)
 │   ├── app.py                     # ApplicationBootstrapper
 │   ├── main.py                    # PySide6 entry point
-│   ├── core/                      # config, logging, DI, interfaces
-│   ├── infrastructure/            # concrete adapters (OpenAI, Ollama, ...)
+│   ├── core/                      # config, logging, DI, interfaces, runtime lifecycle (M9)
+│   ├── infrastructure/            # concrete adapters (OpenAI, Ollama, ...) + FastAPI routes
 │   ├── services/                  # application services
 │   ├── agents/                    # LangGraph orchestrator
 │   ├── features/                  # feature modules (modular monolith)
-│   ├── ui/                        # PySide6 UI + ThemeManager
+│   ├── ui/                        # PySide6 UI + ThemeManager (current shipping UI)
 │   └── utils/
+├── frontend/                      # React 19 + Vite + Tauri UI (M8, in progress --
+│   │                               # see docs/TECH_STACK.md; not yet the primary UI)
+│   └── src/
 ├── docs/                          # architecture & developer docs
 ├── scripts/                       # bootstrap, dev-run, build
 ├── resources/                     # QSS themes, icons, fonts, assets
@@ -162,12 +165,24 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Roadmap
 
-Full milestone plan in [`docs/ROADMAP.md`](docs/ROADMAP.md).
-This repository currently implements **Milestone 0 — Architecture &
-Scaffolding**, **Milestone 1 — Shell & Chat**, **Milestone 2 — Voice**,
-and the core of **Milestone 3 — Semantic Memory** (SQLite + ChromaDB
-memory engine, retention/pruning policies, and a Settings ▸ Memory
-page).
+Full, current milestone plan and status in
+[`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source
+of truth) and [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md)
+(the active, checkbox-level execution plan). `docs/ROADMAP.md` is a
+lighter-weight, non-authoritative summary covering only M0–M6 — check
+the two documents above for anything current.
+
+As of this writing: **M0–M6 shipped** (Foundation, Chat, Voice,
+Memory, Automation, Desktop Platform, Vision & Multimodal
+architecture layer); **M7 — Workflow Intelligence** active (Phases
+1–2 shipped); **M8 — React Frontend & Desktop Experience** active
+(migrating the UI from PySide6 to React + Tauri — the PySide6 UI
+above remains the one that actually runs today); **M9 — Runtime &
+Core Services** active (Runtime Core and Reliability modules shipped
+— Runtime/Service/Session/Configuration Managers, Health Monitor,
+Background Task Manager, Crash Recovery, Resource Manager, and a real
+`/api/v1/ws` WebSocket API; Plugin Platform and Developer Platform
+Tools modules still pending).
 
 ## License
 

@@ -340,8 +340,16 @@ applied to every named module.
 
 ## 5. API contract standards
 
-**Status: (new, M8+)** — no FastAPI layer exists yet; this is the
-binding contract for the one M8 builds.
+**Status:** this is the binding contract every new route follows.
+`GET /api/health`/`/api/ready` (M0) and `POST`/`GET`/`DELETE
+/api/v1/sessions` (M9 Task Group B, `infrastructure/api/routes/
+sessions.py`) are real today — the rest of this section's conventions
+(the `{data, meta}` response envelope, cursor pagination, most routes'
+Bearer auth) have no second real resource route yet to prove them
+against; `/api/v1/sessions` itself is a deliberate, narrow exception
+to two of them (see Request/response schema and Authentication below)
+rather than full compliance. M10+ resource routes are expected to
+follow this section exactly, unwinding both exceptions.
 
 ### Naming and versioning
 
@@ -372,6 +380,13 @@ shapes.
   "meta": { /* pagination, timing — omitted when not applicable */ }
 }
 ```
+
+*As shipped:* `/api/v1/sessions` (M9 Task Group B) returns its
+`SessionResponse` Pydantic model directly, not wrapped in this
+envelope — tracked as real, open debt (`MASTER_ROADMAP.md` §15
+Pending), deliberately not retrofitted before a second real resource
+route exists to prove the wrapper shape against, rather than an
+accepted permanent exception.
 
 ```jsonc
 // Error envelope — every non-2xx response, using the universal
@@ -414,6 +429,15 @@ SSE, so there's exactly one streaming transport for anything the user
 is actively watching.
 
 ### Authentication
+
+*As shipped:* the real health router (M0) mounts at `/api/health`, not
+`/api/v1/health` — a pre-existing prefix inconsistency, confirmed
+during M9 Task Group B and not fixed there (out of that task group's
+scope; tracked in `MASTER_ROADMAP.md` §15 Pending). `/api/v1/sessions`
+(M9 Task Group B) is a second, deliberate exception below — it has no
+auth dependency at all, being the mechanism that issues the very
+session token every *other* route's Bearer auth requires; nothing
+exists yet to authenticate a request for a session with.
 
 Every route except `/api/v1/health` requires a session token
 (Bearer, `Authorization: Bearer <token>`), issued by the session
