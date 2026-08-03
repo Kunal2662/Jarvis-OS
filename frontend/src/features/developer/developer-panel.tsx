@@ -1,21 +1,32 @@
+import type { ComponentType } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Lock, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DEVELOPER_PANEL_SECTIONS } from "@/features/developer/panel-sections";
 import { ModuleStateInspector } from "@/features/developer/module-state-inspector";
+import { StartupPreview } from "@/features/developer/startup-preview";
 import { VoiceStatePreview } from "@/features/developer/voice-state-preview";
 import { useDeveloperModeStore } from "@/stores/developer-mode.store";
 import { MOTION_DURATIONS } from "@/lib/motion";
+
+/** Sections with real content, keyed by id -- everything else falls
+ *  through to the honest "not built yet" description below. */
+const REAL_SECTION_CONTENT: Partial<Record<string, ComponentType>> = {
+  "state-inspector": ModuleStateInspector,
+  "voice-state-preview": VoiceStatePreview,
+  "startup-preview": StartupPreview,
+};
 
 /**
  * The Developer Panel foundation (Task 13). Toggled by Ctrl+Shift+D
  * (providers/developer-provider.tsx). Most sections still honestly show
  * "not built yet" -- real content requires the backend Runtime Manager,
- * WebSocket log relay, and Plugin Platform API (all M9 scope). Two
- * sections are real today because what they inspect has no backend
+ * WebSocket log relay, and Plugin Platform API (all M9 scope). Three
+ * sections are real today because what they drive has no backend
  * dependency: State Inspector reads `ApplicationRegistry` directly
- * (Task 16), and Voice State Preview (Phase 4, Task Group H) drives the
- * real `useVoiceStateStore` for animation QA.
+ * (Task 16); Voice State Preview (Phase 4, Task Group H) drives the
+ * real `useVoiceStateStore`; Startup Preview (Phase 4, Task Group I)
+ * replays the real startup sequence.
  */
 export function DeveloperPanel() {
   const activePanelId = useDeveloperModeStore((s) => s.activePanelId);
@@ -76,15 +87,16 @@ export function DeveloperPanel() {
               </button>
             </div>
 
-            {activeSection.id === "state-inspector" ? (
-              <ModuleStateInspector />
-            ) : activeSection.id === "voice-state-preview" ? (
-              <VoiceStatePreview />
-            ) : (
-              <div className="flex flex-1 items-center justify-center p-6 text-center">
-                <p className="text-secondary text-muted-foreground">{activeSection.description}</p>
-              </div>
-            )}
+            {(() => {
+              const RealContent = REAL_SECTION_CONTENT[activeSection.id];
+              return RealContent ? (
+                <RealContent />
+              ) : (
+                <div className="flex flex-1 items-center justify-center p-6 text-center">
+                  <p className="text-secondary text-muted-foreground">{activeSection.description}</p>
+                </div>
+              );
+            })()}
           </div>
         </motion.aside>
       )}

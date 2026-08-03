@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useDockStore } from "@/stores/dock.store";
 import { useSidebarStore } from "@/stores/sidebar.store";
+import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
 import { useThemeStore } from "@/stores/theme.store";
 import { useWindowStore } from "@/stores/window.store";
 
-const persistedStores = [useThemeStore, useSidebarStore, useDockStore, useWindowStore];
+const persistedStores = [useThemeStore, useSidebarStore, useDockStore, useWindowStore, useStartupPreferencesStore];
 
 /**
  * Blocks the first render until every persisted Zustand store has

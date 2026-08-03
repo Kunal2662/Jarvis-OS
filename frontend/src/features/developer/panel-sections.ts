@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, AudioLines, Blocks, Bug, ScrollText, SquareTerminal, Store } from "lucide-react";
+import { Activity, AudioLines, Blocks, Bug, Rocket, ScrollText, SquareTerminal, Store } from "lucide-react";
 
 export interface DeveloperPanelSection {
   id: string;
@@ -63,5 +63,18 @@ export const DEVELOPER_PANEL_SECTIONS: DeveloperPanelSection[] = [
     // rather than shipped as a real end-user surface, since manually
     // forcing voice states has no legitimate end-user use case.
     description: "Manually drive or auto-cycle the real voice state machine, for animation QA.",
+  },
+  {
+    id: "startup-preview",
+    label: "Startup Preview",
+    icon: Rocket,
+    // Also real (Phase 4, Task Group I) -- replays the actual
+    // `StartupSequence` component the app plays once per real launch,
+    // and toggles the real `startup-preferences.store.ts` flags a
+    // future Settings page will eventually expose. Developer Mode is
+    // this repo's established "real control, no Settings page yet"
+    // surface (see Voice State Preview above) rather than a fake
+    // placeholder panel.
+    description: "Replay the real startup sequence, and toggle skip/glass-effect preferences, for QA.",
   },
 ];

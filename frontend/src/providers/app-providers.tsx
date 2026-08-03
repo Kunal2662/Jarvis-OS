@@ -1,10 +1,6 @@
 import { MotionConfig } from "motion/react";
-import { CommandPaletteProvider } from "@/providers/command-palette-provider";
-import { DeveloperProvider } from "@/providers/developer-provider";
+import { StartupGate } from "@/components/startup/startup-gate";
 import { ErrorBoundary } from "@/providers/error-boundary";
-import { NotificationProvider } from "@/providers/notification-provider";
-import { QueryProvider } from "@/providers/query-provider";
-import { RouterProvider } from "@/providers/router-provider";
 import { StoreProvider } from "@/providers/store-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 
@@ -15,6 +11,13 @@ import { ThemeProvider } from "@/providers/theme-provider";
  * never flashes the default theme), ErrorBoundary wraps everything so a
  * failure anywhere below it degrades gracefully instead of white-screening
  * the app.
+ *
+ * `StartupGate` (Phase 4, Task Group I) owns everything that used to
+ * render directly here (`QueryProvider`/`DeveloperProvider`/
+ * `CommandPaletteProvider`/`NotificationProvider`/`RouterProvider`) --
+ * it reveals that real subtree only once both real initialization
+ * (`core/startup-orchestrator.ts`) and the startup choreography are
+ * done, rather than mounting it immediately.
  */
 export function AppProviders() {
   return (
@@ -27,15 +30,7 @@ export function AppProviders() {
               override in index.css handles everything that isn't a
               Motion component. */}
           <MotionConfig reducedMotion="user">
-            <QueryProvider>
-              <DeveloperProvider>
-                <CommandPaletteProvider>
-                  <NotificationProvider>
-                    <RouterProvider />
-                  </NotificationProvider>
-                </CommandPaletteProvider>
-              </DeveloperProvider>
-            </QueryProvider>
+            <StartupGate />
           </MotionConfig>
         </ThemeProvider>
       </StoreProvider>

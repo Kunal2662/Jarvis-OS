@@ -347,6 +347,67 @@ value, a real loading state, or a real empty state.
       after the last word arrives. Starts and stays empty (renders
       nothing) until a real speech-to-text stream exists -- no
       placeholder text.
+- [x] **Startup Experience** *(Aug 2026, Task Group I, Premium UI &
+      Voice Experience initiative)*: a choreographed ~4.2s cinematic
+      sequence (point -> ripple -> logo assemble -> logo pulse -> morph
+      into the Voice String -> Voice String activation -> Voice String
+      expansion -> center-outward glass reveal) that replaces a bare
+      loading flash with a wake-up moment, while genuinely
+      lazy-registering the app's real startup work behind it. No
+      startup text ever renders ("Loading...", progress %, etc. are
+      explicitly excluded by the brief) -- only an `sr-only role="status"`
+      string for screen readers.
+  - [x] `core/startup-orchestrator.ts` -- `STARTUP_TASKS`, three real,
+        high/medium-priority tasks (`registerCoreStatusBarItems`,
+        `registerCoreDashboardWidgets`, `registerPlaceholderModules`)
+        mapped from the brief's tier list onto what this codebase
+        actually has to register today. `low` has no real tasks yet --
+        left honestly empty rather than padded with a fake delay, per
+        this project's "no fake data" rule; it starts doing real work
+        the moment a real background service exists.
+        `runStartupSequence()` is idempotent (caches its own in-flight/
+        settled promise) -- **not just a defensive nicety**: React
+        `<StrictMode>` double-invokes effects in development, and a
+        second real call to `registerPlaceholderModules()` throws
+        (`ApplicationRegistry` rejects a duplicate registration); the
+        resulting unhandled rejection silently stalled the reveal
+        forever until this was found and fixed. `__resetStartupSequenceForTests()`
+        exists solely for test isolation.
+  - [x] `components/startup/startup-sequence.tsx` -- the choreography
+        itself, driving the **real** `voice-state.store.ts` (`wake` at
+        the morph phase, `idle` at the expand phase) rather than a
+        second, fake animation path; explicitly reuses the existing
+        Voice String/`voice-waveform-renderer.tsx` as its centerpiece
+        per the brief's "do not build a second Voice String" rule. The
+        center-outward reveal is a real animated CSS
+        `mask-image: radial-gradient(...)` (via `useMotionTemplate` +
+        `useMotionValue`), not an opacity fade -- the literal mechanic
+        the brief asked for.
+  - [x] `components/startup/startup-gate.tsx` -- gates on **both** the
+        real orchestrator work and the choreography's own completion
+        (whichever finishes last), so the dashboard is never revealed
+        before `ApplicationRegistry` is actually populated. Skips
+        straight to the real app when `skipStartupAnimation` is set or
+        `useReducedMotion()` reports a system preference -- "if startup
+        animation is disabled: launch directly into Dashboard," per the
+        brief.
+  - [x] `stores/startup-preferences.store.ts` -- persisted
+        `skipStartupAnimation`/`disableGlassEffects` preferences, both
+        default `false`; registered in `StoreProvider`'s hydration gate
+        so the skip preference is never read stale before rehydration
+        completes.
+  - [x] `components/layout/desktop-shell.tsx` -- an additive staggered
+        fade/rise for Sidebar, Header+Workspace, Status Bar, and Dock on
+        first mount, which -- since `StartupGate` only mounts the real
+        app once startup is truly done -- naturally lands as the
+        "everything animates smoothly into place" dashboard reveal the
+        brief asks for, with no separate "startup just finished" signal
+        needed.
+  - [x] Developer Mode's **Startup Preview** section
+        (`features/developer/startup-preview.tsx`) -- replays the real
+        `StartupSequence` component on demand and exposes both real
+        preferences as toggles, so the sequence and its accessibility
+        escape hatches can be QA'd without restarting the app.
 - [ ] Conversation Timeline.
 - [ ] Motion animations: hover, Sidebar, Dock, Cards, Notifications --
       broader premium-UI motion pass, still pending (see the Premium

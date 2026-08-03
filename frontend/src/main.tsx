@@ -1,9 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@/index.css";
-import { registerCoreStatusBarItems } from "@/components/layout/status-bar-contributions";
-import { registerCoreDashboardWidgets } from "@/features/dashboard/dashboard-widgets";
-import { registerPlaceholderModules } from "@/modules/register-modules";
 import { AppProviders } from "@/providers/app-providers";
 
 const rootElement = document.getElementById("root");
@@ -12,24 +9,17 @@ if (!rootElement) {
 }
 
 /**
- * Registers every module with `ApplicationRegistry`, and Core JARVIS's
- * own built-in Status Bar items and Dashboard widgets with their
- * respective `ContributionRegistry` instances, before the app renders a
- * single route -- `WorkspaceManager` (Phase 3, Task Group B) resolves
- * the current path against the registry on first render, and the
- * Dashboard route renders immediately for `home`, so all three
- * registries must already be populated by then, not filled in
- * reactively after the fact. `registerCoreStatusBarItems()` and
- * `registerCoreDashboardWidgets()` are both synchronous (no async work,
- * unlike module `initialize()`), so they run before the `.then()`
- * rather than needing their own promise chain.
+ * Registering every module with `ApplicationRegistry`, and Core
+ * JARVIS's own built-in Status Bar/Dashboard contributions, used to
+ * happen here directly before the first render. As of Phase 4, Task
+ * Group I, that real work moved into `core/startup-orchestrator.ts`,
+ * run by `components/startup/startup-gate.tsx` (mounted inside
+ * `AppProviders`) alongside the cinematic startup sequence -- the app
+ * can render immediately; `StartupGate` is what actually waits for the
+ * registries to be populated before revealing the real route tree.
  */
-registerCoreStatusBarItems();
-registerCoreDashboardWidgets();
-void registerPlaceholderModules().then(() => {
-  createRoot(rootElement).render(
-    <StrictMode>
-      <AppProviders />
-    </StrictMode>,
-  );
-});
+createRoot(rootElement).render(
+  <StrictMode>
+    <AppProviders />
+  </StrictMode>,
+);

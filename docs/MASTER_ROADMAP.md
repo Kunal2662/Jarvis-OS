@@ -1231,8 +1231,21 @@ manually drive or auto-cycle the real state store, plus manual sliders
 for mic/TTS level and intensity, for full animation QA (disabled by
 default, never an end-user surface). Live Transcript (word-by-word,
 fades after inactivity) ships alongside it, honestly empty until a
-real STT stream exists. Conversation Timeline and the broader motion
-pass (hover, Sidebar, Dock, Cards, Notifications) remain pending.
+real STT stream exists.
+
+**Startup Experience** *(shipped Aug 2026, Task Group I — see the
+changelog addendum)*: a choreographed ~4.2s cinematic sequence (energy
+point, ripple, logo assembly/pulse, morph into the real Voice String,
+Voice String activation and expansion, center-outward glass reveal)
+replaces a bare loading flash, reusing the existing Voice String as its
+centerpiece rather than building a second one. No startup text ever
+renders. Genuinely lazy-registers the app's own real startup work
+(`core/startup-orchestrator.ts`) behind the choreography, gated so the
+dashboard only reveals once both the animation and the real work are
+done. Respects a persisted skip preference and `prefers-reduced-motion`
+alike — either launches straight into the dashboard. Conversation
+Timeline and the broader motion pass (hover, Sidebar, Dock, Cards,
+Notifications) remain pending.
 
 #### Phase 5 — Settings & User Profiles
 Dynamic Settings (schema-driven, preserving M5's self-registering
@@ -10376,3 +10389,82 @@ knob, not a persistent app-wide concept, so it was deliberately not
 promoted to its own store). No dependency, acceptance-criterion, or
 numbering conflict was found against M0–M27. Bump this line whenever
 you edit the roadmap.*
+
+*Aug 2026 addendum — Premium UI & Voice Experience initiative, Task
+Group I (Startup Experience & Lazy Loading):* the second task group of
+the visual-modernization pass begun by Task Group H. Ships M8 Phase
+4's Startup Experience — a choreographed ~4.2s sequence (energy point
+-> ripple -> logo assemble -> logo pulse -> morph into the existing
+Voice String -> Voice String activation -> Voice String expansion ->
+center-outward glass reveal) replacing a bare loading flash, per the
+brief's explicit "IMPORTANT: the Voice String architecture is now
+considered COMPLETE — do not redesign or replace it; reuse the
+existing renderer as the centerpiece" instruction. No startup text
+ever renders (no "Loading...", percentages, or technical messages) —
+only an `sr-only role="status"` string for assistive tech, satisfying
+the brief's own "the animation itself communicates startup" rule.
+
+`core/startup-orchestrator.ts` is the real work the animation hides:
+`STARTUP_TASKS` maps the brief's High/Medium/Low priority tiers onto
+what this codebase actually has to register today —
+`registerCoreStatusBarItems`/`registerCoreDashboardWidgets` (high),
+`registerPlaceholderModules` (medium). `low` has no real task yet;
+left honestly empty rather than backed by a fabricated delay, matching
+this project's "no fake data" rule extended to timing — it starts
+doing real work the moment a real background service (cache cleanup,
+analytics, etc.) exists. These three calls moved here from `main.tsx`,
+which used to invoke them directly and synchronously before the first
+paint.
+
+`components/startup/startup-gate.tsx` reveals the real app only once
+both the orchestrator's real work *and* the choreography's own
+animation have finished — genuine synchronization, not a cosmetic
+delay, since `WorkspaceManager` needs `ApplicationRegistry` actually
+populated before it can resolve the initial route's module. Honors the
+brief's accessibility requirements directly: a persisted
+`skipStartupAnimation` preference (`stores/startup-preferences.store.ts`)
+and Motion's `useReducedMotion()` each independently skip straight to
+the dashboard, satisfying "if startup animation is disabled: launch
+directly into Dashboard." `components/startup/startup-sequence.tsx`
+drives the **real** `voice-state.store.ts` at its morph/expand phases
+(`wake`, then `idle`) rather than a second, decorative state — the
+Voice String shown during startup is the exact same store-driven
+component shown everywhere else in the app. The center-outward reveal
+is a real animated CSS `mask-image: radial-gradient(...)` (via
+`useMotionTemplate`/`useMotionValue`), the literal mechanic the "reveal
+from the center outward" requirement describes, not an opacity
+approximation. `components/layout/desktop-shell.tsx` gained an
+additive staggered fade/rise for its Sidebar/Header/Status-Bar/Dock
+regions on first mount — since `StartupGate` only mounts the real
+dashboard once startup is truly complete, this stagger *is* the
+brief's "Dashboard Reveal" sequence, with no separate signal needed
+between the two systems.
+
+**Bug found and fixed during this task group:** `StartupGate`'s
+initialization `useEffect` (empty dependency array) is double-invoked
+by React `<StrictMode>` in development — by design, to surface
+non-idempotent effects. The second, illegal call to
+`registerPlaceholderModules()` threw (`ApplicationRegistry` rejects a
+duplicate module registration), and since the effect's
+`runStartupSequence().then(...)` chain had no `.catch()`, the resulting
+unhandled promise rejection silently left `workDoneRef.current` at
+`false` forever — the choreography would finish and then hang
+indefinitely on a blank frame, with no visible error. Root-caused via
+live browser reproduction (not guessed): confirmed the reveal
+completed once, then re-broke, isolating it to the double-invoke rather
+than the mask-image/reveal logic itself. Fixed at the actual source of
+the invariant — `runStartupSequence()` itself is now idempotent (a
+module-level cached promise, `startupPromise ??= (async () => {...})()`)
+— rather than a call-site guard in `StartupGate`, since "real
+initialization runs exactly once per app lifetime" is a property of the
+orchestrator, not of any one caller. A separate, real bug
+(`useStartupPreferencesStore` was never added to `StoreProvider`'s
+`persistedStores` hydration-gate array) was found and fixed in the same
+pass; on its own it did not resolve the hang, confirming the two were
+independent issues rather than one being a symptom of the other.
+`e2e/app-shell.spec.ts` seeds the real `skipStartupAnimation`
+preference via `page.addInitScript` in a new `beforeEach`, using the
+same accessibility escape hatch a real user gets rather than weakening
+the suite. No dependency, acceptance-criterion, or numbering conflict
+was found against M0–M27. Bump this line whenever you edit the
+roadmap.*

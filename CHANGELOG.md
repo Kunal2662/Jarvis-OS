@@ -3,6 +3,61 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.2] — M8 Phase 4, Task Group I (Startup Experience & Lazy Loading)
+
+Second task group of the Premium UI & Voice Experience initiative.
+Reuses `[0.7.0]`/`[0.7.1]`'s Voice String as the centerpiece of a new
+cinematic startup sequence, per the brief's explicit instruction not to
+redesign or replace it.
+
+### Added
+- **Startup sequence** (`components/startup/startup-sequence.tsx`) --
+  a choreographed ~4.2s animation: energy point, ripple, logo assemble/
+  pulse (`components/startup/jarvis-logo.tsx`), morph into the Voice
+  String, Voice String activation and expansion, then a center-outward
+  glass reveal. Drives the real `voice-state.store.ts` (`wake` then
+  `idle`) at the relevant phases -- the Voice String shown during
+  startup is the exact same store-driven component used everywhere
+  else. The reveal is a real animated CSS `mask-image:
+  radial-gradient(...)` (`useMotionTemplate`/`useMotionValue`), not an
+  opacity approximation. No startup text ever renders -- only an
+  `sr-only role="status"` string for assistive tech.
+- `core/startup-orchestrator.ts` -- the real work the animation hides.
+  `STARTUP_TASKS` maps the brief's High/Medium/Low tiers onto this
+  codebase's actual registration calls (`registerCoreStatusBarItems`,
+  `registerCoreDashboardWidgets`, `registerPlaceholderModules`), moved
+  here from `main.tsx`. `low` has no real task yet -- left honestly
+  empty rather than padded with a fabricated delay. `runStartupSequence()`
+  is idempotent (caches its own promise), so any number of callers
+  share one real execution.
+- `components/startup/startup-gate.tsx` -- reveals the real app only
+  once both the real orchestrator work and the animation finish.
+  Skips straight to the dashboard when the new persisted
+  `skipStartupAnimation` preference (`stores/startup-preferences.store.ts`)
+  is set, or when `useReducedMotion()` reports a system preference.
+- Developer Mode's **Startup Preview** section
+  (`features/developer/startup-preview.tsx`) -- replays the real
+  `StartupSequence` on demand and toggles both real preferences, for
+  QA without restarting the app.
+- `components/layout/desktop-shell.tsx` gained an additive staggered
+  fade/rise for its Sidebar/Header/Status-Bar/Dock regions on first
+  mount -- since the real dashboard only mounts once startup is truly
+  done, this stagger doubles as the brief's "Dashboard Reveal"
+  sequence.
+
+### Fixed
+- **React `<StrictMode>` double-invoke hang**: `StartupGate`'s
+  initializing effect runs twice in development by design; the second
+  call to `registerPlaceholderModules()` threw (a module can't
+  register with `ApplicationRegistry` twice), and the resulting
+  unhandled promise rejection silently stalled the reveal forever.
+  Fixed by making `runStartupSequence()` idempotent at its source
+  rather than guarding each call site.
+- `StoreProvider` was missing the new `useStartupPreferencesStore` from
+  its persisted-store hydration gate, which could let `StartupGate`
+  read the stale default before rehydration completed. Added it to the
+  `persistedStores` array.
+
 ## [0.7.1] — Voice String revision (real-time multi-bar waveform)
 
 Same-day revision of `[0.7.0]`'s Voice String, once the Premium UI &

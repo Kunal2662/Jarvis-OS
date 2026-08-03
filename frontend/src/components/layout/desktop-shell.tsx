@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { motion, type Variants } from "motion/react";
 import { CommandPaletteLayer } from "@/components/layout/command-palette-layer";
 import { ContextMenuLayer } from "@/components/layout/context-menu-layer";
 import { Dock } from "@/components/layout/dock";
@@ -10,6 +11,24 @@ import { WindowLayer } from "@/components/layout/window-layer";
 import { Workspace } from "@/components/layout/workspace";
 import { DeveloperPanel } from "@/features/developer/developer-panel";
 import { windowService } from "@/services/window/window-service";
+
+/** Plays once on `DesktopShell`'s own first mount -- which, since
+ *  `components/startup/startup-gate.tsx` (Phase 4, Task Group I) only
+ *  reveals the real route tree once startup is done, naturally IS the
+ *  "just finished waking up" moment the Dashboard Reveal sequence
+ *  describes (Sidebar → Search/Header → Workspace content, staggered)
+ *  -- no separate "startup just completed" signal needs to be threaded
+ *  in from outside; DesktopShell mounting is that signal. Respects
+ *  `MotionConfig`'s app-wide `reducedMotion="user"` automatically like
+ *  every other declarative Motion `animate` in this app. */
+const shellVariants: Variants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
+};
+const regionVariants: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
+};
 
 /**
  * The root layout every route renders inside (see routes/router.tsx).
@@ -34,21 +53,32 @@ export function DesktopShell() {
   }, []);
 
   return (
-    <div className="flex h-svh flex-col overflow-hidden bg-background text-foreground">
+    <motion.div
+      className="flex h-svh flex-col overflow-hidden bg-background text-foreground"
+      initial="hidden"
+      animate="visible"
+      variants={shellVariants}
+    >
       <div className="flex min-h-0 flex-1">
-        <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <motion.div variants={regionVariants}>
+          <Sidebar />
+        </motion.div>
+        <motion.div className="flex min-w-0 flex-1 flex-col" variants={regionVariants}>
           <Header />
           <Workspace />
-        </div>
+        </motion.div>
       </div>
-      <StatusBar />
-      <Dock />
+      <motion.div variants={regionVariants}>
+        <StatusBar />
+      </motion.div>
+      <motion.div variants={regionVariants}>
+        <Dock />
+      </motion.div>
       <DeveloperPanel />
       <WindowLayer />
       <NotificationLayer />
       <ContextMenuLayer />
       <CommandPaletteLayer />
-    </div>
+    </motion.div>
   );
 }
