@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { animate, motion, useMotionTemplate, useMotionValue } from "motion/react";
 import { JarvisLogo } from "@/components/startup/jarvis-logo";
 import { VoiceString } from "@/components/voice/voice-string";
-import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
+import { useAccessibilityPreferencesStore } from "@/stores/accessibility-preferences.store";
 import { useVoiceStateStore } from "@/stores/voice-state.store";
 
 type Phase =
@@ -64,7 +64,7 @@ export interface StartupSequenceProps {
  * pipeline will use later, not a cosmetic copy of it.
  */
 export function StartupSequence({ onComplete }: StartupSequenceProps) {
-  const disableGlassEffects = useStartupPreferencesStore((s) => s.disableGlassEffects);
+  const disableGlassEffects = useAccessibilityPreferencesStore((s) => s.disableGlassEffects);
   const [phase, setPhase] = useState<Phase>("point");
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;

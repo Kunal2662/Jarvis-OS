@@ -3,6 +3,51 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.4] — M8 Phase 4, Task Group K (Accessibility settings)
+
+Fourth task group of the Premium UI & Voice Experience initiative.
+Ships a real Settings > Accessibility page for the preferences `[0.7.2]`
+and `[0.7.3]` already made real, and adds a genuine third one.
+
+### Added
+- `features/settings/settings-page.tsx` -- the Settings module's real
+  route element, replacing its `PlaceholderRoute`. An Accessibility
+  section with three real, working toggles (Skip startup animation,
+  Reduced motion, Disable glass effects), the first non-Developer-Mode
+  surface for these preferences.
+- `reducedMotion` -- a new, real, persisted preference: an app-level
+  override on top of the OS-level `prefers-reduced-motion` `MotionConfig`
+  already honors, for users whose OS setting doesn't (or can't)
+  express it.
+- `providers/app-providers.tsx`'s `AccessibleMotionConfig` feeds the
+  real preference into `MotionConfig`'s own `reducedMotion` prop, so
+  every declarative Motion animation in the app (`DesktopShell`'s
+  stagger reveal, `JarvisLogo`'s pulse, etc.) respects it automatically.
+- Developer Mode's Startup Preview panel gained a matching "Reduced
+  motion" toggle alongside its existing two.
+
+### Changed
+- `stores/startup-preferences.store.ts` renamed to `stores/
+  accessibility-preferences.store.ts` (`useStartupPreferencesStore` ->
+  `useAccessibilityPreferencesStore`, persist key `jarvis.startup-
+  preferences` -> `jarvis.accessibility-preferences`) -- it now backs
+  real, app-wide UI, not just the startup sequence, and the old name
+  had become misleading.
+
+### Fixed
+- **`startup-gate.tsx` and `voice-waveform-renderer.tsx` ignored the
+  new `reducedMotion` preference entirely.** Both called Motion's
+  public `useReducedMotion()` hook, which only ever reads the OS-level
+  media query and completely ignores `MotionConfig`'s own
+  `reducedMotion` context value -- the app preference had zero effect
+  on either real call site. Fixed by switching both to Motion's own
+  `useReducedMotionConfig()`, the hook Motion itself uses internally to
+  combine the OS query and the `MotionConfig` value.
+- `e2e/app-shell.spec.ts` was still seeding the old, now-stale
+  `jarvis.startup-preferences` localStorage key, silently falling back
+  to the real ~4.2s startup animation on every test run instead of
+  skipping it. Updated to seed the renamed key.
+
 ## [0.7.3] — M8 Phase 4, Task Group J (Glass design system)
 
 Third task group of the Premium UI & Voice Experience initiative.

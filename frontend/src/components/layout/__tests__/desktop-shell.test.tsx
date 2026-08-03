@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 import { DesktopShell } from "@/components/layout/desktop-shell";
-import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
+import { useAccessibilityPreferencesStore } from "@/stores/accessibility-preferences.store";
 
 /**
  * Smoke test only -- proves the composed layout (Sidebar, Dock, Header,
@@ -13,7 +13,7 @@ import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
  */
 describe("DesktopShell", () => {
   beforeEach(() => {
-    useStartupPreferencesStore.setState({ disableGlassEffects: false });
+    useAccessibilityPreferencesStore.setState({ disableGlassEffects: false });
   });
 
   it("renders without crashing", () => {
@@ -39,7 +39,7 @@ describe("DesktopShell", () => {
     });
 
     it("skips the ambient glow entirely when the real disableGlassEffects preference is set", () => {
-      useStartupPreferencesStore.setState({ disableGlassEffects: true });
+      useAccessibilityPreferencesStore.setState({ disableGlassEffects: true });
       render(
         <MemoryRouter>
           <DesktopShell />

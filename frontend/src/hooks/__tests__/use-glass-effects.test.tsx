@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useGlassEffectsEnabled } from "@/hooks/use-glass-effects";
-import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
+import { useAccessibilityPreferencesStore } from "@/stores/accessibility-preferences.store";
 
 function Harness() {
   const enabled = useGlassEffectsEnabled();
@@ -10,7 +10,7 @@ function Harness() {
 
 describe("useGlassEffectsEnabled", () => {
   beforeEach(() => {
-    useStartupPreferencesStore.setState({ disableGlassEffects: false });
+    useAccessibilityPreferencesStore.setState({ disableGlassEffects: false });
   });
 
   it("is enabled by default, since disableGlassEffects defaults to false", () => {
@@ -19,7 +19,7 @@ describe("useGlassEffectsEnabled", () => {
   });
 
   it("reflects the real disableGlassEffects preference when set", () => {
-    useStartupPreferencesStore.setState({ disableGlassEffects: true });
+    useAccessibilityPreferencesStore.setState({ disableGlassEffects: true });
     render(<Harness />);
     expect(screen.getByText("disabled")).toBeInTheDocument();
   });

@@ -3,6 +3,7 @@ import type { RouteObject } from "react-router-dom";
 import { createBrowserRouter } from "react-router-dom";
 import { DesktopShell } from "@/components/layout/desktop-shell";
 import { DashboardGrid } from "@/features/dashboard/dashboard-grid";
+import { SettingsPage } from "@/features/settings/settings-page";
 import { VoicePage } from "@/features/voice/voice-page";
 import { MODULE_DEFINITIONS } from "@/modules/module-definitions";
 import { PlaceholderRoute } from "@/routes/placeholder-route";
@@ -47,6 +48,7 @@ import { PlaceholderRoute } from "@/routes/placeholder-route";
 const REAL_ROUTE_ELEMENTS: Partial<Record<string, ReactElement>> = {
   home: <DashboardGrid />,
   voice: <VoicePage />,
+  settings: <SettingsPage />,
 };
 
 const childRoutes: RouteObject[] = MODULE_DEFINITIONS.map((manifest) => {

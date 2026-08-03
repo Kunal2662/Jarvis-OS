@@ -11,11 +11,15 @@ vi.mock("@/components/startup/startup-sequence", () => ({
 }));
 
 import { StartupPreview } from "@/features/developer/startup-preview";
-import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
+import { useAccessibilityPreferencesStore } from "@/stores/accessibility-preferences.store";
 
 describe("StartupPreview", () => {
   beforeEach(() => {
-    useStartupPreferencesStore.setState({ skipStartupAnimation: false, disableGlassEffects: false });
+    useAccessibilityPreferencesStore.setState({
+      skipStartupAnimation: false,
+      reducedMotion: false,
+      disableGlassEffects: false,
+    });
   });
 
   it("does not render the startup sequence until Replay is clicked", () => {
@@ -38,7 +42,15 @@ describe("StartupPreview", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Skip startup animation/ }));
 
-    expect(useStartupPreferencesStore.getState().skipStartupAnimation).toBe(true);
+    expect(useAccessibilityPreferencesStore.getState().skipStartupAnimation).toBe(true);
+  });
+
+  it("toggles the real reducedMotion preference", async () => {
+    render(<StartupPreview />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Reduced motion/ }));
+
+    expect(useAccessibilityPreferencesStore.getState().reducedMotion).toBe(true);
   });
 
   it("toggles the real disableGlassEffects preference", async () => {
@@ -46,6 +58,6 @@ describe("StartupPreview", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Disable glass effects/ }));
 
-    expect(useStartupPreferencesStore.getState().disableGlassEffects).toBe(true);
+    expect(useAccessibilityPreferencesStore.getState().disableGlassEffects).toBe(true);
   });
 });

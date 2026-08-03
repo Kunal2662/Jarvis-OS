@@ -11,11 +11,11 @@ vi.mock("@/components/startup/startup-sequence", () => ({
 
 import { runStartupSequence } from "@/core/startup-orchestrator";
 import { StartupGate } from "@/components/startup/startup-gate";
-import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
+import { useAccessibilityPreferencesStore } from "@/stores/accessibility-preferences.store";
 
 describe("StartupGate", () => {
   beforeEach(() => {
-    useStartupPreferencesStore.setState({ skipStartupAnimation: false, disableGlassEffects: false });
+    useAccessibilityPreferencesStore.setState({ skipStartupAnimation: false, disableGlassEffects: false });
     vi.mocked(runStartupSequence).mockReset();
   });
 
@@ -69,7 +69,7 @@ describe("StartupGate", () => {
   });
 
   it("skips the choreography and reveals as soon as real init finishes, when skipStartupAnimation is set", async () => {
-    useStartupPreferencesStore.setState({ skipStartupAnimation: true });
+    useAccessibilityPreferencesStore.setState({ skipStartupAnimation: true });
     vi.mocked(runStartupSequence).mockResolvedValue(undefined);
 
     render(<StartupGate />);

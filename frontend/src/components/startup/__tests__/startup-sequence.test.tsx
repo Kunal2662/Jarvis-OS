@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StartupSequence } from "@/components/startup/startup-sequence";
-import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
+import { useAccessibilityPreferencesStore } from "@/stores/accessibility-preferences.store";
 import { useVoiceStateStore } from "@/stores/voice-state.store";
 
 // VoiceString's continuous useTime()/requestAnimationFrame loop
@@ -21,7 +21,7 @@ const MS_TOTAL = 4200;
 
 describe("StartupSequence", () => {
   beforeEach(() => {
-    useStartupPreferencesStore.setState({ skipStartupAnimation: false, disableGlassEffects: false });
+    useAccessibilityPreferencesStore.setState({ skipStartupAnimation: false, disableGlassEffects: false });
     useVoiceStateStore.setState({ voiceState: "idle", history: [{ state: "idle", at: new Date().toISOString() }] });
     vi.useFakeTimers();
   });
@@ -75,7 +75,7 @@ describe("StartupSequence", () => {
   });
 
   it("respects disableGlassEffects -- no blur glow layer rendered", () => {
-    useStartupPreferencesStore.setState({ disableGlassEffects: true });
+    useAccessibilityPreferencesStore.setState({ disableGlassEffects: true });
     const { container } = render(<StartupSequence onComplete={() => {}} />);
 
     act(() => vi.advanceTimersByTime(MS_TO_VOICE_MORPH));

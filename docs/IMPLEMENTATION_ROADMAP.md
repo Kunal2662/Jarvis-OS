@@ -437,6 +437,37 @@ value, a real loading state, or a real empty state.
         `background-color` computed styles confirmed in the browser
         across all three themes (light/dark/jarvis) and with the
         preference both on and off.
+- [x] **Accessibility settings** *(Aug 2026, Task Group K, Premium UI &
+      Voice Experience initiative)*: a real Settings > Accessibility
+      surface -- `features/settings/settings-page.tsx`, replacing the
+      `settings` module's `PlaceholderRoute` -- exposing the three
+      accessibility preferences (Skip startup animation, Reduced
+      motion, Disable glass effects) as real, working toggles for the
+      first time outside Developer Mode. `stores/startup-preferences
+      .store.ts` renamed to `stores/accessibility-preferences.store.ts`
+      (`useAccessibilityPreferencesStore`) -- it now backs real,
+      app-wide UI, not just the startup sequence, and the old name had
+      become misleading. Added a genuine third preference, `reducedMotion`
+      -- an app-level override on top of `prefers-reduced-motion`, for
+      users whose OS setting doesn't (or can't) express it.
+  - [x] `providers/app-providers.tsx`'s new `AccessibleMotionConfig`
+        feeds the real preference into `MotionConfig`'s own
+        `reducedMotion` prop (`"always"` vs `"user"`), which every
+        *declarative* Motion animation in the tree already consults
+        internally -- covers `DesktopShell`'s stagger reveal,
+        `JarvisLogo`'s pulse, etc. for free.
+  - [x] Real bug found while wiring this up: the public `useReducedMotion()`
+        hook (used directly by `startup-gate.tsx` and
+        `voice-waveform-renderer.tsx`) only ever reads the OS-level
+        media query and completely ignores `MotionConfig`'s own
+        `reducedMotion` prop -- setting the app preference had zero
+        effect on either of those two real call sites. Fixed by
+        switching both to Motion's own `useReducedMotionConfig()` (the
+        hook Motion uses internally to combine the two), rather than
+        hand-rolling an equivalent.
+  - [x] Developer Mode's Startup Preview panel gained a matching
+        "Reduced motion" toggle alongside its existing two, so all
+        three real preferences stay reachable from both surfaces.
 - [ ] Conversation Timeline.
 - [ ] Motion animations: hover, Sidebar, Dock, Cards, Notifications --
       broader premium-UI motion pass, still pending (see the Premium

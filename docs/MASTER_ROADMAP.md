@@ -1253,7 +1253,19 @@ subtle ambient glow behind `DesktopShell` so those blurs have real
 content behind them. Every surface offers a solid, non-blurred
 fallback, all reading from the same real `disableGlassEffects`
 preference Task Group I already shipped — now genuinely app-wide
-rather than scoped to the startup sequence alone. Conversation
+rather than scoped to the startup sequence alone.
+
+**Accessibility settings** *(shipped Aug 2026, Task Group K — see the
+changelog addendum)*: a real Settings > Accessibility page
+(`features/settings/settings-page.tsx`) exposing Skip startup
+animation, Reduced motion, and Disable glass effects as working
+toggles outside Developer Mode for the first time. The backing store
+(`stores/startup-preferences.store.ts`) was renamed to
+`accessibility-preferences.store.ts` now that it backs real, app-wide
+UI rather than just the startup sequence, and gained a genuine third
+preference — `reducedMotion`, an app-level override on top of
+`prefers-reduced-motion` — wired into `MotionConfig` so every
+declarative Motion animation in the app respects it. Conversation
 Timeline and the broader motion pass (hover, Sidebar, Dock, Cards,
 Notifications) remain pending.
 
@@ -10528,3 +10540,71 @@ values (not just class-name assertions) across all three shipped
 themes (light/dark/jarvis) and with the preference both on and off. No
 dependency, acceptance-criterion, or numbering conflict was found
 against M0–M27. Bump this line whenever you edit the roadmap.*
+
+*Aug 2026 addendum — Premium UI & Voice Experience initiative, Task
+Group K (Accessibility settings):* the fourth of five sequential task
+groups in the visual-modernization pass (H, I, J, K, L — see below).
+Ships M8 Phase 4's Settings >
+Accessibility page (`features/settings/settings-page.tsx`, replacing
+the `settings` module's `PlaceholderRoute`) -- the first real,
+non-Developer-Mode surface for the three preferences Task Groups I/J
+already made real: Skip startup animation, Reduced motion, Disable
+glass effects. Developer Mode's Startup Preview panel keeps working
+unchanged as a QA convenience, not a duplicate source of truth -- both
+surfaces read and write the exact same store.
+
+Renamed `stores/startup-preferences.store.ts` to `stores/
+accessibility-preferences.store.ts` (`useStartupPreferencesStore` ->
+`useAccessibilityPreferencesStore`, persist key `jarvis.startup-
+preferences` -> `jarvis.accessibility-preferences`) as part of this
+task group, not a separate cleanup pass: the store had already grown
+real, app-wide consumers unrelated to startup (Task Group J's Sidebar/
+Card/Command Palette glass surfaces), and this task group was about to
+add its first genuinely new preference and its first real end-user
+Settings surface -- the moment those two things happen is the cheapest
+and most honest time to fix a name that was actively misleading by
+then, not defer it further. Mechanical at every real call site (17
+files); `hooks/use-glass-effects.ts` already existed specifically to
+keep the awkward store name from leaking into UI-primitive call sites,
+and needed no behavioral change, only its own import updated.
+
+Added a genuine third preference, `reducedMotion` -- an app-level
+override on top of the OS-level `prefers-reduced-motion` `MotionConfig`
+already honors, for users whose OS setting doesn't (or can't) express
+it. `providers/app-providers.tsx` gained `AccessibleMotionConfig`,
+which feeds the real preference into `MotionConfig`'s own
+`reducedMotion` prop (`"always"` vs `"user"`) -- deliberately read
+*inside* `StoreProvider`'s hydration gate (a separate component
+rendered as its child, exactly how `ThemeProvider` already reads
+`useThemeStore`), not in `AppProviders` itself above the gate, so it
+can never observe the pre-hydration default the way a hook call above
+the gate could.
+
+**Real bug found and fixed while wiring this up:** the two places in
+this app that branch on their own reduced-motion logic --
+`components/startup/startup-gate.tsx` (whether to skip the
+choreography) and `components/voice/voice-waveform-renderer.tsx`
+(whether to freeze the wave) -- both called Motion's public
+`useReducedMotion()` hook directly. That hook, it turns out, only ever
+reads the OS-level `prefers-reduced-motion` media query and completely
+ignores `MotionConfig`'s own `reducedMotion` context value -- setting
+the new app preference would have had zero effect on either real call
+site, silently. `MotionConfig`'s `reducedMotion` prop only reaches
+Motion's *declarative* `animate`/`variants` animations automatically
+(Motion's rendering engine consults it internally for those); it does
+not reach app code that reads reduced-motion state for its own
+branching decisions. Root-caused by reading Motion's own source
+(`framer-motion`'s `use-reduced-motion-config.mjs`) rather than
+guessing, once a live-browser check surfaced identical bar heights
+regardless of the preference. Fixed by switching both call sites to
+`useReducedMotionConfig()` -- the hook Motion itself uses internally to
+combine the OS query and the context value -- rather than hand-rolling
+an equivalent; it is public API (exported from `framer-motion`,
+re-exported through `motion/react`), just not the hook either call site
+had reached for. No dependency, acceptance-criterion, or numbering
+conflict was found against M0–M27. Task Group K was the fourth of five
+sequential task groups planned for this initiative (H, I, J, K, L);
+**Task Group L (Dashboard Widget drag-and-drop)** remains the one
+still open, plus the broader hover/Sidebar/Dock/Cards/Notifications
+motion pass tracked separately under Phase 6. Bump this line whenever
+you edit the roadmap.*

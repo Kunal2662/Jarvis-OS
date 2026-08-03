@@ -1,8 +1,38 @@
+import type { ReactNode } from "react";
 import { MotionConfig } from "motion/react";
 import { StartupGate } from "@/components/startup/startup-gate";
 import { ErrorBoundary } from "@/providers/error-boundary";
 import { StoreProvider } from "@/providers/store-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
+import { useAccessibilityPreferencesStore } from "@/stores/accessibility-preferences.store";
+
+/**
+ * The real, persisted `reducedMotion` preference (Task Group K) is an
+ * app-level override on top of `"user"` mode's own OS-level
+ * `prefers-reduced-motion` detection. `"always"` here makes every
+ * *declarative* Motion animation in the tree (`animate`/`variants`
+ * props -- `DesktopShell`'s stagger reveal, `JarvisLogo`'s pulse, etc.)
+ * skip/instant-apply automatically, since Motion's own rendering engine
+ * already consults `MotionConfig`'s `reducedMotion` internally for
+ * those. It does **not** automatically reach the public
+ * `useReducedMotion()` hook -- that hook only ever reads the OS media
+ * query and ignores this context entirely, which is exactly why real
+ * call sites that branch on their own logic (`components/startup/
+ * startup-gate.tsx`, `components/voice/voice-waveform-renderer.tsx`)
+ * use `useReducedMotionConfig()` instead -- the hook Motion itself uses
+ * internally to combine the two.
+ *
+ * A separate component, rendered as `StoreProvider`'s child (same
+ * reasoning as `ThemeProvider` reading `useThemeStore` the same way)
+ * rather than read directly in `AppProviders` -- `StoreProvider` gates
+ * its children on hydration by not rendering them at all until it's
+ * done, so a hook read *inside* that gate can never observe the
+ * pre-hydration default the way one read *above* it could.
+ */
+export function AccessibleMotionConfig({ children }: { children: ReactNode }) {
+  const forceReducedMotion = useAccessibilityPreferencesStore((s) => s.reducedMotion);
+  return <MotionConfig reducedMotion={forceReducedMotion ? "always" : "user"}>{children}</MotionConfig>;
+}
 
 /**
  * The full provider stack, composed once here so `main.tsx` stays a
@@ -24,14 +54,9 @@ export function AppProviders() {
     <ErrorBoundary>
       <StoreProvider>
         <ThemeProvider>
-          {/* `reducedMotion="user"` makes every Motion component in the
-              tree respect the OS-level prefers-reduced-motion setting
-              automatically (ARCHITECTURE.md section 16) -- the plain-CSS
-              override in index.css handles everything that isn't a
-              Motion component. */}
-          <MotionConfig reducedMotion="user">
+          <AccessibleMotionConfig>
             <StartupGate />
-          </MotionConfig>
+          </AccessibleMotionConfig>
         </ThemeProvider>
       </StoreProvider>
     </ErrorBoundary>

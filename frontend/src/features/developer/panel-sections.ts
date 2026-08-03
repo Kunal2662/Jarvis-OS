@@ -70,11 +70,11 @@ export const DEVELOPER_PANEL_SECTIONS: DeveloperPanelSection[] = [
     icon: Rocket,
     // Also real (Phase 4, Task Group I) -- replays the actual
     // `StartupSequence` component the app plays once per real launch,
-    // and toggles the real `startup-preferences.store.ts` flags a
-    // future Settings page will eventually expose. Developer Mode is
-    // this repo's established "real control, no Settings page yet"
-    // surface (see Voice State Preview above) rather than a fake
-    // placeholder panel.
-    description: "Replay the real startup sequence, and toggle skip/glass-effect preferences, for QA.",
+    // and toggles the real `accessibility-preferences.store.ts` flags.
+    // Settings > Accessibility (Task Group K) is now the real
+    // end-user-facing surface for these same three preferences; this
+    // panel stays as the QA-only sequence replay plus a developer
+    // shortcut to the same toggles, not a duplicate source of truth.
+    description: "Replay the real startup sequence, and toggle skip/motion/glass-effect preferences, for QA.",
   },
 ];

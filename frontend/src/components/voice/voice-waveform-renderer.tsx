@@ -1,4 +1,4 @@
-import { motion, useReducedMotion, useTime, useTransform, type MotionValue } from "motion/react";
+import { motion, useReducedMotionConfig, useTime, useTransform, type MotionValue } from "motion/react";
 import { cn } from "@/lib/utils";
 import type { VoiceState } from "@/core/voice-state-machine";
 
@@ -180,11 +180,16 @@ export function VoiceWaveformRenderer({
   className,
 }: VoiceWaveformRendererProps) {
   const visual = WAVEFORM_STATE_VISUALS[voiceState];
-  // Motion's own reactive media-query hook, not `lib/motion.ts`'s
-  // one-time `prefersReducedMotion()` -- this is a continuous
-  // `useTime()`-driven loop, not a discrete `animate` transition, so
-  // `MotionConfig`'s app-wide `reducedMotion="user"` doesn't cover it.
-  const reducedMotion = useReducedMotion();
+  // `useReducedMotionConfig()`, not the public `useReducedMotion()` --
+  // this is a continuous `useTime()`-driven loop, not a discrete
+  // `animate` transition, so it doesn't automatically pick up
+  // `MotionConfig`'s `reducedMotion` prop the way Motion's own
+  // declarative animations do; `useReducedMotionConfig()` is the hook
+  // Motion itself uses internally for exactly that combination (OS-level
+  // `prefers-reduced-motion` OR the real, persisted app-level
+  // `reducedMotion` preference `AccessibleMotionConfig` feeds into
+  // `MotionConfig`, Task Group K).
+  const reducedMotion = useReducedMotionConfig();
   const time = useTime();
 
   return (

@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { Card } from "@/components/ui/card";
-import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
+import { useAccessibilityPreferencesStore } from "@/stores/accessibility-preferences.store";
 
 describe("Card", () => {
   beforeEach(() => {
-    useStartupPreferencesStore.setState({ disableGlassEffects: false });
+    useAccessibilityPreferencesStore.setState({ disableGlassEffects: false });
   });
 
   it("renders a translucent, blurred background by default (Task Group J)", () => {
@@ -14,7 +14,7 @@ describe("Card", () => {
   });
 
   it("falls back to a solid background when the real disableGlassEffects preference is set", () => {
-    useStartupPreferencesStore.setState({ disableGlassEffects: true });
+    useAccessibilityPreferencesStore.setState({ disableGlassEffects: true });
     render(<Card data-testid="card">content</Card>);
     const card = screen.getByTestId("card");
     expect(card).toHaveClass("bg-card");

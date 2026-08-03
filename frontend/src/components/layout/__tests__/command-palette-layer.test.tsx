@@ -8,7 +8,7 @@ import { registerNavigation } from "@/core/interfaces/navigation-interface";
 import { TestApplication } from "@/core/test-utils/test-application";
 import { useCommandPaletteStore } from "@/stores/command-palette.store";
 import { useModuleEnablementStore } from "@/stores/module-enablement.store";
-import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
+import { useAccessibilityPreferencesStore } from "@/stores/accessibility-preferences.store";
 
 interface TestModuleOptions {
   name: string;
@@ -48,7 +48,7 @@ describe("CommandPaletteLayer", () => {
     for (const unregister of unregisterFns.splice(0)) unregister();
     useModuleEnablementStore.setState({ enabledModuleIds: [] });
     useCommandPaletteStore.setState({ isOpen: false });
-    useStartupPreferencesStore.setState({ disableGlassEffects: false });
+    useAccessibilityPreferencesStore.setState({ disableGlassEffects: false });
 
     await registerTestModule({ name: "home", displayName: "Dashboard", icon: "home", routes: ["/"], isCore: true });
     await registerTestModule({ name: "gmail", displayName: "Gmail", icon: "mail", routes: ["/gmail"] });
@@ -125,7 +125,7 @@ describe("CommandPaletteLayer", () => {
     });
 
     it("falls back to a solid dialog when the real disableGlassEffects preference is set", () => {
-      useStartupPreferencesStore.setState({ disableGlassEffects: true });
+      useAccessibilityPreferencesStore.setState({ disableGlassEffects: true });
       useCommandPaletteStore.setState({ isOpen: true });
       renderPalette();
 

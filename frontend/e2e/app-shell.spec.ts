@@ -15,7 +15,7 @@ import { expect, test } from "@playwright/test";
 test.describe("App shell foundation", () => {
   test.beforeEach(async ({ page }) => {
     // Seeds the real, persisted `skipStartupAnimation` preference
-    // (`stores/startup-preferences.store.ts`) before the app's own
+    // (`stores/accessibility-preferences.store.ts`) before the app's own
     // script runs -- Phase 4 Task Group I's cinematic startup sequence
     // (~4.2s) is real, intentional product behavior, not something to
     // work around by weakening it; this suite uses the same real
@@ -23,8 +23,11 @@ test.describe("App shell foundation", () => {
     // the dashboard) rather than waiting through it on every test run.
     await page.addInitScript(() => {
       window.localStorage.setItem(
-        "jarvis.startup-preferences",
-        JSON.stringify({ state: { skipStartupAnimation: true, disableGlassEffects: false }, version: 0 }),
+        "jarvis.accessibility-preferences",
+        JSON.stringify({
+          state: { skipStartupAnimation: true, reducedMotion: false, disableGlassEffects: false },
+          version: 0,
+        }),
       );
     });
   });

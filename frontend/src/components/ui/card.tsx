@@ -12,7 +12,7 @@ function Card({
   // hold dense text content at every size, so unlike Sidebar/Command
   // Palette this stays legible-first rather than matching their heavier
   // blur. Falls back to the original solid background when the user has
-  // disabled glass effects (`stores/startup-preferences.store.ts`).
+  // disabled glass effects (`stores/accessibility-preferences.store.ts`).
   const glassEffectsEnabled = useGlassEffectsEnabled()
 
   return (

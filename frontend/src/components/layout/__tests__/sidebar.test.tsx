@@ -7,7 +7,7 @@ import { applicationRegistry } from "@/core/application-registry";
 import { TestApplication } from "@/core/test-utils/test-application";
 import { useModuleEnablementStore } from "@/stores/module-enablement.store";
 import { useSidebarStore } from "@/stores/sidebar.store";
-import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
+import { useAccessibilityPreferencesStore } from "@/stores/accessibility-preferences.store";
 import { useWorkspaceStore } from "@/stores/workspace.store";
 
 interface TestModuleOptions {
@@ -54,7 +54,7 @@ describe("Sidebar", () => {
     useSidebarStore.setState({ isCollapsed: false, expandedGroupIds: ["ai"] });
     useModuleEnablementStore.setState({ enabledModuleIds: [] });
     useWorkspaceStore.setState({ activeModuleId: null });
-    useStartupPreferencesStore.setState({ disableGlassEffects: false });
+    useAccessibilityPreferencesStore.setState({ disableGlassEffects: false });
   });
 
   describe("registry + enablement gating", () => {
@@ -339,7 +339,7 @@ describe("Sidebar", () => {
     });
 
     it("falls back to a solid background when the real disableGlassEffects preference is set", async () => {
-      useStartupPreferencesStore.setState({ disableGlassEffects: true });
+      useAccessibilityPreferencesStore.setState({ disableGlassEffects: true });
       await registerMinimalTaxonomy();
       render(
         <MemoryRouter>
