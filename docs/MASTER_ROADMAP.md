@@ -1243,7 +1243,17 @@ renders. Genuinely lazy-registers the app's own real startup work
 (`core/startup-orchestrator.ts`) behind the choreography, gated so the
 dashboard only reveals once both the animation and the real work are
 done. Respects a persisted skip preference and `prefers-reduced-motion`
-alike — either launches straight into the dashboard. Conversation
+alike — either launches straight into the dashboard.
+
+**Glass design system** *(shipped Aug 2026, Task Group J — see the
+changelog addendum)*: real glassmorphism (translucency +
+`backdrop-filter` blur) on the three surfaces the brief names —
+Sidebar, the shared Card primitive, and Command Palette — plus a
+subtle ambient glow behind `DesktopShell` so those blurs have real
+content behind them. Every surface offers a solid, non-blurred
+fallback, all reading from the same real `disableGlassEffects`
+preference Task Group I already shipped — now genuinely app-wide
+rather than scoped to the startup sequence alone. Conversation
 Timeline and the broader motion pass (hover, Sidebar, Dock, Cards,
 Notifications) remain pending.
 
@@ -10468,3 +10478,53 @@ same accessibility escape hatch a real user gets rather than weakening
 the suite. No dependency, acceptance-criterion, or numbering conflict
 was found against M0–M27. Bump this line whenever you edit the
 roadmap.*
+
+*Aug 2026 addendum — Premium UI & Voice Experience initiative, Task
+Group J (Glass design system):* the third task group of the
+visual-modernization pass. Ships real glassmorphism (translucency +
+`backdrop-filter` blur, not just a tinted flat color) on the three
+surfaces the brief specifically names: Sidebar, Command Palette, and
+Cards — plus a subtle, static ambient glow behind `DesktopShell`,
+which turned out to be a real prerequisite, not decoration for its own
+sake: a flat `bg-background` gives `backdrop-blur` nothing to blur, so
+without it every glass surface would have rendered as a barely-visible
+tint rather than genuine glass.
+
+`hooks/use-glass-effects.ts` exports `useGlassEffectsEnabled()`, a thin
+wrapper around the real, persisted `disableGlassEffects` preference
+Task Group I already shipped (`stores/startup-preferences.store.ts`).
+Deliberately reused rather than adding a second flag: the preference
+existed but, until this task group, gated nothing outside the startup
+sequence's own glow — that comment in the store itself said as much
+("an app-wide 'disable glass everywhere' toggle is a later, dedicated
+accessibility task group's job"), and once J was about to ship the
+first *real* app-wide glass surfaces, leaving that comment's promise
+unfulfilled would have shipped a toggle that visibly lied about what it
+did. The hook exists specifically so call sites read correctly:
+`components/ui/card.tsx` and `components/ui/command.tsx` importing
+something named `useStartupPreferencesStore` directly would have been
+a real readability smell for surfaces with nothing to do with startup,
+even though `components/ui/sonner.tsx` already established the
+precedent that a `components/ui/` primitive reading a small, targeted
+app store directly is acceptable in this codebase.
+
+Each surface picked its own blur intensity deliberately, not a single
+shared constant: Sidebar (`bg-card/70 backdrop-blur-xl`) and Command
+Palette (`bg-popover/70 backdrop-blur-2xl`) are both large, mostly-empty
+panels where a strong blur reads as premium; the shared `Card`
+primitive — the base every dashboard widget, and dialog already
+builds on — got a conservative `bg-card/85 backdrop-blur-md` instead,
+since Cards hold dense text at every size in this app and legibility
+had to come first. Command Palette's glass treatment is scoped to
+`CommandDialog`'s own `DialogContent` override in `components/ui/
+command.tsx`, not the shared `Dialog`/`Command` primitives other real
+dialogs in the app (Notifications, Context Menu, etc.) also render
+through — those keep their original plain background untouched, since
+the brief named Command Palette specifically, not every dialog in the
+app. Every glass surface has a real, solid fallback (no blur, higher
+opacity) when `disableGlassEffects` is set, verified live in the
+browser via actual computed `backdrop-filter`/`background-color`
+values (not just class-name assertions) across all three shipped
+themes (light/dark/jarvis) and with the preference both on and off. No
+dependency, acceptance-criterion, or numbering conflict was found
+against M0–M27. Bump this line whenever you edit the roadmap.*

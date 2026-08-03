@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 
+import { useGlassEffectsEnabled } from "@/hooks/use-glass-effects"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -46,6 +47,13 @@ function CommandDialog({
   className?: string
   showCloseButton?: boolean
 }) {
+  // Glass treatment scoped to this component's own `DialogContent`
+  // override, not the shared `Dialog`/`Command` primitives -- every
+  // other dialog in the app keeps its plain `bg-popover`. `Command`'s
+  // own background is forced transparent so the blur on `DialogContent`
+  // (or its solid fallback) is what actually shows through.
+  const glassEffectsEnabled = useGlassEffectsEnabled()
+
   return (
     <Dialog {...props}>
       <DialogHeader className="sr-only">
@@ -55,6 +63,7 @@ function CommandDialog({
       <DialogContent
         className={cn(
           "top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0",
+          glassEffectsEnabled ? "border border-border/60 bg-popover/70 backdrop-blur-2xl" : "bg-popover",
           className
         )}
         showCloseButton={showCloseButton}
@@ -65,7 +74,7 @@ function CommandDialog({
             `children` here throws at render time ("Cannot read
             properties of undefined (reading 'subscribe')"), since
             there is no cmdk context above them. */}
-        <Command>{children}</Command>
+        <Command className="bg-transparent">{children}</Command>
       </DialogContent>
     </Dialog>
   )

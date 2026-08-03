@@ -8,6 +8,7 @@ import { registerNavigation } from "@/core/interfaces/navigation-interface";
 import { TestApplication } from "@/core/test-utils/test-application";
 import { useCommandPaletteStore } from "@/stores/command-palette.store";
 import { useModuleEnablementStore } from "@/stores/module-enablement.store";
+import { useStartupPreferencesStore } from "@/stores/startup-preferences.store";
 
 interface TestModuleOptions {
   name: string;
@@ -47,6 +48,7 @@ describe("CommandPaletteLayer", () => {
     for (const unregister of unregisterFns.splice(0)) unregister();
     useModuleEnablementStore.setState({ enabledModuleIds: [] });
     useCommandPaletteStore.setState({ isOpen: false });
+    useStartupPreferencesStore.setState({ disableGlassEffects: false });
 
     await registerTestModule({ name: "home", displayName: "Dashboard", icon: "home", routes: ["/"], isCore: true });
     await registerTestModule({ name: "gmail", displayName: "Gmail", icon: "mail", routes: ["/gmail"] });
@@ -111,5 +113,25 @@ describe("CommandPaletteLayer", () => {
 
     expect(action).toHaveBeenCalledOnce();
     expect(useCommandPaletteStore.getState().isOpen).toBe(false);
+  });
+
+  describe("glass surface (Task Group J)", () => {
+    it("renders a translucent, blurred dialog by default", () => {
+      useCommandPaletteStore.setState({ isOpen: true });
+      renderPalette();
+
+      const dialogContent = document.querySelector('[data-slot="dialog-content"]');
+      expect(dialogContent).toHaveClass("bg-popover/70", "backdrop-blur-2xl");
+    });
+
+    it("falls back to a solid dialog when the real disableGlassEffects preference is set", () => {
+      useStartupPreferencesStore.setState({ disableGlassEffects: true });
+      useCommandPaletteStore.setState({ isOpen: true });
+      renderPalette();
+
+      const dialogContent = document.querySelector('[data-slot="dialog-content"]');
+      expect(dialogContent).toHaveClass("bg-popover");
+      expect(dialogContent).not.toHaveClass("backdrop-blur-2xl");
+    });
   });
 });

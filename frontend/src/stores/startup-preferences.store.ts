@@ -6,11 +6,17 @@ interface StartupPreferencesState {
    *  real app once real initialization finishes. Real init still runs
    *  either way; only the choreography is skipped. */
   skipStartupAnimation: boolean;
-  /** Scoped to the startup sequence's own glass/blur surfaces for this
-   *  task group (the sequence never touches `VoiceWaveformRenderer`'s
-   *  own panel styling, which stays exactly as shipped) -- an
-   *  app-wide "disable glass everywhere" toggle is a later,
-   *  dedicated accessibility task group's job. */
+  /** Originally scoped to the startup sequence's own glow/blur (Task
+   *  Group I); Task Group J's Glass design system wired every real
+   *  glass surface it added (Sidebar, Card, Command Palette,
+   *  DesktopShell's ambient glow) to this same flag rather than
+   *  inventing a second one -- one real "disable glass" preference,
+   *  not two that can drift out of sync. `VoiceWaveformRenderer`'s own
+   *  panel styling is intentionally untouched either way (its glow is
+   *  part of the state-communication contract, not decorative). The
+   *  toggle itself is exposed via Developer Mode's Startup Preview
+   *  panel today; a real Settings > Accessibility surface remains a
+   *  later task group's job. */
   disableGlassEffects: boolean;
   setSkipStartupAnimation: (skip: boolean) => void;
   setDisableGlassEffects: (disable: boolean) => void;

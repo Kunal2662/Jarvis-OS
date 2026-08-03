@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-r
 import { Link } from "react-router-dom";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { applicationRegistry, type RegisterableApplication } from "@/core/application-registry";
+import { useGlassEffectsEnabled } from "@/hooks/use-glass-effects";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { resolveIcon } from "@/lib/icon-registry";
 import { cn } from "@/lib/utils";
@@ -130,6 +131,7 @@ export const Sidebar = memo(function Sidebar() {
   const activeModuleId = useWorkspaceStore((s) => s.activeModuleId);
   const isCompactViewport = useMediaQuery(COMPACT_VIEWPORT_QUERY);
   const effectiveCollapsed = isCollapsed || isCompactViewport;
+  const glassEffectsEnabled = useGlassEffectsEnabled();
 
   // Same "re-render on demand" pattern as module-state-inspector.tsx --
   // ApplicationRegistry.getAll() (core/application-registry.ts)
@@ -315,7 +317,8 @@ export const Sidebar = memo(function Sidebar() {
     <TooltipProvider>
       <aside
         className={cn(
-          "flex h-full flex-col border-border border-r bg-card transition-[width] duration-base",
+          "flex h-full flex-col border-border border-r transition-[width] duration-base",
+          glassEffectsEnabled ? "bg-card/70 backdrop-blur-xl" : "bg-card",
           effectiveCollapsed ? "w-16" : "w-60",
         )}
       >

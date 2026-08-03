@@ -3,6 +3,40 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.3] — M8 Phase 4, Task Group J (Glass design system)
+
+Third task group of the Premium UI & Voice Experience initiative.
+Ships real glassmorphism on the three surfaces the brief names —
+Sidebar, Card, Command Palette — all wired to the `disableGlassEffects`
+preference `[0.7.2]` already shipped, making it genuinely app-wide for
+the first time.
+
+### Added
+- `hooks/use-glass-effects.ts` -- `useGlassEffectsEnabled()`, a thin
+  wrapper around the real, persisted `disableGlassEffects` preference
+  so UI primitives can read it under a name that makes sense outside a
+  startup context.
+- `components/layout/desktop-shell.tsx` -- a subtle, static ambient
+  glow behind the shell (two blurred accent/primary blobs, `aria-hidden`,
+  skipped entirely when glass effects are disabled) so the new glass
+  surfaces have real visual content to blur.
+- Sidebar: `bg-card/70 backdrop-blur-xl`, falling back to solid
+  `bg-card`.
+- `components/ui/card.tsx`: a conservative `bg-card/85 backdrop-blur-md`
+  on the shared primitive every dashboard widget/dialog/panel already
+  builds on -- lighter blur than Sidebar/Command Palette since Cards
+  hold dense text at every size.
+- Command Palette: `bg-popover/70 backdrop-blur-2xl`, scoped to
+  `CommandDialog`'s own `DialogContent` override in `components/ui/
+  command.tsx` -- the shared `Dialog`/`Command` primitives other real
+  dialogs render through are untouched.
+
+### Changed
+- `stores/startup-preferences.store.ts`'s `disableGlassEffects` now
+  gates every real glass surface in the app, not just the startup
+  sequence's own glow -- one real preference, not a second one that
+  could drift out of sync.
+
 ## [0.7.2] — M8 Phase 4, Task Group I (Startup Experience & Lazy Loading)
 
 Second task group of the Premium UI & Voice Experience initiative.

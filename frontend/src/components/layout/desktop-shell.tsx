@@ -10,6 +10,7 @@ import { StatusBar } from "@/components/layout/status-bar";
 import { WindowLayer } from "@/components/layout/window-layer";
 import { Workspace } from "@/components/layout/workspace";
 import { DeveloperPanel } from "@/features/developer/developer-panel";
+import { useGlassEffectsEnabled } from "@/hooks/use-glass-effects";
 import { windowService } from "@/services/window/window-service";
 
 /** Plays once on `DesktopShell`'s own first mount -- which, since
@@ -42,6 +43,15 @@ const regionVariants: Variants = {
  * window state) is unchanged from Phase 1. Sidebar/Dock's own internals
  * are untouched in this task group -- they still render from
  * `routes/nav-items.ts`, not the registry (that's a later task group).
+ *
+ * The two fixed glow blobs (added Task Group J, Glass design system)
+ * are the only reason any glass surface elsewhere -- Sidebar, Command
+ * Palette, Card -- has real visual content behind it to blur; a flat
+ * `bg-background` alone gives `backdrop-blur` nothing to do. `aria-hidden`
+ * since they're purely decorative, and skipped entirely (not just
+ * hidden) when glass effects are disabled -- backdrop-filter is one of
+ * the more expensive things a browser can paint, so an unused blur
+ * target shouldn't stay mounted.
  */
 export function DesktopShell() {
   useEffect(() => {
@@ -52,13 +62,25 @@ export function DesktopShell() {
     return () => unsubscribe?.();
   }, []);
 
+  const glassEffectsEnabled = useGlassEffectsEnabled();
+
   return (
     <motion.div
-      className="flex h-svh flex-col overflow-hidden bg-background text-foreground"
+      className="relative flex h-svh flex-col overflow-hidden bg-background text-foreground"
       initial="hidden"
       animate="visible"
       variants={shellVariants}
     >
+      {glassEffectsEnabled && (
+        <div
+          data-testid="ambient-glow"
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+        >
+          <div className="-top-40 -left-40 absolute size-96 rounded-full bg-accent/10 blur-3xl" />
+          <div className="-right-40 -bottom-40 absolute size-96 rounded-full bg-primary/10 blur-3xl" />
+        </div>
+      )}
       <div className="flex min-h-0 flex-1">
         <motion.div variants={regionVariants}>
           <Sidebar />

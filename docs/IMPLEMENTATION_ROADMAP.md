@@ -408,6 +408,35 @@ value, a real loading state, or a real empty state.
         `StartupSequence` component on demand and exposes both real
         preferences as toggles, so the sequence and its accessibility
         escape hatches can be QA'd without restarting the app.
+- [x] **Glass design system** *(Aug 2026, Task Group J, Premium UI &
+      Voice Experience initiative)*: real glassmorphism (translucency +
+      `backdrop-filter` blur) on Sidebar, the Card primitive, and
+      Command Palette -- the three surfaces the brief names -- plus a
+      subtle, static ambient glow behind `DesktopShell` so those blurs
+      have real visual content to blur rather than a no-op over a flat
+      background. Every surface offers a solid, non-blurred fallback:
+      `hooks/use-glass-effects.ts`'s `useGlassEffectsEnabled()` wraps
+      the real, persisted `disableGlassEffects` preference (Task Group
+      I) behind a name that reads correctly outside a startup context.
+      Wiring these new surfaces to that same existing preference (rather
+      than a second, competing flag) makes it genuinely app-wide for the
+      first time -- previously it only gated the startup sequence's own
+      glow.
+  - [x] Sidebar: `bg-card/70 backdrop-blur-xl`, falling back to solid
+        `bg-card`.
+  - [x] `components/ui/card.tsx` (the shared primitive every dashboard
+        widget/dialog/panel already builds on): a conservative
+        `bg-card/85 backdrop-blur-md` -- lighter blur than Sidebar/
+        Command Palette on purpose, since Cards hold dense text at
+        every size and legibility comes first.
+  - [x] Command Palette: glass treatment scoped to `CommandDialog`'s own
+        `DialogContent` override (`bg-popover/70 backdrop-blur-2xl`),
+        not the shared `Dialog` primitive other dialogs use -- every
+        other dialog in the app keeps its plain background.
+  - [x] Verified live (not just unit tests): real `backdrop-filter`/
+        `background-color` computed styles confirmed in the browser
+        across all three themes (light/dark/jarvis) and with the
+        preference both on and off.
 - [ ] Conversation Timeline.
 - [ ] Motion animations: hover, Sidebar, Dock, Cards, Notifications --
       broader premium-UI motion pass, still pending (see the Premium
