@@ -570,8 +570,9 @@ class MainWindow(QMainWindow):
 
     def _register_shutdown_hooks(self) -> None:
         """Register every resource's cleanup with the shared
-        ``ShutdownManager`` (Milestone 5.5) instead of hand-sequencing
-        them inline in ``_graceful_quit``. Adding a future subsystem's
+        ``RuntimeManager`` (Milestone 5.5's ``ShutdownManager``,
+        generalized under Milestone 9) instead of hand-sequencing them
+        inline in ``_graceful_quit``. Adding a future subsystem's
         cleanup (an IoT/smart-home bridge, a plugin loader, the agent
         orchestrator, a local web server, ...) is one more
         ``register(...)`` call wherever that subsystem is constructed
@@ -582,7 +583,7 @@ class MainWindow(QMainWindow):
         -> stop voice -> release the browser -> stop hotkeys -> close
         the database last (the most "final" resource).
         """
-        from jarvis.core.lifecycle.shutdown_manager import (
+        from jarvis.core.lifecycle.runtime_manager import (
             PRIORITY_EARLY,
             PRIORITY_FIRST,
             PRIORITY_LAST,
@@ -590,7 +591,7 @@ class MainWindow(QMainWindow):
         )
         from jarvis.domain.voice_announcements.events import AnnouncementEvent
 
-        manager = self._container.shutdown_manager()
+        manager = self._container.runtime_manager()
 
         async def _announce_shutdown() -> None:
             await self._container.voice_announcement_service().announce_event(
@@ -634,12 +635,22 @@ class MainWindow(QMainWindow):
 
     async def _graceful_quit(self) -> None:
         """Release every real resource the app is holding before exit,
-        via the shared ``ShutdownManager`` (Milestone 5.5). Each
+        via the shared ``RuntimeManager`` (Milestone 5.5's
+        ``ShutdownManager``, generalized under Milestone 9). Each
         registered hook is independently fault-tolerant -- one
         resource failing to clean up never blocks the others or
-        prevents the app from closing (see ``ShutdownManager.shutdown``).
+        prevents the app from closing (see ``RuntimeManager.shutdown``).
+
+        Publishes ``ShutdownRequestedEvent`` first (Milestone 9's
+        Application Lifecycle state) so any subscriber -- Developer
+        Mode, and eventually M8's frontend over WebSocket -- can react
+        to a real "shutting down" signal before resources actually
+        start releasing, not after the fact.
         """
-        await self._container.shutdown_manager().shutdown()
+        from jarvis.core.events.events import ShutdownRequestedEvent
+
+        await self._container.event_bus().publish(ShutdownRequestedEvent())
+        await self._container.runtime_manager().shutdown()
         self.close()
 
     # ------------------------------------------------------------------

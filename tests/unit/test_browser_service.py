@@ -2,7 +2,7 @@
 (Milestone 5.5, section 4).
 
 Zero coverage existed before this file -- a real gap for a service that
-(a) is directly registered with ``ShutdownManager`` (Milestone 5.5's own
+(a) is directly registered with ``RuntimeManager`` (Milestone 5.5's own
 shutdown work depends on ``shutdown()`` behaving correctly) and (b) has
 a real safety-relevant behavioral branch (the ``browser.enabled=False``
 guard on ``open()``) that was completely unverified.
@@ -129,7 +129,7 @@ async def test_all_other_methods_delegate_regardless_of_enabled_flag(tmp_path) -
 
 @pytest.mark.asyncio
 async def test_shutdown_delegates_to_stop(tmp_path) -> None:
-    """Directly protects the ShutdownManager registration added in
+    """Directly protects the RuntimeManager registration added in
     Milestone 5.5 -- confirms shutdown() actually reaches the
     underlying browser's stop(), not just that it doesn't crash."""
     fake = _FakeBrowser()
@@ -143,7 +143,7 @@ async def test_shutdown_delegates_to_stop(tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_shutdown_failure_propagates_to_caller(tmp_path) -> None:
     """BrowserService itself doesn't swallow errors -- that's
-    ShutdownManager's job (verified separately in test_shutdown_manager.py).
+    RuntimeManager's job (verified separately in test_runtime_manager.py).
     Confirms the propagation contract those tests rely on."""
     fake = _FakeBrowser(fail_on={"stop"})
     service = BrowserService(fake, _settings(tmp_path))

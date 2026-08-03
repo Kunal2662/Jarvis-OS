@@ -239,12 +239,12 @@ uniformly.
 | `pause()` | User action, or Runtime-initiated resource pressure (e.g. Resource Manager, M9) | Suspends non-critical work (background sync, polling) without losing state; must be resumable via `resume()` without re-running `start()`. |
 | `resume()` | User action, or resource pressure clearing | Reverses `pause()` exactly; a module that cannot cleanly resume must document why and fall back to a full `stop()`/`start()` cycle instead — this is the exception, not the default. |
 | `stop()` | User disables the module, or app shutdown begins | Closes connections, cancels background tasks, transitions the state machine toward `DISCONNECTED`; must be safe to call even if `start()` never completed. |
-| `shutdown()` | App shutdown, after every module's `stop()` | Releases any resource that survives `stop()` (file handles, thread pools); registered once with the existing `ShutdownManager` (`core.lifecycle.shutdown_manager`, shipped M5.5) — a module never implements its own shutdown-ordering logic. |
+| `shutdown()` | App shutdown, after every module's `stop()` | Releases any resource that survives `stop()` (file handles, thread pools); registered once with the existing `RuntimeManager` (`core.lifecycle.runtime_manager`, shipped M5.5 as `ShutdownManager`, generalized to also cover startup under M9) — a module never implements its own shutdown-ordering logic. |
 
 **Failure handling:** if any stage raises, it raises a `JarvisError`
 subclass (§9), the Runtime logs it and moves the module to `ERROR`
 (§4) rather than propagating the exception to crash the app —
-mirroring `ShutdownManager`'s existing "fault-isolated" cleanup
+mirroring `RuntimeManager`'s existing "fault-isolated" cleanup
 guarantee, extended to every lifecycle stage, not just shutdown.
 
 **Idempotency:** `install()`, `configure()`, and `stop()` must be safe
@@ -544,7 +544,7 @@ be.
 The shipped bus delivers to subscribers in subscription order with no
 priority concept. Going forward, a handler may declare
 `priority: Literal["critical", "normal", "low"] = "normal"` at
-subscribe time; `critical` handlers (e.g. `ShutdownManager`-adjacent
+subscribe time; `critical` handlers (e.g. `RuntimeManager`-adjacent
 safety hooks) run before `normal`, which run before `low` — within the
 same priority tier, subscription order is preserved exactly as today.
 
@@ -616,7 +616,7 @@ class IService(Protocol):
 | `stop()` | Graceful, idempotent stop per §3. | Runtime Manager (module disabled) or shutdown sequence. |
 | `health()` | Cheap (<10ms), frequent, boolean-ish signal — "is this service able to do its job right now." Backs Service Manager's live registry (M9) and Developer Mode's State Inspector. | Health Monitor (M9), polled. |
 | `status()` | Detailed, human-readable snapshot — safe to call on-demand, not on a tight poll loop. Backs the Developer Platform Tools' Debug Console/API Inspector (M9). | On-demand — Developer Mode, diagnostics. |
-| `shutdown()` | Final resource release beyond what `stop()` already did (file handles, thread pools) — registers with the existing `ShutdownManager`, never implements its own ordering. | Shutdown sequence, once, after every service's `stop()`. |
+| `shutdown()` | Final resource release beyond what `stop()` already did (file handles, thread pools) — registers with the existing `RuntimeManager`, never implements its own ordering. | Shutdown sequence, once, after every service's `stop()`. |
 
 **A service never implements a seventh top-level lifecycle method.**
 Anything else a service needs to expose is a domain-specific method on

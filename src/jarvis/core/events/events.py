@@ -19,15 +19,17 @@ class Event:
     occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
-# --- Placeholder examples for milestone authors -----------------------------
+# --- Application Lifecycle (Milestone 9, Runtime Core) ----------------------
 @dataclass(frozen=True, slots=True)
 class AppReadyEvent(Event):
-    """Fired once every subsystem has finished booting."""
+    """Published by :class:`~jarvis.app.ApplicationBootstrapper` once every
+    registered ``RuntimeManager`` startup hook has run (``_run_gui``)."""
 
 
 @dataclass(frozen=True, slots=True)
 class ShutdownRequestedEvent(Event):
-    """Fired when the user or the OS asks the app to close."""
+    """Published by :meth:`~jarvis.ui.main_window.MainWindow._graceful_quit`
+    before ``RuntimeManager.shutdown()`` releases any real resource."""
 
 
 @dataclass(frozen=True, slots=True)

@@ -159,6 +159,6 @@ def test_di_container_still_declares_pre_existing_providers() -> None:
         "voice_service",
         "memory_service",
         "agent_orchestrator",
-        "shutdown_manager",
+        "runtime_manager",
     ):
         assert hasattr(Container, name), f"DI container missing pre-existing provider: {name}"

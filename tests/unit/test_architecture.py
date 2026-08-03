@@ -63,6 +63,6 @@ def test_di_container_declares_all_providers() -> None:
         "voice_announcement_service",
         "update_service",
         "greeting_service",
-        "shutdown_manager",
+        "runtime_manager",
     ):
         assert hasattr(Container, name), f"DI container missing provider: {name}"

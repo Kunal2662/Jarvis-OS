@@ -767,7 +767,8 @@ def test_main_window_close_event_routes_through_graceful_shutdown(qapp, tmp_path
 
 
 def test_main_window_registers_shutdown_hooks_in_correct_order(qapp, tmp_path: Path) -> None:
-    """Milestone 5.5: shutdown sequencing now lives in ShutdownManager,
+    """Milestone 5.5: shutdown sequencing now lives in RuntimeManager
+    (Milestone 5.5's ShutdownManager, generalized under Milestone 9),
     registered declaratively by MainWindow instead of hand-sequenced
     inline in _graceful_quit. Verify the registration itself, not just
     the end-to-end effect (covered by the other two shutdown tests)."""
@@ -800,7 +801,7 @@ def test_main_window_registers_shutdown_hooks_in_correct_order(qapp, tmp_path: P
     # Keep a reference (even though unused) rather than a bare expression --
     # PySide6 widget lifetime should stay explicit rather than implicit.
     _window = MainWindow(settings, container)
-    manager = container.shutdown_manager()
+    manager = container.runtime_manager()
 
     # Announce-shutdown must run first (voice needs to still be fully up),
     # database must run last (the most "final" resource) -- preserving
@@ -889,6 +890,64 @@ def test_main_window_graceful_quit_releases_all_resources(qapp, tmp_path: Path) 
     assert "voice_service.stop_wake_word" in calls
     assert "voice_service.stop_speaking" in calls
     assert "voice_service.stop_listening" in calls
+
+
+def test_main_window_graceful_quit_publishes_shutdown_requested_event(qapp, tmp_path: Path) -> None:
+    """Milestone 9, Application Lifecycle: _graceful_quit() publishes
+    ShutdownRequestedEvent on the real EventBus before RuntimeManager
+    releases any resource, so a subscriber sees "shutting down" as the
+    app is *starting* to quit, not after resources are already gone."""
+    import asyncio
+
+    from jarvis.core.config.settings import Settings
+    from jarvis.core.di.container import Container
+    from jarvis.core.events.events import ShutdownRequestedEvent
+    from jarvis.ui.main_window import MainWindow
+
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
+    calls: list[str] = []
+
+    class _Fake:
+        def __getattr__(self, name):
+            async def _noop(*a, **k):
+                calls.append(name)
+
+            return _noop
+
+    settings = Settings(data_dir=tmp_path)
+    container = Container()
+    container.settings.override(settings)
+    for provider_name in (
+        "llm_provider",
+        "memory_service",
+        "voice_service",
+        "hotkey_service",
+        "chat_service",
+        "conversation_service",
+        "browser_service",
+        "database",
+    ):
+        getattr(container, provider_name).override(_Fake())
+
+    async def _on_shutdown_requested(event: ShutdownRequestedEvent) -> None:
+        calls.append("shutdown_requested_event")
+
+    container.event_bus().subscribe(ShutdownRequestedEvent, _on_shutdown_requested)
+
+    window = MainWindow(settings, container)
+    # MainWindow construction alone can trigger incidental service calls
+    # (e.g. a status widget's health poll) unrelated to shutdown -- only
+    # assert relative order from this point on, not that the event fires
+    # before literally anything else has ever happened.
+    calls.clear()
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(window._graceful_quit())
+
+    assert "shutdown_requested_event" in calls
+    assert "dispose" in calls  # real shutdown work (database.dispose) still ran
+    assert calls.index("shutdown_requested_event") < calls.index("dispose")
 
 
 def providers_factory_stub(cls):

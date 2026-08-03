@@ -3,6 +3,43 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.0] — M9, Task Group A (Runtime Manager & Application Lifecycle)
+
+First real M9 (Runtime & Core Services) deliverable, consuming the
+Version Timeline's reserved `0.8` slot. Follows an architecture review
+the user requested and then explicitly closed: keep Python + FastAPI +
+Tauri as the official architecture, unchanged — see
+`docs/MASTER_ROADMAP.md`'s own changelog addendum for the full
+reasoning. Scopes only Runtime Core's first two bullets (Runtime
+Manager, Application Lifecycle), not all of M9.
+
+### Added
+- `stt_provider.preload()`-style startup work now registers with
+  `RuntimeManager` instead of a hand-written `try`/`except` block in
+  `app.py` -- memory-policy enforcement and Whisper preload both
+  converted, matching the exact "must never block boot" guarantee
+  their existing comments already promised, now enforced by
+  `RuntimeManager` itself.
+- `AppReadyEvent`/`ShutdownRequestedEvent` (`core/events/events.py`)
+  now genuinely publish on the real `EventBus` -- previously declared
+  but unused "placeholder examples for milestone authors."
+  `AppReadyEvent` fires once every registered `RuntimeManager` startup
+  hook has run; `ShutdownRequestedEvent` fires at the start of
+  `MainWindow._graceful_quit()`, before any resource releases.
+- `tests/unit/test_runtime_manager.py` -- extends the original
+  `test_shutdown_manager.py` one-for-one (regression coverage for the
+  rename) plus new startup-side and cross-direction-independence
+  coverage.
+
+### Changed
+- `core/lifecycle/shutdown_manager.py`'s `ShutdownManager` (Milestone
+  5.5) renamed and generalized to `core/lifecycle/runtime_manager.py`'s
+  `RuntimeManager` -- the shutdown-side API (`register`/`unregister`/
+  `shutdown`) is behavior-unchanged, just renamed alongside a new,
+  symmetric startup-side API. The DI container's `shutdown_manager`
+  provider is renamed to `runtime_manager`; every real call site
+  across `src/` and `tests/` updated to match.
+
 ## [0.7.5] — M8 Phase 4, Task Group L (Dashboard widget drag-and-drop)
 
 Fifth and final task group of the Premium UI & Voice Experience

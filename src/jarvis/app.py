@@ -119,28 +119,53 @@ class ApplicationBootstrapper:
         asyncio.set_event_loop(loop)
 
         # Initialize database inside the qasync loop before showing UI.
+        # A hard dependency -- must fail loudly, not become a
+        # fault-isolated RuntimeManager hook (see runtime_manager.py's
+        # own design notes on the "best-effort only" boundary).
         database = self._container.database()
         loop.run_until_complete(database.initialize())
+
+        # Milestone 9 — every other best-effort startup step registers
+        # with the shared RuntimeManager instead of hand-sequencing its
+        # own try/except here, mirroring how ShutdownManager already
+        # replaced the equivalent hand-sequenced *shutdown* steps
+        # (Milestone 5.5) — the same "doesn't scale" problem, on the
+        # startup side.
+        runtime_manager = self._container.runtime_manager()
 
         # Milestone 3 — apply memory retention/pruning policies once at
         # startup. Best-effort: a failure here must never block boot.
         if settings.memory.enabled:
-            try:
-                memory_service = self._container.memory_service()
-                loop.run_until_complete(memory_service.enforce_policies())
-            except Exception as err:
-                logger.warning("Memory policy enforcement skipped at startup: {}", err)
+            memory_service = self._container.memory_service()
+
+            async def _enforce_memory_policies() -> None:
+                await memory_service.enforce_policies()
+
+            runtime_manager.register_startup("memory_policies", _enforce_memory_policies)
 
         # Milestone 3.1 — preload the local Whisper model eagerly instead of
         # paying the load cost on the user's first PTT/toggle-listen call.
         if settings.stt.enabled and settings.stt.backend.value == "whisper_local":
-            try:
-                stt_provider = self._container.stt_provider()
-                preload = getattr(stt_provider, "preload", None)
-                if preload is not None:
-                    loop.run_until_complete(preload())
-            except Exception as err:
-                logger.warning("Whisper preload skipped at startup: {}", err)
+            stt_provider = self._container.stt_provider()
+            preload = getattr(stt_provider, "preload", None)
+            if preload is not None:
+
+                async def _preload_whisper() -> None:
+                    await preload()
+
+                runtime_manager.register_startup("whisper_preload", _preload_whisper)
+
+        loop.run_until_complete(runtime_manager.startup())
+
+        # Milestone 9 — Application Lifecycle: publish AppReadyEvent once
+        # every registered startup hook has actually run, so the rest of
+        # the app (and, eventually, M8's frontend over WebSocket) can
+        # react to a real "ready" signal instead of assuming readiness
+        # once the window is merely constructed.
+        from jarvis.core.events.events import AppReadyEvent
+
+        event_bus = self._container.event_bus()
+        loop.run_until_complete(event_bus.publish(AppReadyEvent()))
 
         window = MainWindow(
             settings=settings,

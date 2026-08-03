@@ -226,7 +226,7 @@ class Container(containers.DeclarativeContainer):
 
     # ---- Cross-cutting -------------------------------------------------
     event_bus = providers.Singleton("jarvis.core.events.event_bus.EventBus")
-    shutdown_manager = providers.Singleton("jarvis.core.lifecycle.shutdown_manager.ShutdownManager")
+    runtime_manager = providers.Singleton("jarvis.core.lifecycle.runtime_manager.RuntimeManager")
 
     # ---- Infrastructure adapters (Singletons) --------------------------
     llm_provider = providers.Singleton(_build_llm_provider, settings=settings)

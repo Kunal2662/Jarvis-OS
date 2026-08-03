@@ -1361,15 +1361,26 @@ the layer M8's FastAPI routers call into, and the layer a plugin's
 **Key features** *(organized into 4 modules)*:
 
 #### Runtime Core
-- Runtime Manager — process/service startup and shutdown ordering,
-  generalizing the existing `ShutdownManager`
-  (`core.lifecycle.shutdown_manager`, shipped in the M5.5
-  stabilization pass) into the single place every subsystem registers
-  a lifecycle hook, not just a cleanup one.
-- Application Lifecycle — cold-start, warm-restart, and graceful-exit
-  states, exposed to M8's frontend over WebSocket so the UI can show a
-  real "backend starting/ready/shutting down" state rather than a
-  spinner with no backing signal.
+- **Runtime Manager** *(shipped Aug 2026, Task Group A — see the
+  changelog addendum)* — process/service startup and shutdown
+  ordering. `RuntimeManager` (`core.lifecycle.runtime_manager`,
+  renamed from the M5.5 stabilization pass's `ShutdownManager`) is now
+  the single place every subsystem registers a lifecycle hook, in
+  either direction, not just a cleanup one — `app.py`'s two best-effort
+  startup steps (memory-policy enforcement, Whisper preload) register
+  as real startup hooks instead of hand-written `try`/`except` blocks,
+  mirroring exactly how `MainWindow`'s shutdown hooks already worked.
+- **Application Lifecycle** *(partially shipped Aug 2026, Task Group
+  A)* — cold-start, ready, and shutting-down states are now real,
+  published on the existing `EventBus` as `AppReadyEvent` (once every
+  `RuntimeManager` startup hook has run) and `ShutdownRequestedEvent`
+  (before any shutdown hook releases a resource) — both existed only
+  as unused placeholder event types before this task group. Exposing
+  these over WebSocket to M8's frontend, so the UI can show a real
+  "backend starting/ready/shutting down" state instead of a spinner
+  with no backing signal, remains a separate, not-yet-built task —
+  today's FastAPI surface has zero WebSocket routes at all (see
+  Dependencies below).
 - Service Manager — a registry of every running service (`ChatService`,
   `VoiceService`, `AutomationService`, etc.) with health status, built
   on the existing `core/di/container.py` rather than a second registry.
@@ -8774,7 +8785,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | *(patch)* | —       | `0.5.1` security patch (cryptography upgrade), `0.5.2` DI container architecture fix — both out-of-band per §6, not milestones | ✅ Shipped |
 | **0.6** | M7        | Workflow Intelligence           | 🟢 In Progress (Phase 1–2 shipped; Phases 3–6 paused) |
 | **0.7** | M8        | React Frontend & Desktop Experience | 🟡  |
-| **0.8** | M9        | Runtime & Core Services          | 🟡      |
+| **0.8** | M9        | Runtime & Core Services          | 🟢 In Progress (Task Group A shipped; rest of Runtime Core, Reliability, Plugin Platform, Developer Platform Tools pending) |
 | **0.9** | M10       | AI Orchestrator                  | 🟡      |
 | **0.10**| M10A      | Universal Search & Knowledge Platform | 🟡 |
 | **0.11**| M10B      | Intelligence Layer               | 🟡      |
@@ -10682,3 +10693,72 @@ the Premium UI & Voice Experience initiative's five task groups (H, I,
 J, K, L) in full; the broader hover/Sidebar/Dock/Cards/Notifications
 motion pass remains tracked separately under Phase 6 — Premium UI
 Polish. Bump this line whenever you edit the roadmap.*
+
+*Aug 2026 addendum — M9 Task Group A (Runtime Manager & Application
+Lifecycle):* the frontend's Premium UI & Voice Experience initiative
+(H–L) being done, work resumes on the documented milestone sequence —
+M9 Runtime & Core Services, the first backend milestone after M8. This
+follows an architecture review the user requested and then explicitly
+closed: a Node.js/Electron backend pivot was considered, two
+exploration passes confirmed the existing Python backend already has
+real, working implementations of 4 of the reviewed priorities (AI
+Orchestrator, Agent Framework, Memory Engine, Tool Router — all
+LangGraph/ChromaDB-backed) totalling roughly 15,000 lines of non-UI
+logic plus real pytest coverage, and the user's final decision was to
+keep Python + FastAPI + Tauri as the official architecture, unchanged,
+and continue the documented roadmap exactly. No architecture doc in
+this repository was rewritten as a result — this addendum is the only
+record of that review, since nothing about the actual architecture
+changed.
+
+Scopes only Runtime Core's first two bullets (Runtime Manager,
+Application Lifecycle) — not all of M9, following the same
+task-group-at-a-time discipline the frontend work above already
+established. `core/lifecycle/shutdown_manager.py`'s `ShutdownManager`
+(M5.5) is renamed to `core/lifecycle/runtime_manager.py`'s
+`RuntimeManager`, exactly matching this milestone's own pre-existing
+wording ("generalizing the existing `ShutdownManager` ... into the
+single place every subsystem registers a lifecycle hook, not just a
+cleanup one") — the shutdown-side API (`register`/`unregister`/
+`shutdown`) is unchanged in behavior, only renamed alongside a new,
+symmetric startup-side API (`register_startup`/`unregister_startup`/
+`startup`) sharing the same priority-ordered, fault-isolated hook
+design (generalized `LifecycleHook`/`LifecycleResult` dataclasses,
+replacing the shutdown-only `ShutdownHook`/`ShutdownResult`). `app.py`'s
+two ad-hoc startup steps (memory-policy enforcement, Whisper preload —
+each previously its own hand-written `try`/`except`, both already
+commented "must never block boot") now register as real startup hooks,
+the literal startup-side mirror of the exact problem `ShutdownManager`
+was built to solve for shutdown. `AppReadyEvent`/`ShutdownRequestedEvent`
+(`core/events/events.py`) — previously undocumented as "placeholder
+examples for milestone authors," never published anywhere — are now
+real: `AppReadyEvent` publishes once `RuntimeManager.startup()`
+completes, `ShutdownRequestedEvent` publishes at the start of
+`MainWindow._graceful_quit()`, both over the existing `EventBus`.
+Exposing this lifecycle state to M8's frontend over WebSocket remains
+separate, not-yet-built work — no FastAPI WebSocket route exists at
+all yet (confirmed during this task group; the frontend's own
+WebSocket client has been waiting since M8 Phase 1) — a natural
+Task Group B, alongside the rest of Runtime Core (Service Manager,
+Session Manager, Configuration Manager's live-reload path).
+
+All 17 real call sites across `src/` and `tests/` were updated for the
+rename (DI container's `shutdown_manager` provider → `runtime_manager`,
+`MainWindow`, `AgentCheckpointer`'s docstring, and every test asserting
+the container's provider surface or exercising shutdown behavior
+directly); genuinely historical prose (the M5.5 stabilization pass's
+own "Real, verified fixes" narrative, a Troubleshooting doc pointing
+users at a specific old build) was deliberately left referring to
+`ShutdownManager` by its name at the time, not rewritten. Full pytest
+suite passes; the new `runtime_manager.py` and its test file
+(`tests/unit/test_runtime_manager.py`, extending the original
+`test_shutdown_manager.py` one-for-one plus new startup-side and
+cross-direction-independence coverage) are mypy- and ruff-clean. The
+pre-existing mypy/ruff findings surfaced while checking the touched
+files (container.py's un-annotated `providers.Singleton` assignments,
+the project-wide accepted-debt `PLC0415` lazy-import pattern §15
+already documents, a few unrelated `main_window.py`/`app.py` findings)
+were confirmed — by diff scope, not assumption — to predate this task
+group and were left alone. No dependency, acceptance-criterion, or
+numbering conflict was found against M0–M27. Bump this line whenever
+you edit the roadmap.*

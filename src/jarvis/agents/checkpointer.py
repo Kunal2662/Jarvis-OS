@@ -30,7 +30,7 @@ class AgentCheckpointer:
     once in :meth:`open` (called from ``AgentOrchestrator.start``) and
     closes it once in :meth:`close` (called from
     ``AgentOrchestrator.stop``, itself registered with the app's
-    ``ShutdownManager`` — see ``ui/main_window.py``).
+    ``RuntimeManager`` — see ``ui/main_window.py``).
     """
 
     def __init__(self, settings: Settings) -> None:

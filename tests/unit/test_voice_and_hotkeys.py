@@ -176,7 +176,8 @@ async def test_hotkey_service_disabled_when_config_off() -> None:
 @pytest.mark.asyncio
 async def test_hotkey_service_stop_delegates_to_listener() -> None:
     """stop() had zero test coverage -- directly relevant since it's
-    registered with ShutdownManager (Milestone 5.5)."""
+    registered with RuntimeManager (Milestone 5.5's ShutdownManager,
+    generalized under Milestone 9)."""
     listener = FakeHotkeyListener()
     svc = HotkeyService(listener, _settings())
     await svc.start()

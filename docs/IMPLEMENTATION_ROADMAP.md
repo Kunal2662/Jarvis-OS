@@ -12,10 +12,20 @@
 > documents.
 
 **Document owner:** project lead
-**Status:** Aug 2026 — tracks M8 (React Frontend & Desktop Experience),
-the active milestone as of this writing. Phase 1 (React Foundation)
-shipped; Phases 2–7 remain pending, each its own separately-approved
-implementation pass.
+**Status:** Aug 2026 — tracks M8 (React Frontend & Desktop Experience)
+and, as of Task Group A, M9 (Runtime & Core Services) as well, both
+active in parallel. M8 Phase 1 (React Foundation) and Phase 4 (Voice
+Experience & Motion, in full — the Premium UI & Voice Experience
+initiative's five task groups H–L) shipped; Phases 2–3 and 5–7 remain
+pending, each its own separately-approved implementation pass. M9
+began with Task Group A (Runtime Manager, Application Lifecycle) —
+see §5 below; the rest of M9 remains pending. This is a deliberate,
+explicit exception to "one active milestone at a time": M9's Task
+Group A had no real dependency on M8's remaining frontend backlog (see
+§5's own Dependencies note), following an architecture review the
+user requested and then closed with "keep the documented roadmap
+exactly as-is" — see `MASTER_ROADMAP.md`'s own changelog addendum for
+the full reasoning.
 
 ---
 
@@ -24,8 +34,9 @@ implementation pass.
 | Milestone | Status |
 |---|---|
 | M0 – M7 | Shipped (M7 partially — Phases 1–2 shipped, Phase 3 deferred, Phases 4–6 pending). See `MASTER_ROADMAP.md` §3 and §8. |
-| **M8 – React Frontend & Desktop Experience** | **Active — this document tracks it.** |
-| M9 onward | Planned, not started. See `MASTER_ROADMAP.md` §8. |
+| **M8 – React Frontend & Desktop Experience** | **Active — this document tracks it.** Phase 1 and Phase 4 shipped; Phases 2–3, 5–7 pending. |
+| **M9 – Runtime & Core Services** | **Active (Task Group A only) — see §5 below.** Remaining Runtime Core bullets, plus Reliability/Plugin Platform/Developer Platform Tools, pending. |
+| M10 onward | Planned, not started. See `MASTER_ROADMAP.md` §8. |
 
 M7's Phases 4–6 (Workflow Builder, Recorder, Scheduler) were paused
 pending the UI Foundation review; that review is superseded by the
@@ -597,3 +608,63 @@ explicit decision — not implied by this document), and M8's
 Acceptance Criteria in `MASTER_ROADMAP.md` §8 are met. This document
 does not restate those acceptance criteria — see the roadmap entry
 itself so there is exactly one place they can drift out of sync from.
+
+---
+
+## 5. M9 — Runtime & Core Services (Active, Task Group A only)
+
+Placed after §4 rather than renumbered in between M8's own sections,
+matching this project's "zero renumbering" convention applied to
+document structure, not just milestone numbers — M9's real work began
+here while M8's own Phases 2–3/5–7 are still open, tracked in §2
+above.
+
+- [x] **Task Group A — Runtime Manager & Application Lifecycle**
+      *(Aug 2026 — see `MASTER_ROADMAP.md`'s own changelog addendum
+      for the full reasoning and design)*: `core/lifecycle/
+      shutdown_manager.py`'s `ShutdownManager` (M5.5) renamed and
+      generalized to `core/lifecycle/runtime_manager.py`'s
+      `RuntimeManager` — the shutdown-side API is behavior-unchanged
+      (renamed only), with a new symmetric startup-side API
+      (`register_startup`/`unregister_startup`/`startup`) sharing the
+      same priority-ordered, fault-isolated hook design. `app.py`'s
+      two ad-hoc best-effort startup steps (memory-policy enforcement,
+      Whisper preload) now register as real startup hooks instead of
+      hand-written `try`/`except` blocks. `AppReadyEvent`/
+      `ShutdownRequestedEvent` (`core/events/events.py`) — previously
+      unused placeholder event types — now genuinely publish on the
+      real `EventBus`, at real startup-complete and
+      shutdown-beginning points respectively.
+  - [x] All 17 real call sites updated for the rename across `src/`
+        and `tests/` (DI container's `shutdown_manager` provider →
+        `runtime_manager`, `MainWindow`, `AgentCheckpointer`'s
+        docstring, every test asserting the container's provider
+        surface or exercising shutdown behavior directly). Genuinely
+        historical prose (M5.5's own "Real, verified fixes" narrative
+        in `MASTER_ROADMAP.md`, a `TROUBLESHOOTING.md` entry pointing
+        at a specific old build) deliberately left referring to
+        `ShutdownManager` by its name at the time.
+  - [x] Full pytest suite passes; `runtime_manager.py` and its test
+        file (`tests/unit/test_runtime_manager.py`) are mypy- and
+        ruff-clean. Pre-existing mypy/ruff findings in the touched
+        files (container.py's un-annotated `providers.Singleton`
+        assignments, the project-wide accepted-debt `PLC0415`
+        lazy-import pattern `MASTER_ROADMAP.md` §15 already documents)
+        were confirmed by diff scope to predate this task group and
+        were left alone.
+  - [ ] Exposing Application Lifecycle state to M8's frontend over
+        WebSocket — genuinely not yet possible; today's FastAPI
+        surface has zero WebSocket routes at all. A natural
+        Task Group B, alongside Runtime Core's remaining bullets
+        (Service Manager, Session Manager, Configuration Manager's
+        live-reload path).
+- [ ] Task Group B and onward: the rest of Runtime Core, then
+      Reliability, Plugin Platform, and Developer Platform Tools —
+      not yet scoped into task groups.
+
+**Dependencies note:** M9's own documented dependency on M8
+(`MASTER_ROADMAP.md` §8) is narrow — Developer Platform Tools' and
+Marketplace's *consumer* surfaces, which already exist and work today
+(Developer Mode, Task Group F's Dashboard/Command Palette work). Task
+Group A touched neither, so it was not blocked by M8's remaining
+Phase 2–3/5–7 backlog.
