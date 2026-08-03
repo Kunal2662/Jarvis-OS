@@ -452,6 +452,21 @@ class OCRSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}OCR_", extra="ignore")
 
 
+class ResourceSettings(BaseSettings):
+    """Milestone 9 Task Group C -- Resource Manager budget thresholds.
+
+    Tracking/alerting only (``ResourceManager`` publishes
+    ``ResourceBudgetExceededEvent`` on a crossing) -- nothing throttles
+    or kills a service on a budget breach yet; that's M22 Edge AI
+    Platform's future Resource Allocation module, not this milestone.
+    """
+
+    max_cpu_percent: float = 90.0
+    max_memory_mb: float = 4096.0
+
+    model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}RESOURCE_", extra="ignore")
+
+
 # ---------------------------------------------------------------------------
 # Root settings
 # ---------------------------------------------------------------------------
@@ -499,6 +514,7 @@ class Settings(BaseSettings):
     voice_announce: VoiceAnnouncementSettings = Field(default_factory=VoiceAnnouncementSettings)
     vision: VisionSettings = Field(default_factory=VisionSettings)
     ocr: OCRSettings = Field(default_factory=OCRSettings)
+    resource: ResourceSettings = Field(default_factory=ResourceSettings)
 
     model_config = SettingsConfigDict(
         env_prefix=ENV_PREFIX,

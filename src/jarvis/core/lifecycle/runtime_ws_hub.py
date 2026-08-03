@@ -13,15 +13,17 @@ relationship FastAPI routers already have with services. See
 ``@router.websocket`` handler, which owns only the accept/receive loop
 and delegates everything else here.
 
-Relays the eleven events this task group's five other subsystems
-publish: ``runtime.started/ready/stopping/shutdown``,
+Relays the eleven events Task Group B's five subsystems publish:
+``runtime.started/ready/stopping/shutdown``,
 ``service.started/stopped/failed``, ``configuration.updated``,
-``session.created/closed``, ``health.updated`` -- the category table
-§6 documents (``voice``/``ai``/``automation``/``memory``/``progress``/
-``notification``/``runtime.module_state_changed``) predates these five
-managers existing at all; :data:`EVENT_TYPE_NAMES` below is where a
-future milestone adds their categories to the relay, the same way this
-one did.
+``session.created/closed``, ``health.updated``, plus five more Task
+Group C's Reliability module adds: ``runtime.crash_recovered``,
+``task.started/completed/failed``, ``resource.budget_exceeded`` -- the
+category table §6 documents (``voice``/``ai``/``automation``/
+``memory``/``progress``/``notification``/``runtime.
+module_state_changed``) predates all of these managers existing;
+:data:`EVENT_TYPE_NAMES` below is where a future milestone adds its own
+categories to the relay, the same way these two task groups did.
 """
 
 from __future__ import annotations
@@ -35,8 +37,10 @@ from typing import TYPE_CHECKING, Any, Protocol
 from jarvis.core.events.events import (
     AppReadyEvent,
     ConfigurationUpdatedEvent,
+    CrashRecoveredEvent,
     Event,
     HealthUpdatedEvent,
+    ResourceBudgetExceededEvent,
     RuntimeShutdownCompleteEvent,
     RuntimeStartedEvent,
     ServiceFailedEvent,
@@ -45,6 +49,9 @@ from jarvis.core.events.events import (
     SessionClosedEvent,
     SessionCreatedEvent,
     ShutdownRequestedEvent,
+    TaskCompletedEvent,
+    TaskFailedEvent,
+    TaskStartedEvent,
 )
 
 if TYPE_CHECKING:
@@ -59,6 +66,7 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     AppReadyEvent: "runtime.ready",
     ShutdownRequestedEvent: "runtime.stopping",
     RuntimeShutdownCompleteEvent: "runtime.shutdown",
+    CrashRecoveredEvent: "runtime.crash_recovered",
     ServiceStartedEvent: "service.started",
     ServiceStoppedEvent: "service.stopped",
     ServiceFailedEvent: "service.failed",
@@ -66,6 +74,10 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     SessionCreatedEvent: "session.created",
     SessionClosedEvent: "session.closed",
     HealthUpdatedEvent: "health.updated",
+    TaskStartedEvent: "task.started",
+    TaskCompletedEvent: "task.completed",
+    TaskFailedEvent: "task.failed",
+    ResourceBudgetExceededEvent: "resource.budget_exceeded",
 }
 
 _BASE_FIELD_NAMES = {f.name for f in dataclasses.fields(Event)}

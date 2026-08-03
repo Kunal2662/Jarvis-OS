@@ -435,16 +435,16 @@ mechanism §17 defines, validated by FastAPI dependency injection
 
 ## 6. WebSocket standards
 
-**Status:** `/api/v1/ws` is real as of Aug 2026 (M9 Task Group B) —
+**Status:** `/api/v1/ws` is real as of Aug 2026 (M9 Task Groups B+C) —
 `core/lifecycle/runtime_ws_hub.py`'s `RuntimeWebSocketHub` +
 `infrastructure/api/routes/runtime_ws.py`, implementing this section's
 envelope, heartbeat, and resume/replay-buffer contract exactly as
 documented below, for the `runtime`/`service`/`configuration`/
-`session`/`health` categories (extended into the table below by that
-task group). The `voice`/`ai`/`automation`/`memory`/`progress`/
-`notification` categories below remain the documented target for their
-owning milestones (M10+) — not yet relayed, since nothing publishes
-them as real `EventBus` events yet.
+`session`/`health`/`task`/`resource` categories (extended into the
+table below by those two task groups). The `voice`/`ai`/`automation`/
+`memory`/`progress`/`notification` categories below remain the
+documented target for their owning milestones (M10+) — not yet
+relayed, since nothing publishes them as real `EventBus` events yet.
 
 ### Single connection
 
@@ -480,11 +480,13 @@ categories map directly to the Event Bus categories in §7:
 | `memory` | `memory.updated`, `memory.recalled` |
 | `progress` | `progress.update` (long-running non-AI operations — backups, sync) |
 | `notification` | `notification.created` (user-facing toast-equivalent) |
-| `runtime` | `runtime.module_state_changed` (relays §4 transitions); `runtime.started`/`runtime.ready`/`runtime.stopping`/`runtime.shutdown` *(shipped M9 Task Group B — the application-lifecycle-wide sequence, distinct from a single module's §4 transitions above)* |
+| `runtime` | `runtime.module_state_changed` (relays §4 transitions); `runtime.started`/`runtime.ready`/`runtime.stopping`/`runtime.shutdown` *(shipped M9 Task Group B — the application-lifecycle-wide sequence, distinct from a single module's §4 transitions above)*; `runtime.crash_recovered` *(shipped M9 Task Group C — Crash Recovery detected the previous run never reached a clean shutdown, `core/lifecycle/crash_recovery.py`)* |
 | `service` | `service.started`/`service.stopped`/`service.failed` *(shipped M9 Task Group B — Service Manager's per-service lifecycle, `core/lifecycle/service_manager.py`)* |
 | `configuration` | `configuration.updated` *(shipped M9 Task Group B — Configuration Manager's live-reload result, dotted setting keys only, never values)* |
 | `session` | `session.created`/`session.closed` *(shipped M9 Task Group B — Session Manager, `core/lifecycle/session_manager.py`)* |
 | `health` | `health.updated` *(shipped M9 Task Group B — Runtime Health Monitor's poll-tick snapshot, `core/lifecycle/health_monitor.py`)* |
+| `task` | `task.started`/`task.completed`/`task.failed` *(shipped M9 Task Group C — Background Task Manager's per-task lifecycle, `core/lifecycle/background_task_manager.py`)* |
+| `resource` | `resource.budget_exceeded` *(shipped M9 Task Group C — Resource Manager, published only on the transition into violation, `core/lifecycle/resource_manager.py`)* |
 
 ### Heartbeat and reconnect
 

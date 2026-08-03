@@ -21,9 +21,10 @@ pending, each its own separately-approved implementation pass. M9's
 Runtime Core module is now fully shipped across Task Group A (Runtime
 Manager, Application Lifecycle) and Task Group B (Service Manager,
 Session Manager, Configuration Manager, Runtime Health Monitor,
-Runtime WebSocket API, Runtime Integration) — see §5 below; M9's
-remaining modules (Reliability, Plugin Platform, Developer Platform
-Tools) remain 🔴 planned as Task Groups C/D/E (see §5). This is a
+Runtime WebSocket API, Runtime Integration) and Task Group C
+(Background Task Manager, Crash Recovery, Resource Manager) — see §5
+below; M9's remaining modules (Plugin Platform, Developer Platform
+Tools) remain 🔴 planned as Task Groups D/E (see §5). This is a
 deliberate, explicit exception to "one active milestone at a time":
 M9's Runtime Core had no real dependency on M8's remaining frontend
 backlog (see §5's own Dependencies note), following an architecture
@@ -46,7 +47,7 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | M0 – M6 | ✅ Completed. See `MASTER_ROADMAP.md` §3. |
 | M7 — Workflow Intelligence | 🟡 Active (Phases 1–2 shipped; Phase 3 🟠 deferred; Phases 4–6 pending). See `MASTER_ROADMAP.md` §8. |
 | **M8 – React Frontend & Desktop Experience** | 🟡 **Active — this document tracks it.** Phase 1 and Phase 4 shipped; Phase 3 partial; Phases 2, 5, 6, 7 and the rest of Phase 3 🟠 **deferred — see §6, Deferred Backlog.** **Not 100% complete.** |
-| **M9 – Runtime & Core Services** | 🟡 **Active — Runtime Core complete (Task Groups A+B), see §5 below.** Task Group C (Reliability), D (Plugin Platform), E (Developer Platform Tools) 🔴 planned. |
+| **M9 – Runtime & Core Services** | 🟡 **Active — Runtime Core + Reliability complete (Task Groups A+B+C), see §5 below.** Task Group D (Plugin Platform), E (Developer Platform Tools) 🔴 planned. |
 | M10, M10A, M10B, M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
 M7's Phases 4–6 (Workflow Builder, Recorder, Scheduler) were paused
@@ -636,7 +637,7 @@ itself so there is exactly one place they can drift out of sync from.
 
 ---
 
-## 5. M9 — Runtime & Core Services (Active — Runtime Core complete)
+## 5. M9 — Runtime & Core Services (Active — Runtime Core + Reliability complete)
 
 Placed after §4 rather than renumbered in between M8's own sections,
 matching this project's "zero renumbering" convention applied to
@@ -751,11 +752,60 @@ above.
         `memory`/`progress`/`notification` categories; a genuine
         headless `_run_api_only()` runtime mode; M14's real Bearer/JWT
         session-token issuance.
-- [ ] **Task Group C — Reliability** *(🔴 planned — next implementation
-      target)*: Background Task Manager, Crash Recovery, Resource
-      Manager. Builds on `ServiceManager`/`HealthMonitor` (Task Group
-      B) rather than a parallel mechanism — see `MASTER_ROADMAP.md`
-      §8 M9's Reliability module.
+- [x] **Task Group C — Reliability** *(Aug 2026 — see
+      `MASTER_ROADMAP.md`'s own changelog addendum for the full
+      reasoning and design)*: Background Task Manager, Crash Recovery,
+      Resource Manager. Builds on `ServiceManager`/`HealthMonitor`
+      (Task Group B) rather than a parallel mechanism.
+  - [x] `core/lifecycle/background_task_manager.py` —
+        `BackgroundTaskManager`: bounded-concurrency
+        (`asyncio.Semaphore`) task queue, per-task fault isolation,
+        `submit()`/`cancel()`/`stop()` (graceful drain). A
+        done-callback fallback handles the real edge case its own test
+        suite found: a task cancelled before its coroutine's first
+        scheduling turn never runs any of its own body (Python's
+        `.throw()` into an unstarted coroutine re-raises immediately
+        without entering it), so `_run()`'s own `except
+        CancelledError` can't be relied on alone.
+  - [x] `core/lifecycle/crash_recovery.py` — `CrashRecoveryManager`: a
+        "mark dirty at start, mark clean at end" on-disk marker
+        (`runtime_state.json`, existing `config_dir` JSON-config-store
+        convention) detects an unclean previous shutdown, publishes
+        `CrashRecoveredEvent`. Explicitly does not claim to
+        auto-respawn a crashed process — real, separate future work.
+  - [x] `core/lifecycle/resource_manager.py` — `ResourceManager`: CPU/
+        memory budget tracking (new `ResourceSettings`) by subscribing
+        to `HealthMonitor`'s existing `HealthUpdatedEvent` rather than
+        polling `psutil` a second time. Publishes
+        `ResourceBudgetExceededEvent` only on the transition into
+        violation, not every tick over budget.
+  - [x] `app.py`'s new `_register_task_group_c_hooks` wires all three
+        into `RuntimeManager`: Crash Recovery's dirty-check runs right
+        after Configuration Manager (before Service Manager);
+        Background Task Manager and Resource Manager join at the end
+        of startup. Shutdown reverses this, with Crash Recovery
+        marking the run clean *last of all*, after every other
+        shutdown hook has finished. Task Group B's own five shutdown
+        priorities were renumbered (0-4 → 2-6, in-place, no migration
+        concern) to make room.
+  - [x] `RuntimeWebSocketHub`'s `EVENT_TYPE_NAMES` gained
+        `runtime.crash_recovered`, `task.started/completed/failed`,
+        `resource.budget_exceeded`.
+  - [x] 29 new tests (bounded concurrency, fault isolation, both
+        cancellation code paths, crash detection across independent
+        marker-file instances, corrupt-marker resilience,
+        budget-transition-only publishing) — full suite 542 passed,
+        zero regressions. mypy/ruff/black diffed against a clean
+        pre-task-group `git stash` baseline: zero new findings outside
+        the same pre-existing, already-accepted `providers.Singleton`
+        annotation and `PLC0415` patterns §15 documents.
+  - **Future Work** (explicitly deferred, not implemented): an
+        external supervisor/watchdog process for genuine automatic
+        process restart after a crash; GPU/disk collectors for
+        `HealthMonitor` (`ResourceManager.register_budget()` already
+        supports them once a collector exists); enforcement
+        (throttle/kill) on a budget breach; persisting/resuming the
+        Background Task Manager's queue across a restart.
 - [ ] **Task Group D — Plugin Platform** *(🔴 planned)*: Plugin SDK,
       Plugin Loader, Extension API, Permission Model, Plugin Store,
       Marketplace, Plugin Safe Core Architecture, Plugin Registration
@@ -769,8 +819,8 @@ above.
 (`MASTER_ROADMAP.md` §8) is narrow — Developer Platform Tools' and
 Marketplace's *consumer* surfaces, which already exist and work today
 (Developer Mode, Task Group F's Dashboard/Command Palette work). Task
-Groups A and B touched neither, so neither was blocked by M8's
-remaining Phase 2–3/5–7 backlog. Task Groups C/D/E remain equally
+Groups A, B, and C touched neither, so none were blocked by M8's
+remaining Phase 2–3/5–7 backlog. Task Groups D/E remain equally
 unblocked by M8's Deferred Backlog (§6) for the same reason.
 
 ---

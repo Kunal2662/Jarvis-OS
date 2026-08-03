@@ -140,6 +140,7 @@ class ApplicationBootstrapper:
         # startup side.
         runtime_manager = self._container.runtime_manager()
         health_monitor = self._register_task_group_b_hooks(runtime_manager, settings)
+        self._register_task_group_c_hooks(runtime_manager)
 
         # Milestone 3.1 — preload the local Whisper model eagerly instead of
         # paying the load cost on the user's first PTT/toggle-listen call.
@@ -265,36 +266,99 @@ class ApplicationBootstrapper:
         # independently; registration order doesn't imply run order,
         # priority does), same as `_register_shutdown_hooks` in
         # `ui/main_window.py` already does for UI-owned resources.
+        # Priorities 2-6 (not 0-4) -- Task Group C's
+        # `_register_task_group_c_hooks` claims 0-1 and 7, see there.
         async def _stop_embedded_api_server() -> None:
             await embedded_api_server.stop()
 
         runtime_manager.register(
-            "embedded_api_server", _stop_embedded_api_server, priority=PRIORITY_FIRST
+            "embedded_api_server", _stop_embedded_api_server, priority=PRIORITY_FIRST + 2
         )
 
         async def _stop_ws_hub() -> None:
             runtime_ws_hub.stop()
 
-        runtime_manager.register("runtime_ws_hub", _stop_ws_hub, priority=PRIORITY_FIRST + 1)
+        runtime_manager.register("runtime_ws_hub", _stop_ws_hub, priority=PRIORITY_FIRST + 3)
 
         async def _stop_health_monitor() -> None:
             await health_monitor.stop()
 
         runtime_manager.register(
-            "health_monitor", _stop_health_monitor, priority=PRIORITY_FIRST + 2
+            "health_monitor", _stop_health_monitor, priority=PRIORITY_FIRST + 4
         )
 
         async def _close_sessions() -> None:
             await session_manager.close_all()
 
-        runtime_manager.register("session_manager", _close_sessions, priority=PRIORITY_FIRST + 3)
+        runtime_manager.register("session_manager", _close_sessions, priority=PRIORITY_FIRST + 5)
 
         async def _stop_services() -> None:
             await service_manager.stop_all()
 
-        runtime_manager.register("service_manager", _stop_services, priority=PRIORITY_FIRST + 4)
+        runtime_manager.register("service_manager", _stop_services, priority=PRIORITY_FIRST + 6)
 
         return health_monitor
+
+    def _register_task_group_c_hooks(self, runtime_manager: RuntimeManager) -> None:
+        """Milestone 9 Task Group C -- Reliability. Extends Task Group
+        B's deterministic order: Crash Recovery's dirty-check runs
+        right after Configuration Manager (priority 1, before Service
+        Manager's 2) so every later manager boots with crash status
+        already known; Background Task Manager and Resource Manager
+        join at the end of startup (priorities 10-11, after Task Group
+        B's own 0-9). Shutdown is the reverse: Resource Manager and
+        Background Task Manager stop first (priorities 0-1, before Task
+        Group B's shutdown hooks, renumbered to 2-6 to make room -- see
+        `_register_task_group_b_hooks`), and Crash Recovery marks this
+        run clean last of all (priority 7), after every other shutdown
+        hook has actually finished, so "clean" is accurate.
+        """
+        from jarvis.core.lifecycle.runtime_manager import PRIORITY_FIRST
+
+        assert self._container is not None
+        crash_recovery = self._container.crash_recovery_manager()
+        background_task_manager = self._container.background_task_manager()
+        resource_manager = self._container.resource_manager()
+
+        async def _check_crash_recovery() -> None:
+            await crash_recovery.check_and_mark_dirty()
+
+        runtime_manager.register_startup(
+            "crash_recovery", _check_crash_recovery, priority=PRIORITY_FIRST + 1
+        )
+
+        async def _start_background_tasks() -> None:
+            await background_task_manager.start()
+
+        runtime_manager.register_startup(
+            "background_task_manager", _start_background_tasks, priority=PRIORITY_FIRST + 10
+        )
+
+        async def _start_resource_manager() -> None:
+            resource_manager.start()
+
+        runtime_manager.register_startup(
+            "resource_manager", _start_resource_manager, priority=PRIORITY_FIRST + 11
+        )
+
+        async def _stop_resource_manager() -> None:
+            resource_manager.stop()
+
+        runtime_manager.register(
+            "resource_manager", _stop_resource_manager, priority=PRIORITY_FIRST
+        )
+
+        async def _stop_background_tasks() -> None:
+            await background_task_manager.stop()
+
+        runtime_manager.register(
+            "background_task_manager", _stop_background_tasks, priority=PRIORITY_FIRST + 1
+        )
+
+        async def _mark_clean() -> None:
+            crash_recovery.mark_clean()
+
+        runtime_manager.register("crash_recovery", _mark_clean, priority=PRIORITY_FIRST + 7)
 
     def _run_headless(self) -> int:
         from loguru import logger

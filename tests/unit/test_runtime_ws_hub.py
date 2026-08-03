@@ -50,6 +50,7 @@ def _hub():
 def test_every_documented_event_type_is_mapped() -> None:
     names = set(EVENT_TYPE_NAMES.values())
     assert names == {
+        # Task Group B
         "runtime.started",
         "runtime.ready",
         "runtime.stopping",
@@ -61,6 +62,12 @@ def test_every_documented_event_type_is_mapped() -> None:
         "session.created",
         "session.closed",
         "health.updated",
+        # Task Group C
+        "runtime.crash_recovered",
+        "task.started",
+        "task.completed",
+        "task.failed",
+        "resource.budget_exceeded",
     }
 
 

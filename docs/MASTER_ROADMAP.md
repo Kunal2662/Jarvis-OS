@@ -105,14 +105,14 @@ future work; see M6's own §3 entry for the full scope note.
   this blocks M9, which has no real dependency on it (see
   `IMPLEMENTATION_ROADMAP.md` §5's own Dependencies note). **M8 is not
   100% complete** — do not treat it as shipped.
-- **M9 — Runtime & Core Services** (see §8) — Runtime Core module fully
-  shipped across Task Group A (Runtime Manager, Application Lifecycle)
-  and Task Group B (Service Manager, Session Manager, Configuration
-  Manager, Runtime Health Monitor, Runtime WebSocket API, Runtime
-  Integration). Task Group C (Reliability — Background Task Manager,
-  Crash Recovery, Resource Manager), Task Group D (Plugin Platform),
-  and Task Group E (Developer Platform Tools) are 🔴 planned, not yet
-  started — see `IMPLEMENTATION_ROADMAP.md` §5.
+- **M9 — Runtime & Core Services** (see §8) — Runtime Core and
+  Reliability modules fully shipped across Task Group A (Runtime
+  Manager, Application Lifecycle), Task Group B (Service Manager,
+  Session Manager, Configuration Manager, Runtime Health Monitor,
+  Runtime WebSocket API, Runtime Integration), and Task Group C
+  (Background Task Manager, Crash Recovery, Resource Manager). Task
+  Group D (Plugin Platform) and Task Group E (Developer Platform Tools)
+  are 🔴 planned, not yet started — see `IMPLEMENTATION_ROADMAP.md` §5.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -1514,10 +1514,8 @@ the layer M8's FastAPI routers call into, and the layer a plugin's
   `PLC0415` lazy-import pattern noted in §15) rather than introducing
   a second DI mechanism.
 
-#### Reliability *(🔴 Task Group C, planned — Health Monitor's
-foundational slice already shipped under Task Group B, see below;
-Background Tasks/Crash Recovery/Resource Manager are Task Group C's
-own remaining scope)*
+#### Reliability *(✅ shipped Aug 2026, Task Groups B+C — see the
+changelog addendum)*
 - **Health Monitor** *(foundational slice shipped Aug 2026, Task Group
   B)* — `HealthMonitor` (`core.lifecycle.health_monitor`): lightweight,
   non-blocking `psutil`-based polling of process CPU/RAM/uptime,
@@ -1530,20 +1528,40 @@ own remaining scope)*
   (foundational; M18 Self-Healing & Diagnostics Platform later builds
   the full self-healing layer on top of this module's signals, not a
   competing one).
-- **Background Task Manager** *(🔴 Task Group C, planned)* — a
-  supervised task-queue for long-running non-request work (distinct
-  from M7's `ActionExecutor`, which is user-triggered automation, not
-  background runtime maintenance; also distinct from the frontend's
-  `stores/background-tasks.store.ts`, a display-only store with no
-  real queue behind it today — see M8's Deferred Backlog).
-- **Crash Recovery** *(🔴 Task Group C, planned)* — process-level
-  recovery, extending `ShutdownManager`'s cleanup-on-exit guarantee to
-  cleanup-and-restart-on-crash.
-- **Resource Manager** *(🔴 Task Group C, planned)* — CPU/GPU/memory/
-  disk budget tracking across everything the runtime supervises
-  (services, plugins, background tasks), the consumer-side counterpart
-  to M22 Edge AI Platform's own Resource Allocation module once that
-  milestone exists (see §15's Technical Debt "Resource Manager" entry).
+- **Background Task Manager** *(shipped Aug 2026, Task Group C)* —
+  `BackgroundTaskManager` (`core.lifecycle.background_task_manager`): a
+  bounded-concurrency (`asyncio.Semaphore`), per-task fault-isolated
+  task queue for long-running non-request work (distinct from M7's
+  `ActionExecutor`, which is user-triggered automation, not background
+  runtime maintenance; also distinct from the frontend's `stores/
+  background-tasks.store.ts`, which stays a display-only store reading
+  this manager's `task.started`/`task.completed`/`task.failed` events
+  over the Runtime WebSocket API rather than owning a second queue —
+  see M8's Deferred Backlog). `submit()`/`cancel()`/`stop()` (graceful
+  drain); a task cancelled before its coroutine's first scheduling turn
+  is caught by a done-callback fallback, since Python never enters an
+  unstarted coroutine's own body to run its `except CancelledError`.
+- **Crash Recovery** *(shipped Aug 2026, Task Group C)* —
+  `CrashRecoveryManager` (`core.lifecycle.crash_recovery`): a real
+  "mark dirty at start, mark clean at end" on-disk marker
+  (`runtime_state.json`, via the existing `config_dir` convention every
+  other JSON-config-store service uses) detects an unclean previous
+  shutdown and publishes `CrashRecoveredEvent`. Automatically
+  respawning a fresh OS process after a real crash needs an external
+  supervisor outside this application's own control — real, separate,
+  future work, not claimed here (see this addendum's Future Work).
+- **Resource Manager** *(shipped Aug 2026, Task Group C)* —
+  `ResourceManager` (`core.lifecycle.resource_manager`): CPU/memory
+  budget tracking, composing on `HealthMonitor` by subscribing to its
+  existing `HealthUpdatedEvent` rather than polling `psutil` a second
+  time. Publishes `ResourceBudgetExceededEvent` only on the transition
+  into violation, not every tick a budget stays exceeded. Tracks and
+  alerts only — nothing throttles or kills a service on a breach yet,
+  the consumer-side counterpart to M22 Edge AI Platform's own future
+  Resource Allocation module (see §15's Technical Debt "Resource
+  Manager" entry). GPU/disk budgets are real, registerable
+  (`register_budget()`) even though no collector publishes either
+  metric yet.
 
 #### Plugin Platform *(🔴 Task Group D, planned — preserves the
 original M8 scope in full)*
@@ -8921,7 +8939,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | *(patch)* | —       | `0.5.1` security patch (cryptography upgrade), `0.5.2` DI container architecture fix — both out-of-band per §6, not milestones | ✅ Shipped |
 | **0.6** | M7        | Workflow Intelligence           | 🟡 Active (Phase 1–2 shipped; Phase 3 deferred; Phases 4–6 paused) |
 | **0.7** | M8        | React Frontend & Desktop Experience | 🟡 Active (Phase 1+4 shipped; Phase 3 partial; Phases 2/5/6/7 + Phase 3 remainder deferred — see Deferred Backlog, §8) |
-| **0.8** | M9        | Runtime & Core Services          | 🟡 Active (Task Groups A+B shipped — Runtime Core complete; Task Group C Reliability, Task Group D Plugin Platform, Task Group E Developer Platform Tools 🔴 planned) |
+| **0.8** | M9        | Runtime & Core Services          | 🟡 Active (Task Groups A+B+C shipped — Runtime Core + Reliability complete; Task Group D Plugin Platform, Task Group E Developer Platform Tools 🔴 planned) |
 | **0.9** | M10       | AI Orchestrator                  | 🔴 Planned |
 | **0.10**| M10A      | Universal Search & Knowledge Platform | 🔴 Planned |
 | **0.11**| M10B      | Intelligence Layer               | 🔴 Planned |
@@ -11113,3 +11131,111 @@ directly. Full `pytest`/`mypy`/`ruff`/`black` validation re-run clean
 unchanged from M9 Task Group B's own validated baseline since no
 source code changed in this pass — documentation only). Bump this line
 whenever you edit the roadmap.*
+
+*Aug 2026 addendum — M9 Task Group C (Background Task Manager, Crash
+Recovery, Resource Manager):* closes out M9's Reliability module,
+following directly from the roadmap reconciliation pass above.
+Architecture unchanged — Python + FastAPI + Tauri; this addendum
+documents implementation only.
+
+`core/lifecycle/background_task_manager.py`'s `BackgroundTaskManager`
+supervises a bounded-concurrency (`asyncio.Semaphore`) task queue with
+per-task fault isolation, matching every other M9 lifecycle
+component's own guarantee. A real, non-obvious bug surfaced by its own
+test suite: cancelling a task still *waiting* for a concurrency slot
+(never yet entered its coroutine's first scheduling turn) delivers
+`CancelledError` without ever running a single line of that
+coroutine's own body -- Python's documented behavior for `.throw()`
+into an unstarted generator/coroutine is to re-raise immediately to
+the caller, never entering the function. `_run()`'s own
+`except CancelledError` handler is consequently unreachable for that
+specific case; a `done_callback` registered at submission time is the
+fallback that still marks the task `CANCELLED`, a no-op whenever
+`_run()` already handled it itself. Publishes `task.started`/
+`task.completed`/`task.failed`, relayed over the Runtime WebSocket API
+-- the real backend queue the frontend's existing, display-only
+`stores/background-tasks.store.ts` (see M8's Deferred Backlog) will
+eventually read from, not a second, competing implementation.
+
+`core/lifecycle/crash_recovery.py`'s `CrashRecoveryManager` writes a
+"dirty" marker (`runtime_state.json`, via the existing
+`config_dir`/JSON-config-store convention every other service like
+`ApiCenterService` already uses) at the very start of startup and only
+clears it once shutdown has genuinely finished. If startup finds the
+marker already dirty, the previous run never reached a clean shutdown
+-- detected, published as `CrashRecoveredEvent`. Explicitly does *not*
+claim to automatically respawn a crashed process -- a process cannot
+restart itself after crashing by definition, and building an external
+supervisor/watchdog process is real, separate, future work (see this
+addendum's Future Work), not silently implied by "Crash Recovery"'s
+name. Proven under test across two independent
+`CrashRecoveryManager`/marker-file instances, simulating a real crash
+by simply never calling `mark_clean()` on the first one -- the same
+shape a real hard process kill leaves behind.
+
+`core/lifecycle/resource_manager.py`'s `ResourceManager` tracks
+CPU/memory budgets (new `ResourceSettings`,
+`core/config/settings.py` -- `max_cpu_percent`/`max_memory_mb`) by
+subscribing to `HealthMonitor`'s existing `HealthUpdatedEvent` rather
+than polling `psutil` a second time or running a competing poll loop --
+avoiding both duplicate collection and a duplicate loop, per this
+milestone's own "reuse `RuntimeManager`/`HealthMonitor` behavior
+instead of duplicating logic" requirement. Publishes
+`ResourceBudgetExceededEvent` only on the transition into violation
+(proven under test: staying over budget on a later tick does not
+re-publish; dropping under budget then crossing again does). Tracks
+and alerts only -- nothing throttles or kills a service on a breach,
+matching Reliability's "observability, not an autonomous scheduler"
+scope; real enforcement is M22 Edge AI Platform's future Resource
+Allocation module.
+
+`app.py`'s `_register_task_group_c_hooks` (new, mirroring Task Group
+B's own `_register_task_group_b_hooks` sibling) wires all three into
+`RuntimeManager` in deterministic order: Crash Recovery's dirty-check
+runs immediately after Configuration Manager (priority 1, before
+Service Manager) so every later manager boots with crash status
+already known; Background Task Manager and Resource Manager join at
+the very end of startup (priorities 10-11). Shutdown reverses this --
+Resource Manager and Background Task Manager stop first (priorities
+0-1), and Crash Recovery marks the run clean *last of all* (priority
+7), after every other shutdown hook has actually finished, so "clean"
+is accurate. Task Group B's own five shutdown-hook priorities were
+renumbered from 0-4 to 2-6 (pure, safe, in-place renumbering within
+the same method already being extended -- priorities are relative ints
+re-declared fresh at every boot, never persisted, so this carries no
+migration concern) to make room. `RuntimeWebSocketHub`'s
+`EVENT_TYPE_NAMES` gained five more entries
+(`runtime.crash_recovered`, `task.started/completed/failed`,
+`resource.budget_exceeded`), extending `docs/ARCHITECTURE.md` §6's
+category table the same way Task Group B's own five did.
+
+29 new tests across three files (`test_background_task_manager.py`,
+`test_crash_recovery.py`, `test_resource_manager.py`) cover bounded
+concurrency, fault isolation, both cancellation code paths (mid-run and
+pre-first-run), crash detection across independent marker-file
+instances, corrupt-marker resilience, and budget-transition-only event
+publishing. One existing test
+(`test_runtime_ws_hub.py::test_every_documented_event_type_is_mapped`)
+was updated to include the five new relayed categories -- an expected
+extension of Task Group B's own event map, not a regression. Full
+suite: 542 passed, zero regressions. mypy/ruff/black diffed against a
+clean pre-task-group `git stash` baseline: zero new findings outside
+two more `Need type annotation` hits on the container's two new
+`providers.Singleton` declarations (`crash_recovery_manager`,
+`background_task_manager` -- the same pre-existing, already-accepted
+§15 pattern every other service in that file already has) and one more
+`PLC0415` lazy-import hit inside the new tests, the same accepted
+convention every existing test already uses. No dependency,
+acceptance-criterion, or numbering conflict was found against M0–M27.
+
+**Future Work** (explicitly out of scope for this task group, not
+implemented): an external supervisor/watchdog process for genuine
+automatic process restart after a crash (this task group's Crash
+Recovery only detects and reports, per its own module docstring);
+GPU/disk collectors for `HealthMonitor` (Resource Manager's
+`register_budget()` already supports them once a collector exists);
+enforcement (throttle/kill) on a Resource Manager budget breach;
+persisting/resuming the Background Task Manager's queue across a
+restart; Task Group D (Plugin Platform) and Task Group E (Developer
+Platform Tools), M9's two remaining modules. Bump this line whenever
+you edit the roadmap.*

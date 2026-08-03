@@ -118,6 +118,60 @@ class HealthUpdatedEvent(Event):
     snapshot: dict[str, Any] = field(default_factory=dict)
 
 
+# --- Background Task Manager (Milestone 9 Task Group C) ----------------------
+@dataclass(frozen=True, slots=True)
+class TaskStartedEvent(Event):
+    """Published by :class:`~jarvis.core.lifecycle.background_task_manager.
+    BackgroundTaskManager` when a queued task begins running."""
+
+    task_id: str = ""
+    name: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class TaskCompletedEvent(Event):
+    """Published when a background task's factory returns without
+    raising."""
+
+    task_id: str = ""
+    name: str = ""
+    duration_ms: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class TaskFailedEvent(Event):
+    """Published when a background task's factory raises. The failure
+    is isolated to that one task -- the manager keeps running every
+    other queued/in-flight task."""
+
+    task_id: str = ""
+    name: str = ""
+    detail: str = ""
+
+
+# --- Crash Recovery (Milestone 9 Task Group C) --------------------------------
+@dataclass(frozen=True, slots=True)
+class CrashRecoveredEvent(Event):
+    """Published by :class:`~jarvis.core.lifecycle.crash_recovery.
+    CrashRecoveryManager` when startup finds the previous run's
+    on-disk marker still reading "dirty" -- the previous process never
+    reached a clean shutdown."""
+
+    previous_boot_at: str = ""
+
+
+# --- Resource Manager (Milestone 9 Task Group C) ------------------------------
+@dataclass(frozen=True, slots=True)
+class ResourceBudgetExceededEvent(Event):
+    """Published by :class:`~jarvis.core.lifecycle.resource_manager.
+    ResourceManager` the moment a tracked resource crosses its
+    configured budget (not on every subsequent tick it stays over)."""
+
+    resource: str = ""
+    used: float = 0.0
+    budget: float = 0.0
+
+
 @dataclass(frozen=True, slots=True)
 class VoiceStateChangedEvent(Event):
     """Fired whenever the voice pipeline's state machine transitions."""

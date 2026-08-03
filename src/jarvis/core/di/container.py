@@ -216,6 +216,17 @@ def _build_service_manager(
     return manager
 
 
+def _build_resource_manager(*, event_bus: Any, settings: Settings) -> Any:
+    from jarvis.core.lifecycle.resource_manager import ResourceManager
+
+    manager = ResourceManager(event_bus=event_bus)
+    manager.register_budget("cpu", "cpu_percent", settings.resource.max_cpu_percent)
+    manager.register_budget(
+        "memory", "memory_rss_bytes", settings.resource.max_memory_mb * 1024 * 1024
+    )
+    return manager
+
+
 def _build_agent_orchestrator(
     *,
     settings: Settings,
@@ -263,6 +274,11 @@ class Container(containers.DeclarativeContainer):
     )
     configuration_manager = providers.Singleton(
         "jarvis.core.lifecycle.configuration_manager.ConfigurationManager",
+        settings=settings,
+        event_bus=event_bus,
+    )
+    crash_recovery_manager = providers.Singleton(
+        "jarvis.core.lifecycle.crash_recovery.CrashRecoveryManager",
         settings=settings,
         event_bus=event_bus,
     )
@@ -375,6 +391,15 @@ class Container(containers.DeclarativeContainer):
         "jarvis.core.lifecycle.runtime_ws_hub.RuntimeWebSocketHub",
         event_bus=event_bus,
         session_manager=session_manager,
+    )
+    background_task_manager = providers.Singleton(
+        "jarvis.core.lifecycle.background_task_manager.BackgroundTaskManager",
+        event_bus=event_bus,
+    )
+    resource_manager = providers.Singleton(
+        _build_resource_manager,
+        event_bus=event_bus,
+        settings=settings,
     )
 
     # ---- Milestone 5 -- UI / Developer Mode / API Center / Update Center --

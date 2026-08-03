@@ -3,6 +3,56 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.0] — M9, Task Group C (Background Task Manager, Crash Recovery, Resource Manager)
+
+Closes out M9's Reliability module in full (Health Monitor's
+foundational slice already shipped under Task Group B). Follows the
+Aug 2026 roadmap reconciliation pass (docs-only, no source changes).
+Architecture unchanged -- Python + FastAPI + Tauri, no migration.
+
+### Added
+- `core/lifecycle/background_task_manager.py` -- `BackgroundTaskManager`:
+  a bounded-concurrency (`asyncio.Semaphore`) task queue with per-task
+  fault isolation. `submit()`/`cancel()`/`stop()` (graceful drain). A
+  done-callback fallback handles a task cancelled before its
+  coroutine's first scheduling turn -- Python never enters an unstarted
+  coroutine's own body to run its `except CancelledError`, so `_run()`'s
+  in-body handler alone can't catch that case.
+- `core/lifecycle/crash_recovery.py` -- `CrashRecoveryManager`: a
+  "mark dirty at start, mark clean at end" on-disk marker
+  (`runtime_state.json`, existing `config_dir` JSON-config-store
+  convention) detects an unclean previous shutdown and publishes
+  `CrashRecoveredEvent`. Does not claim to auto-respawn a crashed
+  process -- real, separate, future work.
+- `core/lifecycle/resource_manager.py` -- `ResourceManager`: CPU/
+  memory budget tracking (new `ResourceSettings`,
+  `core/config/settings.py`), subscribing to `HealthMonitor`'s existing
+  `HealthUpdatedEvent` instead of polling `psutil` a second time.
+  Publishes `ResourceBudgetExceededEvent` only on the transition into
+  violation.
+- Five new events (`core/events/events.py`): `TaskStartedEvent`,
+  `TaskCompletedEvent`, `TaskFailedEvent`, `CrashRecoveredEvent`,
+  `ResourceBudgetExceededEvent` -- all relayed over the Runtime
+  WebSocket API (`runtime.crash_recovered`,
+  `task.started/completed/failed`, `resource.budget_exceeded`).
+- 29 new tests across three files covering bounded concurrency, fault
+  isolation, both cancellation code paths (mid-run and
+  pre-first-scheduling-turn), crash detection across independent
+  marker-file instances, corrupt-marker resilience, and
+  budget-transition-only event publishing.
+
+### Changed
+- `app.py` gained `_register_task_group_c_hooks`, wiring all three new
+  managers into `RuntimeManager`: Crash Recovery's dirty-check runs
+  immediately after Configuration Manager (before Service Manager);
+  Background Task Manager and Resource Manager join at the end of
+  startup. Shutdown reverses this, with Crash Recovery marking the run
+  clean *last of all*. Task Group B's own five shutdown-hook priorities
+  were renumbered (0-4 -> 2-6, in-place, no migration concern) to make
+  room.
+- `core/lifecycle/runtime_ws_hub.py`'s `EVENT_TYPE_NAMES` gained five
+  more entries for the events above.
+
 ## [0.9.0] — M9, Task Group B (Service/Session/Configuration Manager, Health Monitor, Runtime WebSocket API)
 
 Second and final Runtime Core deliverable, closing out every M9
