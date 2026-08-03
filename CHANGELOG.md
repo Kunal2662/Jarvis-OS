@@ -3,6 +3,30 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.5] — M8 Phase 4, Task Group L (Dashboard widget drag-and-drop)
+
+Fifth and final task group of the Premium UI & Voice Experience
+initiative. Ships real mouse-driven drag-to-reorder for Dashboard
+widgets, additive alongside the existing Move up/down buttons.
+
+### Added
+- `stores/dashboard-layout.store.ts`'s `reorderPeers(peerIds, pinned)`
+  -- applies a full drag-produced permutation of one pin group, leaving
+  the opposite pin group and hidden widgets' positions untouched.
+  Additive alongside the existing `moveWidget()`; both operate on the
+  same `order` array.
+- `features/dashboard/dashboard-grid.tsx` -- two `motion/react`
+  `Reorder.Group` instances (one per pin group, `Reorder.Item` per
+  widget) with a dedicated drag handle (`dragListener={false}` +
+  `useDragControls()`) so dragging doesn't conflict with the card's own
+  five buttons or its real content. Dragging only ever reorders a
+  widget among its own pin-group peers, matching the Move buttons'
+  existing constraint.
+- `e2e/dashboard-widgets.spec.ts` -- real, mouse-driven Playwright
+  verification (`page.mouse`) that the drag gesture actually reorders
+  widgets and persists to the real store, plus a regression test
+  confirming Move up/down still work unchanged.
+
 ## [0.7.4] — M8 Phase 4, Task Group K (Accessibility settings)
 
 Fourth task group of the Premium UI & Voice Experience initiative.

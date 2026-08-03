@@ -53,6 +53,16 @@ interface DashboardLayoutState {
    *  swap with the adjacent peer; "start"/"end" swap with the first/last
    *  peer, which moves `id` to that end of its group. */
   moveWidget: (id: string, direction: "up" | "down" | "start" | "end") => void;
+  /** Applies a full drag-produced reorder of one peer group (Task Group
+   *  L, additive alongside `moveWidget`'s discrete up/down/start/end
+   *  steps -- neither replaces the other). `peerIds` must be a
+   *  permutation of that group's current members, exactly what
+   *  `Reorder.Group`'s own `onReorder` callback provides. Walks the
+   *  stored `order` array and, at each position currently held by a
+   *  member of the target pinned/unpinned group, substitutes the next
+   *  id from the new sequence -- every other id (the opposite pin
+   *  group, and hidden widgets) keeps its exact position untouched. */
+  reorderPeers: (peerIds: string[], pinned: boolean) => void;
   togglePin: (id: string) => void;
   resetLayout: () => void;
   /** One JSON document, matching `core/settings-framework.ts`'s
@@ -114,7 +124,11 @@ function parseImportedLayout(json: string): PersistedLayout {
  * same split `stores/dock.store.ts` (preference) and
  * `core/application-registry.ts` (what exists) already establish: this
  * store never invents widgets, it only remembers the user's layout
- * choices for widgets the registry says exist.
+ * choices for widgets the registry says exist. `reorderPeers()` (Phase
+ * 4, Task Group L) added drag-to-reorder support, additive alongside
+ * `moveWidget()`'s existing discrete step buttons -- both operate on
+ * the same `order` array, so the two interaction models can never
+ * disagree about the current layout.
  */
 export const useDashboardLayoutStore = create<DashboardLayoutState>()(
   persist(
@@ -173,6 +187,18 @@ export const useDashboardLayoutStore = create<DashboardLayoutState>()(
           const fromIndex = order.indexOf(id);
           const toIndex = order.indexOf(targetId);
           [order[fromIndex], order[toIndex]] = [order[toIndex], order[fromIndex]];
+          return { order };
+        }),
+      reorderPeers: (peerIds, pinned) =>
+        set((s) => {
+          const peerSet = new Set(peerIds);
+          let nextIndex = 0;
+          const order = s.order.map((id) => {
+            if (peerSet.has(id) && s.entries[id]?.pinned === pinned) {
+              return peerIds[nextIndex++];
+            }
+            return id;
+          });
           return { order };
         }),
       togglePin: (id) =>

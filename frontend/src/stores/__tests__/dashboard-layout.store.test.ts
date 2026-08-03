@@ -124,6 +124,35 @@ describe("useDashboardLayoutStore", () => {
     });
   });
 
+  describe("reorderPeers()", () => {
+    beforeEach(() => {
+      reset();
+      const { ensureWidget } = useDashboardLayoutStore.getState();
+      ensureWidget("a", { width: 1, height: 1 });
+      ensureWidget("b", { width: 1, height: 1 });
+      ensureWidget("c", { width: 1, height: 1 });
+    });
+
+    it("applies a full drag-produced permutation of the group", () => {
+      useDashboardLayoutStore.getState().reorderPeers(["c", "a", "b"], false);
+      expect(useDashboardLayoutStore.getState().order).toEqual(["c", "a", "b"]);
+    });
+
+    it("leaves the opposite pin group's positions untouched", () => {
+      useDashboardLayoutStore.getState().togglePin("b");
+      // Only "a"/"c" are unpinned peers now; reorder them.
+      useDashboardLayoutStore.getState().reorderPeers(["c", "a"], false);
+      // "b" (pinned) keeps its original slot; "a"/"c" swap around it.
+      expect(useDashboardLayoutStore.getState().order).toEqual(["c", "b", "a"]);
+    });
+
+    it("leaves hidden widgets' positions untouched", () => {
+      useDashboardLayoutStore.getState().removeWidget("b");
+      useDashboardLayoutStore.getState().reorderPeers(["c", "a"], false);
+      expect(useDashboardLayoutStore.getState().order).toEqual(["c", "b", "a"]);
+    });
+  });
+
   it("resetLayout() clears everything", () => {
     useDashboardLayoutStore.getState().ensureWidget("w1", { width: 1, height: 1 });
     useDashboardLayoutStore.getState().resetLayout();

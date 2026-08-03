@@ -1265,9 +1265,16 @@ toggles outside Developer Mode for the first time. The backing store
 UI rather than just the startup sequence, and gained a genuine third
 preference — `reducedMotion`, an app-level override on top of
 `prefers-reduced-motion` — wired into `MotionConfig` so every
-declarative Motion animation in the app respects it. Conversation
-Timeline and the broader motion pass (hover, Sidebar, Dock, Cards,
-Notifications) remain pending.
+declarative Motion animation in the app respects it.
+
+**Dashboard widget drag-and-drop** *(shipped Aug 2026, Task Group L —
+see the changelog addendum)*: real, mouse-driven drag-to-reorder for
+Dashboard widgets, additive alongside the existing Move up/down
+buttons — built on `motion/react`'s own `Reorder.Group`/`Reorder.Item`
+(already a dependency, no new drag library added). This closes the
+Premium UI & Voice Experience initiative's five task groups (H–L).
+Conversation Timeline and the broader motion pass (hover, Sidebar,
+Dock, Cards, Notifications) remain pending.
 
 #### Phase 5 — Settings & User Profiles
 Dynamic Settings (schema-driven, preserving M5's self-registering
@@ -10608,3 +10615,70 @@ sequential task groups planned for this initiative (H, I, J, K, L);
 still open, plus the broader hover/Sidebar/Dock/Cards/Notifications
 motion pass tracked separately under Phase 6. Bump this line whenever
 you edit the roadmap.*
+
+*Aug 2026 addendum — Premium UI & Voice Experience initiative, Task
+Group L (Dashboard widget drag-and-drop):* the fifth and final task
+group of the visual-modernization pass. Resolves the brief's own
+"Drag" requirement for Dashboard widgets against the button-based
+interaction model Task Group F had already shipped — additively, per
+the earlier flagged default (a genuinely ambiguous question in the
+brief's answer set at the time): drag is a second, real way to reorder
+widgets, and none of the existing Move up/down/Resize/Pin/Remove
+buttons were removed or changed.
+
+Built on `motion/react`'s own `Reorder.Group`/`Reorder.Item` rather
+than a bespoke drag implementation or a new dependency — this app
+already depends on Motion for every other animation surface, and
+Framer's Reorder API is purpose-built for exactly this "drag to
+reorder a list" case. `stores/dashboard-layout.store.ts` gained
+`reorderPeers(peerIds, pinned)`, additive alongside the existing
+`moveWidget()`: given a full drag-produced permutation of one pin
+group (exactly what `Reorder.Group`'s own `onReorder` callback
+provides), it walks the stored `order` array and, at each position
+currently held by a member of that group, substitutes the next id from
+the new sequence — every other id (the opposite pin group, and hidden
+widgets) keeps its exact position untouched. `moveWidget()`'s discrete
+up/down/start/end steps and `reorderPeers()`'s full-permutation drops
+both operate on the same `order` array, so the two interaction models
+can never disagree about the current layout.
+
+`dashboard-grid.tsx` renders two separate `Reorder.Group` instances,
+one per pin group, each `as="div"`/`className="contents"` so neither
+introduces a wrapper box of its own — their `Reorder.Item` children
+remain direct children of the existing CSS grid, unchanged from before
+this task group. Dragging a widget only ever reorders it among its own
+pin-group peers, the same constraint the Move buttons already enforce
+— chosen deliberately over a single combined drag list, which would
+have let a user drag an unpinned widget above a pinned one, violating
+the "pinned widgets always render first" invariant every other part of
+this feature already relies on. Each `WidgetCard` is now a
+`Reorder.Item` with a dedicated drag handle (`dragListener={false}` +
+`useDragControls()`, started from the handle's own `onPointerDown`)
+rather than making the whole card draggable — the card is full of its
+own interactive controls (five buttons, plus the widget's own real
+content), so a whole-card drag target would fight with clicking any of
+them.
+
+**A real verification lesson surfaced while confirming this worked
+live:** a live check against the Browser pane, plus a scripted
+`dispatchEvent`-based `PointerEvent` sequence, showed no reorder
+occurring at all — Framer Motion's drag gesture recognition depends on
+genuinely trusted browser pointer events (real `setPointerCapture`
+semantics and sequencing) that a synthetic dispatch in that harness
+couldn't faithfully reproduce, and the Browser pane's screenshot
+dependency (unavailable in that session) blocked using its own
+mouse-drag primitive to confirm otherwise. Resolved by adding a real
+Playwright end-to-end test (`e2e/dashboard-widgets.spec.ts`) using
+`page.mouse.move`/`.down`/`.up` against Playwright's own, separately
+managed dev server — genuine, trusted browser mouse events, not a
+scripted dispatch — which confirmed the drag gesture and the resulting
+reorder both work correctly end to end, including that the real store
+persists the new order (not just a visual change) and that dragging
+never adds or removes a widget, only reorders it. A second Playwright
+test confirms the pre-existing Move up/down buttons still work
+unchanged alongside the new handle. No dependency, acceptance-
+criterion, or numbering conflict was found against M0–M27. This closes
+the Premium UI & Voice Experience initiative's five task groups (H, I,
+J, K, L) in full; the broader hover/Sidebar/Dock/Cards/Notifications
+motion pass remains tracked separately under Phase 6 — Premium UI
+Polish. Bump this line whenever you edit the roadmap.*

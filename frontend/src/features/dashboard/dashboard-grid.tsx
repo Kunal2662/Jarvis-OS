@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore, type ChangeEvent } from "react";
-import { ArrowDown, ArrowUp, Download, Maximize2, Pin, PinOff, Plus, RotateCcw, Upload, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Download,
+  GripVertical,
+  Maximize2,
+  Pin,
+  PinOff,
+  Plus,
+  RotateCcw,
+  Upload,
+  X,
+} from "lucide-react";
+import { Reorder, useDragControls } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -52,6 +65,7 @@ export function DashboardGrid() {
   const exportLayout = useDashboardLayoutStore((s) => s.exportLayout);
   const importLayout = useDashboardLayoutStore((s) => s.importLayout);
   const addWidget = useDashboardLayoutStore((s) => s.addWidget);
+  const reorderPeers = useDashboardLayoutStore((s) => s.reorderPeers);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Same "re-render on demand" pattern as Sidebar/Dock/StatusBar --
@@ -172,22 +186,62 @@ export function DashboardGrid() {
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:auto-rows-[12rem]">
-          {renderIds.map((id, index) => {
-            const contribution = contributionById.get(id);
-            const entry = entries[id];
-            if (!contribution || !entry) return null;
-            const peers = index < pinnedIds.length ? pinnedIds : unpinnedIds;
-            const peerIndex = peers.indexOf(id);
-            return (
-              <WidgetCard
-                key={id}
-                contribution={contribution}
-                entry={entry}
-                isFirst={peerIndex === 0}
-                isLast={peerIndex === peers.length - 1}
-              />
-            );
-          })}
+          {/* Two separate Reorder.Group instances (Task Group L), one per
+              pin group -- `as="div"`/`className="contents"` so neither
+              introduces a wrapper box of its own; their `Reorder.Item`
+              children remain direct children of this CSS grid, exactly as
+              plain `<WidgetCard>`s were before. Dragging a widget only
+              ever reorders it among its own pin-group peers, the same
+              constraint the Move up/down buttons already enforce -- drag
+              is additive, not a replacement for them. */}
+          {pinnedIds.length > 0 && (
+            <Reorder.Group
+              as="div"
+              axis="y"
+              className="contents"
+              values={pinnedIds}
+              onReorder={(order) => reorderPeers(order, true)}
+            >
+              {pinnedIds.map((id, index) => {
+                const contribution = contributionById.get(id);
+                const entry = entries[id];
+                if (!contribution || !entry) return null;
+                return (
+                  <WidgetCard
+                    key={id}
+                    contribution={contribution}
+                    entry={entry}
+                    isFirst={index === 0}
+                    isLast={index === pinnedIds.length - 1}
+                  />
+                );
+              })}
+            </Reorder.Group>
+          )}
+          {unpinnedIds.length > 0 && (
+            <Reorder.Group
+              as="div"
+              axis="y"
+              className="contents"
+              values={unpinnedIds}
+              onReorder={(order) => reorderPeers(order, false)}
+            >
+              {unpinnedIds.map((id, index) => {
+                const contribution = contributionById.get(id);
+                const entry = entries[id];
+                if (!contribution || !entry) return null;
+                return (
+                  <WidgetCard
+                    key={id}
+                    contribution={contribution}
+                    entry={entry}
+                    isFirst={index === 0}
+                    isLast={index === unpinnedIds.length - 1}
+                  />
+                );
+              })}
+            </Reorder.Group>
+          )}
         </div>
       )}
     </div>
@@ -209,70 +263,88 @@ function WidgetCard({
   const moveWidget = useDashboardLayoutStore((s) => s.moveWidget);
   const togglePin = useDashboardLayoutStore((s) => s.togglePin);
   const removeWidget = useDashboardLayoutStore((s) => s.removeWidget);
+  // `dragListener={false}` + a dedicated handle (below) rather than the
+  // whole card -- the card is full of its own interactive controls
+  // (buttons, and the widget's own real content), so making the entire
+  // surface a drag target would fight with clicking any of them.
+  const dragControls = useDragControls();
 
   return (
-    <Card
-      role="group"
-      aria-label={contribution.title}
+    <Reorder.Item
+      as="div"
+      value={entry.id}
+      dragListener={false}
+      dragControls={dragControls}
       className={cn(
-        "flex h-full flex-col",
+        "h-full",
         entry.width >= 2 ? "sm:col-span-2" : "sm:col-span-1",
         entry.height >= 2 ? "sm:row-span-2" : "sm:row-span-1",
       )}
     >
-      <CardHeader>
-        <CardTitle>{contribution.title}</CardTitle>
-        <CardAction>
-          <div className="flex items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Move up"
-              disabled={isFirst}
-              onClick={() => moveWidget(entry.id, "up")}
-            >
-              <ArrowUp aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Move down"
-              disabled={isLast}
-              onClick={() => moveWidget(entry.id, "down")}
-            >
-              <ArrowDown aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Resize"
-              onClick={() => resizeWidget(entry.id, nextSize(entry))}
-            >
-              <Maximize2 aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={entry.pinned ? "Unpin" : "Pin"}
-              onClick={() => togglePin(entry.id)}
-            >
-              {entry.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Remove"
-              disabled={entry.pinned}
-              onClick={() => removeWidget(entry.id)}
-            >
-              <X aria-hidden="true" />
-            </Button>
-          </div>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex-1 overflow-auto text-secondary">
-        <contribution.render />
-      </CardContent>
-    </Card>
+      <Card role="group" aria-label={contribution.title} className="flex h-full flex-col">
+        <CardHeader>
+          <CardTitle>{contribution.title}</CardTitle>
+          <CardAction>
+            <div className="flex items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Drag to reorder"
+                className="cursor-grab touch-none active:cursor-grabbing"
+                onPointerDown={(event) => dragControls.start(event)}
+              >
+                <GripVertical aria-hidden="true" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Move up"
+                disabled={isFirst}
+                onClick={() => moveWidget(entry.id, "up")}
+              >
+                <ArrowUp aria-hidden="true" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Move down"
+                disabled={isLast}
+                onClick={() => moveWidget(entry.id, "down")}
+              >
+                <ArrowDown aria-hidden="true" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Resize"
+                onClick={() => resizeWidget(entry.id, nextSize(entry))}
+              >
+                <Maximize2 aria-hidden="true" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={entry.pinned ? "Unpin" : "Pin"}
+                onClick={() => togglePin(entry.id)}
+              >
+                {entry.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Remove"
+                disabled={entry.pinned}
+                onClick={() => removeWidget(entry.id)}
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </div>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="flex-1 overflow-auto text-secondary">
+          <contribution.render />
+        </CardContent>
+      </Card>
+    </Reorder.Item>
   );
 }

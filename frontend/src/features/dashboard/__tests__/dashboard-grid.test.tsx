@@ -86,8 +86,13 @@ describe("DashboardGrid", () => {
     renderGrid();
 
     const user = userEvent.setup();
+    await user.click(within(screen.getByRole("group", { name: "Widget One" })).getByRole("button", { name: "Pin" }));
+
+    // Pinning moves the widget to the pinned peer group's own
+    // Reorder.Group (Task Group L), a different subtree -- re-query
+    // rather than reuse the pre-pin `card` reference, which now points
+    // at a detached, unmounted node.
     const card = screen.getByRole("group", { name: "Widget One" });
-    await user.click(within(card).getByRole("button", { name: "Pin" }));
     expect(within(card).getByRole("button", { name: "Remove" })).toBeDisabled();
   });
 
@@ -118,5 +123,42 @@ describe("DashboardGrid", () => {
     dashboardWidgetRegistry.register(widget());
     renderGrid();
     expect(screen.getByText("Widget One content")).toBeInTheDocument();
+  });
+
+  describe("drag-to-reorder (Task Group L)", () => {
+    it("exposes a dedicated drag handle alongside the existing Move up/down buttons -- additive, not a replacement", () => {
+      dashboardWidgetRegistry.register(widget());
+      renderGrid();
+
+      const card = screen.getByRole("group", { name: "Widget One" });
+      expect(within(card).getByRole("button", { name: "Drag to reorder" })).toBeInTheDocument();
+      expect(within(card).getByRole("button", { name: "Move up" })).toBeInTheDocument();
+      expect(within(card).getByRole("button", { name: "Move down" })).toBeInTheDocument();
+    });
+
+    it("a pinned widget's peer group is separate from unpinned widgets -- moveWidget() still refuses to cross it", async () => {
+      // The real drag interaction itself (pointer geometry, motion
+      // physics) isn't meaningfully testable under jsdom -- covered by
+      // `dashboard-layout.store.test.ts`'s direct `reorderPeers()`
+      // tests and live browser verification instead. This proves the
+      // two Reorder.Group peer partitions this task group introduced
+      // didn't regress the pre-existing pinned/unpinned boundary the
+      // Move buttons already enforced.
+      dashboardWidgetRegistry.register(widget({ id: "a", title: "Widget A" }));
+      dashboardWidgetRegistry.register(widget({ id: "b", title: "Widget B" }));
+      renderGrid();
+
+      const user = userEvent.setup();
+      await user.click(
+        within(screen.getByRole("group", { name: "Widget B" })).getByRole("button", { name: "Pin" }),
+      );
+      await user.click(
+        within(screen.getByRole("group", { name: "Widget B" })).getByRole("button", { name: "Move up" }),
+      );
+
+      // "b" is the only pinned widget -- Move up is a no-op for it, not
+      // a swap with unpinned "a".
+      expect(useDashboardLayoutStore.getState().order).toEqual(["a", "b"]);
+    });
   });
 });

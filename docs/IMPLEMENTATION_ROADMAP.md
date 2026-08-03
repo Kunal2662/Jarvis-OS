@@ -468,6 +468,42 @@ value, a real loading state, or a real empty state.
   - [x] Developer Mode's Startup Preview panel gained a matching
         "Reduced motion" toggle alongside its existing two, so all
         three real preferences stay reachable from both surfaces.
+- [x] **Dashboard widget drag-and-drop** *(Aug 2026, Task Group L,
+      Premium UI & Voice Experience initiative — final task group)*:
+      real mouse-driven drag-to-reorder for Dashboard widgets, additive
+      alongside the existing Move up/down buttons -- neither replaces
+      the other, both operate on the same `stores/dashboard-layout
+      .store.ts` `order` array. Built on `motion/react`'s own
+      `Reorder.Group`/`Reorder.Item` (already a dependency via Motion,
+      no new drag library added) rather than a bespoke drag
+      implementation.
+  - [x] `reorderPeers(peerIds, pinned)` -- a new store action applying
+        a full drag-produced permutation of one pin group, leaving the
+        opposite pin group and any hidden widgets' positions untouched.
+        Additive alongside `moveWidget()`'s existing discrete up/down/
+        start/end steps.
+  - [x] Two separate `Reorder.Group` instances in
+        `features/dashboard/dashboard-grid.tsx`, one per pin group
+        (`as="div" className="contents"` so neither introduces its own
+        wrapper box -- their `Reorder.Item` children stay direct
+        children of the existing CSS grid). Dragging a widget only ever
+        reorders it among its own pin-group peers, the same constraint
+        the Move buttons already enforce -- consistent semantics, not a
+        second, looser interaction model.
+  - [x] A dedicated drag handle (`dragListener={false}` +
+        `useDragControls()`) rather than making the whole card
+        draggable -- the card is full of its own interactive controls
+        (buttons, the widget's own real content), so a whole-card drag
+        target would fight with clicking any of them.
+  - [x] Verified with a real, mouse-driven Playwright test
+        (`e2e/dashboard-widgets.spec.ts`) using `page.mouse`, not a
+        scripted DOM `dispatchEvent` -- Framer Motion's drag gesture
+        recognition depends on genuinely trusted browser pointer events
+        a synthetic dispatch can't faithfully reproduce, which a live
+        check against the Browser pane confirmed firsthand (no reorder
+        occurred from dispatched events; a real Playwright-driven mouse
+        drag reordered correctly). This closes the Premium UI & Voice
+        Experience initiative's five task groups (H, I, J, K, L).
 - [ ] Conversation Timeline.
 - [ ] Motion animations: hover, Sidebar, Dock, Cards, Notifications --
       broader premium-UI motion pass, still pending (see the Premium
