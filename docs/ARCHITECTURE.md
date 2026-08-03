@@ -435,7 +435,16 @@ mechanism §17 defines, validated by FastAPI dependency injection
 
 ## 6. WebSocket standards
 
-**Status: (new, M8+).**
+**Status:** `/api/v1/ws` is real as of Aug 2026 (M9 Task Group B) —
+`core/lifecycle/runtime_ws_hub.py`'s `RuntimeWebSocketHub` +
+`infrastructure/api/routes/runtime_ws.py`, implementing this section's
+envelope, heartbeat, and resume/replay-buffer contract exactly as
+documented below, for the `runtime`/`service`/`configuration`/
+`session`/`health` categories (extended into the table below by that
+task group). The `voice`/`ai`/`automation`/`memory`/`progress`/
+`notification` categories below remain the documented target for their
+owning milestones (M10+) — not yet relayed, since nothing publishes
+them as real `EventBus` events yet.
 
 ### Single connection
 
@@ -471,7 +480,11 @@ categories map directly to the Event Bus categories in §7:
 | `memory` | `memory.updated`, `memory.recalled` |
 | `progress` | `progress.update` (long-running non-AI operations — backups, sync) |
 | `notification` | `notification.created` (user-facing toast-equivalent) |
-| `runtime` | `runtime.module_state_changed` (relays §4 transitions) |
+| `runtime` | `runtime.module_state_changed` (relays §4 transitions); `runtime.started`/`runtime.ready`/`runtime.stopping`/`runtime.shutdown` *(shipped M9 Task Group B — the application-lifecycle-wide sequence, distinct from a single module's §4 transitions above)* |
+| `service` | `service.started`/`service.stopped`/`service.failed` *(shipped M9 Task Group B — Service Manager's per-service lifecycle, `core/lifecycle/service_manager.py`)* |
+| `configuration` | `configuration.updated` *(shipped M9 Task Group B — Configuration Manager's live-reload result, dotted setting keys only, never values)* |
+| `session` | `session.created`/`session.closed` *(shipped M9 Task Group B — Session Manager, `core/lifecycle/session_manager.py`)* |
+| `health` | `health.updated` *(shipped M9 Task Group B — Runtime Health Monitor's poll-tick snapshot, `core/lifecycle/health_monitor.py`)* |
 
 ### Heartbeat and reconnect
 
@@ -492,6 +505,14 @@ The WebSocket handshake carries the same Bearer session token as REST
 since WebSocket handshakes cannot carry custom headers from a browser
 `WebSocket` constructor — the token is validated once at connect, and
 the connection is closed with code `4401` if invalid or expired.
+
+*As shipped (M9 Task Group B):* `token` is a
+:class:`~jarvis.core.lifecycle.session_manager.SessionManager` session
+id, minted by `POST /api/v1/sessions` — the real
+`Depends(get_current_session)` mechanism §5 references, not a
+placeholder. M14's Security Platform layers real Bearer/JWT
+issuance/refresh/expiry (§17) on top of this same query-param contract
+later; the wire format does not change.
 
 ### Event category detail
 
@@ -594,6 +615,18 @@ Every planned event above follows the naming standard and inherits
 ---
 
 ## 8. Service standards
+
+**Status:** the `IService` Protocol below is real code as of Aug 2026
+(M9 Task Group B) — `core/interfaces/service.py`, `runtime_checkable`,
+with `HealthStatus`/`ServiceStatus` as `frozen` dataclasses matching
+this section's shapes exactly (`status()` returns a `ServiceStatus`
+dataclass, not a bare `dict`, as originally sketched below). No
+existing service was retrofitted onto it directly yet — `core/
+lifecycle/service_manager.py`'s `ServiceManager` wraps a curated,
+conflict-free set (`ConversationService`, `ChatService`,
+`MemoryService`, `ThemeService`) in thin adapters instead, composition
+over inheritance; retrofitting the rest remains real future work (see
+`MASTER_ROADMAP.md` §15).
 
 Every service (the Service Layer from §2) exposes exactly this
 interface — the same six methods `ARCHITECTURE_LEGACY.md`'s services

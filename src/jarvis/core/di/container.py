@@ -185,6 +185,37 @@ def _build_automation_service(
     )
 
 
+def _build_service_manager(
+    *,
+    event_bus: Any,
+    conversation_service: Any,
+    chat_service: Any,
+    memory_service: Any,
+    theme_service: Any,
+    settings: Settings,
+) -> Any:
+    from jarvis.core.lifecycle.service_manager import (
+        ChatServiceAdapter,
+        ConversationServiceAdapter,
+        MemoryServiceAdapter,
+        ServiceManager,
+        ThemeServiceAdapter,
+    )
+
+    manager = ServiceManager(event_bus=event_bus)
+    manager.register("conversation", ConversationServiceAdapter(conversation_service), priority=10)
+    manager.register(
+        "chat", ChatServiceAdapter(chat_service), dependencies=("conversation",), priority=20
+    )
+    manager.register(
+        "memory",
+        MemoryServiceAdapter(memory_service, enabled=settings.memory.enabled),
+        priority=10,
+    )
+    manager.register("theme", ThemeServiceAdapter(theme_service), priority=10)
+    return manager
+
+
 def _build_agent_orchestrator(
     *,
     settings: Settings,
@@ -226,7 +257,15 @@ class Container(containers.DeclarativeContainer):
 
     # ---- Cross-cutting -------------------------------------------------
     event_bus = providers.Singleton("jarvis.core.events.event_bus.EventBus")
-    runtime_manager = providers.Singleton("jarvis.core.lifecycle.runtime_manager.RuntimeManager")
+    runtime_manager = providers.Singleton(
+        "jarvis.core.lifecycle.runtime_manager.RuntimeManager",
+        event_bus=event_bus,
+    )
+    configuration_manager = providers.Singleton(
+        "jarvis.core.lifecycle.configuration_manager.ConfigurationManager",
+        settings=settings,
+        event_bus=event_bus,
+    )
 
     # ---- Infrastructure adapters (Singletons) --------------------------
     llm_provider = providers.Singleton(_build_llm_provider, settings=settings)
@@ -243,6 +282,11 @@ class Container(containers.DeclarativeContainer):
     browser = providers.Singleton(_build_browser, settings=settings)
     os_automation = providers.Singleton(_build_os_automation, settings=settings)
     memory_recall_hook = providers.Singleton(_build_memory_recall_hook, settings=settings)
+    session_manager = providers.Singleton(
+        "jarvis.core.lifecycle.session_manager.SessionManager",
+        database=database,
+        event_bus=event_bus,
+    )
 
     # ---- Application services -----------------------------------------
     settings_service = providers.Singleton(
@@ -312,6 +356,25 @@ class Container(containers.DeclarativeContainer):
         vision=vision_provider,
         ocr=ocr_provider,
         settings=settings,
+    )
+    service_manager = providers.Singleton(
+        _build_service_manager,
+        event_bus=event_bus,
+        conversation_service=conversation_service,
+        chat_service=chat_service,
+        memory_service=memory_service,
+        theme_service=theme_service,
+        settings=settings,
+    )
+    health_monitor = providers.Singleton(
+        "jarvis.core.lifecycle.health_monitor.HealthMonitor",
+        service_manager=service_manager,
+        event_bus=event_bus,
+    )
+    runtime_ws_hub = providers.Singleton(
+        "jarvis.core.lifecycle.runtime_ws_hub.RuntimeWebSocketHub",
+        event_bus=event_bus,
+        session_manager=session_manager,
     )
 
     # ---- Milestone 5 -- UI / Developer Mode / API Center / Update Center --

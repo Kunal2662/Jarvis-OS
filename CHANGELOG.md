@@ -3,6 +3,80 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.0] — M9, Task Group B (Service/Session/Configuration Manager, Health Monitor, Runtime WebSocket API)
+
+Second and final Runtime Core deliverable, closing out every M9
+Runtime Core bullet Task Group A deferred. Architecture unchanged from
+Task Group A's own addendum -- Python + FastAPI + Tauri, no migration;
+this entry documents implementation only.
+
+### Added
+- `core/interfaces/service.py` -- `IService` Protocol
+  (`docs/ARCHITECTURE.md` §8) made real code for the first time, plus
+  `HealthStatus`/`ServiceStatus` frozen dataclasses.
+- `core/lifecycle/service_manager.py` -- `ServiceManager`: dependency-
+  ordered startup/shutdown, `restart()`, health polling, fault
+  isolation. Wraps `ConversationService`/`ChatService`/`MemoryService`/
+  `ThemeService` in thin `IService` adapters (composition, not a
+  retrofit of the wrapped services themselves).
+- `core/lifecycle/session_manager.py` -- `SessionManager` and a new
+  `runtime_sessions` table (`infrastructure/database/models.py`,
+  `RuntimeSessionRepository`): persisted session creation/close,
+  dangling-session recovery after an unclean shutdown, optional
+  (nullable) links to `Conversation.id` and the agent orchestrator's
+  LangGraph `thread_id`.
+- `core/lifecycle/configuration_manager.py` -- `ConfigurationManager`:
+  live `reload()` restricted to a `SAFE_RELOAD_SECTIONS` allowlist
+  (`ui`, `voice_announce`, `memory`, `update`, `dev_mode`), publishing
+  `ConfigurationUpdatedEvent` with the changed dotted keys only.
+- `core/lifecycle/health_monitor.py` -- `HealthMonitor`: non-blocking
+  `psutil`-based CPU/RAM/uptime/startup-duration/service-health/
+  restart-count polling, `HealthUpdatedEvent` per tick,
+  `register_collector()` extension point for future metrics.
+- `core/lifecycle/runtime_ws_hub.py` + `infrastructure/api/routes/
+  runtime_ws.py` -- `RuntimeWebSocketHub`, the first real
+  implementation of `docs/ARCHITECTURE.md` §6's WebSocket standard at
+  `/api/v1/ws`: envelope, 30s heartbeat, `resume`/60s replay buffer,
+  relaying all eleven new events (`runtime.started/ready/stopping/
+  shutdown`, `service.started/stopped/failed`,
+  `configuration.updated`, `session.created/closed`,
+  `health.updated`).
+- `infrastructure/api/routes/sessions.py` -- `POST`/`GET`/`DELETE
+  /api/v1/sessions` -- issues the session id used as the WebSocket
+  `token` query param, the real `Depends(get_current_session)`
+  mechanism §5/§6 reference.
+- `infrastructure/api/embedded_server.py` -- `EmbeddedApiServer` embeds
+  the FastAPI app inside the existing PySide6/qasync loop so the
+  WebSocket relay is reachable from the app's one real running process.
+- Nine new events (`core/events/events.py`): `RuntimeStartedEvent`,
+  `RuntimeShutdownCompleteEvent`, `ServiceStartedEvent`,
+  `ServiceStoppedEvent`, `ServiceFailedEvent`, `SessionCreatedEvent`,
+  `SessionClosedEvent`, `ConfigurationUpdatedEvent`,
+  `HealthUpdatedEvent`.
+- 58 new tests across six files covering dependency ordering, restart
+  behavior, failure isolation, session persistence/recovery, safe
+  live-reload, non-blocking health polling, and the real FastAPI
+  WebSocket transport end-to-end (auth, relay, resume/replay) via
+  `TestClient` against a real SQLite database.
+
+### Changed
+- `core/lifecycle/runtime_manager.py`'s `RuntimeManager` gained an
+  optional `event_bus` constructor parameter (every existing zero-arg
+  call site unaffected) so `startup()`/`shutdown()` publish
+  `RuntimeStartedEvent`/`RuntimeShutdownCompleteEvent` at the very
+  start/end of each sequence.
+- `app.py`'s `_run_gui()` wires all five new managers into
+  `RuntimeManager` via a new `_register_task_group_b_hooks` method
+  (split out to keep `_run_gui`'s statement count readable) in
+  deterministic order -- Configuration Manager -> Service Manager ->
+  Session Manager -> Health Monitor/WebSocket relay/embedded API
+  server -> Application Ready -- shutdown reverse. The `memory_policies`
+  startup hook that lived directly in `app.py` since Task Group A moved
+  into `MemoryServiceAdapter.start()`.
+- `infrastructure/api/fastapi_server.py`'s `create_app()` now accepts
+  an optional DI `Container`, mounting the new session/WebSocket
+  routers only when one is supplied.
+
 ## [0.8.0] — M9, Task Group A (Runtime Manager & Application Lifecycle)
 
 First real M9 (Runtime & Core Services) deliverable, consuming the

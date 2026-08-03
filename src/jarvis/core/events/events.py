@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 
@@ -21,6 +22,15 @@ class Event:
 
 # --- Application Lifecycle (Milestone 9, Runtime Core) ----------------------
 @dataclass(frozen=True, slots=True)
+class RuntimeStartedEvent(Event):
+    """Published by :meth:`~jarvis.core.lifecycle.runtime_manager.RuntimeManager.startup`
+    at the very start of the startup sequence, before any registered
+    startup hook runs (Task Group B) -- relayed over WebSocket as
+    ``runtime.started``, the counterpart to :class:`AppReadyEvent`'s
+    ``runtime.ready``."""
+
+
+@dataclass(frozen=True, slots=True)
 class AppReadyEvent(Event):
     """Published by :class:`~jarvis.app.ApplicationBootstrapper` once every
     registered ``RuntimeManager`` startup hook has run (``_run_gui``)."""
@@ -30,6 +40,82 @@ class AppReadyEvent(Event):
 class ShutdownRequestedEvent(Event):
     """Published by :meth:`~jarvis.ui.main_window.MainWindow._graceful_quit`
     before ``RuntimeManager.shutdown()`` releases any real resource."""
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeShutdownCompleteEvent(Event):
+    """Published by :meth:`~jarvis.core.lifecycle.runtime_manager.RuntimeManager.shutdown`
+    once every registered shutdown hook has run (Task Group B) --
+    relayed over WebSocket as ``runtime.shutdown``. The WebSocket
+    connection itself is normally already closing by this point; this
+    exists for any local subscriber (Developer Mode) still listening."""
+
+
+# --- Service Manager (Milestone 9 Task Group B) ------------------------------
+@dataclass(frozen=True, slots=True)
+class ServiceStartedEvent(Event):
+    """Published by :class:`~jarvis.core.lifecycle.service_manager.ServiceManager`
+    once a registered service's ``start()`` returns without raising."""
+
+    service: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceStoppedEvent(Event):
+    """Published once a registered service's ``stop()`` returns."""
+
+    service: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceFailedEvent(Event):
+    """Published when a registered service's ``initialize()``/``start()``
+    raises, or its polled ``health()`` reports unhealthy. The failure is
+    isolated to that one service -- `ServiceManager` continues starting
+    or polling every other registered service."""
+
+    service: str = ""
+    detail: str = ""
+
+
+# --- Session Manager (Milestone 9 Task Group B) ------------------------------
+@dataclass(frozen=True, slots=True)
+class SessionCreatedEvent(Event):
+    """Published by :class:`~jarvis.core.lifecycle.session_manager.SessionManager`
+    when a new runtime session is created (a fresh WebSocket connection,
+    or recovery of a persisted session after restart)."""
+
+    session_id: str = ""
+    recovered: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class SessionClosedEvent(Event):
+    """Published when a runtime session is explicitly closed or expires."""
+
+    session_id: str = ""
+
+
+# --- Configuration Manager (Milestone 9 Task Group B) ------------------------
+@dataclass(frozen=True, slots=True)
+class ConfigurationUpdatedEvent(Event):
+    """Published by :class:`~jarvis.core.lifecycle.configuration_manager.ConfigurationManager`
+    after a live reload actually changes at least one safe-to-reload
+    field. ``keys`` lists the dotted setting paths that changed --
+    never the values themselves, since some (API keys) are secrets."""
+
+    keys: tuple[str, ...] = ()
+
+
+# --- Runtime Health Monitor (Milestone 9 Task Group B) -----------------------
+@dataclass(frozen=True, slots=True)
+class HealthUpdatedEvent(Event):
+    """Published by :class:`~jarvis.core.lifecycle.health_monitor.HealthMonitor`
+    on every poll tick. ``snapshot`` mirrors
+    :meth:`HealthMonitor.snapshot`'s own return shape field-for-field --
+    the WebSocket payload is that dict, not a reinvented shape."""
+
+    snapshot: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

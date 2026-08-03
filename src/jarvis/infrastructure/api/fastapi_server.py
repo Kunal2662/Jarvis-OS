@@ -18,10 +18,21 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
     from jarvis.core.config.settings import Settings
+    from jarvis.core.di.container import Container
 
 
-def create_app(settings: Settings) -> FastAPI:
-    """Build and return the FastAPI application."""
+def create_app(settings: Settings, container: Container | None = None) -> FastAPI:
+    """Build and return the FastAPI application.
+
+    *container* is optional only so a bare ``create_app(settings)`` stays
+    cheap for callers that genuinely don't need it (e.g. a future
+    health-only smoke test) -- routes that need real services
+    (``/api/v1/ws``, ``/api/v1/sessions``, Milestone 9 Task Group B) are
+    only mounted when a real container is supplied, since without one
+    they would have nothing to relay/persist through and would become
+    exactly the "placeholder implementation" this task group was asked
+    not to build.
+    """
     # Deferred import so importing this module stays cheap.
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
@@ -44,6 +55,16 @@ def create_app(settings: Settings) -> FastAPI:
     )
 
     app.include_router(health_routes.router, prefix="/api")
+
+    app.state.container = container
+    if container is not None:
+        from jarvis.infrastructure.api.routes import runtime_ws as runtime_ws_routes
+        from jarvis.infrastructure.api.routes import sessions as session_routes
+
+        app.state.runtime_ws_hub = container.runtime_ws_hub()
+        app.include_router(session_routes.router, prefix="/api/v1")
+        app.include_router(runtime_ws_routes.router, prefix="/api/v1")
+
     return app
 
 
@@ -52,12 +73,15 @@ def run() -> None:
     import uvicorn
 
     from jarvis.core.config.settings import load_settings
+    from jarvis.core.di.container import Container
 
     settings = load_settings()
+    container = Container()
+    container.settings.override(settings)
+
+    app = create_app(settings, container)
     uvicorn.run(
-        "jarvis.infrastructure.api.fastapi_server:create_app",
-        factory=False,
+        app,
         host=settings.api.host,
         port=settings.api.port,
-        reload=settings.api.reload,
     )

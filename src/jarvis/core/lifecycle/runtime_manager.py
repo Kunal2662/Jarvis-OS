@@ -49,6 +49,15 @@ Design notes
 * **Startup and shutdown hooks are tracked independently.** Registering
   a startup hook has no effect on the shutdown side and vice versa --
   a resource that needs both registers each explicitly.
+* **``event_bus`` is optional.** Every existing test constructs
+  ``RuntimeManager()`` with no arguments; passing an
+  :class:`~jarvis.core.events.event_bus.EventBus` (Milestone 9 Task
+  Group B) additionally publishes :class:`~jarvis.core.events.events.
+  RuntimeStartedEvent`/:class:`~jarvis.core.events.events.
+  RuntimeShutdownCompleteEvent` at the very start/end of the two
+  sequences, so the WebSocket relay has a real ``runtime.started``/
+  ``runtime.shutdown`` signal to forward. With no bus, both methods
+  behave exactly as they did before Task Group B.
 """
 
 from __future__ import annotations
@@ -56,8 +65,13 @@ from __future__ import annotations
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
+from jarvis.core.events.events import RuntimeShutdownCompleteEvent, RuntimeStartedEvent
 from jarvis.core.logging.logger import get_logger
+
+if TYPE_CHECKING:
+    from jarvis.core.events.event_bus import EventBus
 
 _logger = get_logger("jarvis.core.lifecycle.runtime_manager")
 
@@ -89,7 +103,8 @@ class LifecycleResult:
 
 
 class RuntimeManager:
-    def __init__(self) -> None:
+    def __init__(self, event_bus: EventBus | None = None) -> None:
+        self._event_bus = event_bus
         self._startup_hooks: list[LifecycleHook] = []
         self._shutdown_hooks: list[LifecycleHook] = []
         self._has_started = False
@@ -126,6 +141,8 @@ class RuntimeManager:
             _logger.warning("RuntimeManager.startup() called more than once -- ignoring.")
             return []
         self._has_started = True
+        if self._event_bus is not None:
+            await self._event_bus.publish(RuntimeStartedEvent())
         return await self._run(self._startup_hooks, "Startup")
 
     # ---- Shutdown ----------------------------------------------------
@@ -159,7 +176,10 @@ class RuntimeManager:
             _logger.warning("RuntimeManager.shutdown() called more than once -- ignoring.")
             return []
         self._has_shut_down = True
-        return await self._run(self._shutdown_hooks, "Shutdown")
+        results = await self._run(self._shutdown_hooks, "Shutdown")
+        if self._event_bus is not None:
+            await self._event_bus.publish(RuntimeShutdownCompleteEvent())
+        return results
 
     # ---- Shared ----------------------------------------------------
     @staticmethod

@@ -129,6 +129,40 @@ class MemoryTag(Base):
 
 
 # ---------------------------------------------------------------------------
+# Milestone 9 Task Group B — Session Manager
+# ---------------------------------------------------------------------------
+class RuntimeSession(Base):
+    """A runtime session -- one connected client/runtime context (today:
+    the desktop UI's own primary session; future: one per WebSocket
+    connection once M9 Task Group B's Runtime WebSocket API is in use).
+
+    Deliberately its own id space rather than reusing ``Conversation.id``
+    or the agent orchestrator's LangGraph ``thread_id`` -- those model two
+    different things (a saved chat history; a LangGraph checkpoint
+    lineage) that a session may reference but does not replace. Both FKs
+    are nullable: a session can exist before either is chosen.
+    """
+
+    __tablename__ = "runtime_sessions"
+    __table_args__ = (Index("ix_runtime_sessions_closed_at", "closed_at"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    conversation_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
+    )
+    # Not a FK -- AgentCheckpointer's AsyncSqliteSaver owns thread lineage
+    # in its own store; this column only records which thread a session
+    # was last associated with.
+    thread_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_active_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    meta_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+# ---------------------------------------------------------------------------
 # Milestone 4 — AI Automation Engine
 # ---------------------------------------------------------------------------
 class TaskHistory(Base):

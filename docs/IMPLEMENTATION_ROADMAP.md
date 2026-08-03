@@ -17,15 +17,19 @@ and, as of Task Group A, M9 (Runtime & Core Services) as well, both
 active in parallel. M8 Phase 1 (React Foundation) and Phase 4 (Voice
 Experience & Motion, in full — the Premium UI & Voice Experience
 initiative's five task groups H–L) shipped; Phases 2–3 and 5–7 remain
-pending, each its own separately-approved implementation pass. M9
-began with Task Group A (Runtime Manager, Application Lifecycle) —
-see §5 below; the rest of M9 remains pending. This is a deliberate,
-explicit exception to "one active milestone at a time": M9's Task
-Group A had no real dependency on M8's remaining frontend backlog (see
-§5's own Dependencies note), following an architecture review the
-user requested and then closed with "keep the documented roadmap
-exactly as-is" — see `MASTER_ROADMAP.md`'s own changelog addendum for
-the full reasoning.
+pending, each its own separately-approved implementation pass. M9's
+Runtime Core module is now fully shipped across Task Group A (Runtime
+Manager, Application Lifecycle) and Task Group B (Service Manager,
+Session Manager, Configuration Manager, Runtime Health Monitor,
+Runtime WebSocket API, Runtime Integration) — see §5 below; M9's
+remaining modules (Reliability, Plugin Platform, Developer Platform
+Tools) remain pending. This is a deliberate, explicit exception to
+"one active milestone at a time": M9's Runtime Core had no real
+dependency on M8's remaining frontend backlog (see §5's own
+Dependencies note), following an architecture review the user
+requested and then closed with "keep the documented roadmap exactly
+as-is" — see `MASTER_ROADMAP.md`'s own changelog addendum for the full
+reasoning.
 
 ---
 
@@ -35,7 +39,7 @@ the full reasoning.
 |---|---|
 | M0 – M7 | Shipped (M7 partially — Phases 1–2 shipped, Phase 3 deferred, Phases 4–6 pending). See `MASTER_ROADMAP.md` §3 and §8. |
 | **M8 – React Frontend & Desktop Experience** | **Active — this document tracks it.** Phase 1 and Phase 4 shipped; Phases 2–3, 5–7 pending. |
-| **M9 – Runtime & Core Services** | **Active (Task Group A only) — see §5 below.** Remaining Runtime Core bullets, plus Reliability/Plugin Platform/Developer Platform Tools, pending. |
+| **M9 – Runtime & Core Services** | **Active — Runtime Core complete (Task Groups A+B), see §5 below.** Reliability's remaining modules, Plugin Platform, Developer Platform Tools pending. |
 | M10 onward | Planned, not started. See `MASTER_ROADMAP.md` §8. |
 
 M7's Phases 4–6 (Workflow Builder, Recorder, Scheduler) were paused
@@ -611,7 +615,7 @@ itself so there is exactly one place they can drift out of sync from.
 
 ---
 
-## 5. M9 — Runtime & Core Services (Active, Task Group A only)
+## 5. M9 — Runtime & Core Services (Active — Runtime Core complete)
 
 Placed after §4 rather than renumbered in between M8's own sections,
 matching this project's "zero renumbering" convention applied to
@@ -652,19 +656,88 @@ above.
         lazy-import pattern `MASTER_ROADMAP.md` §15 already documents)
         were confirmed by diff scope to predate this task group and
         were left alone.
-  - [ ] Exposing Application Lifecycle state to M8's frontend over
-        WebSocket — genuinely not yet possible; today's FastAPI
-        surface has zero WebSocket routes at all. A natural
-        Task Group B, alongside Runtime Core's remaining bullets
-        (Service Manager, Session Manager, Configuration Manager's
-        live-reload path).
-- [ ] Task Group B and onward: the rest of Runtime Core, then
-      Reliability, Plugin Platform, and Developer Platform Tools —
-      not yet scoped into task groups.
+  - [x] Exposing Application Lifecycle state to M8's frontend over
+        WebSocket — shipped as part of Task Group B's Runtime WebSocket
+        API, below.
+- [x] **Task Group B — Service Manager, Session Manager, Configuration
+      Manager, Runtime Health Monitor, Runtime WebSocket API, Runtime
+      Integration** *(Aug 2026 — see `MASTER_ROADMAP.md`'s own
+      changelog addendum for the full reasoning and design)*: closes
+      out Runtime Core in full.
+  - [x] `core/interfaces/service.py` — `IService` Protocol (`docs/
+        ARCHITECTURE.md` §8) made real code for the first time,
+        `HealthStatus`/`ServiceStatus` dataclasses.
+  - [x] `core/lifecycle/service_manager.py` — `ServiceManager`:
+        dependency-ordered startup/shutdown, restart, health polling,
+        fault isolation. Wraps `ConversationService`/`ChatService`/
+        `MemoryService`/`ThemeService` in thin `IService` adapters
+        (composition, not retrofit) — `VoiceService`/`HotkeyService`
+        stay under `MainWindow`'s existing shutdown-hook ownership;
+        `BrowserService`/`AutomationService`/`SystemService` (DI
+        `Factory` providers, no stable identity) are out of scope.
+  - [x] `core/lifecycle/session_manager.py` — `SessionManager`: a new
+        `RuntimeSession` table (nullable, optional links to
+        `Conversation.id`/LangGraph `thread_id`, not a forced merge),
+        persisted creation/close, dangling-session recovery after an
+        unclean shutdown (tested across two independent database
+        instances).
+  - [x] `core/lifecycle/configuration_manager.py` — `ConfigurationManager`:
+        live `reload()` restricted to `SAFE_RELOAD_SECTIONS` (`ui`,
+        `voice_announce`, `memory`, `update`, `dev_mode`), grounded in
+        `ChatService.stream()`'s observed per-call settings read;
+        provider credentials/`enabled` flags stay immutable.
+  - [x] `core/lifecycle/health_monitor.py` — `HealthMonitor`: non-blocking
+        `psutil`-based CPU/RAM/uptime/startup-duration/service-health/
+        restart-count polling, `health.updated` events,
+        `register_collector()` extension point for future GPU/plugin/
+        network metrics.
+  - [x] `core/lifecycle/runtime_ws_hub.py` + `infrastructure/api/routes/
+        runtime_ws.py` + `infrastructure/api/routes/sessions.py` —
+        `docs/ARCHITECTURE.md` §6's WebSocket standard made real at
+        `/api/v1/ws`: envelope, 30s heartbeat, `resume`/60s replay
+        buffer, all eleven events (`runtime.*`, `service.*`,
+        `configuration.updated`, `session.*`, `health.updated`).
+        Authenticated via a `SessionManager` session id
+        (`POST /api/v1/sessions`) standing in for M14's future
+        Bearer/JWT session tokens.
+  - [x] `infrastructure/api/embedded_server.py` — embeds the FastAPI
+        app inside the existing PySide6/qasync loop so the WebSocket
+        relay is actually reachable from the one real running app
+        today, not a placeholder nothing serves.
+  - [x] `app.py`'s new `_register_task_group_b_hooks` wires all five
+        managers into `RuntimeManager` in deterministic order
+        (Configuration → Service → Session → Health/WS relay/embedded
+        server → Application Ready), shutdown reverse.
+        `RuntimeManager` gained an optional `event_bus` parameter
+        (every existing zero-arg test still passes) to publish the
+        new `RuntimeStartedEvent`/`RuntimeShutdownCompleteEvent`.
+  - [x] 58 new tests (service registration/ordering/restart/failure
+        isolation, session persistence/recovery, safe-reload,
+        non-blocking health polling, real FastAPI `TestClient` WebSocket
+        transport incl. auth reject/resume/replay-window-expired) — full
+        suite 524 passed, zero regressions. mypy/ruff/black diffed
+        against a clean pre-task-group `git stash` baseline: zero new
+        findings outside the pre-existing, already-accepted
+        `providers.Singleton` annotation and `PLC0415` lazy-import
+        patterns §15 documents.
+  - **Future Work** (explicitly deferred, not implemented): retrofitting
+        `VoiceService`/`HotkeyService`/`BrowserService`/
+        `AutomationService`/`SystemService` onto `IService`; cascading
+        `ServiceManager.restart()` to dependents; unifying
+        `RuntimeSession` with `Conversation`/`thread_id` beyond the
+        optional link added here; extending `docs/ARCHITECTURE.md` §6's
+        category table to the pre-existing `voice`/`ai`/`automation`/
+        `memory`/`progress`/`notification` categories; a genuine
+        headless `_run_api_only()` runtime mode; M14's real Bearer/JWT
+        session-token issuance.
+- [ ] Task Group C and onward: Reliability's remaining modules
+      (Background Tasks, Crash Recovery, Resource Manager), Plugin
+      Platform, and Developer Platform Tools — not yet scoped into
+      task groups.
 
 **Dependencies note:** M9's own documented dependency on M8
 (`MASTER_ROADMAP.md` §8) is narrow — Developer Platform Tools' and
 Marketplace's *consumer* surfaces, which already exist and work today
 (Developer Mode, Task Group F's Dashboard/Command Palette work). Task
-Group A touched neither, so it was not blocked by M8's remaining
-Phase 2–3/5–7 backlog.
+Groups A and B touched neither, so neither was blocked by M8's
+remaining Phase 2–3/5–7 backlog.

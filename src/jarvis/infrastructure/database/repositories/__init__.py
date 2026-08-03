@@ -11,6 +11,9 @@ from jarvis.infrastructure.database.repositories.memory_repository import (
 from jarvis.infrastructure.database.repositories.message_repository import (
     MessageRepository,
 )
+from jarvis.infrastructure.database.repositories.runtime_session_repository import (
+    RuntimeSessionRepository,
+)
 from jarvis.infrastructure.database.repositories.task_history_repository import (
     TaskHistoryRepository,
 )
@@ -19,5 +22,6 @@ __all__ = [
     "ConversationRepository",
     "MemoryRepository",
     "MessageRepository",
+    "RuntimeSessionRepository",
     "TaskHistoryRepository",
 ]

@@ -15,7 +15,14 @@ import asyncio
 import enum
 import signal
 import sys
+import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from jarvis.core.config.settings import Settings
+    from jarvis.core.lifecycle.health_monitor import HealthMonitor
+    from jarvis.core.lifecycle.runtime_manager import RuntimeManager
 
 
 class RunMode(str, enum.Enum):
@@ -45,7 +52,7 @@ class ApplicationBootstrapper:
     # Boot phases
     # ------------------------------------------------------------------
     def _configure(self) -> None:
-        from jarvis.core.config.settings import Settings, load_settings
+        from jarvis.core.config.settings import load_settings
         from jarvis.core.di.container import Container
         from jarvis.core.logging.logger import configure_logging
 
@@ -132,16 +139,7 @@ class ApplicationBootstrapper:
         # (Milestone 5.5) — the same "doesn't scale" problem, on the
         # startup side.
         runtime_manager = self._container.runtime_manager()
-
-        # Milestone 3 — apply memory retention/pruning policies once at
-        # startup. Best-effort: a failure here must never block boot.
-        if settings.memory.enabled:
-            memory_service = self._container.memory_service()
-
-            async def _enforce_memory_policies() -> None:
-                await memory_service.enforce_policies()
-
-            runtime_manager.register_startup("memory_policies", _enforce_memory_policies)
+        health_monitor = self._register_task_group_b_hooks(runtime_manager, settings)
 
         # Milestone 3.1 — preload the local Whisper model eagerly instead of
         # paying the load cost on the user's first PTT/toggle-listen call.
@@ -155,13 +153,15 @@ class ApplicationBootstrapper:
 
                 runtime_manager.register_startup("whisper_preload", _preload_whisper)
 
+        startup_started_at = time.monotonic()
         loop.run_until_complete(runtime_manager.startup())
+        health_monitor.mark_ready((time.monotonic() - startup_started_at) * 1000)
 
         # Milestone 9 — Application Lifecycle: publish AppReadyEvent once
         # every registered startup hook has actually run, so the rest of
-        # the app (and, eventually, M8's frontend over WebSocket) can
-        # react to a real "ready" signal instead of assuming readiness
-        # once the window is merely constructed.
+        # the app (now real, over the Runtime WebSocket API relay above)
+        # can react to a genuine "ready" signal instead of assuming
+        # readiness once the window is merely constructed.
         from jarvis.core.events.events import AppReadyEvent
 
         event_bus = self._container.event_bus()
@@ -181,6 +181,120 @@ class ApplicationBootstrapper:
             loop.run_until_complete(database.dispose())
             self.shutdown()
         return 0
+
+    def _register_task_group_b_hooks(
+        self, runtime_manager: RuntimeManager, settings: Settings
+    ) -> HealthMonitor:
+        """Milestone 9 Task Group B — deterministic startup order:
+        Configuration Manager -> Service Manager -> Session Manager ->
+        remaining runtime services (Health Monitor, WebSocket relay,
+        embedded API server) -> Application Ready (published by the
+        caller once ``runtime_manager.startup()`` returns). Shutdown
+        hooks below undo this in reverse. Priorities 0-9 are reserved
+        for this sequence; every pre-existing hook (memory policies used
+        to live directly in ``_run_gui`` -- now inside ServiceManager's
+        ``MemoryServiceAdapter``, see ``core/lifecycle/service_manager.py``
+        -- and whisper preload, registered by the caller) keeps its own
+        ``PRIORITY_NORMAL`` default and simply runs after this block,
+        unchanged from before this task group.
+
+        Split out of ``_run_gui`` purely to keep that method's statement
+        count readable -- this is still GUI-runtime-only wiring, not a
+        general-purpose entry point other run modes call.
+        """
+        from jarvis.core.lifecycle.runtime_manager import PRIORITY_FIRST
+        from jarvis.infrastructure.api.embedded_server import EmbeddedApiServer
+        from jarvis.infrastructure.api.fastapi_server import create_app
+
+        assert self._container is not None
+        configuration_manager = self._container.configuration_manager()
+        service_manager = self._container.service_manager()
+        session_manager = self._container.session_manager()
+        health_monitor = self._container.health_monitor()
+        runtime_ws_hub = self._container.runtime_ws_hub()
+        embedded_api_server = EmbeddedApiServer(
+            create_app(settings, self._container),
+            host=settings.api.host,
+            port=settings.api.port,
+        )
+
+        async def _reload_configuration() -> None:
+            await configuration_manager.reload()
+
+        runtime_manager.register_startup(
+            "configuration_manager", _reload_configuration, priority=PRIORITY_FIRST
+        )
+
+        async def _start_services() -> None:
+            await service_manager.start_all()
+
+        runtime_manager.register_startup(
+            "service_manager", _start_services, priority=PRIORITY_FIRST + 2
+        )
+
+        async def _recover_sessions() -> None:
+            await session_manager.recover()
+
+        runtime_manager.register_startup(
+            "session_manager", _recover_sessions, priority=PRIORITY_FIRST + 4
+        )
+
+        async def _start_health_monitor() -> None:
+            await health_monitor.start()
+
+        runtime_manager.register_startup(
+            "health_monitor", _start_health_monitor, priority=PRIORITY_FIRST + 6
+        )
+
+        async def _start_ws_hub() -> None:
+            runtime_ws_hub.start()
+
+        runtime_manager.register_startup(
+            "runtime_ws_hub", _start_ws_hub, priority=PRIORITY_FIRST + 8
+        )
+
+        async def _start_embedded_api_server() -> None:
+            await embedded_api_server.start()
+
+        runtime_manager.register_startup(
+            "embedded_api_server", _start_embedded_api_server, priority=PRIORITY_FIRST + 9
+        )
+
+        # Shutdown -- reverse of the startup order above. Registered
+        # ahead of time (RuntimeManager tracks startup/shutdown hooks
+        # independently; registration order doesn't imply run order,
+        # priority does), same as `_register_shutdown_hooks` in
+        # `ui/main_window.py` already does for UI-owned resources.
+        async def _stop_embedded_api_server() -> None:
+            await embedded_api_server.stop()
+
+        runtime_manager.register(
+            "embedded_api_server", _stop_embedded_api_server, priority=PRIORITY_FIRST
+        )
+
+        async def _stop_ws_hub() -> None:
+            runtime_ws_hub.stop()
+
+        runtime_manager.register("runtime_ws_hub", _stop_ws_hub, priority=PRIORITY_FIRST + 1)
+
+        async def _stop_health_monitor() -> None:
+            await health_monitor.stop()
+
+        runtime_manager.register(
+            "health_monitor", _stop_health_monitor, priority=PRIORITY_FIRST + 2
+        )
+
+        async def _close_sessions() -> None:
+            await session_manager.close_all()
+
+        runtime_manager.register("session_manager", _close_sessions, priority=PRIORITY_FIRST + 3)
+
+        async def _stop_services() -> None:
+            await service_manager.stop_all()
+
+        runtime_manager.register("service_manager", _stop_services, priority=PRIORITY_FIRST + 4)
+
+        return health_monitor
 
     def _run_headless(self) -> int:
         from loguru import logger

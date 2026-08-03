@@ -1370,36 +1370,79 @@ the layer M8's FastAPI routers call into, and the layer a plugin's
   startup steps (memory-policy enforcement, Whisper preload) register
   as real startup hooks instead of hand-written `try`/`except` blocks,
   mirroring exactly how `MainWindow`'s shutdown hooks already worked.
-- **Application Lifecycle** *(partially shipped Aug 2026, Task Group
-  A)* — cold-start, ready, and shutting-down states are now real,
-  published on the existing `EventBus` as `AppReadyEvent` (once every
-  `RuntimeManager` startup hook has run) and `ShutdownRequestedEvent`
-  (before any shutdown hook releases a resource) — both existed only
-  as unused placeholder event types before this task group. Exposing
-  these over WebSocket to M8's frontend, so the UI can show a real
-  "backend starting/ready/shutting down" state instead of a spinner
-  with no backing signal, remains a separate, not-yet-built task —
-  today's FastAPI surface has zero WebSocket routes at all (see
-  Dependencies below).
-- Service Manager — a registry of every running service (`ChatService`,
-  `VoiceService`, `AutomationService`, etc.) with health status, built
-  on the existing `core/di/container.py` rather than a second registry.
-- Session Manager — one backend session per connected frontend client
-  (relevant once M8's FastAPI/WebSocket layer supports more than a
-  single local Tauri window).
-- Configuration Manager — the existing `pydantic-settings`
-  configuration layer, now with a live-reload path exposed to Settings
-  (M8 Phase 5) instead of requiring a restart for every change.
+- **Application Lifecycle** *(shipped Aug 2026 — Task Group A's
+  `AppReadyEvent`/`ShutdownRequestedEvent`; Task Group B added
+  `RuntimeStartedEvent`/`RuntimeShutdownCompleteEvent`, see the
+  changelog addendum)* — cold-start, ready, and shutting-down states
+  are real, published on the existing `EventBus`, and now genuinely
+  exposed over WebSocket to M8's frontend (`runtime.started`,
+  `runtime.ready`, `runtime.stopping`, `runtime.shutdown` — see Runtime
+  WebSocket API below) instead of a spinner with no backing signal.
+- **Service Manager** *(shipped Aug 2026, Task Group B)* —
+  `ServiceManager` (`core.lifecycle.service_manager`): a real registry,
+  built on the existing `core/di/container.py` rather than a second
+  one, with dependency-ordered startup/shutdown, restart, and health
+  polling. Wraps a curated, conflict-free set of services in thin
+  `IService` adapters (`ConversationService`, `ChatService`,
+  `MemoryService`, `ThemeService`) — `VoiceService`/`HotkeyService` stay
+  under `MainWindow`'s existing shutdown-hook ownership (avoiding two
+  competing lifecycle owners for the same resource) and the DI
+  `Factory`-provided services (`BrowserService`/`AutomationService`/
+  `SystemService`) have no stable identity a registry could poll;
+  retrofitting every remaining service onto `IService` is real future
+  work, not this task group's (see §15).
+- **Session Manager** *(shipped Aug 2026, Task Group B)* —
+  `SessionManager` (`core.lifecycle.session_manager`): one runtime
+  session per connected client, persisted (`runtime_sessions` table,
+  `infrastructure/database/models.py`) so an unclean shutdown's
+  dangling sessions are found and closed out on the next boot. Deliber-
+  ately its own id space rather than reusing `Conversation.id` or the
+  agent orchestrator's LangGraph `thread_id` — both stay optional,
+  nullable references on the session row instead of being forced
+  together or left with no link at all. Backs the
+  `Depends(get_current_session)` mechanism §5/§6 reference, via
+  `POST /api/v1/sessions`.
+- **Configuration Manager** *(shipped Aug 2026, Task Group B)* — the
+  existing `pydantic-settings` configuration layer, now with a real
+  live-reload path (`ConfigurationManager.reload()`,
+  `core.lifecycle.configuration_manager`) restricted to a curated
+  `SAFE_RELOAD_SECTIONS` allowlist (`ui`, `voice_announce`, `memory`,
+  `update`, `dev_mode`) — every provider credential/`enabled` field
+  stays immutable startup configuration, matching
+  `SettingsService`'s own pre-existing "no in-flight DI re-wiring"
+  design. Composes on top of `SettingsService` rather than replacing
+  it — `SettingsService` answers what the user can persist for next
+  launch, `ConfigurationManager` answers what can change right now.
+- **Runtime WebSocket API** *(shipped Aug 2026, Task Group B)* — the
+  first real implementation of §6's documented WebSocket standard:
+  `/api/v1/ws`, envelope/heartbeat/resume-with-60s-replay-buffer, all
+  exactly as specified. Relays eleven events across the five managers
+  above (`runtime.started/ready/stopping/shutdown`,
+  `service.started/stopped/failed`, `configuration.updated`,
+  `session.created/closed`, `health.updated`) — a thin relay of
+  `EventBus` events (`RuntimeWebSocketHub`,
+  `core.lifecycle.runtime_ws_hub`), not a second event system.
+  Authenticated via a `SessionManager` session id as the `token` query
+  param — M14's full Bearer/JWT session-token issuance layers on top of
+  this same contract later, not a placeholder token scheme.
 - Dependency Injection — the existing `core/di/container.py`; this
   module owns its continued evolution (e.g. the accepted-debt
   `PLC0415` lazy-import pattern noted in §15) rather than introducing
   a second DI mechanism.
 
 #### Reliability
-- Health Monitor — generalizes M5.5's one-time stabilization audit
-  into a standing health-check surface (foundational; M18 Self-Healing
-  & Diagnostics Platform later builds the full self-healing layer on
-  top of this module's signals, not a competing one).
+- **Health Monitor** *(foundational slice shipped Aug 2026, Task Group
+  B)* — `HealthMonitor` (`core.lifecycle.health_monitor`): lightweight,
+  non-blocking `psutil`-based polling of process CPU/RAM/uptime,
+  startup duration, active/failed services (via `ServiceManager`), and
+  restart count, published as `health.updated` (see Runtime WebSocket
+  API above). `register_collector()` is the extension point for GPU/
+  plugin/network metrics once those exist — no collectors registered
+  yet, deliberately not stubbed. Generalizes M5.5's one-time
+  stabilization audit into a standing health-check surface
+  (foundational; M18 Self-Healing & Diagnostics Platform later builds
+  the full self-healing layer on top of this module's signals, not a
+  competing one).
 - Background Tasks — a supervised task-queue for long-running
   non-request work (distinct from M7's `ActionExecutor`, which is
   user-triggered automation, not background runtime maintenance).
@@ -8785,7 +8828,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | *(patch)* | —       | `0.5.1` security patch (cryptography upgrade), `0.5.2` DI container architecture fix — both out-of-band per §6, not milestones | ✅ Shipped |
 | **0.6** | M7        | Workflow Intelligence           | 🟢 In Progress (Phase 1–2 shipped; Phases 3–6 paused) |
 | **0.7** | M8        | React Frontend & Desktop Experience | 🟡  |
-| **0.8** | M9        | Runtime & Core Services          | 🟢 In Progress (Task Group A shipped; rest of Runtime Core, Reliability, Plugin Platform, Developer Platform Tools pending) |
+| **0.8** | M9        | Runtime & Core Services          | 🟢 In Progress (Task Groups A+B shipped — Runtime Core complete; Reliability's Background Tasks/Crash Recovery/Resource Manager, Plugin Platform, Developer Platform Tools pending) |
 | **0.9** | M10       | AI Orchestrator                  | 🟡      |
 | **0.10**| M10A      | Universal Search & Knowledge Platform | 🟡 |
 | **0.11**| M10B      | Intelligence Layer               | 🟡      |
@@ -10762,3 +10805,145 @@ were confirmed — by diff scope, not assumption — to predate this task
 group and were left alone. No dependency, acceptance-criterion, or
 numbering conflict was found against M0–M27. Bump this line whenever
 you edit the roadmap.*
+
+*Aug 2026 addendum — M9 Task Group B (Service Manager, Session
+Manager, Configuration Manager, Runtime Health Monitor, Runtime
+WebSocket API, Runtime Integration):* the second and final Runtime
+Core task group, closing out every bullet Task Group A explicitly
+deferred. Architecture remained fixed for this task group exactly as
+Task Group A's own addendum recorded — Python 3.13 + FastAPI + Tauri,
+no migration — this addendum documents implementation only, not
+another review.
+
+`core/interfaces/service.py` makes `IService` (`docs/ARCHITECTURE.md`
+§8) real code for the first time — `initialize`/`start`/`stop`/
+`health`/`status`/`shutdown`, plus `HealthStatus`/`ServiceStatus`
+dataclasses. No existing service was retrofitted onto it directly;
+`core/lifecycle/service_manager.py`'s `ServiceManager` wraps a curated
+set (`ConversationService`, `ChatService`, `MemoryService`,
+`ThemeService`) in thin adapter classes instead — composition over
+inheritance, per this task group's own binding requirement.
+`VoiceService`/`HotkeyService` were deliberately excluded:
+`ui/main_window.py`'s `_register_shutdown_hooks()` already owns their
+shutdown lifecycle directly against `RuntimeManager` (predating this
+task group), and giving one resource two competing lifecycle owners
+would be a regression, not an improvement. `BrowserService`/
+`AutomationService`/`SystemService` are DI `Factory` providers (a new
+instance every resolution) with no stable identity a registry could
+poll `health()` on repeatedly — retrofitting those onto `IService` is
+real future work (see §15), not silently worked around here. The
+`memory_policies` startup hook that lived directly in `app.py` since
+Task Group A is now `MemoryServiceAdapter.start()` — one real owner
+instead of a standalone hook plus a future competing one.
+
+`core/lifecycle/session_manager.py`'s `SessionManager` introduces
+`RuntimeSession` (`infrastructure/database/models.py`, new
+`runtime_sessions` table via the existing `Base.metadata.create_all`
+migration-free pattern) — deliberately its own id space, not a reuse
+of `Conversation.id` or the agent orchestrator's LangGraph `thread_id`.
+Those model two different, already-real things with no existing link
+between them; `RuntimeSession` is the first place they can optionally
+sit side by side (both columns nullable) rather than being forced
+together or left disconnected. `recover()` closes out any session an
+unclean previous shutdown left open, proven under test across two
+independent `SQLiteDatabase` instances against the same on-disk file —
+the same shape two real OS process launches would see.
+
+`core/lifecycle/configuration_manager.py`'s `ConfigurationManager`
+adds a real live-reload path restricted to `SAFE_RELOAD_SECTIONS`
+(`ui`, `voice_announce`, `memory`, `update`, `dev_mode`) — grounded in
+observed code, not guessed: `ChatService.stream()` demonstrably reads
+`settings.ui.system_prompt` fresh on every call, so reloading it is
+genuinely live, not cosmetic. Every provider credential/`enabled`
+field stays untouched, matching `SettingsService`'s own pre-existing
+documented philosophy against in-flight DI re-wiring — composes on top
+of `SettingsService` rather than replacing it.
+
+`core/lifecycle/health_monitor.py`'s `HealthMonitor` polls
+`psutil.Process` (already a project dependency) for CPU/RAM/uptime,
+reads `ServiceManager.snapshot()`/`restart_count` for service health,
+and publishes `health.updated` — non-blocking (`cpu_percent(interval=
+None)`, no `time.sleep`), a plain `asyncio` task on the existing loop,
+not a thread. `register_collector()` is a real, tested extension point
+for GPU/plugin/network metrics; none are registered yet, deliberately
+not stubbed out.
+
+`core/lifecycle/runtime_ws_hub.py`'s `RuntimeWebSocketHub` is the first
+real implementation of `docs/ARCHITECTURE.md` §6's WebSocket standard
+— `infrastructure/api/routes/runtime_ws.py` mounts it at `/api/v1/ws`
+with the exact documented envelope, 30s heartbeat, and `resume`/
+`last_id` reconnect flow against a 60s bounded replay buffer (`None`
+beyond the window signals a required REST refetch, never a silent
+empty replay). Relays the eleven events this task group's five other
+subsystems publish (`runtime.started/ready/stopping/shutdown`,
+`service.started/stopped/failed`, `configuration.updated`,
+`session.created/closed`, `health.updated`) — §6's existing category
+table predates these five managers and is extended, not replaced (see
+`docs/ARCHITECTURE.md`'s own changelog). Authentication uses a
+`SessionManager` session id as the `token` query param
+(`infrastructure/api/routes/sessions.py`'s `POST /api/v1/sessions`)
+rather than building M14's full Bearer/JWT session-token
+issuance/refresh/expiry here — that stays real, separate, future work
+(§17); this is the real `Depends(get_current_session)` mechanism §5/§6
+already reference, not a placeholder pending it.
+`infrastructure/api/fastapi_server.py`'s `create_app()` now accepts an
+optional DI `Container` and mounts both new routers only when one is
+supplied, and `infrastructure/api/embedded_server.py`'s
+`EmbeddedApiServer` embeds the ASGI app inside the existing PySide6/
+qasync event loop (`app.py`'s `_run_gui`) rather than a second process
+— the one real, running path this WebSocket relay needed to actually
+be reachable from, not a placeholder nothing serves.
+
+Runtime Integration wires all five into `RuntimeManager`
+(`app.py`'s new `_register_task_group_b_hooks`, split out of
+`_run_gui` to keep its statement count readable) in the exact
+deterministic order requested — Configuration Manager → Service
+Manager → Session Manager → remaining runtime services (Health
+Monitor, WebSocket relay, embedded API server) → Application Ready —
+and shuts down in reverse. `RuntimeManager` itself gained an optional
+`event_bus` constructor parameter (every existing test still
+constructs it with zero arguments) so `startup()`/`shutdown()` publish
+`RuntimeStartedEvent`/`RuntimeShutdownCompleteEvent` at the very
+start/end of each sequence — the two events the WebSocket relay's
+`runtime.started`/`runtime.shutdown` categories needed and Task Group
+A's addendum didn't yet define.
+
+58 new tests across six files (`test_service_manager.py`,
+`test_session_manager.py`, `test_configuration_manager.py`,
+`test_health_monitor.py`, `test_runtime_ws_hub.py`,
+`test_runtime_ws_route.py`) cover dependency-ordered startup/shutdown,
+restart behavior, failure isolation (independent-service and
+dependent-of-failed-service cases), session persistence/recovery
+across two independent database instances, safe-section-only
+live-reload, non-blocking health polling and collector extensibility,
+and the real FastAPI WebSocket transport end-to-end (auth accept/
+reject, event relay, resume/replay, resume-outside-window) via
+`TestClient` against a real temp-file SQLite database, per
+`docs/ARCHITECTURE.md` §18's own testing standard — no mocked network
+anywhere in this task group's tests. Full suite: 524 passed, zero
+regressions. mypy/ruff/black were diffed against a clean pre-task-
+group baseline (`git stash`, not assumption) rather than eyeballed:
+zero new findings in any category except four new `Need type
+annotation` hits on the container's four new `providers.Singleton`
+declarations, mechanically the same pre-existing, already-accepted
+pattern (§15) every other service in that file already has, and six
+new `PLC0415` lazy-import hits inside the new tests' function-scoped
+imports, the same accepted convention every existing test in this
+suite already uses. No dependency, acceptance-criterion, or numbering
+conflict was found against M0–M27.
+
+**Future Work** (explicitly out of scope for this task group, not
+implemented): retrofitting the remaining services
+(`VoiceService`/`HotkeyService`/`BrowserService`/`AutomationService`/
+`SystemService`) onto `IService` and migrating their existing
+lifecycle-hook ownership into `ServiceManager`; cascading
+`ServiceManager.restart()` to a service's dependents; unifying
+`RuntimeSession` with `Conversation`/LangGraph `thread_id` beyond the
+optional-reference link this task group added; extending
+`docs/ARCHITECTURE.md` §6's category table to the pre-existing
+`voice`/`ai`/`automation`/`memory`/`progress`/`notification`
+categories (only the five new managers' events are relayed today);
+building `_run_api_only()` into a genuine headless runtime mode (the
+embedded server exists only inside the GUI runtime path today); M14's
+real Bearer/JWT session-token issuance this task group's session-id
+auth stands in for. Bump this line whenever you edit the roadmap.*
