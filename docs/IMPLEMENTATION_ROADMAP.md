@@ -23,24 +23,31 @@ Manager, Application Lifecycle) and Task Group B (Service Manager,
 Session Manager, Configuration Manager, Runtime Health Monitor,
 Runtime WebSocket API, Runtime Integration) — see §5 below; M9's
 remaining modules (Reliability, Plugin Platform, Developer Platform
-Tools) remain pending. This is a deliberate, explicit exception to
-"one active milestone at a time": M9's Runtime Core had no real
-dependency on M8's remaining frontend backlog (see §5's own
-Dependencies note), following an architecture review the user
-requested and then closed with "keep the documented roadmap exactly
-as-is" — see `MASTER_ROADMAP.md`'s own changelog addendum for the full
-reasoning.
+Tools) remain 🔴 planned as Task Groups C/D/E (see §5). This is a
+deliberate, explicit exception to "one active milestone at a time":
+M9's Runtime Core had no real dependency on M8's remaining frontend
+backlog (see §5's own Dependencies note), following an architecture
+review the user requested and then closed with "keep the documented
+roadmap exactly as-is" — see `MASTER_ROADMAP.md`'s own changelog
+addendum for the full reasoning. M8's remaining Phases 2–3/5–7 are now
+tracked explicitly in §6's **Deferred Backlog** (added Aug 2026, roadmap
+reconciliation pass) rather than only as unchecked boxes scattered
+across §2 — nothing in it blocks M9.
 
 ---
 
 ## 1. Where things stand
 
+*(Reconciled Aug 2026 — every milestone below carries exactly one of
+four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
+
 | Milestone | Status |
 |---|---|
-| M0 – M7 | Shipped (M7 partially — Phases 1–2 shipped, Phase 3 deferred, Phases 4–6 pending). See `MASTER_ROADMAP.md` §3 and §8. |
-| **M8 – React Frontend & Desktop Experience** | **Active — this document tracks it.** Phase 1 and Phase 4 shipped; Phases 2–3, 5–7 pending. |
-| **M9 – Runtime & Core Services** | **Active — Runtime Core complete (Task Groups A+B), see §5 below.** Reliability's remaining modules, Plugin Platform, Developer Platform Tools pending. |
-| M10 onward | Planned, not started. See `MASTER_ROADMAP.md` §8. |
+| M0 – M6 | ✅ Completed. See `MASTER_ROADMAP.md` §3. |
+| M7 — Workflow Intelligence | 🟡 Active (Phases 1–2 shipped; Phase 3 🟠 deferred; Phases 4–6 pending). See `MASTER_ROADMAP.md` §8. |
+| **M8 – React Frontend & Desktop Experience** | 🟡 **Active — this document tracks it.** Phase 1 and Phase 4 shipped; Phase 3 partial; Phases 2, 5, 6, 7 and the rest of Phase 3 🟠 **deferred — see §6, Deferred Backlog.** **Not 100% complete.** |
+| **M9 – Runtime & Core Services** | 🟡 **Active — Runtime Core complete (Task Groups A+B), see §5 below.** Task Group C (Reliability), D (Plugin Platform), E (Developer Platform Tools) 🔴 planned. |
+| M10, M10A, M10B, M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
 M7's Phases 4–6 (Workflow Builder, Recorder, Scheduler) were paused
 pending the UI Foundation review; that review is superseded by the
@@ -257,11 +264,25 @@ value, a real loading state, or a real empty state.
         component reference (was `() => unknown`), matching
         `StatusBarContribution.render`'s contract, now that a real
         consumer proved out the correct shape.
+- [ ] **Notification Center** *(moved to the Deferred Backlog, §6 —
+      see there for detail)* — the persistent panel view over
+      `core/notification-framework.ts`'s already-real data.
+      `components/layout/notification-layer.tsx` exists today only as
+      a reserved, empty anchor (`return null`).
+- [ ] **Context Menu system** *(moved to the Deferred Backlog, §6)* —
+      a reusable, registry-driven right-click menu system for Sidebar/
+      Dock/Workspace items. `components/ui/context-menu.tsx` is only
+      the shadcn/ui primitive; `components/layout/context-menu-
+      layer.tsx` is the reserved, empty anchor for the real system.
+- [ ] **Background Task Manager** *(moved to the Deferred Backlog, §6
+      — real implementation is M9 Task Group C's job, not a second,
+      frontend-only one)* — `stores/background-tasks.store.ts` is a
+      display-only store today, not a real supervised queue.
 - [ ] Workspace views (one per existing PySide6 workspace: Voice,
       Files & Drive, Browser, Coding, Finance, Smart Home, Calendar,
       Gmail, Spotify — ported feature-by-feature, not redesigned
-      unless the feature itself changed).
-- [ ] Window management (Tauri window APIs).
+      unless the feature itself changed). *(Deferred Backlog, §6.)*
+- [ ] Window management (Tauri window APIs). *(Deferred Backlog, §6.)*
 - [x] **Command Palette** *(Aug 2026, Task Group G)* — shell/keybinding
       only, per this phase's scope; see `MASTER_ROADMAP.md` M11B
       Productivity Suite for the full indexed-search feature.
@@ -730,14 +751,99 @@ above.
         `memory`/`progress`/`notification` categories; a genuine
         headless `_run_api_only()` runtime mode; M14's real Bearer/JWT
         session-token issuance.
-- [ ] Task Group C and onward: Reliability's remaining modules
-      (Background Tasks, Crash Recovery, Resource Manager), Plugin
-      Platform, and Developer Platform Tools — not yet scoped into
-      task groups.
+- [ ] **Task Group C — Reliability** *(🔴 planned — next implementation
+      target)*: Background Task Manager, Crash Recovery, Resource
+      Manager. Builds on `ServiceManager`/`HealthMonitor` (Task Group
+      B) rather than a parallel mechanism — see `MASTER_ROADMAP.md`
+      §8 M9's Reliability module.
+- [ ] **Task Group D — Plugin Platform** *(🔴 planned)*: Plugin SDK,
+      Plugin Loader, Extension API, Permission Model, Plugin Store,
+      Marketplace, Plugin Safe Core Architecture, Plugin Registration
+      System — see `MASTER_ROADMAP.md` §8 M9's Plugin Platform module.
+- [ ] **Task Group E — Developer Platform Tools** *(🔴 planned)*: Debug
+      Console, Live Logs, Performance Profiler, State Inspector, API
+      Inspector, Plugin Marketplace Foundation — see
+      `MASTER_ROADMAP.md` §8 M9's Developer Platform Tools module.
 
 **Dependencies note:** M9's own documented dependency on M8
 (`MASTER_ROADMAP.md` §8) is narrow — Developer Platform Tools' and
 Marketplace's *consumer* surfaces, which already exist and work today
 (Developer Mode, Task Group F's Dashboard/Command Palette work). Task
 Groups A and B touched neither, so neither was blocked by M8's
-remaining Phase 2–3/5–7 backlog.
+remaining Phase 2–3/5–7 backlog. Task Groups C/D/E remain equally
+unblocked by M8's Deferred Backlog (§6) for the same reason.
+
+---
+
+## 6. Deferred Backlog
+
+*(Added Aug 2026 — roadmap reconciliation pass, ahead of M9 Task Group
+C. Everything below is real, tracked, non-blocking work explicitly
+deferred out of M8's active scope — not dropped, not forgotten, and
+not required for M9's Runtime Core (shipped), Reliability, Plugin
+Platform, or Developer Platform Tools modules. See the Dependencies
+note above and in §5 for why M9 was never blocked on any of this.)*
+
+### M8 Phase 3 — Desktop Workspace (remainder)
+- [ ] **Notification Center** — the persistent panel view over
+      `core/notification-framework.ts`'s already-real data (distinct
+      from the ephemeral toast surface, `providers/notification-
+      provider.tsx`'s `<Toaster />`, which already ships).
+      `components/layout/notification-layer.tsx` is a reserved, empty
+      anchor point today.
+- [ ] **Context Menu system** — a reusable, registry-driven right-click
+      menu system for Sidebar/Dock/Workspace items.
+      `components/layout/context-menu-layer.tsx` is a reserved, empty
+      anchor point today; `components/ui/context-menu.tsx` is only the
+      underlying shadcn/ui primitive (Phase 1).
+- [ ] **Background Task Manager** (frontend surface) — real supervised
+      task-queue UI, once M9 Task Group C ships the actual backend
+      queue; `stores/background-tasks.store.ts` stays a display-only
+      store, not a second, competing implementation.
+- [ ] Workspace views — Voice, Files & Drive, Browser, Coding, Finance,
+      Smart Home, Calendar, Gmail, Spotify (one React view per existing
+      PySide6 workspace).
+- [ ] Window management (Tauri window APIs).
+- [ ] Responsive layout, DPI scaling, multi-monitor support.
+
+### M8 Phase 2 — Universal Application Framework & Logic (in full)
+- [ ] Business Logic → State Machine → Service Layer → Hooks → Store
+      pattern, Authentication, Permissions, Storage, Settings API
+      layer, Voice/AI/Automation Integration, Offline support, Error
+      handling, and the full API Integration Rework block — see §2
+      above for the complete itemized list.
+
+### M8 Phase 5 — Settings & User Profiles (in full)
+- [ ] Dynamic Settings, Settings page structure (General/Appearance/
+      Voice/AI Models/Memory/Automation/Devices/Accounts/Plugins/
+      Security/Developer Mode/Backup & Restore/About).
+- [ ] **Developer Mode's 9 read-only viewers** — Module Manager, Plugin
+      Manager, API Center, Update Center, Developer Console, Security
+      Center, Backup/Restore, System Information, Performance Monitor.
+      Only the Developer Mode shell (`features/developer/developer-
+      panel.tsx`), Module State Inspector, Startup Preview, and Voice
+      State Preview exist today.
+- [ ] API Center UI + Developer API Analytics (full module — see §2).
+- [ ] Profile Service, Guest Mode, Profile Switching, Profile Storage.
+
+### M8 Phase 6 — Premium UI Polish (in full)
+- [ ] Spacing, Typography, Cards, Animations, Icons audited against
+      the design-token scale; production-quality pass across every
+      view built in Phases 1–5.
+- [ ] Conversation Timeline.
+- [ ] The broader motion pass (hover, Sidebar, Dock, Cards,
+      Notifications) — beyond what Task Group H–L already shipped.
+
+### M8 Phase 7 — Optimization & QA (in full)
+- [ ] Accessibility audit, performance pass, lazy loading, bundle
+      optimization, responsive testing, regression testing,
+      cross-platform testing — see §2 above for the complete list.
+
+**Why deferred, not implemented now:** M8's own Phase 1 (React
+Foundation) and Phase 4 (Voice Experience & Motion, in full) shipped;
+everything above is real, scoped work that simply wasn't next in
+priority order once the roadmap architecture review redirected effort
+to M9's Runtime Core (which had zero real dependency on any of it).
+**M8 is not 100% complete** and should not be treated as shipped —
+this backlog is the explicit record of what remains, so none of it
+silently disappears from the roadmap.

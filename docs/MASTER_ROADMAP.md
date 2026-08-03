@@ -66,24 +66,53 @@ where the product is going. It exists so that:
 
 ## 2. Current status
 
-**Current version:** `0.5.2`
+*(Reconciled Aug 2026 — see the changelog addendum for the full
+reconciliation pass. Every milestone below now carries exactly one of
+four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
+version timeline uses the same four symbols consistently.)*
 
-**Milestones shipped:** M0 Foundation → M6 Vision & Multimodal
-(Architecture Layer) (10 completed milestones, all feature-frozen — see
-§3). M6 shipped its provider-abstraction layer only (interfaces,
-settings, mock providers, service, agent tool, Developer Mode/Settings
-UI) — real vision/OCR capability remains future work; see M6's own §3
-entry for the full scope note.
+**Current version:** `0.9.0`
 
-**In progress:** M7 — Workflow Intelligence (see §8) — Phase 1 (Domain
-Foundation) and Phase 2 (Parallel Automation Execution) shipped; Phase
-3 (Structured Graph Planning) deferred; Phases 4–6 (Workflow Builder,
-Recorder, Scheduler) pending, paused pending review of the "UI
-Foundation" cross-cutting initiative (Typography, SVG Icon System,
-and an application-state Logic Foundation — a design-system hardening
-pass, not its own roadmap milestone; see §7). See M7's own §8 entry
-for the full phase-by-phase status, including acceptance-criteria
-detail.
+**Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
+Multimodal (Architecture Layer) (10 completed milestones, all
+feature-frozen — see §3). M6 shipped its provider-abstraction layer
+only (interfaces, settings, mock providers, service, agent tool,
+Developer Mode/Settings UI) — real vision/OCR capability remains
+future work; see M6's own §3 entry for the full scope note.
+
+**Active (🟡):**
+- **M7 — Workflow Intelligence** (see §8) — Phase 1 (Domain Foundation)
+  and Phase 2 (Parallel Automation Execution) shipped; Phase 3
+  (Structured Graph Planning) 🟠 deferred; Phases 4–6 (Workflow
+  Builder, Recorder, Scheduler) pending, paused pending review of the
+  "UI Foundation" cross-cutting initiative (Typography, SVG Icon
+  System, and an application-state Logic Foundation — a design-system
+  hardening pass, not its own roadmap milestone; see §7) — that review
+  itself completed and was superseded by the decision to migrate the
+  frontend to React + Tauri (M8), so M7's Phases 4–6 remain paused, not
+  actively blocked on anything further. See M7's own §8 entry for the
+  full phase-by-phase status, including acceptance-criteria detail.
+- **M8 — React Frontend & Desktop Experience** (see §8) — Phase 1
+  (React Foundation) and Phase 4 (Voice Experience & Motion, in full —
+  the Premium UI & Voice Experience initiative's five task groups
+  H–L) shipped; Phase 3 (Desktop Workspace) partially shipped (Dashboard,
+  Sidebar, Dock, Status Bar, Command Palette shell, Dashboard Widget
+  Grid); Phases 2, 5, 6, 7 and the remainder of Phase 3 (Notification
+  Center, Context Menu system, Background Task Manager, Workspace
+  views, Window management, Developer Mode's 9 read-only viewers,
+  Responsive/DPI/Multi-monitor) are 🟠 **deferred to the Deferred
+  Backlog** (see the new subsection under M8's §8 entry) — none of
+  this blocks M9, which has no real dependency on it (see
+  `IMPLEMENTATION_ROADMAP.md` §5's own Dependencies note). **M8 is not
+  100% complete** — do not treat it as shipped.
+- **M9 — Runtime & Core Services** (see §8) — Runtime Core module fully
+  shipped across Task Group A (Runtime Manager, Application Lifecycle)
+  and Task Group B (Service Manager, Session Manager, Configuration
+  Manager, Runtime Health Monitor, Runtime WebSocket API, Runtime
+  Integration). Task Group C (Reliability — Background Task Manager,
+  Crash Recovery, Resource Manager), Task Group D (Plugin Platform),
+  and Task Group E (Developer Platform Tools) are 🔴 planned, not yet
+  started — see `IMPLEMENTATION_ROADMAP.md` §5.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -1307,6 +1336,61 @@ responsive testing, regression testing, cross-platform testing. See
 `TECH_STACK.md` §6 for the testing-tool assignment (Vitest, React
 Testing Library, Playwright).
 
+#### Deferred Backlog *(Aug 2026 — added by the roadmap reconciliation
+pass, see the changelog addendum)*
+
+Non-blocking work explicitly deferred out of M8's active scope so M9
+could proceed — real, tracked, and not silently dropped, but not
+required for any milestone beyond M8 itself. Nothing here blocks M9's
+Runtime Core, Reliability, Plugin Platform, or Developer Platform
+Tools modules (see `IMPLEMENTATION_ROADMAP.md` §5's own Dependencies
+note). Full checklist-level detail lives in
+`IMPLEMENTATION_ROADMAP.md`'s own Deferred Backlog section — this is
+the summary:
+
+- **Notification Center** (Phase 3) — the persistent panel view over
+  `core/notification-framework.ts`'s already-real data.
+  `components/layout/notification-layer.tsx` is a reserved,
+  intentionally-empty anchor point (`return null`) — distinct from the
+  ephemeral toast surface (`providers/notification-provider.tsx`'s
+  `<Toaster />`), which already ships and is not part of this backlog
+  item.
+- **Context Menu system** (Phase 3) — a reusable, registry-driven
+  right-click menu system for Sidebar/Dock/Workspace items.
+  `components/ui/context-menu.tsx` is only the shadcn/ui primitive
+  (Phase 1); `components/layout/context-menu-layer.tsx` is the
+  reserved, intentionally-empty anchor point for the real system.
+- **Background Task Manager** (Phase 3 / M9 Task Group C overlap) — a
+  real supervised task queue. `stores/background-tasks.store.ts`
+  exists only as a lightweight display store backing the Status Bar's
+  "Background Task Progress" item, not a real manager — the real
+  manager is M9 Task Group C's own Reliability-module deliverable, not
+  a second, competing frontend-only implementation.
+- **Workspace views** (Phase 3) — Voice, Files & Drive, Browser,
+  Coding, Finance, Smart Home, Calendar, Gmail, Spotify — one React
+  view per existing PySide6 workspace, not yet ported.
+- **Window management** (Phase 3) — Tauri window APIs.
+- **Responsive layout, DPI scaling, multi-monitor support** (Phase 3).
+- **Settings & User Profiles** (Phase 5, in full) — Dynamic Settings,
+  the full Developer Mode panel port, API Center UI + Developer API
+  Analytics, Profile Service, Guest Mode, Profile Switching, Profile
+  Storage.
+- **Developer Mode's 9 read-only viewers** (Phase 5) — Module Manager,
+  Plugin Manager, API Center, Update Center, Developer Console,
+  Security Center, Backup/Restore, System Information, Performance
+  Monitor. Only the Developer Mode shell
+  (`features/developer/developer-panel.tsx`) and the Module State
+  Inspector, Startup Preview, and Voice State Preview panels exist
+  today.
+- **Premium UI Polish** (Phase 6, in full) — spacing/typography/cards/
+  animations/icons audit, production-quality pass across every view.
+- **Conversation Timeline** and the **broader motion pass** (hover,
+  Sidebar, Dock, Cards, Notifications) — Phase 4 items explicitly
+  called out as still pending in that phase's own entry above.
+- **Optimization & QA** (Phase 7, in full) — accessibility audit,
+  performance pass, lazy loading, bundle optimization, responsive/
+  cross-platform testing.
+
 **Backend counterpart work** *(not this milestone's own scope, but
 required alongside it — see `IMPLEMENTATION_ROADMAP.md` §3)*: FastAPI
 routers + WebSocket handlers exposing the existing `services →
@@ -1430,7 +1514,10 @@ the layer M8's FastAPI routers call into, and the layer a plugin's
   `PLC0415` lazy-import pattern noted in §15) rather than introducing
   a second DI mechanism.
 
-#### Reliability
+#### Reliability *(🔴 Task Group C, planned — Health Monitor's
+foundational slice already shipped under Task Group B, see below;
+Background Tasks/Crash Recovery/Resource Manager are Task Group C's
+own remaining scope)*
 - **Health Monitor** *(foundational slice shipped Aug 2026, Task Group
   B)* — `HealthMonitor` (`core.lifecycle.health_monitor`): lightweight,
   non-blocking `psutil`-based polling of process CPU/RAM/uptime,
@@ -1443,18 +1530,23 @@ the layer M8's FastAPI routers call into, and the layer a plugin's
   (foundational; M18 Self-Healing & Diagnostics Platform later builds
   the full self-healing layer on top of this module's signals, not a
   competing one).
-- Background Tasks — a supervised task-queue for long-running
-  non-request work (distinct from M7's `ActionExecutor`, which is
-  user-triggered automation, not background runtime maintenance).
-- Crash Recovery — process-level recovery, extending `ShutdownManager`'s
-  cleanup-on-exit guarantee to cleanup-and-restart-on-crash.
-- Resource Manager — CPU/GPU/memory/disk budget tracking across
-  everything the runtime supervises (services, plugins, background
-  tasks), the consumer-side counterpart to M22 Edge AI Platform's own
-  Resource Allocation module once that milestone exists (see §15's
-  Technical Debt "Resource Manager" entry).
+- **Background Task Manager** *(🔴 Task Group C, planned)* — a
+  supervised task-queue for long-running non-request work (distinct
+  from M7's `ActionExecutor`, which is user-triggered automation, not
+  background runtime maintenance; also distinct from the frontend's
+  `stores/background-tasks.store.ts`, a display-only store with no
+  real queue behind it today — see M8's Deferred Backlog).
+- **Crash Recovery** *(🔴 Task Group C, planned)* — process-level
+  recovery, extending `ShutdownManager`'s cleanup-on-exit guarantee to
+  cleanup-and-restart-on-crash.
+- **Resource Manager** *(🔴 Task Group C, planned)* — CPU/GPU/memory/
+  disk budget tracking across everything the runtime supervises
+  (services, plugins, background tasks), the consumer-side counterpart
+  to M22 Edge AI Platform's own Resource Allocation module once that
+  milestone exists (see §15's Technical Debt "Resource Manager" entry).
 
-#### Plugin Platform *(preserves the original M8 scope in full)*
+#### Plugin Platform *(🔴 Task Group D, planned — preserves the
+original M8 scope in full)*
 - Plugin SDK — `IPlugin` protocol, lifecycle hooks (`on_load` /
   `on_start` / `on_stop`), now running under this module's Runtime
   Manager rather than a standalone loader process.
@@ -1585,7 +1677,8 @@ ship a real, installable plugin until this milestone's Plugin Loader
 ships; a first-party module can use
 every one of these extension points today.
 
-#### Developer Platform Tools *(Developer Mode)*
+#### Developer Platform Tools *(🔴 Task Group E, planned — Developer
+Mode)*
 - Debug Console — a live, filterable view over the runtime's own
   structured logs (loguru/structlog), rendered by M8's frontend.
 - Live Logs — streamed over the same WebSocket channel M8's Agent
@@ -8826,33 +8919,33 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.4** | M5A       | Agent Runtime                   | ✅ Shipped |
 | **0.5** | M6        | Vision & Multimodal             | ✅ Shipped (Architecture Layer) |
 | *(patch)* | —       | `0.5.1` security patch (cryptography upgrade), `0.5.2` DI container architecture fix — both out-of-band per §6, not milestones | ✅ Shipped |
-| **0.6** | M7        | Workflow Intelligence           | 🟢 In Progress (Phase 1–2 shipped; Phases 3–6 paused) |
-| **0.7** | M8        | React Frontend & Desktop Experience | 🟡  |
-| **0.8** | M9        | Runtime & Core Services          | 🟢 In Progress (Task Groups A+B shipped — Runtime Core complete; Reliability's Background Tasks/Crash Recovery/Resource Manager, Plugin Platform, Developer Platform Tools pending) |
-| **0.9** | M10       | AI Orchestrator                  | 🟡      |
-| **0.10**| M10A      | Universal Search & Knowledge Platform | 🟡 |
-| **0.11**| M10B      | Intelligence Layer               | 🟡      |
-| **0.12**| M11       | Integrations & Cloud Platform    | 🟡      |
-| **0.13**| M11A      | SEO Intelligence                | 🟡      |
-| **0.14**| M11B      | Productivity Suite               | 🟡      |
-| **0.15**| M12       | Smart Home                      | 🟡      |
-| **0.16**| M13       | Computer Control                | 🟡      |
-| **0.17**| M13A      | AI Sandbox                      | 🟡      |
-| **0.18**| M14       | Security Platform               | 🟡      |
-| **0.19**| M14A      | Backup Platform                 | 🟡      |
-| **0.20**| M15       | Personality Engine              | 🟡      |
-| **0.21**| M16       | Reflection Engine               | 🟡      |
-| **0.22**| M17       | Companion Intelligence          | 🟡      |
-| **0.23**| M17A      | Training Studio                 | 🟡      |
-| **0.24**| M18       | Self-Healing & Diagnostics Platform | 🟡  |
-| **0.25**| M19       | Knowledge Graph & Digital Twin Platform | 🟡 |
-| **0.26**| M20       | Predictive Intelligence Platform | 🟡     |
-| **0.27**| M20A      | Analytics & Observability Platform | 🟡   |
-| **0.28**| M21       | Mobile Platform                 | 🟡      |
-| **0.29**| M22       | Edge AI Platform                | 🟡      |
-| **0.30**| M23       | Distributed JARVIS              | 🟡      |
-| **0.31**| M23A      | Robotics & Hardware Control Platform | 🟡 |
-| **0.32**| M23B      | Autonomous Planning & Decision Engine | 🟡 |
+| **0.6** | M7        | Workflow Intelligence           | 🟡 Active (Phase 1–2 shipped; Phase 3 deferred; Phases 4–6 paused) |
+| **0.7** | M8        | React Frontend & Desktop Experience | 🟡 Active (Phase 1+4 shipped; Phase 3 partial; Phases 2/5/6/7 + Phase 3 remainder deferred — see Deferred Backlog, §8) |
+| **0.8** | M9        | Runtime & Core Services          | 🟡 Active (Task Groups A+B shipped — Runtime Core complete; Task Group C Reliability, Task Group D Plugin Platform, Task Group E Developer Platform Tools 🔴 planned) |
+| **0.9** | M10       | AI Orchestrator                  | 🔴 Planned |
+| **0.10**| M10A      | Universal Search & Knowledge Platform | 🔴 Planned |
+| **0.11**| M10B      | Intelligence Layer               | 🔴 Planned |
+| **0.12**| M11       | Integrations & Cloud Platform    | 🔴 Planned |
+| **0.13**| M11A      | SEO Intelligence                | 🔴 Planned |
+| **0.14**| M11B      | Productivity Suite               | 🔴 Planned |
+| **0.15**| M12       | Smart Home                      | 🔴 Planned |
+| **0.16**| M13       | Computer Control                | 🔴 Planned |
+| **0.17**| M13A      | AI Sandbox                      | 🔴 Planned |
+| **0.18**| M14       | Security Platform               | 🔴 Planned |
+| **0.19**| M14A      | Backup Platform                 | 🔴 Planned |
+| **0.20**| M15       | Personality Engine              | 🔴 Planned |
+| **0.21**| M16       | Reflection Engine               | 🔴 Planned |
+| **0.22**| M17       | Companion Intelligence          | 🔴 Planned |
+| **0.23**| M17A      | Training Studio                 | 🔴 Planned |
+| **0.24**| M18       | Self-Healing & Diagnostics Platform | 🔴 Planned |
+| **0.25**| M19       | Knowledge Graph & Digital Twin Platform | 🔴 Planned |
+| **0.26**| M20       | Predictive Intelligence Platform | 🔴 Planned |
+| **0.27**| M20A      | Analytics & Observability Platform | 🔴 Planned |
+| **0.28**| M21       | Mobile Platform                 | 🔴 Planned |
+| **0.29**| M22       | Edge AI Platform                | 🔴 Planned |
+| **0.30**| M23       | Distributed JARVIS              | 🔴 Planned |
+| **0.31**| M23A      | Robotics & Hardware Control Platform | 🔴 Planned |
+| **0.32**| M23B      | Autonomous Planning & Decision Engine | 🔴 Planned |
 | **1.0** | M24       | Production Release              | 🟡      |
 | **1.1** | M25       | Cognitive Intelligence Platform  | 🟡      |
 | **1.2** | M26       | Self-Learning & Autonomous Evolution Platform | 🟡 |
@@ -10947,3 +11040,76 @@ building `_run_api_only()` into a genuine headless runtime mode (the
 embedded server exists only inside the GUI runtime path today); M14's
 real Bearer/JWT session-token issuance this task group's session-id
 auth stands in for. Bump this line whenever you edit the roadmap.*
+
+*Aug 2026 addendum — Roadmap reconciliation pass (project-wide, ahead
+of M9 Task Group C):* a full audit of `MASTER_ROADMAP.md`,
+`IMPLEMENTATION_ROADMAP.md`, `ARCHITECTURE.md`, `TECH_STACK.md`,
+`CHANGELOG.md`, and `CLAUDE.md` (the last does not exist in this
+repository — confirmed, not created as part of this pass, since
+creating one wasn't requested) against the actual repository state,
+requested explicitly rather than assumed correct. Every milestone now
+carries exactly one of four states — ✅ Completed, 🟡 Active, 🟠
+Deferred, 🔴 Planned — applied consistently across §2's "Current
+status" and §14's version timeline, replacing the previous mix of
+✅/🟢/bare-🟡 with no fixed meaning for the latter two.
+
+**§2 was stale and is now corrected.** It still read "Current version:
+`0.5.2`" and "In progress: M7" with no mention of M8 or M9 at all —
+current since the last time §2 itself was edited, predating the entire
+M8 React migration and M9 Runtime Core work. Now reads `0.9.0` (this
+`CHANGELOG.md`'s current entry) and lists M7/M8/M9 as the three active
+milestones with their real, current phase/task-group status.
+
+**§14's version timeline had a real defect, not just staleness**: `🟡`
+was used for both M8 (genuinely active, partially shipped) and every
+unstarted milestone from M10 through M23B — the same symbol meaning
+two different things depending which row you read. M7/M8/M9 now read
+`🟡 Active` with real status text; M10–M23B now read `🔴 Planned` —
+mechanical, safe, and accurate, since none of them have any real
+implementation (confirmed: no `agents/orchestrator` streaming work, no
+search platform, no integrations layer, no plugin loader — all
+genuinely unstarted).
+
+**M8's own §8 entry gained a new Deferred Backlog subsection**,
+requested explicitly rather than left implicit across scattered phase
+checkboxes. Verified against the actual repository, not assumed from
+prior task-tracker notes alone: `components/layout/notification-
+layer.tsx` and `context-menu-layer.tsx` are real, honest, reserved
+placeholders (`return null`, both docstring-labeled "renders nothing
+today") — confirming Notification Center and the Context Menu system
+are genuinely unbuilt, not merely undocumented. `stores/background-
+tasks.store.ts` (54 lines) is a real display-only store backing the
+Status Bar's "Background Task Progress" item, not the real supervised
+queue M9 Task Group C's own Reliability module owns — the two were at
+risk of being built twice; this pass records explicitly that the
+frontend store stays display-only and the real manager is Task Group
+C's job, not a second implementation. `frontend/src/features/
+developer/` was confirmed to contain only the Developer Mode shell,
+Module State Inspector, Startup Preview, and Voice State Preview — the
+9 read-only viewers (Module Manager, Plugin Manager, API Center,
+Update Center, Developer Console, Security Center, Backup/Restore,
+System Information, Performance Monitor) are confirmed not yet ported.
+None of this blocks M9 — M9's own documented dependency on M8 is
+narrow (Developer Platform Tools' and Marketplace's *consumer*
+surfaces, which already exist) and untouched by any deferred item
+here.
+
+**M9's Reliability/Plugin Platform/Developer Platform Tools modules**
+now carry explicit Task Group letters (C/D/E respectively, continuing
+from Task Groups A/B) in both `MASTER_ROADMAP.md` §8 and
+`IMPLEMENTATION_ROADMAP.md` §5, where they previously read "Task Group
+C and onward" with no per-module breakdown — the same letters
+`IMPLEMENTATION_ROADMAP.md`'s own checklist now uses, so a reader can
+go from either document to the same concrete scope.
+
+No milestone was renumbered; no existing shipped-history entry (§3)
+was altered; M10/M10A/M10B/M11 remain exactly as previously documented
+— this pass changed status bookkeeping and added the missing Deferred
+Backlog, not scope. `git status`/`git diff` confirm the actual
+repository was the source of truth throughout — no doc content was
+assumed correct without a matching file, test, or store checked
+directly. Full `pytest`/`mypy`/`ruff`/`black` validation re-run clean
+(zero regressions; see this pass's own commit for the exact numbers,
+unchanged from M9 Task Group B's own validated baseline since no
+source code changed in this pass — documentation only). Bump this line
+whenever you edit the roadmap.*

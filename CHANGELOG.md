@@ -77,6 +77,34 @@ this entry documents implementation only.
   an optional DI `Container`, mounting the new session/WebSocket
   routers only when one is supplied.
 
+### Documentation (roadmap reconciliation pass, ahead of M9 Task Group C)
+- `MASTER_ROADMAP.md` §2 ("Current status") was stale since before M8
+  even started (`0.5.2`, "In progress: M7", no mention of M8/M9) --
+  corrected to `0.9.0` with real M7/M8/M9 status.
+- `MASTER_ROADMAP.md` §14 (version timeline): every milestone now
+  carries exactly one of four states (✅ Completed, 🟡 Active, 🟠
+  Deferred, 🔴 Planned) instead of a `🟡` used ambiguously for both
+  "active" (M8) and "fully unstarted" (M10-M23B).
+- `MASTER_ROADMAP.md` §8 M8 gained a **Deferred Backlog** subsection
+  (Notification Center, Context Menu system, Background Task Manager,
+  Workspace views, Window management, Responsive/DPI/Multi-monitor,
+  Settings & User Profiles, Developer Mode's 9 read-only viewers,
+  Premium UI Polish, Optimization & QA) -- verified against the actual
+  repository (`notification-layer.tsx`/`context-menu-layer.tsx` are
+  real, empty, reserved anchors; `background-tasks.store.ts` is
+  display-only), not assumed from prior notes. **M8 remains explicitly
+  not 100% complete.**
+- `MASTER_ROADMAP.md` §8 M9's Reliability/Plugin Platform/Developer
+  Platform Tools modules gained explicit Task Group C/D/E labels.
+- `IMPLEMENTATION_ROADMAP.md` gained a matching §6 Deferred Backlog
+  (checklist-level detail) and explicit Task Group C/D/E entries under
+  §5; Phase 3's checklist gained the three previously-undocumented
+  items (Notification Center, Context Menu system, Background Task
+  Manager) it was missing.
+- No source code changed in this pass -- `pytest`/`mypy`/`ruff`/`black`
+  re-verified clean against the same baseline M9 Task Group B already
+  validated.
+
 ## [0.8.0] — M9, Task Group A (Runtime Manager & Application Lifecycle)
 
 First real M9 (Runtime & Core Services) deliverable, consuming the
