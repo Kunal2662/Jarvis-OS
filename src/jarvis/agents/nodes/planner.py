@@ -22,13 +22,15 @@ def make_planner_node(
     tool_desc = format_tool_descriptions(tools)
 
     async def planner_node(state: AgentState) -> dict[str, Any]:
+        context = state.get("context", "")
+        context_section = f"\n\nRelevant remembered context:\n{context}" if context else ""
         prompt = (
             "You are JARVIS's planning module. Given the user's request and "
             "the tools available to you, write a short plan (1-4 numbered "
             "steps) for how to fulfil it. If no tool is needed, say so and "
             "plan to answer directly.\n\n"
             f"Available tools:\n{tool_desc}\n\n"
-            f"User request: {state['prompt']}"
+            f"User request: {state['prompt']}{context_section}"
         )
         plan = await safe_complete(llm, prompt, fallback=_FALLBACK_PLAN)
         return {"plan": plan, "last_node": "planner"}

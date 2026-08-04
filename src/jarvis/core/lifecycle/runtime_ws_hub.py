@@ -23,7 +23,13 @@ category table §6 documents (``voice``/``ai``/``automation``/
 ``memory``/``progress``/``notification``/``runtime.
 module_state_changed``) predates all of these managers existing;
 :data:`EVENT_TYPE_NAMES` below is where a future milestone adds its own
-categories to the relay, the same way these two task groups did.
+categories to the relay, the same way these two task groups did. Milestone
+10 (AI Orchestrator) adds one more: ``agent.step``, real-time Agent Trace
+visibility over this same relay rather than a second, parallel channel --
+the backend half of M10 AC2's "real streaming over M8's WebSocket layer"
+requirement (the token-level half is ``/api/v1/agent/stream``'s SSE
+response, since per-token events over this hub would mean one WS frame per
+LLM token -- see ``docs/MASTER_ROADMAP.md``'s M10 changelog addendum).
 """
 
 from __future__ import annotations
@@ -35,6 +41,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
 from jarvis.core.events.events import (
+    AgentStepEvent,
     AppReadyEvent,
     ConfigurationUpdatedEvent,
     CrashRecoveredEvent,
@@ -100,6 +107,7 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     PluginUpdatedEvent: "plugin.updated",
     PluginPermissionGrantedEvent: "plugin.permission_granted",
     PluginPermissionDeniedEvent: "plugin.permission_denied",
+    AgentStepEvent: "agent.step",
 }
 
 _BASE_FIELD_NAMES = {f.name for f in dataclasses.fields(Event)}

@@ -348,11 +348,18 @@ class AgentSettings(BaseSettings):
     checkpoint_enabled: bool = True
     # Milestone 7, Phase 1: same purpose as
     # AutomationSettings.max_parallel_steps, for the LangGraph agent
-    # runtime's own tool-call dispatch once Phase 3 (deferred, separately
-    # approved) extends AgentState/tool_executor for cross-tool parallel
-    # branches. Declared now for forward compatibility only -- no code
-    # reads this yet.
+    # runtime's own tool-call dispatch. Read by ``agents/nodes/
+    # tool_executor.py`` since Milestone 10 AC1, which absorbed the
+    # deferred M7 Phase 3 cross-tool-parallelism scope.
     max_parallel_steps: int = 4
+    # Milestone 10 AC3 (interim Permission Validation -- see
+    # agents/permission.py): tool names that always require an explicit
+    # confirmation before the agent may call them. "run_automation" is the
+    # only tool in the registry today capable of a destructive action;
+    # AutomationService's own PermissionGate still gates it internally too
+    # -- this is the *outer*, graph-visible gate every tool call now also
+    # passes through, not a replacement for that inner one.
+    confirm_required_tools: frozenset[str] = frozenset({"run_automation"})
 
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}AGENT_", extra="ignore")
 
@@ -521,7 +528,7 @@ class Settings(BaseSettings):
     env: Environment = Environment.DEVELOPMENT
     debug: bool = True
     app_name: str = "JARVIS OS"
-    app_version: str = "0.12.0"
+    app_version: str = "0.13.0"
     data_dir: Path | None = None
 
     llm_default_provider: LLMProviderName = LLMProviderName.OLLAMA

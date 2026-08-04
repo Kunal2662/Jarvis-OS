@@ -207,3 +207,245 @@ async def test_responder_node_composes_answer_from_tool_results() -> None:
     )
 
     assert result["final_response"] == "The sum is 4."
+    assert result["response_mode"] == "composed"
+
+
+# ---------------------------------------------------------------------------
+# Milestone 10 -- Intent Engine
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_intent_classifier_node_parses_valid_intent() -> None:
+    from jarvis.agents.nodes.intent_classifier import make_intent_classifier_node
+
+    llm = ScriptedFakeLLM(
+        {"intent classification module": '{"intent": "direct_answer", "confidence": 0.9}'}
+    )
+    node = make_intent_classifier_node(llm)
+
+    result = await node({"prompt": "what is the capital of France?"})
+
+    assert result["intent"] == "direct_answer"
+    assert result["intent_confidence"] == 0.9
+    assert result["last_node"] == "intent_classifier"
+
+
+@pytest.mark.asyncio
+async def test_intent_classifier_node_falls_back_on_invalid_intent() -> None:
+    from jarvis.agents.nodes.intent_classifier import make_intent_classifier_node
+
+    llm = ScriptedFakeLLM(
+        {"intent classification module": '{"intent": "nonsense", "confidence": 2.0}'}
+    )
+    node = make_intent_classifier_node(llm)
+
+    result = await node({"prompt": "hi"})
+
+    assert result["intent"] == "tool_use"
+    assert result["intent_confidence"] == 1.0  # clamped
+
+
+@pytest.mark.asyncio
+async def test_intent_classifier_node_falls_back_on_llm_failure() -> None:
+    from jarvis.agents.nodes.intent_classifier import make_intent_classifier_node
+
+    node = make_intent_classifier_node(ScriptedFakeLLM({}, fail=True))
+
+    result = await node({"prompt": "hi"})
+
+    assert result["intent"] == "tool_use"
+
+
+# ---------------------------------------------------------------------------
+# Milestone 10 -- Context Engine
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_context_engine_node_returns_empty_when_no_memory_service() -> None:
+    from jarvis.agents.nodes.context_engine import make_context_engine_node
+
+    node = make_context_engine_node(None)
+
+    result = await node({"prompt": "what's my birthday?"})
+
+    assert result["context"] == ""
+    assert result["last_node"] == "context_engine"
+
+
+@pytest.mark.asyncio
+async def test_context_engine_node_formats_recalled_memories() -> None:
+    from dataclasses import dataclass
+
+    from jarvis.agents.nodes.context_engine import make_context_engine_node
+
+    @dataclass
+    class _Rec:
+        content: str
+
+    class _Memory:
+        async def recall(self, query: str, *, top_k: int = 5) -> list[_Rec]:
+            return [_Rec(content="Birthday is in March"), _Rec(content="Likes tea")]
+
+    node = make_context_engine_node(_Memory())
+
+    result = await node({"prompt": "what's my birthday?"})
+
+    assert "Birthday is in March" in result["context"]
+    assert "Likes tea" in result["context"]
+
+
+@pytest.mark.asyncio
+async def test_context_engine_node_tolerates_memory_failure() -> None:
+    from jarvis.agents.nodes.context_engine import make_context_engine_node
+
+    class _BrokenMemory:
+        async def recall(self, query: str, *, top_k: int = 5) -> list[object]:
+            raise RuntimeError("db unavailable")
+
+    node = make_context_engine_node(_BrokenMemory())
+
+    result = await node({"prompt": "x"})
+
+    assert result["context"] == ""
+
+
+# ---------------------------------------------------------------------------
+# Milestone 10 AC1 -- parallel tool dispatch
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_tool_selector_node_chooses_parallel_tools() -> None:
+    from jarvis.agents.nodes.tool_selector import make_tool_selector_node
+
+    llm = ScriptedFakeLLM(
+        {
+            "tool-selection module": (
+                '{"action": "tool_parallel", "tools": '
+                '[{"tool": "add_numbers", "args": {"a": 1, "b": 2}}, '
+                '{"tool": "add_numbers", "args": {"a": 3, "b": 4}}]}'
+            )
+        }
+    )
+    node = make_tool_selector_node(llm, [_make_add_tool()])
+
+    result = await node({"prompt": "add two pairs", "plan": "", "tool_calls": []})
+
+    assert result["next_action"] == "tool_parallel"
+    assert result["pending_tool_calls"] == [
+        {"tool": "add_numbers", "args": {"a": 1, "b": 2}},
+        {"tool": "add_numbers", "args": {"a": 3, "b": 4}},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_tool_selector_node_parallel_drops_hallucinated_tools() -> None:
+    from jarvis.agents.nodes.tool_selector import make_tool_selector_node
+
+    llm = ScriptedFakeLLM(
+        {
+            "tool-selection module": (
+                '{"action": "tool_parallel", "tools": ' '[{"tool": "does_not_exist", "args": {}}]}'
+            )
+        }
+    )
+    node = make_tool_selector_node(llm, [_make_add_tool()])
+
+    result = await node({"prompt": "x", "plan": "", "tool_calls": []})
+
+    # every proposed call was hallucinated -> falls back to "final"
+    assert result["next_action"] == "final"
+
+
+@pytest.mark.asyncio
+async def test_tool_executor_node_dispatches_parallel_calls_concurrently() -> None:
+    from jarvis.agents.nodes.tool_executor import make_tool_executor_node
+
+    add_numbers = _make_add_tool()
+    node = make_tool_executor_node({add_numbers.name: add_numbers}, max_parallel_steps=4)
+    state: AgentState = {
+        "next_action": "tool_parallel",
+        "pending_tool_calls": [
+            {"tool": "add_numbers", "args": {"a": 1, "b": 2}},
+            {"tool": "add_numbers", "args": {"a": 3, "b": 4}},
+        ],
+        "tool_calls": [],
+        "step": 0,
+    }
+
+    result = await node(state)
+
+    assert result["step"] == 2
+    results = {c["result"] for c in result["tool_calls"]}
+    assert results == {"3", "7"}
+    assert result["pending_tool_calls"] == []
+
+
+# ---------------------------------------------------------------------------
+# Milestone 10 AC3 -- Permission Validation (interim)
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_permission_validator_allows_unrestricted_tool() -> None:
+    from jarvis.agents.nodes.permission_validator import make_permission_validator_node
+    from jarvis.agents.permission import AgentPermissionGate
+
+    gate = AgentPermissionGate(confirm_required_tools=frozenset({"run_automation"}))
+    node = make_permission_validator_node(gate)
+
+    result = await node(
+        {
+            "next_action": "tool",
+            "tool_name": "recall_memory",
+            "tool_args": {},
+            "tool_calls": [],
+            "step": 0,
+        }
+    )
+
+    assert result["permission_denied"] is False
+    assert "tool_calls" not in result
+
+
+@pytest.mark.asyncio
+async def test_permission_validator_denies_gated_tool_without_confirm() -> None:
+    from jarvis.agents.nodes.permission_validator import make_permission_validator_node
+    from jarvis.agents.permission import AgentPermissionGate
+
+    gate = AgentPermissionGate(confirm_required_tools=frozenset({"run_automation"}))
+    node = make_permission_validator_node(gate)
+
+    result = await node(
+        {
+            "next_action": "tool",
+            "tool_name": "run_automation",
+            "tool_args": {"instruction": "shutdown"},
+            "tool_calls": [],
+            "step": 0,
+        }
+    )
+
+    assert result["permission_denied"] is True
+    assert result["tool_calls"][0]["error"].startswith("Denied:")
+    assert result["step"] == 1
+
+
+@pytest.mark.asyncio
+async def test_permission_validator_parallel_filters_denied_calls() -> None:
+    from jarvis.agents.nodes.permission_validator import make_permission_validator_node
+    from jarvis.agents.permission import AgentPermissionGate
+
+    gate = AgentPermissionGate(confirm_required_tools=frozenset({"run_automation"}))
+    node = make_permission_validator_node(gate)
+
+    result = await node(
+        {
+            "next_action": "tool_parallel",
+            "pending_tool_calls": [
+                {"tool": "recall_memory", "args": {}},
+                {"tool": "run_automation", "args": {"instruction": "shutdown"}},
+            ],
+            "tool_calls": [],
+            "step": 0,
+        }
+    )
+
+    assert result["pending_tool_calls"] == [{"tool": "recall_memory", "args": {}}]
+    assert len(result["tool_calls"]) == 1
+    assert result["tool_calls"][0]["tool"] == "run_automation"
+    assert result["step"] == 1

@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.9.0`
+**Current version:** `0.13.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -117,6 +117,18 @@ future work; see M6's own §3 entry for the full scope note.
   Inspector, Plugin Marketplace Foundation REST API, Permission
   Management API, Plugin Diagnostics) — see
   `IMPLEMENTATION_ROADMAP.md` §5.
+- **M10 — AI Orchestrator** (see §8) — 🟡 **partial: the buildable-now
+  scope shipped, the M10A/M14/M16-dependent remainder explicitly
+  deferred, not silently dropped.** Shipped: Intent Engine (diagnostic),
+  Context Engine (M3-Memory-only scope), parallel tool dispatch (AC1,
+  absorbing M7 Phase 3), interim Permission Validation (AC3), real
+  token-level streaming for the tool-composed path (AC2), Decision
+  Engine's `response_mode`, `agent.step` on the Runtime WebSocket relay,
+  and `/api/v1/agent/invoke` + `/api/v1/agent/stream`. Deferred pending
+  their owning milestones: Context Engine's knowledge-graph half (needs
+  M10A), Learning/Feedback via M16's Reflection Engine (needs M16),
+  Permission Validation's final M14-routed form (needs M14). **M10 is
+  not 100% complete** — do not treat it as shipped in full.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -1756,6 +1768,18 @@ moves to the new **M10A Universal Search & Knowledge Platform**,
 below, a lettered companion rather than a renumbering, per the
 "zero renumbering" rule this migration pass follows throughout §8.)*
 
+**Status (Aug 2026): 🟡 partial.** The buildable-now scope shipped
+directly against M5A's `AgentOrchestrator` -- see the Aug 2026 M10
+changelog addendum for the full list. M10 formally depends on M10A and
+M14, below, neither of which has started; rather than block on that,
+this pass shipped everything real without them and documented the rest
+as explicitly deferred (Context Engine's knowledge-graph half needs
+M10A; Learning/Feedback needs M16; Permission Validation's final
+M14-routed form uses an interim `AgentPermissionGate` until M14 ships)
+-- the same "Completed / Deferred with a documented reason" discipline
+this project has applied since the M0-M9 Project Completion Audit.
+**Do not treat M10 as 100% complete.**
+
 **Objective:** formalize and expand the M5A `AgentOrchestrator`
 (the compiled LangGraph `StateGraph`: `planner → tool_selector →
 tool_executor → critic → responder`) into a dedicated orchestration
@@ -1802,14 +1826,25 @@ M10A (knowledge/context substrate), M14 (Permission Validation).
 **Complexity:** L.
 
 **Acceptance criteria:**
-1. A request needing two independent tool calls dispatches them in
-   parallel inside a single graph run, not sequentially — the M7
-   Phase 3 acceptance criterion, now delivered here.
-2. Token-level streaming is measurably real, not a word-chunked
-   re-display of an already-composed response.
-3. Every tool invocation passes through Permission Validation before
+1. ✅ **Met.** A request needing two independent tool calls dispatches
+   them in parallel inside a single graph run, not sequentially — the
+   M7 Phase 3 acceptance criterion, now delivered here
+   (`agents/nodes/tool_selector.py`'s `tool_parallel` shape +
+   `agents/nodes/tool_executor.py`'s concurrent dispatch).
+2. 🟡 **Met for the dominant path.** Token-level streaming is
+   measurably real (verified: `ScriptedFakeLLM`'s per-word streaming
+   yields distinguishably more chunks than the old word-chunked replay
+   for the same text) for an answer composed from tool results.
+   `tool_selector`'s "final" (no-tool-needed) shortcut still replays a
+   precomposed string, since its answer is embedded inside a JSON
+   decision object — a documented, scoped exception, not a hidden gap.
+3. ✅ **Met, interim.** Every tool invocation passes through Permission
+   Validation (`agents/nodes/permission_validator.py`) before
    executing; a denied permission blocks execution the same way a
-   `PermissionGate` denial already does in M4's automation layer.
+   `PermissionGate` denial already does in M4's automation layer. The
+   enforcement policy itself is interim (`AgentPermissionGate`,
+   settings-driven) pending M14's Authorization Engine, per this
+   milestone's own Permission Validation key feature above.
 
 ### M10A — Universal Search & Knowledge Platform
 
@@ -8946,7 +8981,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.6** | M7        | Workflow Intelligence           | 🟡 Active (Phase 1–2 shipped; Phase 3 deferred; Phases 4–6 paused) |
 | **0.7** | M8        | React Frontend & Desktop Experience | 🟡 Active (Phase 1+4 shipped; Phase 3 partial; Phases 2/5/6/7 + Phase 3 remainder deferred — see Deferred Backlog, §8) |
 | **0.8→0.12** | M9   | Runtime & Core Services          | ✅ **Completed** — see the versioning-granularity note below. All five task groups shipped (Runtime Core, Reliability, Plugin Platform, Developer Platform Tools), actual versions `0.8.0`–`0.12.0` per `CHANGELOG.md` — one minor bump per task group, not one bump for the whole milestone. |
-| *(next)* | M10       | AI Orchestrator                  | 🔴 Planned |
+| **0.13** | M10       | AI Orchestrator                  | 🟡 **Partial** — buildable-now scope shipped (Intent Engine, scoped Context Engine, parallel dispatch AC1, interim Permission Validation AC3, real streaming AC2 for the composed path, Decision Engine, `/api/v1/agent`); M10A/M14/M16-dependent remainder deferred, documented. |
 | *(next)* | M10A      | Universal Search & Knowledge Platform | 🔴 Planned |
 | *(next)* | M10B      | Intelligence Layer               | 🔴 Planned |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
@@ -11607,3 +11642,148 @@ REST-exposed clear/reset endpoint (only Debug Console does). None of
 M9's own five task groups have further scope remaining -- the next
 work in this milestone's own numbering is M10 (AI Orchestrator). Bump
 this line whenever you edit the roadmap.*
+
+*Aug 2026 addendum — M10 (AI Orchestrator, partial):* M10 formally
+depends on M10A (Universal Search & Knowledge Platform) and M14
+(Authorization Engine), §8, neither of which had started when this pass
+began. Rather than block, this pass shipped the full subset buildable
+without them, extending M5A's `AgentOrchestrator` directly (no rewrite),
+and documented the M10A/M14/M16-dependent remainder as explicitly
+deferred -- the same "Completed / Deferred with a documented reason"
+discipline this project has applied since the M0-M9 Project Completion
+Audit. **M10 is not 100% complete; this addendum documents a partial,
+honest milestone, not a completed one.**
+
+Intent Engine -- `agents/nodes/intent_classifier.py`, a new node before
+`planner` classifying the request into `tool_use` / `direct_answer` /
+`clarification_needed` with a confidence score. Diagnostic only in this
+pass: nothing yet reads `intent`/`intent_confidence` to change graph
+routing, since M10A/M10B (the milestones expected to give the
+classification real signal to act on) haven't shipped either -- recorded
+in `AgentState` and available to any future consumer without a second
+migration.
+
+Context Engine (scoped) -- `agents/nodes/context_engine.py`, assembles
+context from M3 Memory (`MemoryService.recall`) before planning starts,
+closing the pre-M10 gap where no node ever queried memory ahead of
+planning. M10's own spec describes Context Engine pulling from "M10A's
+knowledge substrate and M3 Memory" -- M10A doesn't exist, so only the M3
+half is real here; the knowledge-graph half is deferred, not silently
+dropped.
+
+Parallel tool dispatch -- Milestone 10 Acceptance Criterion 1, also
+closing out M7 Phase 3's deferred cross-tool-parallelism scope, which
+this milestone's own Objective absorbed rather than reopening M7 for it.
+`tool_selector.py` gained a `tool_parallel` decision shape (a list of
+independent `{tool, args}` calls) alongside the pre-existing `tool`/
+`final` ones -- additive, not a replacement; the single-tool shape is
+byte-for-byte unchanged, so every M5A-era unit test kept passing
+unmodified. `tool_executor.py` dispatches a `tool_parallel` batch
+concurrently via the existing `gather_with_concurrency` utility (already
+proven in M7 Phase 2's automation executor), bounded by
+`AgentSettings.max_parallel_steps` -- declared in M7 "for forward
+compatibility only" and read by zero code until this pass activated it.
+
+Permission Validation (interim) -- Milestone 10 Acceptance Criterion 3.
+`agents/permission.py`'s `AgentPermissionGate` plus a new
+`permission_validator` node inserted between `tool_selector` and
+`tool_executor` in the graph: the one enforcement point every proposed
+tool call (single or parallel) now passes through before execution,
+replacing the pre-M10 gap where only `run_automation` had any permission
+awareness at all, and that only internal to `AutomationService` --
+invisible to the graph itself, and every other tool (memory writes,
+browser navigation, ...) executed with no check whatsoever. Explicitly
+interim: M10's own spec routes Permission Validation through M14's
+Authorization Engine "once that milestone ships" -- M14 hasn't.
+`AgentPermissionGate` is a single, narrow class specifically so that
+swap means replacing its `authorize()` body later, not touching the
+graph wiring that calls it. Policy today is declarative and
+settings-driven: `AgentSettings.confirm_required_tools` (default
+`{"run_automation"}`), reusing `features/automation/permission.py`'s
+existing `ConfirmationCallback` protocol rather than defining a second,
+identical one.
+
+Real token-level streaming -- Milestone 10 Acceptance Criterion 2.
+`AgentOrchestrator.stream()` previously re-chunked an already-composed
+string word-by-word regardless of path (§15's own documented
+limitation). It now yields real per-token output from
+`ILLMProvider.stream()` (already real at the provider layer for OpenAI/
+Ollama/Gemini -- just never called from the streaming path before) for
+the dominant case, an answer composed from tool results. Mechanism: a
+second, responder-less compiled graph variant
+(`build_agent_graph(..., include_responder=False)`, routing the "final"/
+"done" branches straight to `END`) runs the identical intent/context/
+plan/tool-select/permission/execute/critique pipeline, then
+`AgentOrchestrator.stream()` calls `llm.stream()` directly on the same
+prompt `responder_node` would have used --
+`agents/nodes/responder.py`'s `build_final_response_prompt`, extracted
+as a pure function shared by both paths so they can't drift. One path
+remains a documented, scoped exception, not a hidden gap: `tool_selector`'s
+"final" shortcut (no tool needed at all) still composes its answer
+synchronously inside a JSON decision object, and JSON-embedded text
+can't be cleanly token-streamed without restructuring tool selection
+itself -- that path still replays its precomposed text in the pre-M10
+chunked style. Verified for real, not just asserted: the integration
+test exploits `ScriptedFakeLLM`'s per-word streaming granularity against
+the old chunked-replay's 4-word grouping -- a composed 5-word sentence
+arrives as 5 chunks through the new real path and would only arrive as 2
+through the old one, so the chunk count itself proves which path ran.
+
+Decision Engine -- `responder` node (and the real-streaming path above)
+now write `response_mode` (`"direct"` for the tool_selector shortcut,
+`"composed"` for a real answer composition) into `AgentState`, per this
+milestone's own description of Decision Engine as "the responder node's
+successor, deciding final response shape and routing."
+
+`core/lifecycle/runtime_ws_hub.py`'s `EVENT_TYPE_NAMES` gained one more
+category, `agent.step` -- real-time Agent Trace visibility over the same
+`/api/v1/ws` relay Task Group B built, not a second, parallel channel.
+Per-token events were deliberately *not* added to this relay (one WS
+frame per LLM token would mean hundreds of frames per response); the
+token-level half of "real streaming over M8's WebSocket layer" is
+`/api/v1/agent/stream`'s Server-Sent Events response instead.
+
+`infrastructure/api/routes/agent.py` -- `POST /api/v1/agent/invoke`
+(blocking, `{data, meta}` envelope) and `POST /api/v1/agent/stream`
+(real token-level SSE -- a documented, scoped exception to the envelope
+rule, the same way `/api/v1/sessions` already is, since an SSE body is a
+sequence of `data: <chunk>` frames by the nature of the transport, not
+one JSON object). Same `Depends(get_current_session)` Bearer auth as
+`routes/plugins.py`/`routes/devtools.py`.
+
+A genuine, self-caught test-design bug surfaced while building the
+streaming integration test: the first attempt asserted `len(chunks) > 1`
+as proof of real token streaming, which both the new real path and the
+old chunked-replay path would satisfy for a multi-word sentence --
+useless as a distinguishing assertion. Fixed by computing the exact
+expected chunk count under each path's own grouping rule (5 for
+per-word real streaming, 2 for 4-word chunked replay) and asserting the
+exact count, so the test can only pass if the real path actually ran.
+
+Deferred, documented, not silently dropped: Context Engine's
+knowledge-graph half (needs M10A); Learning/Feedback closing through
+M16's Reflection Engine (needs M16); Permission Validation's final
+M14-routed form (needs M14; `AgentPermissionGate` is the interim single
+enforcement point); Intent Engine gating graph routing instead of just
+recording a diagnostic (needs M10A/M10B for real signal); `tool_selector`'s
+"final" shortcut path's real token streaming (needs restructuring tool
+selection itself); wiring the PySide6 Agent Trace view or a React
+frontend surface to `/api/v1/agent` (M8's own remaining phases,
+unchanged by this pass).
+
+839/839 tests passing (unit + integration) -- up from 815 in the M9
+Task Group E release (+24: new unit tests for Intent/Context Engine,
+parallel dispatch, and Permission Validation; a new `AgentPermissionGate`
+unit suite; a new `/api/v1/agent` route test suite; three new
+orchestrator integration tests exercising parallel dispatch, permission
+denial, and real streaming end-to-end) -- zero regressions. One
+pre-existing test, `test_runtime_ws_hub.py::test_every_documented_event_type_is_mapped`,
+needed updating for the new `agent.step` category -- an expected,
+mechanical update, not a design gap. Ruff/mypy findings proportional to
+the pre-existing accepted baseline: the four line-length findings this
+pass's own new code introduced were fixed outright rather than absorbed
+into the baseline; every remaining new finding is `PLC0415`, matching
+this codebase's already-established lazy-import convention -- zero new
+finding categories of any kind. Version bumped `0.12.0` -> `0.13.0`,
+continuing the one-minor-bump-per-milestone-scope-of-work granularity
+§14's versioning-granularity note already documents.

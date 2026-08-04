@@ -3,6 +3,97 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.0] — M10, AI Orchestrator (partial -- buildable-now scope)
+
+Milestone 10 formally depends on M10A (Universal Search & Knowledge
+Platform) and M14 (Authorization Engine), neither of which has started.
+Rather than block, this release ships the full subset of M10 buildable
+without them -- extending M5A's `AgentOrchestrator` graph directly, no
+rewrite -- and documents the M10A/M14/M16-dependent remainder as
+explicitly deferred, the same "Completed / Deferred with a documented
+reason" discipline this project has applied since the M0-M9 audit.
+**M10 is not 100% complete; see Deferred below.**
+
+### Added
+- Intent Engine -- `agents/nodes/intent_classifier.py`, a new node
+  before `planner` classifying the request into `tool_use` /
+  `direct_answer` / `clarification_needed` with a confidence score.
+  Diagnostic only in this release (does not yet gate graph routing).
+- Context Engine (scoped) -- `agents/nodes/context_engine.py`, assembles
+  context from M3 Memory before planning. The M10A knowledge-graph half
+  of Context Engine is deferred (see below); this is the M3-only subset
+  that's real today.
+- Parallel tool dispatch -- Milestone 10 Acceptance Criterion 1, also
+  absorbing M7 Phase 3's deferred cross-tool-parallelism scope.
+  `tool_selector` gained a `tool_parallel` decision shape alongside the
+  existing `tool`/`final` ones; `tool_executor` dispatches independent
+  calls concurrently via the existing `gather_with_concurrency`, bounded
+  by `AgentSettings.max_parallel_steps` (declared in M7, unread by any
+  code until now). The single-tool path is unchanged, byte-for-byte.
+- Permission Validation (interim) -- Milestone 10 Acceptance Criterion 3.
+  `agents/permission.py`'s `AgentPermissionGate` + a new
+  `permission_validator` node inserted between tool selection and
+  execution: the one enforcement point every proposed tool call (single
+  or parallel) now passes through, replacing the pre-M10 gap where only
+  `run_automation` had any permission awareness at all, and that only
+  internal to `AutomationService`. Interim and explicitly documented as
+  such -- M10's own spec routes this through M14's Authorization Engine
+  "once that milestone ships"; `AgentPermissionGate` is a single, narrow
+  class so that swap means replacing its `authorize()` body, not the
+  graph wiring. `AgentSettings.confirm_required_tools` (default
+  `{"run_automation"}`) is the interim policy.
+- Real token-level streaming -- Milestone 10 Acceptance Criterion 2.
+  `AgentOrchestrator.stream()` now yields real per-token output from
+  `ILLMProvider.stream()` for the dominant path (an answer composed from
+  tool results), via a second, responder-less compiled graph variant
+  (`build_agent_graph(..., include_responder=False)`) and a prompt
+  builder (`agents/nodes/responder.py`'s `build_final_response_prompt`)
+  shared with the non-streaming path so the two can't drift. One path
+  remains a documented, scoped exception: `tool_selector`'s "final"
+  shortcut (no tool needed) still composes its answer inside a JSON
+  decision object and replays it in the pre-M10 chunked style, since
+  token-streaming JSON-embedded text cleanly would mean restructuring
+  tool selection itself.
+- Decision Engine -- `responder` node gained `response_mode`
+  (`"direct"` / `"composed"`) in `AgentState`, per M10's description of
+  it as "the responder node's successor, deciding final response shape
+  and routing."
+- `agent.step` added to the Runtime WebSocket API's event relay
+  (`core/lifecycle/runtime_ws_hub.py`) -- real-time Agent Trace
+  visibility over the same `/api/v1/ws` transport M9 built, not a
+  second channel.
+- `infrastructure/api/routes/agent.py` -- `POST /api/v1/agent/invoke`
+  (blocking, `{data, meta}` envelope) and `POST /api/v1/agent/stream`
+  (real token-level Server-Sent Events -- a documented, scoped exception
+  to the envelope rule, the same way `/api/v1/sessions` already is).
+  Same `Depends(get_current_session)` Bearer auth as `routes/plugins.py`
+  / `routes/devtools.py`.
+
+### Fixed
+- None -- Task Group D/E's Windows architecture-normalization fix
+  shipped in 0.12.0; no regression found in this release.
+
+### Deferred (documented, not silently dropped)
+- Context Engine's knowledge-graph half -- needs M10A (not started).
+- Learning / Feedback closing through M16's Reflection Engine -- needs
+  M16 (not started).
+- Permission Validation's final form routed through M14's Authorization
+  Engine -- needs M14 (not started); `AgentPermissionGate` is the
+  interim single enforcement point in the meantime.
+- Intent Engine gating graph routing (vs. diagnostic-only today) --
+  revisit once M10A/M10B give the classifier real signal to act on.
+- `tool_selector`'s "final" shortcut path's real token streaming -- see
+  Added, above.
+- PySide6 Agent Trace view / React frontend wiring to `/api/v1/agent` --
+  M8's own remaining phases, unchanged by this release.
+
+### Testing
+839/839 tests passing (unit + integration), zero regressions -- up from
+815 in 0.12.0 (+24: node/permission/route unit tests, three new
+orchestrator integration tests exercising parallel dispatch, permission
+denial, and real streaming end-to-end). Ruff/mypy findings proportional
+to the pre-existing accepted baseline; zero new categories introduced.
+
 ## [0.12.0] — M9, Task Group E (Developer Platform Tools) — closes out Milestone 9
 
 The last of M9's modules. **Milestone 9 (Runtime & Core Services) is

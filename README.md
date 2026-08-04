@@ -187,7 +187,13 @@ Tools that expose it all — Debug Console, Live Logs, Performance
 Profiler, State Inspector, API Inspector, and a real `/api/v1/plugins`
 + `/api/v1/devtools` REST API (the first routes to follow
 `docs/ARCHITECTURE.md` §5's full contract — Bearer auth + the
-`{data, meta}` envelope).
+`{data, meta}` envelope); **M10 — AI Orchestrator active (partial)** —
+extends M5A's `AgentOrchestrator` with an Intent Engine, a Context
+Engine (M3 Memory-scoped), parallel tool dispatch, interim Permission
+Validation, real token-level streaming for the tool-composed path, and
+a real `/api/v1/agent` REST API. M10 formally depends on M10A and M14,
+neither shipped yet, so the dependent remainder is explicitly deferred
+— **not 100% complete.**
 
 ## License
 

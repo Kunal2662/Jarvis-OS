@@ -56,8 +56,8 @@ jobs:
         continue-on-error: true
 
       - name: Pytest (full suite + coverage)
-        # Hard gate -- as of M9 Task Group E (0.12.0) the full suite is
-        # 815/815 passing with zero pre-existing failures/errors, so any
+        # Hard gate -- as of M10 (partial, 0.13.0) the full suite is
+        # 839/839 passing with zero pre-existing failures/errors, so any
         # red here is a real regression, not legacy noise. See CHANGELOG.md
         # for the count at each release; this comment is not re-verified
         # automatically, only updated when a milestone/task group notices it.

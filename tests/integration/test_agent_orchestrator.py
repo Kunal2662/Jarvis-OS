@@ -160,6 +160,105 @@ async def test_stream_yields_the_final_response_text(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_invoke_dispatches_parallel_tool_calls(tmp_path) -> None:
+    """Milestone 10 AC1 (absorbs M7 Phase 3): two independent tool calls
+    dispatch in one graph step, not sequentially across two loop-backs."""
+    from jarvis.agents.orchestrator import AgentOrchestrator
+
+    llm = ScriptedFakeLLM(
+        {
+            "(none yet)": (
+                '{"action": "tool_parallel", "tools": '
+                '[{"tool": "remember", "args": {"content": "note one"}}, '
+                '{"tool": "recall_memory", "args": {"query": "note"}}]}'
+            ),
+            "self-critique module": '{"complete": true, "reason": "done"}',
+            "Compose the final answer": "Saved and recalled.",
+        }
+    )
+    orchestrator = AgentOrchestrator(
+        _settings(tmp_path), llm, memory=_FakeMemoryService(), automation=None, browser=None
+    )
+
+    response = await orchestrator.invoke(AgentRequest(prompt="remember and recall a note"))
+
+    assert response.steps == 2
+    tool_names = {c["tool"] for c in response.metadata["tool_calls"]}
+    assert tool_names == {"remember", "recall_memory"}
+    assert response.text == "Saved and recalled."
+
+    await orchestrator.stop()
+
+
+@pytest.mark.asyncio
+async def test_invoke_denies_gated_tool_without_confirmation(tmp_path) -> None:
+    """Milestone 10 AC3 (interim Permission Validation): a denied
+    permission blocks execution -- run_automation is denied before
+    AutomationService.run_command is ever called."""
+    from jarvis.agents.orchestrator import AgentOrchestrator
+
+    class _FakeAutomationService:
+        async def run_command(self, instruction: str) -> object:
+            raise AssertionError("run_automation must be denied before execution")
+
+    llm = ScriptedFakeLLM(
+        {
+            "(none yet)": (
+                '{"action": "tool", "tool": "run_automation", '
+                '"args": {"instruction": "shutdown"}}'
+            ),
+            "self-critique module": '{"complete": true, "reason": "denied"}',
+            "Compose the final answer": "I couldn't do that without your confirmation.",
+        }
+    )
+    orchestrator = AgentOrchestrator(
+        _settings(tmp_path), llm, memory=None, automation=_FakeAutomationService(), browser=None
+    )
+
+    response = await orchestrator.invoke(AgentRequest(prompt="shut down the computer"))
+
+    assert response.steps == 1
+    assert response.metadata["tool_calls"][0]["tool"] == "run_automation"
+    assert response.metadata["tool_calls"][0]["error"].startswith("Denied:")
+
+    await orchestrator.stop()
+
+
+@pytest.mark.asyncio
+async def test_stream_yields_real_tokens_for_composed_response(tmp_path) -> None:
+    """Milestone 10 AC2: once a tool result needs composing into an answer,
+    stream() must yield real per-token output from ``llm.stream()``, not a
+    word-chunked replay of an already-composed string. ``ScriptedFakeLLM``
+    yields one chunk per whitespace-split word (5, for this sentence);
+    the old ``_chunk_for_streaming`` replay path groups 4 words per chunk
+    (2, for this sentence) -- the chunk count is what proves which path
+    ran."""
+    from jarvis.agents.orchestrator import AgentOrchestrator
+
+    llm = ScriptedFakeLLM(
+        {
+            "(none yet)": (
+                '{"action": "tool", "tool": "recall_memory", "args": {"query": "birthday"}}'
+            ),
+            "self-critique module": '{"complete": true, "reason": "done"}',
+            "Compose the final answer": "Your birthday is in March.",
+        }
+    )
+    orchestrator = AgentOrchestrator(
+        _settings(tmp_path), llm, memory=_FakeMemoryService(), automation=None, browser=None
+    )
+
+    chunks = [
+        chunk async for chunk in orchestrator.stream(AgentRequest(prompt="when's my birthday?"))
+    ]
+
+    assert "".join(chunks).strip() == "Your birthday is in March."
+    assert len(chunks) == 5  # one per word -- real token-level, not re-chunked
+
+    await orchestrator.stop()
+
+
+@pytest.mark.asyncio
 async def test_start_and_stop_are_idempotent(tmp_path) -> None:
     from jarvis.agents.orchestrator import AgentOrchestrator
 

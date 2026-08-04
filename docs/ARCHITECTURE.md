@@ -353,9 +353,13 @@ add — both follow this section's contract in full: the `{data, meta}`
 envelope (`infrastructure/api/auth.py`'s `Envelope`) and
 `Depends(get_current_session)` Bearer auth (also `auth.py` — the
 dependency this section referenced by name since Task Group B but no
-route had actually used until Task Group E). Cursor pagination remains
-unproven — no shipped route yet returns a list large enough to need
-it.
+route had actually used until Task Group E). `routes/agent.py` (M10,
+partial) follows suit for `POST /api/v1/agent/invoke`; its sibling
+`POST /api/v1/agent/stream` is this contract's third documented
+exception — a Server-Sent Events response, not a `{data, meta}` JSON
+body, by the nature of the transport, the same way `/api/v1/sessions`
+already is one. Cursor pagination remains unproven — no shipped route
+yet returns a list large enough to need it.
 
 ### Naming and versioning
 
@@ -391,7 +395,11 @@ shapes.
 `SessionResponse` Pydantic model directly, not wrapped in this envelope
 — now a deliberate, permanent exception (it is the mechanism that
 issues the very session token this envelope's own consumers need,
-before any wrapper convention can matter) rather than open debt. Every
+before any wrapper convention can matter) rather than open debt.
+`POST /api/v1/agent/stream` (M10, partial) is a second, deliberate,
+permanent exception: a Server-Sent Events body (`data: <chunk>` frames)
+by the nature of the transport, not one JSON object — its sibling
+`POST /api/v1/agent/invoke` uses the real envelope normally. Every
 other real route (`infrastructure/api/routes/plugins.py`/`devtools.py`,
 M9 Task Group E) uses the real envelope (`infrastructure/api/auth.py`'s
 `Envelope`), proving the shape this section always specified.
@@ -454,6 +462,8 @@ injection (`Depends(get_current_session)`) — never re-implemented per
 router. *As shipped (M9 Task Group E):* `get_current_session`
 (`infrastructure/api/auth.py`) is real, not aspirational — both new
 resource routers (`routes/plugins.py`/`devtools.py`) depend on it.
+*As shipped (M10, partial):* `routes/agent.py` depends on it too, for
+both `/agent/invoke` and `/agent/stream`.
 
 ### Validation
 
@@ -476,10 +486,14 @@ resource routers (`routes/plugins.py`/`devtools.py`) depend on it.
 envelope, heartbeat, and resume/replay-buffer contract exactly as
 documented below, for the `runtime`/`service`/`configuration`/
 `session`/`health`/`task`/`resource`/`plugin` categories (extended into
-the table below by those three task groups). The `voice`/`ai`/
+the table below by those three task groups), plus one more from M10
+(partial): `agent` (`agent.step` — Agent Trace visibility, not the
+token-level stream, which is `/api/v1/agent/stream`'s SSE response
+instead; see the table below for why this shipped as `agent`, not the
+`ai` category this section originally sketched). The `voice`/
 `automation`/`memory`/`progress`/`notification` categories below remain
-the documented target for their owning milestones (M10+) — not yet
-relayed, since nothing publishes them as real `EventBus` events yet.
+the documented target for their owning milestones — not yet relayed,
+since nothing publishes them as real `EventBus` events yet.
 
 ### Single connection
 
@@ -510,7 +524,8 @@ categories map directly to the Event Bus categories in §7:
 | Category | Example events |
 |---|---|
 | `voice` | `voice.state_changed`, `voice.transcript_partial`, `voice.transcript_final` |
-| `ai` | `ai.token`, `ai.step`, `ai.complete` (streaming, §15) |
+| `ai` | *(superseded by `agent`, below — M10 shipped against the actual `AgentStepEvent`/`AgentOrchestrator` domain naming already used throughout `agents/`, matching how `plugin`/`task`/`resource` etc. are all named after their real domain noun, not a generic umbrella term)* |
+| `agent` | `agent.step` *(shipped M10, partial — Agent Trace visibility over `AgentOrchestrator`'s LangGraph node transitions, `core/lifecycle/runtime_ws_hub.py`. Token-level streaming, §15, is `/api/v1/agent/stream`'s SSE response, not a WS event — one WS frame per LLM token was judged not worth the relay traffic)* |
 | `automation` | `automation.step_started`, `automation.step_completed`, `automation.workflow_finished` |
 | `memory` | `memory.updated`, `memory.recalled` |
 | `progress` | `progress.update` (long-running non-AI operations — backups, sync) |
@@ -1021,21 +1036,30 @@ registry-only scaffolding anymore.
 
 ## 15. AI standards
 
-Formalizes M10 (AI Orchestrator)'s already-designed pipeline
-(`MASTER_ROADMAP.md` §8) as the binding standard every AI-driven
-feature routes through — no feature builds its own agent loop.
+Formalizes M10 (AI Orchestrator)'s pipeline (`MASTER_ROADMAP.md` §8) as
+the binding standard every AI-driven feature routes through — no
+feature builds its own agent loop.
+
+**Status (Aug 2026, M10 partial):** Intent, Planning, Execution,
+Verification are real, shipped rows below — extending `agents/nodes/`
+directly. Permissions is real but interim (routes through
+`AgentPermissionGate`, not yet M14). Memory is real for the M3 half
+only (`agents/nodes/context_engine.py`); the M10A knowledge-substrate
+half, and the Feedback/Learning rows in full (both depend on
+milestones — M16, M10B — that haven't started), remain the documented
+target, not yet built.
 
 | Stage | Standard |
 |---|---|
-| **Intent** | Every user request is classified into an intent before planning starts (M10's Intent Engine) — a feature never skips straight to tool execution on raw text. |
-| **Planning** | Multi-step plans extend M5A's `planner` node (M10's Planning) — a plan is data (a sequence of tool calls with dependencies), inspectable in Developer Mode's Agent Trace, never an opaque prompt chain. |
+| **Intent** | ✅ Every user request is classified into an intent before planning starts (`agents/nodes/intent_classifier.py`) — a feature never skips straight to tool execution on raw text. Diagnostic only today: nothing yet branches on the classification. |
+| **Planning** | ✅ Multi-step plans extend M5A's `planner` node — a plan is data (a sequence of tool calls with dependencies), inspectable in Developer Mode's Agent Trace, never an opaque prompt chain. Independent steps dispatch in parallel (`tool_parallel`, M10 AC1). |
 | **Reasoning** | Reasoning happens inside the LLM call the Planning/Tool Selection stages make — this standard does not prescribe a specific reasoning technique (chain-of-thought, ReAct, etc.), only that reasoning is never hidden from Agent Trace. |
-| **Memory** | Every AI feature reads context through M10A's Universal Search & Knowledge Platform / M3 Memory — never a feature-local, undocumented memory store. |
-| **Permissions** | Every tool invocation passes through Permission Validation (M10, routed to M14's Authorization Engine once it ships) before executing — no exceptions, matching M10's own Acceptance Criterion 3. |
-| **Execution** | Tool execution extends M5A's `tool_executor` node (M10's Execution) — every tool call is logged to Agent Trace, success or failure. |
-| **Verification** | Extends M5A's `critic` node (M10's Verification) — an AI action is not considered complete until verified, not just "the LLM said so." |
-| **Feedback** | Closes through M16's Reflection Engine (Workflow Reflection, Behaviour Reflection) — feedback is a read from Reflection's existing analysis, not a second, competing feedback loop (per M10's own Learning/Feedback item). |
-| **Learning** | Backed by M10B's Intelligence Layer (Routine Learning, Preference Learning) — an AI feature that wants to "learn" from usage reads/writes through M10B, never invents its own learning mechanism. |
+| **Memory** | 🟡 Real for M3 Memory (`agents/nodes/context_engine.py`); M10A's Universal Search & Knowledge Platform half is deferred (M10A not started) — never a feature-local, undocumented memory store either way. |
+| **Permissions** | ✅ interim. Every tool invocation passes through Permission Validation (`agents/nodes/permission_validator.py`) before executing — no exceptions, matching M10's own Acceptance Criterion 3. Routes through `AgentPermissionGate` today; M14's Authorization Engine replaces its `authorize()` body once that milestone ships. |
+| **Execution** | ✅ Tool execution extends M5A's `tool_executor` node — every tool call is logged to Agent Trace, success or failure; concurrent for independent calls (M10 AC1). |
+| **Verification** | ✅ Extends M5A's `critic` node — an AI action is not considered complete until verified, not just "the LLM said so." |
+| **Feedback** | 🔴 Not yet built. Closes through M16's Reflection Engine (Workflow Reflection, Behaviour Reflection) once M16 ships — feedback is a read from Reflection's existing analysis, not a second, competing feedback loop (per M10's own Learning/Feedback item). |
+| **Learning** | 🔴 Not yet built. Backed by M10B's Intelligence Layer (Routine Learning, Preference Learning) once M10B ships — an AI feature that wants to "learn" from usage reads/writes through M10B, never invents its own learning mechanism. |
 
 **Prompt-injection standard (already shipped, extended):** every tool
 whose output includes untrusted external content (web pages, OCR'd

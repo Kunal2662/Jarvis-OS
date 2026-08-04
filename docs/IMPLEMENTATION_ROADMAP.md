@@ -16,6 +16,10 @@
 > `MASTER_ROADMAP.md` §15 Pending and `docs/ARCHITECTURE.md` §5. M9
 > Task Groups D (Plugin Platform) and E (Developer Platform Tools) have
 > since shipped — **Milestone 9 is now 100% complete.** See §5 below.
+> M10 (AI Orchestrator) has since shipped its buildable-now scope —
+> **M10 is partial, not 100% complete;** the M10A/M14/M16-dependent
+> remainder is explicitly deferred, documented rather than dropped. See
+> §5 below.
 
 **Document owner:** project lead
 **Status:** Aug 2026 — tracks M8 (React Frontend & Desktop Experience)
@@ -35,8 +39,14 @@ and Task Group E (Developer Platform Tools — Debug Console, Live Logs,
 Performance Profiler, State Inspector, API Inspector, Plugin
 Marketplace Foundation REST API, Permission Management API, Plugin
 Diagnostics) have both now shipped — see §5 below. **Milestone 9 is
-100% complete.** This was a deliberate, explicit exception to "one
-active milestone at a time":
+100% complete.** M10 (AI Orchestrator) has since shipped its
+buildable-now scope (Intent Engine, scoped Context Engine, parallel
+tool dispatch, interim Permission Validation, real streaming for the
+composed path, Decision Engine, `/api/v1/agent`) — **M10 is partial**,
+since it formally depends on M10A and M14, neither of which has
+started; the dependent remainder is documented as deferred, not
+dropped. See §5 below. Both were a deliberate, explicit exception to
+"one active milestone at a time":
 M9's Runtime Core had no real dependency on M8's remaining frontend
 backlog (see §5's own Dependencies note), following an architecture
 review the user requested and then closed with "keep the documented
@@ -59,7 +69,8 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | M7 — Workflow Intelligence | 🟡 Active (Phases 1–2 shipped; Phase 3 🟠 deferred; Phases 4–6 pending). See `MASTER_ROADMAP.md` §8. |
 | **M8 – React Frontend & Desktop Experience** | 🟡 **Active — this document tracks it.** Phase 1 and Phase 4 shipped; Phase 3 partial; Phases 2, 5, 6, 7 and the rest of Phase 3 🟠 **deferred — see §6, Deferred Backlog.** **Not 100% complete.** |
 | **M9 – Runtime & Core Services** | ✅ **Completed — all five task groups (A–E) shipped, see §5 below.** |
-| M10, M10A, M10B, M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
+| **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M10A/M14/M16-dependent remainder deferred. See §5 below and `MASTER_ROADMAP.md` §8/§14.** |
+| M10A, M10B, M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
 M7's Phases 4–6 (Workflow Builder, Recorder, Scheduler) were paused
 pending the UI Foundation review; that review is superseded by the
@@ -955,6 +966,74 @@ Marketplace's *consumer* surfaces, which already exist and work today
 Groups A, B, C, D, and E touched neither, so none were blocked by M8's
 remaining Phase 2–3/5–7 backlog, and none of M9's Deferred Backlog
 dependency (§6) ever materialized into an actual blocker.
+
+---
+
+## 5A. M10 — AI Orchestrator (🟡 Partial — buildable-now scope shipped)
+
+M10 formally depends on M10A (Universal Search & Knowledge Platform)
+and M14 (Authorization Engine), neither of which has started. Rather
+than block, this pass shipped everything real without them and
+documented the rest as explicitly deferred — see
+`MASTER_ROADMAP.md`'s own Aug 2026 M10 changelog addendum for the full
+reasoning and design. **M10 is not 100% complete.**
+
+- [x] Intent Engine — `agents/nodes/intent_classifier.py`, a new node
+      before `planner` classifying the request into `tool_use` /
+      `direct_answer` / `clarification_needed` with a confidence score.
+      Diagnostic only: nothing yet branches graph routing on it.
+- [x] Context Engine (scoped) — `agents/nodes/context_engine.py`,
+      assembles context from M3 Memory before planning. The M10A
+      knowledge-graph half is deferred (M10A not started).
+- [x] Parallel tool dispatch (Acceptance Criterion 1, also closing out
+      M7 Phase 3's deferred cross-tool-parallelism scope) —
+      `tool_selector.py`'s new `tool_parallel` decision shape,
+      `tool_executor.py`'s concurrent dispatch via the existing
+      `gather_with_concurrency`, bounded by
+      `AgentSettings.max_parallel_steps` (declared M7, unread until
+      now). Single-tool path unchanged, byte-for-byte.
+- [x] Permission Validation, interim (Acceptance Criterion 3) —
+      `agents/permission.py`'s `AgentPermissionGate` + a new
+      `permission_validator` node, the one enforcement point every
+      proposed tool call now passes through. Explicitly interim pending
+      M14; `AgentSettings.confirm_required_tools` (default
+      `{"run_automation"}`) is today's policy.
+- [x] Real token-level streaming (Acceptance Criterion 2) —
+      `AgentOrchestrator.stream()` now yields real per-token output via
+      `ILLMProvider.stream()` for the tool-composed path, using a
+      second responder-less compiled graph
+      (`build_agent_graph(..., include_responder=False)`) and a shared
+      prompt builder (`build_final_response_prompt`). The
+      no-tool-needed "final" shortcut still replays precomposed text —
+      a documented, scoped exception (JSON-embedded text can't be
+      cleanly token-streamed without restructuring tool selection).
+- [x] Decision Engine — `response_mode` (`"direct"`/`"composed"`) added
+      to `AgentState`.
+- [x] `agent.step` added to `RuntimeWebSocketHub.EVENT_TYPE_NAMES` —
+      real-time Agent Trace over the existing `/api/v1/ws` relay.
+- [x] `infrastructure/api/routes/agent.py` — `POST /api/v1/agent/invoke`
+      (envelope) and `POST /api/v1/agent/stream` (real token-level SSE,
+      a documented exception to the envelope rule). Same
+      `Depends(get_current_session)` Bearer auth as
+      `routes/plugins.py`/`routes/devtools.py`.
+- [x] 24 new tests (unit: Intent/Context Engine, parallel dispatch,
+      `AgentPermissionGate`, the new route; integration: parallel
+      dispatch, permission denial, and real streaming end-to-end).
+      839/839 passing, zero regressions. Ruff/mypy findings proportional
+      to the pre-existing accepted baseline — zero new categories.
+  - **Deferred** (documented, not silently dropped): Context Engine's
+        knowledge-graph half (needs M10A); Learning/Feedback via M16's
+        Reflection Engine (needs M16); Permission Validation's final
+        M14-routed form (needs M14); Intent Engine gating graph routing
+        (needs M10A/M10B for real signal); the "final" shortcut path's
+        real token streaming; PySide6 Agent Trace view / React frontend
+        wiring to `/api/v1/agent` (M8's own remaining phases).
+
+**Dependencies note:** M10's formal dependencies are M5A (✅, extended
+directly), M8 (🟡 partial — the backend WebSocket transport this pass
+needed is real via M9; M8's own remaining frontend phases are
+unaffected either way), M10A (🔴, blocks Context Engine's full scope),
+M14 (🔴, blocks Permission Validation's final form).
 
 ---
 

@@ -1,25 +1,31 @@
-"""Root LangGraph orchestrator (Milestone 5-Agents).
+"""Root LangGraph orchestrator (Milestone 5-Agents; extended Milestone 10 --
+AI Orchestrator).
 
 Wires together, in order: tool registry (``agents/tools``) -> checkpointer
 (``agents/checkpointer``) -> compiled state graph (``agents/graph``,
 nodes in ``agents/nodes``). Every other layer of the app (Developer
-Mode's Agent Trace panel today; voice/chat/command-palette in later
-milestones) only ever talks to :class:`AgentOrchestrator` through the
+Mode's Agent Trace panel; the ``/api/v1/agent`` REST route, Milestone 10)
+only ever talks to :class:`AgentOrchestrator` through the
 :class:`~jarvis.core.interfaces.agent.IAgentOrchestrator` port — it never
 touches the graph, nodes or tools directly, mirroring how
 ``AutomationService`` fronts the automation engine's internal layers.
 
-Streaming note: the compiled graph is streamed at the node/step level
-(``astream(..., stream_mode="values")``) so each LangGraph node
-transition can be published as an :class:`AgentStepEvent` for the trace
-panel — this is the "planner narration" half of the roadmap's "streaming
-agent tokens end-to-end" goal. The final answer is then re-emitted
-word-by-word for a typewriter UX consistent with
-:meth:`~jarvis.services.chat_service.ChatService.stream`. True
-token-level streaming *from inside* the responder node's own LLM call is
-intentionally deferred (see the milestone delivery doc's Remaining Work)
-rather than building it against an unverified LangGraph message-streaming
-API surface.
+Streaming note (Milestone 10 AC2): :meth:`stream` now yields real,
+measurable token-level output from the LLM provider's own ``stream()``
+call for the dominant path (an answer composed from tool results), instead
+of word-chunking an already-composed string. It does this by compiling a
+second, responder-less variant of the graph (``build_agent_graph(...,
+include_responder=False)``) that runs the identical
+intent/context/plan/tool-select/permission/execute/critique pipeline but
+routes straight to ``END`` instead of through ``responder`` — then, once
+that pipeline settles, calls ``llm.stream()`` directly on the same prompt
+``responder_node`` would have used (:func:`~jarvis.agents.nodes.responder.
+build_final_response_prompt`, shared so the two paths can't drift). The one
+remaining non-token-real path is ``tool_selector``'s "final" shortcut (no
+tool needed -- the answer is embedded in a JSON decision object, which
+can't be cleanly token-streamed without restructuring tool selection
+itself); that path still replays its already-composed text in the pre-M10
+chunked style, a scoped, documented limitation rather than a hidden gap.
 """
 
 from __future__ import annotations
@@ -31,6 +37,8 @@ from uuid import uuid4
 
 from jarvis.agents.checkpointer import AgentCheckpointer
 from jarvis.agents.graph import build_agent_graph
+from jarvis.agents.nodes.responder import build_final_response_prompt
+from jarvis.agents.permission import AgentPermissionGate
 from jarvis.agents.state import AgentState
 from jarvis.agents.tools import build_tool_registry
 from jarvis.core.config.constants import MAX_AGENT_STEPS_HARD_CAP
@@ -41,6 +49,7 @@ from jarvis.core.interfaces.agent import (
     IAgentOrchestrator,
 )
 from jarvis.core.logging.logger import get_logger
+from jarvis.core.types import ChatMessage
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -48,6 +57,7 @@ if TYPE_CHECKING:
     from jarvis.core.config.settings import Settings
     from jarvis.core.events.event_bus import EventBus
     from jarvis.core.interfaces.llm_provider import ILLMProvider
+    from jarvis.features.automation.permission import ConfirmationCallback
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
@@ -73,6 +83,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         system: SystemService | None = None,
         vision: VisionService | None = None,
         event_bus: EventBus | None = None,
+        confirm: ConfirmationCallback | None = None,
     ) -> None:
         self._settings = settings
         self._llm = llm
@@ -84,10 +95,21 @@ class AgentOrchestrator(IAgentOrchestrator):
         self._system = system
         self._vision = vision
         self._event_bus = event_bus
+        # Milestone 10 AC3 (interim Permission Validation): the confirmation
+        # channel forwarded to every proposed tool call's AgentPermissionGate
+        # check. None (the default) means "no interactive surface available"
+        # -- see AgentPermissionGate's own auto-deny-when-unconfirmable
+        # default, the same safe-by-default posture automation's own
+        # PermissionGate already uses.
+        self._confirm = confirm
 
         self._checkpointer = AgentCheckpointer(settings)
         self._tools: list[BaseTool] = []
         self._graph = None
+        # Milestone 10 AC2: a second, responder-less compiled graph used
+        # only by stream() for real token-level output -- see module
+        # docstring.
+        self._stream_graph = None
         self._started = False
         self._start_lock = asyncio.Lock()
 
@@ -108,7 +130,21 @@ class AgentOrchestrator(IAgentOrchestrator):
                 vision=self._vision,
             )
             saver = await self._checkpointer.open()
-            self._graph = build_agent_graph(llm=self._llm, tools=self._tools, checkpointer=saver)
+            permission_gate = AgentPermissionGate(
+                confirm_required_tools=self._settings.agent.confirm_required_tools,
+            )
+            graph_kwargs: dict[str, Any] = {
+                "llm": self._llm,
+                "tools": self._tools,
+                "memory": self._memory,
+                "permission_gate": permission_gate,
+                "confirm": self._confirm,
+                "max_parallel_steps": self._settings.agent.max_parallel_steps,
+            }
+            self._graph = build_agent_graph(checkpointer=saver, **graph_kwargs)
+            self._stream_graph = build_agent_graph(
+                checkpointer=saver, include_responder=False, **graph_kwargs
+            )
             self._started = True
             _logger.info(
                 "AgentOrchestrator started with {} tool(s): {}",
@@ -121,6 +157,7 @@ class AgentOrchestrator(IAgentOrchestrator):
             return
         await self._checkpointer.close()
         self._graph = None
+        self._stream_graph = None
         self._started = False
         _logger.info("AgentOrchestrator stopped.")
 
@@ -167,18 +204,43 @@ class AgentOrchestrator(IAgentOrchestrator):
         state = self._initial_state(request, thread_id)
         config = {"configurable": {"thread_id": thread_id}}
 
-        assert self._graph is not None
+        assert self._stream_graph is not None  # start() guarantees this
         final_state: dict[str, Any] = dict(state)
         try:
-            async for step_state in self._graph.astream(state, config=config, stream_mode="values"):
+            async for step_state in self._stream_graph.astream(
+                state, config=config, stream_mode="values"
+            ):
                 final_state = step_state
                 await self._publish_step_event(thread_id, final_state)
         except Exception as err:
             _logger.exception("Agent stream() failed.")
             raise AgentError(str(err)) from err
 
-        for token in _chunk_for_streaming(final_state.get("final_response", "")):
-            yield token
+        if final_state.get("final_response"):
+            # tool_selector's "final" shortcut already composed the answer
+            # synchronously, embedded in a JSON decision object -- it can't
+            # be cleanly token-streamed without restructuring tool
+            # selection itself (see module docstring). Replay it in the
+            # pre-M10 chunked style rather than claim a token-real stream
+            # for a path that isn't one.
+            for token in _chunk_for_streaming(final_state.get("final_response", "")):
+                yield token
+            return
+
+        prompt = build_final_response_prompt(final_state)
+        accumulated: list[str] = []
+        try:
+            async for token in self._llm.stream([ChatMessage(role="user", content=prompt)]):
+                accumulated.append(token)
+                yield token
+        except Exception as err:
+            _logger.exception("Agent stream() real-token generation failed.")
+            raise AgentError(str(err)) from err
+
+        final_state["final_response"] = "".join(accumulated)
+        final_state["last_node"] = "responder"
+        final_state["response_mode"] = "composed"
+        await self._publish_step_event(thread_id, final_state)
 
     # ------------------------------------------------------------------
     # Internals
@@ -190,15 +252,21 @@ class AgentOrchestrator(IAgentOrchestrator):
             prompt=request.prompt,
             thread_id=thread_id,
             max_steps=max_steps,
+            intent="",
+            intent_confidence=0.0,
+            context="",
             plan="",
             next_action="",
             tool_name="",
             tool_args={},
+            pending_tool_calls=[],
+            permission_denied=False,
             tool_calls=[],
             step=0,
             critique="",
             needs_more_work=False,
             final_response="",
+            response_mode="",
             error=None,
             last_node="",
         )
