@@ -3,6 +3,65 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.22.0] — Final Backlog Completion Pass (pre-M11)
+
+The second and last backlog pass before M11. Where `0.21.0` closed the
+§15 items the roadmap had written down, this one closed what the
+roadmap had *not* — three Settings pages and one spoken greeting that
+had quietly become false as the milestones behind them shipped.
+
+### Fixed
+- **The startup greeting invented the user's day.** `build_context` fed
+  the LLM an invented task list, invented calendar events, an invented
+  "recent achievement", a fabricated temperature and a fabricated
+  now-playing track — then the greeting was *spoken aloud* as fact.
+  Work context now comes from M10B's real Goal Manager (open goals,
+  completed goals); calendar, weather, music and smart-home stay empty
+  until M11/M12 give them a real source, and the prompt simply drops
+  what it has no context for. `features/greeting/mock_context.py` is
+  deleted.
+- **Three Settings pages advertised milestones that had already
+  shipped.** "Browser Automation" and "Desktop Automation" read *Coming
+  in Milestone 4 — Automation* while `BrowserSettings` and
+  `WindowsAutomationSettings` were real and consumed by shipped
+  services; "Plugins" read *Coming in Milestone 5 — Agents* while the
+  whole Plugin Platform shipped in M9. All three are now real pages
+  over the settings that already existed.
+- **Home dashboard service cards showed a green "connected" light over
+  invented data.** Gmail, Spotify, Weather, Finance and Smart Home read
+  as genuine readings of the user's inbox, music and local weather.
+  They now render a `preview` state: offline indicator plus a visible
+  "Preview — no integration connected yet" note. The illustrative data
+  stays (it is what M5 shipped and what proves the widget works); the
+  claim to be connected does not.
+
+### Added
+- `BrowserAutomationPage`, `DesktopAutomationPage` (M4 settings) and
+  `PluginsPage` (M9 settings) — 15 real Settings pages now, 2
+  placeholders.
+- A `preview` key in `ServiceWidget`'s refresh contract, which forces
+  the offline indicator regardless of what the payload claims.
+
+### Changed
+- The two remaining Settings placeholders name the milestone that
+  actually owns them (M12 Smart Home & IoT, M14 Security) instead of
+  the retired "Milestone 6 — Ecosystem" grouping.
+- `GreetingService` takes an optional `intelligence_service`, wired by
+  DI. Absent or failing, the greeting loses its work context and
+  nothing else — same best-effort contract every other context source
+  in that method already had.
+
+### Notes
+- Sweep found **zero** `TODO`/`FIXME`/`HACK`/`XXX` in `src/`, zero dead
+  routes (all nine routers mounted), and zero unwired DI services.
+- Remaining stand-ins are all owned by unstarted milestones and are
+  now labelled as such: the integration providers (M11/M12), the vision
+  and OCR providers (M6's remainder, already reporting themselves
+  unavailable), the module registry (no module hot-reload machinery
+  exists), and the Automations workspace placeholder.
+- 1451 → 1460 tests, all passing. mypy 265 → 263; ruff 22 → 21
+  categories; black clean.
+
 ## [0.21.0] — Backlog Completion & Stabilization Pass (pre-M11)
 
 Not a milestone. A pass over the documented backlog of milestones that

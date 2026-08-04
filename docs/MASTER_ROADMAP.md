@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.21.0`
+**Current version:** `0.22.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -9404,6 +9404,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.19** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group D (Authentication Foundation) shipped: credential model, encrypted-at-rest store, auth strategy registry, provider sessions, permission bridge, `/api/v1/mcp/auth/*`. Infrastructure only — no real providers, no OAuth flow, no vendor integrations. |
 | **0.20** | M10.5     | MCP & Integration Platform      | ✅ **Completed** — Task Group E (SDK, Developer Experience & Milestone Closure) shipped: SDK builders, validation framework, `jarvis mcp` CLI, self-contained examples, `MCPDiagnostics`, `/api/v1/mcp/diagnostics` + `/api/v1/mcp/validate`. Milestone closed across five task groups; Agent Trace integration and a server-side listener deferred to M11 (named in §8). |
 | **0.21** | *(none)* | Backlog Completion & Stabilization Pass | ✅ **Completed** — not a milestone. Closes documented §15 backlog belonging to already-complete milestones: five published-but-unrelayed WebSocket categories, the `HealthMonitor` disk collector, `/api/v1/health`, and `/api/v1/sessions`'s envelope (one intentional breaking change). Also fixes two UI surfaces found rendering invented data over working backends — the Plugin Manager's mock provider and the Module Manager's randomised update flag. M8's deferred frontend backlog is deliberately untouched: it is the M8 milestone itself, in a UI stack being replaced. |
+| **0.22** | *(none)* | Final Backlog Completion Pass | ✅ **Completed** — not a milestone. Closes what the roadmap had *not* written down: the startup greeting fed the LLM invented tasks, calendar events, weather and now-playing data and spoke them as fact (now real Goal Manager data, or nothing); three Settings pages still advertised milestones that had already shipped (M4 Automation ×2, M9 Plugins); and the Home dashboard's five service cards showed a green "connected" light over illustrative data (now an explicit preview state). Sweep found zero TODO/FIXME/HACK/XXX in `src/`, zero dead routes, zero unwired DI services. **All backlog for completed milestones is finished.** |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -13095,3 +13096,66 @@ Validation: 1433 -> 1451 tests, all passing. mypy 266 -> 265 (the
 fixing the one new finding (`I001`). Version bumped `0.20.0` ->
 `0.21.0` -- a minor bump rather than a patch, because the sessions
 envelope is a breaking change to a live route.
+
+*Aug 2026 addendum -- Final Backlog Completion Pass (pre-M11):* the
+second and last backlog pass. `0.21.0` closed the §15 items the
+roadmap had written down; this one closed what it had not.
+
+**The pattern the previous pass named, found three more times.** Stale
+wiring -- an honest placeholder written when nothing existed behind it,
+which becomes a lie the moment the backend ships, silently, because
+nothing fails:
+
+- *The startup greeting invented the user's day.* It fed the LLM an
+  invented task list, invented calendar events, an invented "recent
+  achievement", a fabricated temperature and a fabricated now-playing
+  track -- and the result was **spoken aloud** as fact. This was the
+  worst instance in the repository, because every other case was a
+  screen a user could inspect; this one was a sentence they were told.
+  M10B's Goal Manager had shipped a real source for the work-context
+  half and was never wired in. It is now: real open goals, real
+  completed goals. Calendar, weather, music and smart-home stay empty
+  until M11/M12 give them a source -- the prompt drops what it has no
+  context for, which is the honest alternative to inventing it.
+- *Three Settings pages advertised milestones that had already
+  shipped.* "Browser Automation" and "Desktop Automation" read *Coming
+  in Milestone 4* while `BrowserSettings`/`WindowsAutomationSettings`
+  were real and consumed by shipped services. "Plugins" read *Coming in
+  Milestone 5 — Agents* -- a milestone that never owned plugins, for a
+  platform M9 shipped. All three are now real pages over settings that
+  already existed; nothing new was built.
+- *The Home dashboard's service cards claimed to be connected.* Gmail,
+  Spotify, Weather, Finance and Smart Home rendered a green "online"
+  indicator and a last-sync timestamp over invented figures. The cards
+  themselves are a legitimate M5 deliverable and their real adapters
+  are genuinely M11/M12, so the fix is not to delete them: a `preview`
+  flag forces the offline indicator and shows a visible note. The
+  illustrative data stays; the claim to be connected does not.
+
+**What a clean sweep looks like.** Zero `TODO`/`FIXME`/`HACK`/`XXX` in
+`src/`. All nine routers mounted -- no dead routes. No unwired DI
+service. Every `NotImplementedError` is an abstract-method or
+explicitly-not-undoable contract. The remaining stand-ins are all owned
+by milestones that have not started, and each now says so on screen:
+the integration providers (M11/M12), the vision and OCR providers (M6's
+remainder, already reporting themselves unavailable), the module
+registry (no module hot-reload machinery exists to back it), and the
+Automations workspace placeholder.
+
+**What stays deferred, and the one rule behind all of it.** The
+Automations workspace, M8's nine workspace views, Notification Center,
+Context Menu system, window management and responsive/DPI work are all
+*new PySide6 screens*. M8 is an active migration to React + Tauri.
+Building them now means building them twice, and "reuse instead of
+reinventing" is the rule this repository has enforced most
+consistently. Everything else -- M7's Scheduler, M10A's File Search,
+M10B's scheduled briefing, M10's Learning/Feedback, M10.5's two partial
+acceptance criteria -- is blocked on a milestone that has not started,
+not on effort.
+
+Validation: 1451 -> 1460 tests, all passing. mypy 265 -> 263. Ruff 22
+-> 21 categories (simplifying `build_context` removed the file's
+`PLR0912`); no new category. Version `0.21.0` -> `0.22.0`.
+
+**All backlog for completed milestones is finished.** The remaining
+items are intentionally deferred to future milestones.

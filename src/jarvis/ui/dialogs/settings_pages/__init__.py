@@ -9,6 +9,10 @@ from __future__ import annotations
 # Implemented pages
 from jarvis.ui.dialogs.settings_pages.ai_provider_page import AIProviderPage
 from jarvis.ui.dialogs.settings_pages.api_keys_page import APIKeysPage
+from jarvis.ui.dialogs.settings_pages.automation_page import (
+    BrowserAutomationPage,
+    DesktopAutomationPage,
+)
 from jarvis.ui.dialogs.settings_pages.base import (
     CATEGORY_ORDER,
     PAGE_REGISTRY,
@@ -23,6 +27,7 @@ from jarvis.ui.dialogs.settings_pages.developer_mode_page import DeveloperModePa
 from jarvis.ui.dialogs.settings_pages.logging_page import LoggingPage
 from jarvis.ui.dialogs.settings_pages.memory_page import MemoryPage
 from jarvis.ui.dialogs.settings_pages.model_page import ModelPage
+from jarvis.ui.dialogs.settings_pages.plugins_page import PluginsPage
 from jarvis.ui.dialogs.settings_pages.startup_page import StartupPage
 from jarvis.ui.dialogs.settings_pages.theme_page import ThemePage
 from jarvis.ui.dialogs.settings_pages.vision_page import VisionPage
@@ -68,18 +73,37 @@ register(
     )
 )
 
-# ---- Future milestones (placeholders) ------------------------------------
+# Automation — implemented in Milestone 4 (Automation Platform)
 register(
-    make_placeholder("browser", "Browser Automation", "Automation", "Milestone 4 — Automation")
-)
-register(
-    make_placeholder(
-        "desktop_automation", "Desktop Automation", "Automation", "Milestone 4 — Automation"
+    PageDescriptor(
+        "browser",
+        BrowserAutomationPage.title,
+        BrowserAutomationPage.category,
+        BrowserAutomationPage,
     )
 )
-register(make_placeholder("plugins", "Plugins", "Plugins", "Milestone 5 — Agents"))
-register(make_placeholder("smart_home", "Smart Home", "Smart Home", "Milestone 6 — Ecosystem"))
-register(make_placeholder("security", "Security & Privacy", "Security", "Milestone 6 — Ecosystem"))
+register(
+    PageDescriptor(
+        "desktop_automation",
+        DesktopAutomationPage.title,
+        DesktopAutomationPage.category,
+        DesktopAutomationPage,
+    )
+)
+
+# Plugins — implemented in Milestone 9 Task Group D (Plugin Platform)
+register(PageDescriptor("plugins", PluginsPage.title, PluginsPage.category, PluginsPage))
+
+# ---- Future milestones (placeholders) ------------------------------------
+# These three were labelled with milestones that had already shipped
+# ("Milestone 4 — Automation", "Milestone 5 — Agents") until the Aug 2026
+# final backlog pass promoted them to real pages above. The two below are
+# genuinely future, and now name the milestone that actually owns them
+# rather than the retired "Milestone 6 — Ecosystem" grouping.
+register(
+    make_placeholder("smart_home", "Smart Home", "Smart Home", "Milestone 12 — Smart Home & IoT")
+)
+register(make_placeholder("security", "Security & Privacy", "Security", "Milestone 14 — Security"))
 
 
 __all__ = ["CATEGORY_ORDER", "PAGE_REGISTRY", "SettingsPage"]

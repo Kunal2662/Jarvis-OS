@@ -33,22 +33,22 @@ from jarvis.core.logging.logger import get_logger
 from jarvis.core.types import ChatMessage
 from jarvis.domain.greeting.models import GreetingContext
 from jarvis.features.greeting.fallback import fallback_greeting
-from jarvis.features.greeting.mock_context import (
-    mock_active_tasks,
-    mock_recent_achievement,
-    mock_upcoming_events,
-)
 
 if TYPE_CHECKING:
     from jarvis.core.config.settings import Settings
     from jarvis.core.interfaces.llm_provider import ILLMProvider
     from jarvis.services.conversation_service import ConversationService
+    from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.memory_service import MemoryService
 
 _logger = get_logger("jarvis.services.greeting")
 
 _MAX_HISTORY = 20
 _RECENT_AVOID_COUNT = 5  # how many past greetings get shown to the LLM to avoid repeating
+#: A greeting is one or two sentences; more context than this cannot fit
+#: in it and only dilutes what the model picks.
+_MAX_ACTIVE_GOALS = 3
+_MAX_RECENT_ACHIEVEMENTS = 1
 
 _SYSTEM_PROMPT = """You are JARVIS's greeting voice. Generate exactly ONE short spoken \
 greeting for the user, and nothing else -- no preamble, no quotation marks, no explanation.
@@ -73,11 +73,13 @@ class GreetingService:
         *,
         memory_service: MemoryService | None = None,
         conversation_service: ConversationService | None = None,
+        intelligence_service: IntelligenceService | None = None,
     ) -> None:
         self._settings = settings
         self._llm = llm_provider
         self._memory = memory_service
         self._conversations = conversation_service
+        self._intelligence = intelligence_service
         self._history_path = settings.resolved_data_dir / "greeting_history.json"
         self.history: list[str] = self._load_history()
 
@@ -110,31 +112,18 @@ class GreetingService:
         except Exception:
             pass
 
+        # Weather, now-playing and smart-home stay empty until a real
+        # provider exists (M11 Weather/Spotify, M12 Smart Home). They
+        # used to be filled from `features/integrations/mocks`, which
+        # meant the spoken startup greeting asserted a temperature and a
+        # currently-playing track that were invented \u2014 the one place in
+        # this app where fabricated data was read aloud to the user as
+        # fact. An omitted clause is the honest alternative: the prompt
+        # already instructs the model to use only the context it is
+        # given, so an empty string simply drops the topic.
         weather_summary = ""
         now_playing = ""
         smart_home_summary = ""
-        try:
-            from jarvis.features.integrations.mocks import MockWeatherProvider
-
-            weather = await MockWeatherProvider().get_current("your location")
-            weather_summary = f"{weather['temp_c']}\u00b0C and {weather['condition'].lower()}"
-        except Exception:
-            pass
-        try:
-            from jarvis.features.integrations.mocks import MockSpotifyProvider
-
-            track = await MockSpotifyProvider().get_now_playing()
-            if track and track.get("is_playing"):
-                now_playing = f"{track['title']} by {track['artist']}"
-        except Exception:
-            pass
-        try:
-            from jarvis.features.integrations.mocks import MockSmartHomeProvider
-
-            status = await MockSmartHomeProvider().get_connection_status()
-            smart_home_summary = status.detail
-        except Exception:
-            pass
 
         recent_conversation_summary = ""
         if self._conversations is not None:
@@ -153,6 +142,8 @@ class GreetingService:
             except Exception:
                 pass
 
+        active_tasks, recent_achievements = await self._goal_context()
+
         return GreetingContext(
             user_name=user_name,
             now=now,
@@ -163,13 +154,41 @@ class GreetingService:
             now_playing=now_playing,
             smart_home_summary=smart_home_summary,
             current_workspace=current_workspace,
-            active_tasks=mock_active_tasks(now),
-            upcoming_events=mock_upcoming_events(now),
-            recent_achievements=[mock_recent_achievement()],
+            active_tasks=active_tasks,
+            # Calendar is M11's; there is no event source to read, and
+            # inventing one is what this used to do.
+            upcoming_events=[],
+            recent_achievements=recent_achievements,
             current_project=self._settings.app_name,
             current_milestone=f"v{self._settings.app_version}",
             recent_conversation_summary=recent_conversation_summary,
             remembered_notes=remembered_notes,
+        )
+
+    async def _goal_context(self) -> tuple[list[str], list[str]]:
+        """Real work context from M10B's Goal Manager: what is open, and
+        what was recently finished.
+
+        Replaces the invented task list and "recent achievement" this
+        method used to pass to the LLM. The Goal Manager shipped with
+        M10B and was simply never wired here -- so the greeting was
+        making up a working day while a real one sat in the database.
+
+        Best-effort, like every other source in ``build_context``: no
+        intelligence service, no database, or a query failure all mean
+        "no work context", never a broken greeting.
+        """
+        if self._intelligence is None:
+            return [], []
+        try:
+            active = await self._intelligence.list_goals(status="active")
+            completed = await self._intelligence.list_goals(status="completed")
+        except Exception:
+            return [], []
+
+        return (
+            [goal.title for goal in active[:_MAX_ACTIVE_GOALS]],
+            [goal.title for goal in completed[:_MAX_RECENT_ACHIEVEMENTS]],
         )
 
     # ------------------------------------------------------------------

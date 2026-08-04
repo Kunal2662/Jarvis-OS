@@ -260,6 +260,10 @@ class HomeView(QWidget):
                     ("refresh", "refresh", "Refresh"),
                 ],
                 "last_sync": status.last_sync,
+                # Real adapters are M11/M12; until then this card shows
+                # illustrative data and says so, rather than rendering a
+                # green "connected" light over invented figures.
+                "preview": True,
             }
 
         gmail = ServiceWidget("gmail", "Gmail", on_refresh=_load_gmail)
@@ -285,6 +289,10 @@ class HomeView(QWidget):
                     ("next", "skip_next", ""),
                 ],
                 "last_sync": status.last_sync,
+                # Real adapters are M11/M12; until then this card shows
+                # illustrative data and says so, rather than rendering a
+                # green "connected" light over invented figures.
+                "preview": True,
             }
 
         spotify = ServiceWidget("spotify", "Spotify", on_refresh=_load_spotify)
@@ -301,6 +309,10 @@ class HomeView(QWidget):
                 "activity": [("wind", f"Wind {current['wind_kph']} kph", "now")],
                 "quick_actions": [("forecast", "calendar", "5-Day Forecast")],
                 "last_sync": status.last_sync,
+                # Real adapters are M11/M12; until then this card shows
+                # illustrative data and says so, rather than rendering a
+                # green "connected" light over invented figures.
+                "preview": True,
             }
 
         weather = ServiceWidget("weather", "Weather", on_refresh=_load_weather)
@@ -319,6 +331,10 @@ class HomeView(QWidget):
                 "activity": [(a.icon, a.text, a.timestamp.strftime("%H:%M")) for a in activity],
                 "quick_actions": [("holdings", "chart", "Holdings")],
                 "last_sync": status.last_sync,
+                # Real adapters are M11/M12; until then this card shows
+                # illustrative data and says so, rather than rendering a
+                # green "connected" light over invented figures.
+                "preview": True,
             }
 
         finance = ServiceWidget("finance", "Finance Overview", on_refresh=_load_finance)
@@ -335,6 +351,10 @@ class HomeView(QWidget):
                 "activity": [(a.icon, a.text, a.timestamp.strftime("%H:%M")) for a in activity],
                 "quick_actions": [("devices", "smart_home", "All Devices")],
                 "last_sync": status.last_sync,
+                # Real adapters are M11/M12; until then this card shows
+                # illustrative data and says so, rather than rendering a
+                # green "connected" light over invented figures.
+                "preview": True,
             }
 
         smart_home = ServiceWidget("smart_home", "Smart Home", on_refresh=_load_smart_home)

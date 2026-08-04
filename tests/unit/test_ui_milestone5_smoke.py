@@ -702,7 +702,11 @@ async def test_greeting_service_generates_via_llm(tmp_path: Path) -> None:
 
     context = await service.build_context("Aditya", current_workspace="home")
     assert context.user_name == "Aditya"
-    assert context.active_tasks or context.is_weekend  # weekday has mock tasks
+    # `active_tasks` used to be asserted non-empty on a weekday, because
+    # `mock_context` invented one. It now comes from the real Goal
+    # Manager, and no goals are wired in this test -- so empty is the
+    # correct answer (Aug 2026 final backlog pass).
+    assert context.active_tasks == []
     assert context.current_project == settings.app_name
 
     greeting = await service.generate(context)
@@ -1189,3 +1193,182 @@ def test_main_window_constructs_with_stubbed_heavy_providers(qapp, tmp_path: Pat
     assert window._last_real_nav_id == "chat"
     window._on_nav_selected("settings")
     assert window._last_real_nav_id == "chat"  # settings doesn't steal the highlight
+
+
+# --- Aug 2026 final backlog pass ------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_greeting_context_invents_nothing_without_a_backend(tmp_path: Path) -> None:
+    """With no intelligence service and no integrations, every context
+    field that has no real source must be empty.
+
+    This used to be the opposite: `mock_context` supplied invented
+    tasks, calendar events and achievements, and the integration mocks
+    supplied a temperature and a now-playing track -- all of which the
+    LLM then spoke to the user as fact at startup. An omitted clause is
+    the honest alternative.
+    """
+    from jarvis.core.config.settings import Settings
+    from jarvis.services.greeting_service import GreetingService
+
+    context = await GreetingService(Settings(data_dir=tmp_path), None).build_context("Aditya")
+
+    assert context.active_tasks == []
+    assert context.upcoming_events == []
+    assert context.recent_achievements == []
+    assert context.weather_summary == ""
+    assert context.now_playing == ""
+    assert context.smart_home_summary == ""
+    # Real, locally-observable context is still gathered.
+    assert context.user_name == "Aditya"
+    assert context.system_status in {"nominal", "degraded"}
+
+
+@pytest.mark.asyncio
+async def test_greeting_work_context_comes_from_the_real_goal_manager(tmp_path: Path) -> None:
+    """M10B's Goal Manager shipped and was never wired here, so the
+    greeting made up a working day while a real one sat in the
+    database."""
+    from dataclasses import dataclass
+
+    from jarvis.core.config.settings import Settings
+    from jarvis.services.greeting_service import GreetingService
+
+    @dataclass
+    class _Goal:
+        title: str
+
+    class _Intelligence:
+        async def list_goals(self, *, status: str | None = None, top_level_only: bool = False):
+            if status == "active":
+                return [_Goal("Ship the backlog pass"), _Goal("Review the MCP SDK")]
+            if status == "completed":
+                return [_Goal("Close M10.5")]
+            return []
+
+    service = GreetingService(
+        Settings(data_dir=tmp_path), None, intelligence_service=_Intelligence()
+    )
+    context = await service.build_context("Aditya")
+
+    assert context.active_tasks == ["Ship the backlog pass", "Review the MCP SDK"]
+    assert context.recent_achievements == ["Close M10.5"]
+    # Calendar has no source at all, so it stays empty even with goals.
+    assert context.upcoming_events == []
+
+
+@pytest.mark.asyncio
+async def test_greeting_survives_a_failing_goal_manager(tmp_path: Path) -> None:
+    """Every context source is best-effort; a database failure must
+    cost the greeting its work context, not the greeting itself."""
+    from jarvis.core.config.settings import Settings
+    from jarvis.services.greeting_service import GreetingService
+
+    class _Broken:
+        async def list_goals(self, *, status: str | None = None, top_level_only: bool = False):
+            raise RuntimeError("database unavailable")
+
+    service = GreetingService(Settings(data_dir=tmp_path), None, intelligence_service=_Broken())
+    context = await service.build_context("Aditya")
+
+    assert context.active_tasks == []
+    assert await service.generate(context)
+
+
+def test_settings_pages_for_shipped_milestones_are_real(qapp) -> None:
+    """Browser Automation and Desktop Automation (M4) and Plugins (M9)
+    were placeholders reading "Coming in Milestone 4/5" long after those
+    milestones shipped."""
+    from jarvis.ui.dialogs.settings_pages import PAGE_REGISTRY
+
+    by_id = {d.id: d for d in PAGE_REGISTRY}
+
+    for page_id in ("browser", "desktop_automation", "plugins"):
+        assert "Placeholder" not in by_id[page_id].factory.__name__, page_id
+
+
+def test_remaining_settings_placeholders_name_their_real_owner(qapp) -> None:
+    """Smart Home and Security are genuinely future. They used to be
+    labelled "Milestone 6 — Ecosystem", a grouping that no longer
+    exists; they now name the milestone that actually owns them."""
+    from jarvis.ui.dialogs.settings_pages import PAGE_REGISTRY
+
+    by_id = {d.id: d for d in PAGE_REGISTRY}
+    placeholders = {d.id for d in PAGE_REGISTRY if "Placeholder" in d.factory.__name__}
+
+    assert placeholders == {"smart_home", "security"}
+    assert "Milestone 12" in by_id["smart_home"].factory._milestone
+    assert "Milestone 14" in by_id["security"].factory._milestone
+
+
+def test_automation_settings_page_reads_and_writes_real_settings(qapp, tmp_path: Path) -> None:
+    from jarvis.core.config.settings import Settings
+    from jarvis.ui.dialogs.settings_pages.automation_page import BrowserAutomationPage
+
+    settings = Settings(data_dir=tmp_path)
+    settings.browser.engine = "firefox"
+
+    class _Service:
+        def __init__(self) -> None:
+            self.written: list[tuple[str, str]] = []
+
+        async def set_env(self, key: str, value: str) -> None:
+            self.written.append((key, value))
+
+    service = _Service()
+    page = BrowserAutomationPage(settings, service, None)
+
+    # Reads the real value...
+    assert page._engine.currentText() == "firefox"
+
+    # ...and writes through to the live Settings object.
+    page._headless.setChecked(True)
+    assert settings.browser.headless is True
+
+
+def test_plugins_settings_page_reads_real_plugin_settings(qapp, tmp_path: Path) -> None:
+    from jarvis.core.config.settings import Settings
+    from jarvis.ui.dialogs.settings_pages.plugins_page import PluginsPage
+
+    settings = Settings(data_dir=tmp_path)
+    settings.plugins.max_memory_mb = 256.0
+
+    class _Service:
+        async def set_env(self, key: str, value: str) -> None:
+            return None
+
+    page = PluginsPage(settings, _Service(), None)
+
+    assert page._max_memory.value() == 256.0
+    assert page._sandbox_mode.currentText() == settings.plugins.sandbox_mode
+
+
+def test_preview_service_cards_never_claim_to_be_connected(qapp) -> None:
+    """The Home dashboard's Gmail/Spotify/Weather/Finance/Smart Home
+    cards render illustrative data. Before this pass they did it behind
+    a green "online" indicator, which read as a real reading of the
+    user's inbox and local weather."""
+    from jarvis.ui.components.service_widget import ServiceWidget
+
+    async def _never_called() -> dict:
+        raise AssertionError("refresh should not run in this test")
+
+    widget = ServiceWidget("weather", "Weather", on_refresh=_never_called)
+    widget._render({"connected": True, "summary": "21°C", "preview": True})
+
+    assert widget._indicator.objectName() == "connectionIndicatorOffline"
+    assert widget._preview_label.isVisibleTo(widget) is True
+
+
+def test_non_preview_service_cards_still_show_connected(qapp) -> None:
+    from jarvis.ui.components.service_widget import ServiceWidget
+
+    async def _never_called() -> dict:
+        raise AssertionError("refresh should not run in this test")
+
+    widget = ServiceWidget("gmail", "Gmail", on_refresh=_never_called)
+    widget._render({"connected": True, "summary": "3 unread"})
+
+    assert widget._indicator.objectName() == "connectionIndicatorOnline"
+    assert widget._preview_label.isVisibleTo(widget) is False

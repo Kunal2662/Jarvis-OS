@@ -1462,6 +1462,41 @@ blocked on a milestone that has not started, not on effort.
 
 ---
 
+## 5F. Final Backlog Completion Pass (✅ Completed — `0.22.0`, pre-M11)
+
+The second and last backlog pass. `0.21.0` closed the §15 items the
+roadmap had written down; this one closed what it had not. Full
+reasoning in `MASTER_ROADMAP.md`'s own Aug 2026 addendum.
+
+- [x] **Startup greeting no longer invents the user's day.** Work
+      context now comes from M10B's real Goal Manager; calendar,
+      weather, music and smart-home stay empty until M11/M12 supply a
+      source. `features/greeting/mock_context.py` deleted.
+- [x] **Browser Automation + Desktop Automation Settings pages** — were
+      placeholders reading "Coming in Milestone 4" while M4's settings
+      were real and consumed by shipped services.
+- [x] **Plugins Settings page** — was a placeholder reading "Coming in
+      Milestone 5 — Agents"; the Plugin Platform shipped in M9.
+- [x] **Home dashboard service cards** no longer show a "connected"
+      indicator over illustrative data — a `preview` state forces the
+      offline indicator and a visible note.
+- [x] Remaining Settings placeholders name their real owners (M12, M14)
+      instead of the retired "Milestone 6 — Ecosystem" grouping.
+
+**Sweep result:** zero `TODO`/`FIXME`/`HACK`/`XXX` in `src/`, zero dead
+routes (all nine routers mounted), zero unwired DI services.
+
+**Still deferred, one rule behind all of it** — the Automations
+workspace and every item in §6 below are *new PySide6 screens*, and M8
+is an active migration to React + Tauri. Building them now means
+building them twice. Everything else (M7 Scheduler, M10A File Search,
+M10B scheduled briefing, M10 Learning/Feedback, M10.5's two 🟡 criteria)
+is blocked on a milestone that has not started.
+
+**All backlog for completed milestones is finished.**
+
+---
+
 ## 6. Deferred Backlog
 
 *(Added Aug 2026 — roadmap reconciliation pass, ahead of M9 Task Group

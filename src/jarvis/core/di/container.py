@@ -906,6 +906,9 @@ class Container(containers.DeclarativeContainer):
         llm_provider=llm_provider,
         memory_service=memory_service,
         conversation_service=conversation_service,
+        # M10B's Goal Manager, so the greeting's "work context" is the
+        # user's real open and completed goals rather than invented ones.
+        intelligence_service=intelligence_service,
     )
 
     # ---- Agents (Milestone 5-Agents) ------------------------------------

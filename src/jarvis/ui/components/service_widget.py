@@ -37,7 +37,21 @@ class ServiceWidget(ServiceCard):
         "activity": [(icon, text, when_text), ...],   # up to ~3
         "quick_actions": [(action_id, icon, label), ...],
         "last_sync": datetime | None,
+        "preview": bool,   # optional; see below
     }
+
+    ``preview`` marks a card whose data comes from a stand-in rather
+    than a connected service (Aug 2026 final backlog pass). The Gmail /
+    Spotify / Weather / Finance / Smart Home providers are all still
+    stand-ins -- their real adapters are M11 and M12 -- and before this
+    flag existed those cards rendered a green "online" indicator over
+    invented figures, which read as a genuine reading of the user's
+    inbox, music and local weather.
+
+    A preview card forces the offline indicator and shows a visible
+    note, so the illustrative data stays (it is what M5 shipped, and
+    what proves the widget works) without the card claiming to be
+    connected to anything.
     """
 
     def __init__(
@@ -57,6 +71,12 @@ class ServiceWidget(ServiceCard):
         # dot + badge combo.
         self._indicator = QLabel("●")
         self._indicator.setObjectName("connectionIndicatorUnknown")
+
+        self._preview_label = QLabel("Preview — no integration connected yet")
+        self._preview_label.setObjectName("rowSubtitle")
+        self._preview_label.setWordWrap(True)
+        self._preview_label.setVisible(False)
+        self.body.addWidget(self._preview_label)
 
         self._summary_label = QLabel("Loading…")
         self._summary_label.setObjectName("rowSubtitle")
@@ -124,10 +144,14 @@ class ServiceWidget(ServiceCard):
         self._indicator.setObjectName("connectionIndicatorOffline")
 
     def _render(self, data: RefreshResult) -> None:
-        connected = bool(data.get("connected", True))
+        preview = bool(data.get("preview", False))
+        # A preview card is not connected to anything, whatever its
+        # payload claims -- the indicator must never say otherwise.
+        connected = bool(data.get("connected", True)) and not preview
         self._indicator.setObjectName(
             "connectionIndicatorOnline" if connected else "connectionIndicatorOffline"
         )
+        self._preview_label.setVisible(preview)
         self._summary_label.setText(str(data.get("summary", "")))
 
         while self._activity_container.count():
