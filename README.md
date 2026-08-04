@@ -274,10 +274,10 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.22.0` · **Current milestone:** M10.5 — MCP &
-Integration Platform (✅ completed across five task groups). `0.21.0`
-and `0.22.0` are backlog completion passes over already-completed
-milestones, not new milestones — awaiting review before M11 begins.
+**Current version:** `0.23.0` · **Current milestone:** M11 — Intelligent
+Workspace & Productivity (🟡 active; Task Group A, Workspace Foundation,
+shipped). M10.5 completed across five task groups; `0.21.0` and `0.22.0`
+were backlog completion passes over already-completed milestones.
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source

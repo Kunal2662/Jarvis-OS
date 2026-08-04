@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.22.0`
+**Current version:** `0.23.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -2306,10 +2306,37 @@ missed:
 Everything else M10.5 scoped is shipped, tested and wired. Neither
 deferral blocks M11: the substrate M11 registers against is complete.
 
-### M11 — Integrations & Cloud Platform
+### M11 — Intelligent Workspace & Productivity
 
-*(Retitled Aug 2026 from "Productivity Platform" as part of the
-frontend technology migration — see `TECH_STACK.md` and the changelog
+**Status: 🟡 Active — Task Group A (Workspace Foundation) shipped
+(Aug 2026, `0.23.0`).**
+
+*(Scope refined Aug 2026, at the start of implementation: the milestone
+now opens with a **Workspace Foundation** and is organised into six
+task groups, A–F, below. This is a refinement of an already-planned
+milestone's internal structure, not a renumbering and not a change to
+any completed milestone — M11 keeps its number, its dependencies and
+its integration scope, which is now Task Group E. The reasoning: every
+later part of this milestone — Tasks, Calendar, Files, AI context, and
+the external integrations themselves — needs somewhere to hang its data,
+and building that shared Workspace substrate first is cheaper than
+retrofitting one under five features that each invented their own.
+The original title, "Integrations & Cloud Platform", described only
+what is now one of six task groups.)*
+
+#### Task Group breakdown
+
+| Task Group | Scope | Status |
+|---|---|---|
+| **A — Workspace Foundation** | Workspace domain, Project and Note models, repositories, `WorkspaceService`, `WorkspaceManager`, settings/metadata, events, search sources, DI, REST | ✅ **Shipped** (`0.23.0`) |
+| **B — Productivity Core** | Tasks, Calendar, Reminders, Scheduling, productivity APIs | 🔴 Not started |
+| **C — File Platform** | File Manager, File Browser, File Search, document indexing, file metadata | 🔴 Not started |
+| **D — AI Workspace** | Workspace AI context, Knowledge integration, context retrieval, AI assistance | 🔴 Not started |
+| **E — External Integrations** | GitHub, Gmail, Google Drive, Outlook, Slack, Discord, Notion, calendar providers | 🔴 Not started |
+| **F — UI Integration & Closure** | React/Tauri Workspace UI, final validation, docs, performance review, M11 closure | 🔴 Not started |
+
+*(Originally retitled Aug 2026 from "Productivity Platform" as part of
+the frontend technology migration — see `TECH_STACK.md` and the changelog
 addendum at the end of this document. Absorbs the old M9 Integration
 Platform's full scope (API Gateway, OAuth, API Manager, Webhooks,
 Queue, Retry Policies, Caching, Monitoring — see M9's own note) plus
@@ -2327,7 +2354,17 @@ optional cloud sync — generalizing what M5's API Center started as
 CRUD-only, and folding in what M9 originally scoped as a separate
 milestone.
 
-**Key features:**
+**Key features.** Everything in this list is **Task Group E**'s
+scope unless marked otherwise — it is the original milestone brief,
+preserved unchanged, now sitting under the workspace substrate Task
+Group A provides.
+
+- **Workspace Foundation** *(Task Group A — shipped)* — `Workspace`,
+  `Project` and `Note` as first-class persisted entities, with
+  per-workspace settings, derived metadata, three repositories, a
+  `WorkspaceService` owning the domain and a `WorkspaceManager`
+  composing it with Knowledge/Search/Memory. Every later task group
+  hangs its data off this rather than defining its own container.
 - API Gateway — a single, audited egress point for outbound
   integration traffic.
 - OAuth — a reusable authorization-code flow, replacing the
@@ -9405,6 +9442,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.20** | M10.5     | MCP & Integration Platform      | ✅ **Completed** — Task Group E (SDK, Developer Experience & Milestone Closure) shipped: SDK builders, validation framework, `jarvis mcp` CLI, self-contained examples, `MCPDiagnostics`, `/api/v1/mcp/diagnostics` + `/api/v1/mcp/validate`. Milestone closed across five task groups; Agent Trace integration and a server-side listener deferred to M11 (named in §8). |
 | **0.21** | *(none)* | Backlog Completion & Stabilization Pass | ✅ **Completed** — not a milestone. Closes documented §15 backlog belonging to already-complete milestones: five published-but-unrelayed WebSocket categories, the `HealthMonitor` disk collector, `/api/v1/health`, and `/api/v1/sessions`'s envelope (one intentional breaking change). Also fixes two UI surfaces found rendering invented data over working backends — the Plugin Manager's mock provider and the Module Manager's randomised update flag. M8's deferred frontend backlog is deliberately untouched: it is the M8 milestone itself, in a UI stack being replaced. |
 | **0.22** | *(none)* | Final Backlog Completion Pass | ✅ **Completed** — not a milestone. Closes what the roadmap had *not* written down: the startup greeting fed the LLM invented tasks, calendar events, weather and now-playing data and spoke them as fact (now real Goal Manager data, or nothing); three Settings pages still advertised milestones that had already shipped (M4 Automation ×2, M9 Plugins); and the Home dashboard's five service cards showed a green "connected" light over illustrative data (now an explicit preview state). Sweep found zero TODO/FIXME/HACK/XXX in `src/`, zero dead routes, zero unwired DI services. **All backlog for completed milestones is finished.** |
+| **0.23** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group A (Workspace Foundation) shipped: `Workspace`/`Project`/`Note` models, three repositories, `WorkspaceService`, `WorkspaceManager`, per-workspace settings and derived metadata, three relay events, three search sources, DI, and `/api/v1/workspaces` + `/api/v1/projects` + `/api/v1/notes`. CRUD only — no collaboration, sharing or sync. Task Groups B–F not started. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -13159,3 +13197,83 @@ Validation: 1451 -> 1460 tests, all passing. mypy 265 -> 263. Ruff 22
 
 **All backlog for completed milestones is finished.** The remaining
 items are intentionally deferred to future milestones.
+
+*Aug 2026 addendum -- M11 Task Group A (Workspace Foundation):* the
+first implementation pass on M11, and the milestone's substrate.
+
+**Why the milestone was restructured before a line was written.** M11's
+original brief was "Integrations & Cloud Platform" -- API Gateway,
+OAuth, webhooks, Email/Calendar/Spotify, cloud sync. Starting there
+would have meant each of those inventing its own container for the
+things it produces: an email thread, a calendar event, a synced file.
+The refinement (six task groups, A-F, integrations now Task Group E)
+puts a shared `Workspace`/`Project`/`Note` substrate first, so the rest
+of the milestone hangs off one model instead of five. Nothing was
+renumbered and no completed milestone changed; M11's integration scope
+is intact, just no longer the whole milestone.
+
+**Reused, not reinvented.** This task group added no architectural
+pattern. `WorkspaceService` is shaped exactly like
+`IntelligenceService` -- `IDatabase` opened per call, repository built
+inside the session, optional `EventBus`, a `search()` the source wraps.
+The three repositories follow `IntelligenceRepository`. The three
+search sources register through M10A's provider registry with **no
+change to `SearchService`**, which is the extensibility that registry
+was built for. The three events use the one-class-with-an-`action`-field
+shape `memory.updated`/`goal.updated`/`mcp.provider_changed` already
+established, and ride the existing relay. REST follows the
+`{data, meta}` + Bearer convention every resource router since M9 Task
+Group E uses.
+
+**Three design decisions worth recording**, because each had a
+plausible alternative:
+
+- *A note belongs to a workspace and only optionally to a project.* A
+  thought worth capturing rarely arrives already filed, and forcing the
+  filing decision up front is how notes stop getting written. The
+  consequence is that deleting a project **keeps its notes**, moving
+  them back to the workspace, rather than letting the ORM cascade take
+  them -- filing is reversible, deletion is not. Deleting a *workspace*
+  does cascade, because that is an explicit "remove all of this".
+- *Settings are one JSON column; metadata is derived and never stored.*
+  Every later task group will want to add a preference, and a column
+  per preference means a migration per preference on a table nobody
+  queries by it (the `Memory.meta_json` precedent). Counts, by
+  contrast, would drift the moment a note is deleted through a path
+  that forgot to decrement them -- the exact bug class the two backlog
+  passes just finished removing. Anything a query filters on stays a
+  real column.
+- *`WorkspaceManager` is a separate class, not more methods on the
+  service.* The service owns one domain and one database; the moment it
+  also imports Knowledge, Search and Memory it owns four subsystems'
+  failure modes, and Task Groups B-D would each add another. The
+  manager collects and never computes -- the same rule `MCPDiagnostics`
+  follows -- and every collaborator is optional, so a partially-wired
+  container degrades to less context rather than failing.
+
+**Deliberately not built:** Tasks, Calendar, Reminders (Task Group B);
+File Manager, File Search, document indexing (Task Group C); workspace
+AI context beyond the deterministic text match `context()` uses today
+(Task Group D); every external integration (Task Group E); the React
+workspace UI (Task Group F). No collaboration, sharing or
+synchronization endpoints -- those need an identity model and a
+conflict story this milestone has not built, and stubbing them would
+advertise capability that does not exist.
+
+One naming collision is inherited and left alone: M5 shipped nine
+PySide6 "workspace" *views* (Voice, Files, Browser, ...). Those are
+screens; this is a persisted domain entity. Renaming a completed
+milestone's shipped surfaces for a docstring's benefit would cost more
+than the ambiguity does.
+
+Testing -- 56 new tests across four files: the service and its three
+repositories against real temp-file SQLite (a repository mocked away
+from its own dialect proves nothing about the queries that run), the
+manager's collect-never-compute and degrade-gracefully contracts, the
+REST surface including auth/envelope/400-vs-404, and an end-to-end
+suite asserting a REST write reaches a real WebSocket subscriber and
+that workspace content is findable through the shared `SearchService`.
+Suite 1460 -> 1516, all passing. mypy 263 -> 263 (a `list` method name
+shadowed the builtin in three return annotations; renamed per entity
+rather than suppressed). Ruff 21 categories, unchanged. Version bumped
+`0.22.0` -> `0.23.0`.

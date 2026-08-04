@@ -74,6 +74,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         from jarvis.infrastructure.api.routes import plugins as plugin_routes
         from jarvis.infrastructure.api.routes import runtime_ws as runtime_ws_routes
         from jarvis.infrastructure.api.routes import sessions as session_routes
+        from jarvis.infrastructure.api.routes import workspaces as workspace_routes
 
         app.state.runtime_ws_hub = container.runtime_ws_hub()
         app.include_router(session_routes.router, prefix="/api/v1")
@@ -84,6 +85,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(knowledge_routes.router, prefix="/api/v1")
         app.include_router(intelligence_routes.router, prefix="/api/v1")
         app.include_router(mcp_routes.router, prefix="/api/v1")
+        app.include_router(workspace_routes.router, prefix="/api/v1")
 
         # Milestone 9 Task Group E -- API Inspector. A real
         # Starlette BaseHTTPMiddleware, not a decorator-based

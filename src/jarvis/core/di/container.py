@@ -202,6 +202,7 @@ def _build_search_service(
     chat_service: Any,
     vision_service: Any,
     plugin_registry: Any,
+    workspace_service: Any,
 ) -> Any:
     """Wires the Search Provider Registry (Milestone 10A, Additional
     Requirement #1): resolves the *existing* Tool Registry and Plugin
@@ -216,6 +217,9 @@ def _build_search_service(
         GoalSearchSource,
         KnowledgeSearchSource,
         MemorySearchSource,
+        NoteSearchSource,
+        ProjectSearchSource,
+        WorkspaceSearchSource,
     )
 
     tools = build_tool_registry(
@@ -234,6 +238,12 @@ def _build_search_service(
     service.register_source(KnowledgeSearchSource(knowledge_service))
     service.register_source(GoalSearchSource(intelligence_service))
     service.register_source(CommandSearchSource(tool_descriptions, plugin_registry=plugin_registry))
+    # Milestone 11 Task Group A -- three more sources, registered the
+    # same way, with no change to SearchService itself. That is the
+    # extensibility M10A's provider registry was built for.
+    service.register_source(WorkspaceSearchSource(workspace_service))
+    service.register_source(ProjectSearchSource(workspace_service))
+    service.register_source(NoteSearchSource(workspace_service))
     return service
 
 
@@ -414,6 +424,33 @@ def _build_mcp_auth_manager(
         mcp_auth_strategies,
         permission_model,
         event_bus=event_bus,
+    )
+
+
+def _build_workspace_service(*, database: Any, event_bus: Any) -> Any:
+    from jarvis.services.workspace_service import WorkspaceService
+
+    return WorkspaceService(database=database, event_bus=event_bus)
+
+
+def _build_workspace_manager(
+    *,
+    workspace_service: Any,
+    knowledge_service: Any,
+    search_service: Any,
+    memory_service: Any,
+) -> Any:
+    """Milestone 11 Task Group A. Composed here, at the composition
+    root, rather than inside ``WorkspaceService`` -- see
+    ``services/workspace_manager.py`` for why the service stays
+    single-subsystem."""
+    from jarvis.services.workspace_manager import WorkspaceManager
+
+    return WorkspaceManager(
+        workspace_service,
+        knowledge_service=knowledge_service,
+        search_service=search_service,
+        memory_service=memory_service,
     )
 
 
@@ -665,6 +702,13 @@ class Container(containers.DeclarativeContainer):
         memory=memory_service,
         event_bus=event_bus,
     )
+    # ---- Milestone 11 Task Group A -- Workspace Foundation ----------------
+    workspace_service = providers.Singleton(
+        _build_workspace_service,
+        database=database,
+        event_bus=event_bus,
+    )
+
     memory_recall_hook = providers.Singleton(
         "jarvis.services.semantic_memory_recall_hook.SemanticMemoryRecallHook",
         memory_service=memory_service,
@@ -855,6 +899,17 @@ class Container(containers.DeclarativeContainer):
         chat_service=chat_service,
         vision_service=vision_service,
         plugin_registry=plugin_registry,
+        workspace_service=workspace_service,
+    )
+
+    # Declared after `search_service` because it composes it -- the
+    # manager is the read-side coordinator, not a second search path.
+    workspace_manager = providers.Singleton(
+        _build_workspace_manager,
+        workspace_service=workspace_service,
+        knowledge_service=knowledge_service,
+        search_service=search_service,
+        memory_service=memory_service,
     )
 
     # ---- Milestone 9 Task Group E -- Developer Platform Tools --------------

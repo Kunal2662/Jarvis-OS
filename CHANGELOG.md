@@ -3,6 +3,52 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.23.0] — M11 Task Group A, Workspace Foundation
+
+The first implementation pass on M11, and the substrate the rest of the
+milestone hangs off. M11 was restructured into six task groups (A–F)
+before any code was written: the original "Integrations & Cloud
+Platform" brief is now Task Group E, sitting on top of a shared
+Workspace model rather than each integration inventing its own
+container. No milestone was renumbered.
+
+### Added
+- **Workspace domain** — `Workspace`, `Project` and `Note` ORM models,
+  plus `WorkspaceSettings` (a value object serialized into one JSON
+  column) and `WorkspaceMetadata` (derived on read, never stored).
+- **Three repositories** — `WorkspaceRepository`, `ProjectRepository`,
+  `NoteRepository`, following `IntelligenceRepository`'s shape exactly.
+- **`WorkspaceService`** — lifecycle, CRUD, settings, metadata, search
+  hooks and event publishing. Shaped like `IntelligenceService`: an
+  `IDatabase` per call, repository inside the session, optional
+  `EventBus`.
+- **`WorkspaceManager`** — composes the service with Knowledge, Search
+  and Memory. Collects and never computes; every collaborator optional.
+- **Three relay events** — `workspace.updated`, `project.updated`,
+  `note.updated`, each one class carrying an `action` field, the shape
+  `memory.updated`/`goal.updated` established.
+- **Three search sources** — registered through M10A's provider
+  registry with no change to `SearchService` itself.
+- **REST** — `/api/v1/workspaces`, `/api/v1/projects`, `/api/v1/notes`
+  (CRUD), plus `/workspaces/{id}/metadata`, `/overview` and `/context`.
+- DI singletons `workspace_service` and `workspace_manager`.
+
+### Notes
+- **A note belongs to a workspace and only optionally to a project** —
+  a thought worth capturing rarely arrives already filed. Consequently
+  deleting a project *keeps* its notes, moving them back to the
+  workspace, rather than letting the ORM cascade take them. Deleting a
+  workspace does cascade, because that is an explicit "remove all of
+  this".
+- **Not built, by scope:** Tasks, Calendar, Reminders (TG-B); File
+  Manager and File Search (TG-C); workspace AI context beyond a
+  deterministic text match (TG-D); every external integration (TG-E);
+  the React workspace UI (TG-F). No collaboration, sharing or sync
+  endpoints — those need an identity model and a conflict story that do
+  not exist yet.
+- 1460 → 1516 tests, all passing. mypy 263 → 263; ruff 21 categories
+  unchanged; black clean.
+
 ## [0.22.0] — Final Backlog Completion Pass (pre-M11)
 
 The second and last backlog pass before M11. Where `0.21.0` closed the

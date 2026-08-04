@@ -111,6 +111,10 @@ def test_every_documented_event_type_is_mapped() -> None:
         "progress.update_phase",
         "notification.plugin",
         "plugin.custom",
+        # Milestone 11 Task Group A
+        "workspace.updated",
+        "project.updated",
+        "note.updated",
     }
 
 

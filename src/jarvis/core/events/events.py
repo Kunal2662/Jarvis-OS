@@ -563,3 +563,44 @@ class ScheduledJobFiredEvent(Event):
     schedule_id: str = ""
     workflow_id: str = ""
     status: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group A — Workspace Foundation
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class WorkspaceUpdatedEvent(Event):
+    """Published by :class:`~jarvis.services.workspace_service.WorkspaceService`
+    on workspace create/update/archive/delete.
+
+    One event class carrying an ``action`` field rather than one class
+    per transition -- the shape ``MemoryUpdatedEvent``, ``GoalUpdatedEvent``
+    and ``MCPProviderStateChangedEvent`` all already use. A subscriber
+    that cares about every workspace change subscribes once; one that
+    cares about a single transition branches on ``action``."""
+
+    workspace_id: str = ""
+    action: str = "created"  # created|updated|archived|deleted
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectUpdatedEvent(Event):
+    """Published on project create/update/complete/delete. Carries
+    ``workspace_id`` as well so a subscriber scoped to one workspace can
+    filter without a lookup."""
+
+    project_id: str = ""
+    workspace_id: str = ""
+    action: str = "created"  # created|updated|completed|deleted
+
+
+@dataclass(frozen=True, slots=True)
+class NoteUpdatedEvent(Event):
+    """Published on note create/update/delete. ``project_id`` is empty
+    for a note filed directly against the workspace, which is the
+    normal case rather than an error -- see ``Note``'s own docstring."""
+
+    note_id: str = ""
+    workspace_id: str = ""
+    project_id: str = ""
+    action: str = "created"  # created|updated|deleted

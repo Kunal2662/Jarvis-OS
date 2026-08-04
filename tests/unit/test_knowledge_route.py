@@ -68,7 +68,19 @@ def test_search_returns_envelope(client, auth_headers) -> None:
     body = response.json()
     assert "data" in body
     assert "sources" in body["meta"]
-    assert set(body["meta"]["sources"]) == {"memory", "knowledge", "goals", "commands"}
+    # Grows as new searchable subsystems register: M10A shipped memory/
+    # knowledge/commands, M10B added goals, and M11 Task Group A added
+    # the three workspace sources. A registry that accepts a new source
+    # without SearchService changing is exactly what M10A built.
+    assert set(body["meta"]["sources"]) == {
+        "memory",
+        "knowledge",
+        "goals",
+        "commands",
+        "workspaces",
+        "projects",
+        "notes",
+    }
 
 
 def test_learn_then_get_entity(client, auth_headers) -> None:

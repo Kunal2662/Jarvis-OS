@@ -1,5 +1,6 @@
 """Concrete :class:`~jarvis.core.interfaces.search.ISearchSource` adapters
-(Milestone 10A, extended Milestone 10B) -- one per searchable subsystem,
+(Milestone 10A, extended Milestone 10B and Milestone 11 Task Group A) --
+one per searchable subsystem,
 each a thin wrapper over an already-real component (``MemoryService``,
 ``KnowledgeService``, ``IntelligenceService``, ``PluginRegistry``), never
 a second implementation of the thing it wraps.
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.workspace_service import WorkspaceService
 
 
 class MemorySearchSource:
@@ -143,3 +145,51 @@ class CommandSearchSource:
             )
             for score, (name, description, kind) in scored[:top_k]
         ]
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group A — Workspace Foundation
+# ---------------------------------------------------------------------------
+class WorkspaceSearchSource:
+    """Wraps :meth:`WorkspaceService.search_workspaces`.
+
+    Three sources rather than one combined "workspace" source, because
+    ``SearchService`` filters and reports *by* ``source_type``: a caller
+    asking for notes should not have to receive workspaces and filter
+    them out, and the Command Palette will want to weight them
+    differently. The cost is three thin classes; the alternative is a
+    source whose results a caller must re-partition."""
+
+    source_type = "workspaces"
+
+    def __init__(self, workspaces: WorkspaceService) -> None:
+        self._workspaces = workspaces
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._workspaces.search_workspaces(query, top_k=top_k)
+
+
+class ProjectSearchSource:
+    """Wraps :meth:`WorkspaceService.search_projects`."""
+
+    source_type = "projects"
+
+    def __init__(self, workspaces: WorkspaceService) -> None:
+        self._workspaces = workspaces
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._workspaces.search_projects(query, top_k=top_k)
+
+
+class NoteSearchSource:
+    """Wraps :meth:`WorkspaceService.search_notes` -- the one workspace
+    source with real scoring rather than a flat status weight, since a
+    note has a title and a body that can match independently."""
+
+    source_type = "notes"
+
+    def __init__(self, workspaces: WorkspaceService) -> None:
+        self._workspaces = workspaces
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._workspaces.search_notes(query, top_k=top_k)

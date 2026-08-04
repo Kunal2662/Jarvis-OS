@@ -1,6 +1,6 @@
 """Repositories for ``conversations``, ``messages``, ``memories``,
-the knowledge graph, and the intelligence layer (goals/routines/
-preferences)."""
+the knowledge graph, the intelligence layer (goals/routines/
+preferences), and the workspace domain (workspaces/projects/notes)."""
 
 from __future__ import annotations
 
@@ -25,6 +25,11 @@ from jarvis.infrastructure.database.repositories.runtime_session_repository impo
 from jarvis.infrastructure.database.repositories.task_history_repository import (
     TaskHistoryRepository,
 )
+from jarvis.infrastructure.database.repositories.workspace_repository import (
+    NoteRepository,
+    ProjectRepository,
+    WorkspaceRepository,
+)
 
 __all__ = [
     "ConversationRepository",
@@ -32,6 +37,9 @@ __all__ = [
     "KnowledgeRepository",
     "MemoryRepository",
     "MessageRepository",
+    "NoteRepository",
+    "ProjectRepository",
     "RuntimeSessionRepository",
     "TaskHistoryRepository",
+    "WorkspaceRepository",
 ]

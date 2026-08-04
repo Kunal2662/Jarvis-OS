@@ -1497,6 +1497,46 @@ is blocked on a milestone that has not started.
 
 ---
 
+## 5G. M11 — Intelligent Workspace & Productivity (🟡 Active — Task Group A shipped)
+
+Six task groups, A–F. The milestone was restructured before
+implementation so that a shared Workspace substrate comes first and the
+original integration brief (now Task Group E) builds on it. Full
+reasoning in `MASTER_ROADMAP.md`'s own Aug 2026 M11 Task Group A
+addendum.
+
+### Task Group A — Workspace Foundation (✅ shipped, `0.23.0`)
+
+- [x] Workspace domain — `Workspace`/`Project`/`Note` ORM models;
+      `WorkspaceSettings` (JSON column) + `WorkspaceMetadata` (derived,
+      never stored).
+- [x] `WorkspaceRepository` / `ProjectRepository` / `NoteRepository`,
+      following `IntelligenceRepository`'s shape.
+- [x] `WorkspaceService` — lifecycle, project CRUD, note CRUD,
+      settings, metadata, search hooks, event publishing.
+- [x] `WorkspaceManager` — composes Knowledge/Search/Memory; collects,
+      never computes; collaborators optional.
+- [x] DI — `workspace_service` + `workspace_manager` singletons.
+- [x] REST — `/api/v1/workspaces`, `/projects`, `/notes` (CRUD) plus
+      `/metadata`, `/overview`, `/context`.
+- [x] WebSocket — `workspace.updated`, `project.updated`,
+      `note.updated` on the existing relay.
+- [x] Search — three sources through M10A's provider registry, no
+      `SearchService` change.
+- [x] 56 tests across unit / repository / REST / integration.
+
+### Task Groups B–F (🔴 not started)
+
+| Task Group | Scope |
+|---|---|
+| **B — Productivity Core** | Tasks, Calendar, Reminders, Scheduling, productivity APIs |
+| **C — File Platform** | File Manager, File Browser, File Search, document indexing, file metadata |
+| **D — AI Workspace** | Workspace AI context, Knowledge integration, context retrieval, AI assistance |
+| **E — External Integrations** | GitHub, Gmail, Google Drive, Outlook, Slack, Discord, Notion, calendar providers |
+| **F — UI Integration & Closure** | React/Tauri Workspace UI, final validation, docs, performance review, M11 closure |
+
+---
+
 ## 6. Deferred Backlog
 
 *(Added Aug 2026 — roadmap reconciliation pass, ahead of M9 Task Group

@@ -84,6 +84,7 @@ from jarvis.core.events.events import (
     MCPTransportFailedEvent,
     MemoryRecalledEvent,
     MemoryUpdatedEvent,
+    NoteUpdatedEvent,
     PluginCustomEvent,
     PluginDisabledEvent,
     PluginDiscoveredEvent,
@@ -97,6 +98,7 @@ from jarvis.core.events.events import (
     PluginUninstalledEvent,
     PluginUnloadedEvent,
     PluginUpdatedEvent,
+    ProjectUpdatedEvent,
     ResourceBudgetExceededEvent,
     RuntimeShutdownCompleteEvent,
     RuntimeStartedEvent,
@@ -111,6 +113,7 @@ from jarvis.core.events.events import (
     TaskStartedEvent,
     UpdatePhaseEvent,
     VoiceStateChangedEvent,
+    WorkspaceUpdatedEvent,
 )
 
 if TYPE_CHECKING:
@@ -178,6 +181,13 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     UpdatePhaseEvent: "progress.update_phase",
     PluginNotificationEvent: "notification.plugin",
     PluginCustomEvent: "plugin.custom",
+    # Milestone 11 Task Group A -- Workspace Foundation. One relay name
+    # per entity, each carrying an `action` field for its transitions,
+    # the shape `memory.updated`/`goal.updated`/`mcp.provider_changed`
+    # already established.
+    WorkspaceUpdatedEvent: "workspace.updated",
+    ProjectUpdatedEvent: "project.updated",
+    NoteUpdatedEvent: "note.updated",
 }
 
 #: Declared but never published, so deliberately absent from the relay

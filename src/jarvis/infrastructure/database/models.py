@@ -338,3 +338,125 @@ class Preference(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group A — Workspace Foundation
+# ---------------------------------------------------------------------------
+class Workspace(Base):
+    """The top-level container every later part of Milestone 11 hangs
+    its data off -- Tasks, Calendar, Files and AI context all need
+    somewhere to belong, and this is it.
+
+    Deliberately *not* the M5 "workspace" concept (``ui/views/
+    workspaces/``), which is a set of dashboard screens named Voice,
+    Files, Browser and so on. Those are views; this is a persisted
+    domain entity. The name collision is unfortunate and was inherited,
+    but renaming M5's shipped views to avoid it would churn a completed
+    milestone's identity for a docstring's benefit.
+
+    ``settings_json`` holds a serialized ``WorkspaceSettings`` -- see
+    ``domain/workspace/models.py`` for why preferences live in one
+    JSON-text column while anything queryable stays a real column, and
+    for the ``Memory.meta_json`` precedent it follows.
+    """
+
+    __tablename__ = "workspaces"
+    __table_args__ = (Index("ix_workspaces_status", "status"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="active")  # active|archived
+    settings_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    projects: Mapped[list[Project]] = relationship(
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        order_by="Project.created_at",
+    )
+    notes: Mapped[list[Note]] = relationship(
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        order_by="Note.created_at",
+    )
+
+
+class Project(Base):
+    """A unit of work inside a workspace.
+
+    Flat rather than self-referential, unlike ``Goal``: a project tree
+    is a feature nobody has asked for, and ``Goal`` already provides
+    hierarchy for the case that wants it. Adding ``parent_project_id``
+    later is additive; removing an unused hierarchy is not.
+    """
+
+    __tablename__ = "projects"
+    __table_args__ = (
+        Index("ix_projects_workspace", "workspace_id"),
+        Index("ix_projects_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="active")  # active|completed|archived
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    workspace: Mapped[Workspace] = relationship(back_populates="projects")
+    notes: Mapped[list[Note]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="Note.created_at",
+    )
+
+
+class Note(Base):
+    """A note, belonging to a workspace and *optionally* to a project.
+
+    ``workspace_id`` is required and ``project_id`` is not, on purpose:
+    a thought worth capturing rarely arrives already filed. A note taken
+    against the workspace can be moved into a project later; forcing the
+    filing decision up front is how notes stop getting written.
+
+    Deleting a project therefore cannot orphan its notes silently -- the
+    service reassigns them to the workspace rather than letting the
+    cascade take them, which is the one place this model's shape and the
+    ORM's default disagree. See ``WorkspaceService.delete_project``.
+    """
+
+    __tablename__ = "notes"
+    __table_args__ = (
+        Index("ix_notes_workspace", "workspace_id"),
+        Index("ix_notes_project", "project_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    content: Mapped[str] = mapped_column(Text, default="")
+    content_format: Mapped[str] = mapped_column(String(16), default="markdown")  # markdown|plain
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    workspace: Mapped[Workspace] = relationship(back_populates="notes")
+    project: Mapped[Project | None] = relationship(back_populates="notes")
