@@ -29,11 +29,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-#: Transport identifiers this platform recognizes. Only ``in_process``
-#: has a shipped implementation today (``core/mcp/transport.py``); the
-#: other four are named here so the milestone that builds each one uses
-#: the identifier the roadmap already documents, rather than inventing a
-#: near-miss spelling later.
+#: Transport identifiers this platform recognizes. All five ship an
+#: implementation: ``in_process`` in ``core/mcp/transport.py``, the
+#: other four in ``core/mcp/transports/`` (Milestone 10.5 Task Group B).
+#:
+#: Closed by design. A transport identifier names a *wire protocol*, and
+#: an integration author configures one of these rather than inventing a
+#: sixth -- which is why ``TransportFactoryRegistry.register`` rejects
+#: anything outside this set.
 TRANSPORT_TYPES: frozenset[str] = frozenset(
     {
         "in_process",

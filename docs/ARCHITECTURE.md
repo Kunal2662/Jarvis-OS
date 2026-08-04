@@ -123,6 +123,13 @@ infrastructure ─────────────────────�
 - **FastAPI** routers are thin — they validate the request (Pydantic),
   call exactly one service method, and shape the response. Business
   logic never lives in a router function.
+- **The same rule applies to every other delivery mechanism**, not just
+  HTTP. `infrastructure/cli/` (the `jarvis mcp` developer CLI, M10.5
+  Task Group E) is a sibling of `infrastructure/api/`, not a privileged
+  path into the core: it owns argument parsing and output formatting and
+  nothing else, reads the same DI singletons the routes read, and is
+  therefore incapable of reporting something the API would not. Any new
+  delivery surface follows the same shape.
 - **Core Runtime** is the layer introduced by M9 (Runtime & Core
   Services) — Runtime Manager, Service Manager, DI Container (the
   existing `core/di/container.py`, unchanged), Event Bus (the existing
@@ -363,10 +370,11 @@ already is one. `routes/knowledge.py` (M10A, complete) follows the
 contract in full for every one of its routes (`/search`,
 `/knowledge/*`) — no further exceptions. `routes/intelligence.py`
 (M10B, complete) follows suit for every one of its routes (`/goals`,
-`/intelligence/*`) — no further exceptions. `routes/mcp.py` (M10.5
-Task Group A) likewise, for `/mcp/*`; it is deliberately read-only
-(every route a `GET`) since provider management belongs to a later
-task group, so its write endpoints land additively later. Cursor pagination remains
+`/intelligence/*`) — no further exceptions. `routes/mcp.py` (M10.5,
+complete) likewise, for `/mcp/*`; it is deliberately read-only (every
+route a `GET`) — inspection never mutates what it inspects, and
+provider *management* endpoints belong with M11's first real provider,
+so they land additively later. Cursor pagination remains
 unproven — no shipped route yet returns a list large enough to need
 it.
 
@@ -1243,7 +1251,7 @@ repeated here.
 | Streaming Runtime | 🟡 Partial | M10 | §6 above (WebSocket standards); real token-level streaming for the tool-composed path via `/api/v1/agent/stream`'s SSE response |
 | Automation Architecture | 🟡 Active | M4 (shipped) / M7 (Phases 1–2 shipped, 3–6 pending) | §16 above |
 | Security Architecture | 🟠 Interim | M14 (not started) | §17 above — today's enforcement (`AgentPermissionGate`, Permission Model) is real but interim, pending M14's Authorization Engine |
-| MCP Architecture | 🟡 Partial | **M10.5** (MCP & Integration Platform) | `core/mcp/` — Capability Registry, client/server runtimes, negotiation, heartbeat; `core/mcp/transports/` — stdio/websocket/http/ipc + factory; `core/mcp/providers/` — provider registry, lifecycle manager, metadata/config; `core/mcp/auth/` — credential model, encrypted store, strategies, sessions, permission bridge; `core/interfaces/mcp.py` (ports). Task Groups A+B+C+D shipped; no *real* provider, no OAuth flow yet |
+| MCP Architecture | ✅ Real | **M10.5** (MCP & Integration Platform, complete) | `core/mcp/` — Capability Registry, client/server runtimes, negotiation, heartbeat, `diagnostics.py`; `core/mcp/transports/` — stdio/websocket/http/ipc + factory; `core/mcp/providers/` — provider registry, lifecycle manager, metadata/config; `core/mcp/auth/` — credential model, encrypted store, strategies, sessions, permission bridge; `core/mcp/sdk/` — builders, validation framework, runnable examples; `core/interfaces/mcp.py` (ports); `infrastructure/cli/mcp_cli.py` (`jarvis mcp`). All five task groups shipped. The *substrate* is complete; a real provider, the OAuth flow and a server-side listener are M11 |
 | Self-Healing Architecture | 🔴 Planned | **M13B** (foundation) → M18 (full platform) | `MASTER_ROADMAP.md` §8 M13B — Self-Healing & Observability; §8 M18 — Self-Healing & Diagnostics Platform |
 | Observability | 🔴 Planned | **M13B** (foundation) → M20A (full platform) | `MASTER_ROADMAP.md` §8 M13B; §8 M20A — Analytics & Observability Platform |
 | Cloud Architecture | 🟠 Partial | M11 | §1 above (Cloud box — Oracle Cloud, optional, outbound-only); `docs/TECH_STACK.md` §5 — MongoDB sync target not yet started |

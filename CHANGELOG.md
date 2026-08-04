@@ -3,6 +3,91 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.20.0] — M10.5 Task Group E, SDK, Developer Experience & Milestone Closure
+
+The last task group of M10.5. It ships nothing a *user* sees and
+everything an integration *author* needs, then closes the milestone.
+Still no real provider, no OAuth flow and no vendor integration — those
+were always M11's scope.
+
+### Added
+- **MCP SDK** (`core/mcp/sdk/`) — `CapabilityBuilder`,
+  `ProviderBuilder`, `TransportBuilder`, `AuthBuilder` and
+  `ConfigBuilder`, each producing the **existing** runtime model rather
+  than a new type. `build()` validates and raises with the whole problem
+  list, so a bad permission scope surfaces while the provider is being
+  written rather than at first connect. The dataclasses stay public and
+  directly constructible — the builders are a convenience, not a gate.
+- **Registry helpers** — `register_provider` validates metadata and
+  config *together* before anything enters the registry;
+  `expose_capabilities` is all-or-nothing, so a batch with one bad entry
+  never leaves the server half-published.
+- **Validation framework** (`core/mcp/sdk/validation.py`) —
+  `ValidationReport` / `ValidationIssue` with stable codes and
+  ERROR/WARNING severity, plus validators for capabilities, provider
+  metadata, provider config, transport config, authentication and
+  **registry consistency**: the cross-object checks (a transport nothing
+  registered, an auth method no strategy implements, a scope still
+  awaiting a grant) that no single model can make about itself.
+- **`jarvis mcp` developer CLI** (`infrastructure/cli/mcp_cli.py`) —
+  `status`, `validate`, `list`, `inspect`, `capabilities`, `transports`,
+  `providers`, `auth`, `connections`, with `--json` and `--config`.
+  Dispatched from `main.py` before the run-mode parser, so inspecting an
+  install never launches it.
+- **Example implementations** (`core/mcp/sdk/examples.py`) — a
+  capability, provider, config, transport and auth strategy, all
+  self-contained and all imported by tests, so they cannot rot the way a
+  code sample in a document does.
+- **`MCPDiagnostics`** (`core/mcp/diagnostics.py`) — one read-only
+  aggregator over every MCP subsystem, including `inspect_provider`,
+  which answers "why will this provider not work" across registration,
+  connection, authentication and health in a single call.
+- Read-only REST: `GET /api/v1/mcp/diagnostics`, `GET /api/v1/mcp/validate`.
+- DI singleton `mcp_diagnostics`, resolved by both the CLI and the REST
+  layer.
+
+### Changed
+- `AuthBuilder` coerces a string method to `AuthMethod`, so
+  `AuthBuilder("bearer_tokn")` fails on the typo rather than several
+  calls later.
+- `routes/mcp.py` documented as complete and deliberately read-only;
+  provider *management* endpoints land with M11's first real provider.
+
+### Fixed
+- Stale comment on `TRANSPORT_TYPES` claiming only `in_process` had a
+  shipped implementation — Task Group B shipped the other four.
+- Dead `SessionState` import in `core/mcp/auth/manager.py`, left by Task
+  Group D.
+
+### Security
+- **Diagnostics and the CLI expose no credential.** Every read goes
+  through `MCPAuthManager.public_snapshot` / `status`, which carry
+  metadata only. Asserted against raw serialized output — the full
+  diagnostics report, every CLI command in both formats, and the REST
+  response text — rather than a parsed field, so a leak through an
+  unexpected key cannot slip past.
+- **Read-only by construction.** Nothing in the diagnostics aggregator
+  or the CLI connects, authenticates, installs or mutates; a test runs
+  every read twice with the world captured either side to prove that
+  inspecting changes nothing.
+- `AuthBuilder` redacts its secret in `repr`/`str`, the same rule
+  `Credential` follows.
+
+### Notes
+- **Final Runtime Review** found no duplicate registry, lifecycle
+  manager, permission system, health system or authentication system.
+  One `PermissionModel`, one `HealthMonitor` collector named `mcp`, one
+  `MCPAuthManager`, one `CredentialStore`; four registries each holding
+  a distinct kind of thing. Full findings in `MASTER_ROADMAP.md`'s Task
+  Group E addendum.
+- **M10.5 is closed** across five task groups, `0.16.0`–`0.20.0`. Two
+  acceptance criteria remain 🟡 and are named with where they land:
+  Agent Trace integration for MCP tool calls, and a server-side network
+  listener — both M11.
+- 137 new tests across six files; suite 1296 → 1433, all passing. mypy
+  266 → 266 unchanged; ruff category list identical to the baseline's 22
+  (`F401` improved 3 → 2).
+
 ## [0.19.0] — M10.5 Task Group D, Authentication & Provider Integration Foundation
 
 The authentication framework every future MCP provider uses.

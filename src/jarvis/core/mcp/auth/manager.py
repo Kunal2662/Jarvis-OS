@@ -50,7 +50,7 @@ from jarvis.core.mcp.auth.credentials import (
     CredentialStatus,
     MCPAuthError,
 )
-from jarvis.core.mcp.auth.session import ProviderSession, SessionState
+from jarvis.core.mcp.auth.session import ProviderSession
 from jarvis.core.mcp.auth.store import CredentialEncryptionError
 from jarvis.core.mcp.server import principal_for
 

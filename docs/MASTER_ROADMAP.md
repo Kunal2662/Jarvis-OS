@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.19.0`
+**Current version:** `0.20.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -2182,10 +2182,11 @@ roadmap extension. Not a renumbering: M10.5 is additive, following the
 decimal-companion precedent **M5.5** (Production Stabilization Pass,
 §3) already set, and alters no existing milestone's identity or scope.)*
 
-**Status: 🟡 Active — Task Groups A (Core Runtime), B (Transport
-Layer), C (Provider Framework) and D (Authentication Foundation)
-shipped.** The MCP runtime foundation is real: Capability
-Registry, transport abstraction, client runtime
+**Status: ✅ Completed (Aug 2026, v0.20.0) — Task Groups A (Core
+Runtime), B (Transport Layer), C (Provider Framework), D
+(Authentication Foundation) and E (SDK, Developer Experience &
+Milestone Closure) all shipped.** The MCP platform is complete as
+scoped: Capability Registry, transport abstraction, client runtime
 (connection/handshake/discovery/health/reconnect), server runtime
 (capability exposure + permission enforcement), capability negotiation,
 DI wiring, runtime events, and a read-only ``/api/v1/mcp/*`` REST
@@ -2196,14 +2197,24 @@ transport factory, transport discovery/query, and a heartbeat monitor
 integration plugs into: provider interface, registry with filtered
 discovery, lifecycle manager, metadata/configuration models, health
 collection and read-only `/api/v1/mcp/providers/*` routes (Task Group
-C) -- plus the **authentication framework** every future provider
+C) — plus the **authentication framework** every future provider
 uses: credential model, encrypted-at-rest storage, auth strategies,
 provider sessions, the permission bridge, and read-only
-`/api/v1/mcp/auth/*` routes (Task Group D). **Not the whole
-milestone** — no *real* provider ships, no OAuth flow (which needs an
-authorization server and a callback endpoint), and vendor
-integrations remain M11's scope. See the Aug 2026 M10.5 Task Group
-A, B, C and D changelog addenda for the full design.
+`/api/v1/mcp/auth/*` routes (Task Group D) — plus the **SDK and
+developer experience** an integration author works against: fluent
+builders over the existing runtime models, a reusable validation
+framework, the `jarvis mcp` read-only CLI, self-contained runnable
+examples, the `MCPDiagnostics` aggregator and
+`/api/v1/mcp/diagnostics` + `/api/v1/mcp/validate` (Task Group E).
+
+**What this milestone deliberately does not include**, unchanged from
+its original scope: no *real* provider ships, no OAuth flow (which
+needs an authorization server and a callback endpoint), no server-side
+network listener, and no vendor integration. Those are M11's scope,
+and M10.5 exists so M11 builds *on* this substrate rather than
+retrofitting onto it. See the Aug 2026 M10.5 Task Group A, B, C, D and
+E changelog addenda for the full design, and **Deferred to M11** below
+for the two acceptance criteria carried forward.
 
 **Objective:** the protocol-level foundation for every external tool
 and context provider JARVIS consumes — standardizing on **MCP (Model
@@ -2255,15 +2266,15 @@ this milestone mirrors).
 
 **Complexity:** L.
 
-**Acceptance criteria:**
+**Acceptance criteria (final, at milestone close):**
 1. 🟡 **Substantially met (Task Groups A + B).** A registered MCP
    server's capability is discovered, negotiated and successfully
    invoked end-to-end over a real transport against a **real
    out-of-process peer** — verified in
    `tests/integration/test_mcp_transport_e2e.py` (stdio subprocess) and
    `tests/unit/test_mcp_transports_live.py` (real WebSocket and HTTP
-   servers). Agent Trace integration remains deferred to the task group
-   that exposes MCP tools through the Tool Registry.
+   servers). Agent Trace integration remains deferred: it needs MCP
+   tools exposed through the Tool Registry, which is M11's work.
 2. ✅ **Met.** An MCP capability whose declared scope is not granted is
    refused — by M9's existing `PermissionModel`, namespaced
    `mcp:<client_id>`, with no second permission system and no new
@@ -2275,13 +2286,25 @@ this milestone mirrors).
    JARVIS capabilities and serves `initialize`/`capabilities/list`/
    `capabilities/call`/`ping` to a real client. Consumption by an
    external client additionally needs JARVIS to *listen* on a network
-   transport (Task Group B ships the outbound/client half of all four);
-   a server-side listener is a later task group.
+   transport; all four shipped transports are outbound/client-side, and
+   a server-side listener is deferred to M11.
 4. ✅ **Met.** Connection loss, bounded retry with backoff, reconnect,
    and clean deregistration are all real and unit-tested; health is
    reported through M9's existing `HealthMonitor.register_collector`
    extension point, not a second health channel. No runtime restart is
    involved in any path.
+
+**Deferred to M11 (named, not hidden).** Two acceptance criteria close
+at 🟡 rather than ✅, and both are deferred deliberately rather than
+missed:
+
+| Deferred | Why it is not in M10.5 | Where it lands |
+|---|---|---|
+| Agent Trace integration for MCP tool calls (AC1) | Requires MCP capabilities to be surfaced as agent tools through the Tool Registry. That is provider-facing work, and this milestone ships no provider. | M11, with the first real provider |
+| Server-side network listener (AC3) | The four shipped transports are outbound. Accepting inbound MCP connections means binding a port and authenticating callers — a security surface that belongs with M11's API Gateway rather than bolted on here. | M11, alongside the API Gateway |
+
+Everything else M10.5 scoped is shipped, tested and wired. Neither
+deferral blocks M11: the substrate M11 registers against is complete.
 
 ### M11 — Integrations & Cloud Platform
 
@@ -9379,6 +9402,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.17** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group B (Transport Layer) shipped: stdio/websocket/http/ipc transports, transport factory, discovery/query, heartbeat monitor, four new relay events. Provider integrations remain a later task group. |
 | **0.18** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group C (Provider Framework) shipped: provider interface, registry with filtered discovery, lifecycle manager, metadata/config models, health collection, `/api/v1/mcp/providers/*`. Generic infrastructure only — real providers, authentication and OAuth are Task Group D. |
 | **0.19** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group D (Authentication Foundation) shipped: credential model, encrypted-at-rest store, auth strategy registry, provider sessions, permission bridge, `/api/v1/mcp/auth/*`. Infrastructure only — no real providers, no OAuth flow, no vendor integrations. |
+| **0.20** | M10.5     | MCP & Integration Platform      | ✅ **Completed** — Task Group E (SDK, Developer Experience & Milestone Closure) shipped: SDK builders, validation framework, `jarvis mcp` CLI, self-contained examples, `MCPDiagnostics`, `/api/v1/mcp/diagnostics` + `/api/v1/mcp/validate`. Milestone closed across five task groups; Agent Trace integration and a server-side listener deferred to M11 (named in §8). |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -12835,3 +12859,124 @@ unchanged, zero errors in any new file; ruff's category list identical
 to the baseline's 22 after fixing the three genuinely-new findings this
 pass introduced (`I001`, `RUF100`, `SIM300`). Version bumped `0.18.0`
 -> `0.19.0`.
+
+*Aug 2026 addendum -- M10.5 Task Group E (SDK, Developer Experience &
+Milestone Closure):* the last task group. It ships nothing a *user*
+sees and everything an integration *author* needs, then closes the
+milestone.
+
+**Why an SDK when the runtime models are already plain dataclasses.**
+The builders are not ceremony over a constructor. They validate at the
+point of construction, so a bad permission scope surfaces while the
+provider is being written rather than at first connect; they are
+autocomplete-friendly, so ``.with_permission("agent_tools")`` rejects a
+typo that ``required_permissions=("agent_tolls",)`` would carry into
+production; and they insulate an author from a dataclass the runtime is
+free to extend. The dataclasses stay public and directly constructible
+-- the builders are a convenience, not a gate.
+
+**The validation framework earns its place by answering the question no
+single model can.** Every model already validates itself, and that stays
+where it is. What ``validate_registry_consistency`` adds is the
+*cross-object* check: a provider declaring a transport nothing
+registered, an auth method no strategy implements, a scope still
+awaiting a grant decision. Each object is valid; the set is not.
+``ERROR`` and ``WARNING`` are kept separate deliberately -- collapsing
+them would make the warning either ignorable noise or a false blocker,
+and ``jarvis mcp validate`` exits non-zero only on a real error so it is
+usable in a pre-commit hook.
+
+**The examples live in ``src/``, not in a document.** A code sample in
+Markdown rots the moment an API changes and nothing notices;
+``tests/unit/test_mcp_sdk_examples.py`` imports and executes these, so
+the same change breaks the build instead. They are entirely
+self-contained -- the transport answers from an in-memory dict, the auth
+strategy mints a local token, and a test asserts against the module
+source that nothing there imports ``socket``, ``httpx``, ``subprocess``
+or reads ``os.environ``.
+
+Two example decisions are worth recording because the obvious
+alternative was worse. ``ExampleAuthStrategy`` claims ``BEARER_TOKEN``,
+which collides with the shipped static strategy and therefore needs
+``replace=True`` to register. Claiming the unregistered ``OAUTH2``
+instead would have avoided the collision at the cost of reporting an
+OAuth flow the class does not implement -- exactly the simulated
+functionality this project forbids. And ``ExampleTransport`` reuses the
+existing ``in_process`` identifier rather than inventing a sixth:
+``TRANSPORT_TYPES`` is closed by design, an integration author
+configures one of the five, and an example that widened the set would
+teach a move the platform rejects.
+
+**Diagnostics collects; it never computes.** Every figure
+``MCPDiagnostics`` reports is already owned by the subsystem that
+produced it -- capability counts from the capability registry,
+connection state from the client runtime, health from
+``MCPProviderManager.collect_health``, credential status from
+``MCPAuthManager``. It holds no state and caches nothing, and a test
+runs every read twice with the world captured either side to prove that
+inspecting changes nothing. It is one DI singleton, so ``jarvis mcp``
+and ``/api/v1/mcp/diagnostics`` are two renderings of one truth rather
+than two things that might drift; an integration test asserts their
+payloads are identical.
+
+**The CLI is a delivery shim, nothing more** -- the same rule
+`ARCHITECTURE.md` §1 states for FastAPI routers, applied to the second
+delivery mechanism. It is read-only end to end, so it can never be the
+thing that broke a provider, and it has no vendor-specific commands: the
+subcommands describe the *platform*, and a provider appears in them only
+because someone registered it. ``run_command`` returns
+``(output, exit_code)`` rather than printing, so its tests assert on
+values instead of scraping stdout.
+
+**Final Runtime Review.** The audit this task group owed the milestone,
+run against the whole tree rather than from memory:
+
+- *Registries* -- four, each holding a distinct kind of thing
+  (capabilities, providers, transport factories, auth strategies), none
+  overlapping, plus the plugin platform's own in a separate domain.
+- *Lifecycle* -- one ``MCPProviderManager`` for provider lifecycle,
+  hanging off M9's existing ``RuntimeManager`` hooks. No background
+  supervisor, no second scheduler, and no lifecycle hook for diagnostics
+  because a stateless read needs none.
+- *Permissions* -- one ``PermissionModel`` (M9's), namespaced
+  ``mcp:<id>``. ``features/automation``'s ``PermissionGate`` is a
+  different axis entirely (per-intent risk confirmation, not scope
+  grants) and is not a duplicate.
+- *Health* -- one ``HealthMonitor``, one registered collector named
+  ``mcp`` aggregating all four subsystems into the single
+  ``health.updated`` snapshot. ``MCPHeartbeatMonitor`` is transport
+  liveness probing, a different concern from app-wide health.
+- *Authentication* -- one ``MCPAuthManager``, one ``CredentialStore``.
+- *Layering* -- ``core/mcp/`` imports only ``core`` (plus the
+  ``utils.crypto`` leaf); ``infrastructure/cli/`` imports only ``core``,
+  the correct direction, and sits beside ``infrastructure/api/`` because
+  both are delivery mechanisms over the same core.
+
+Two real defects surfaced and were fixed rather than noted: a stale
+comment on ``TRANSPORT_TYPES`` still claiming only ``in_process`` had a
+shipped implementation (Task Group B shipped the other four), and a dead
+``SessionState`` import left in ``auth/manager.py`` by Task Group D.
+One pre-existing layering exception is recorded and left alone:
+``core/lifecycle/session_manager.py`` imports an infrastructure
+repository, which predates this milestone and is a real refactor rather
+than a comment fix.
+
+Testing -- 137 new tests across six files: builders and their rejection
+paths, every validator including the cross-object ones, the examples
+executed end to end through the real provider manager, diagnostics
+proven read-only and token-free against raw serialized output, every CLI
+command in both output formats with its exit code, and an integration
+suite through the real DI container asserting the CLI and REST report
+byte-identical payloads. Suite 1296 -> 1433, all passing. Ruff/mypy
+diffed against the repository baseline: mypy 266 -> 266, unchanged, zero
+errors in any new file; ruff's category list identical to the baseline's
+22 after fixing the four genuinely-new findings this pass introduced
+(`E501`, `PLR0402`, `PLR0911`, `RUF100`), with `F401` improving 3 -> 2.
+Version bumped `0.19.0` -> `0.20.0`.
+
+**M10.5 is closed.** Five task groups, `0.16.0` through `0.20.0`. Two
+acceptance criteria remain 🟡 and are named in §8 with where they land
+(Agent Trace integration and a server-side listener, both M11). No real
+provider, no OAuth flow, no vendor integration ships here -- that was
+always M11's scope, and the substrate M11 registers against is now
+complete.

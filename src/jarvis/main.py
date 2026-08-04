@@ -13,6 +13,7 @@ inside :mod:`jarvis.app`.
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Sequence
 
 from jarvis.__version__ import __version__
@@ -22,6 +23,7 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="jarvis",
         description="JARVIS OS — personal AI desktop assistant.",
+        epilog="Subcommands: `jarvis mcp <command>` inspects the MCP platform (read-only).",
     )
     parser.add_argument("--version", action="version", version=f"JARVIS OS {__version__}")
     parser.add_argument(
@@ -47,6 +49,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Application entry-point. Returns a POSIX exit code."""
     # Local import to keep ``--version`` / ``--help`` fast and side-effect-free.
     from jarvis.app import ApplicationBootstrapper, RunMode
+
+    raw = list(sys.argv[1:] if argv is None else argv)
+
+    # ``jarvis mcp ...`` is a developer tool, not a run mode: it inspects
+    # a configured install and exits, never launching the UI, the agent
+    # runtime or the API server. Dispatched before the main parser so
+    # its own subcommands stay independent of the app's flags
+    # (Milestone 10.5 Task Group E).
+    if raw and raw[0] == "mcp":
+        from jarvis.infrastructure.cli.mcp_cli import run_mcp_cli
+
+        return run_mcp_cli(raw[1:])
 
     args = _build_argument_parser().parse_args(argv)
 

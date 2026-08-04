@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from jarvis.core.mcp.auth.store import CredentialStore
     from jarvis.core.mcp.auth.strategies import AuthStrategyRegistry
     from jarvis.core.mcp.client import MCPClientRuntime
+    from jarvis.core.mcp.diagnostics import MCPDiagnostics
     from jarvis.core.mcp.heartbeat import MCPHeartbeatMonitor
     from jarvis.core.mcp.providers.manager import MCPProviderManager
     from jarvis.core.mcp.providers.registry import MCPProviderRegistry
@@ -65,6 +66,10 @@ def _credential_store(request: Request) -> CredentialStore:
 
 def _provider_registry(request: Request) -> MCPProviderRegistry:
     return cast("MCPProviderRegistry", request.app.state.container.mcp_provider_registry())
+
+
+def _diagnostics(request: Request) -> MCPDiagnostics:
+    return cast("MCPDiagnostics", request.app.state.container.mcp_diagnostics())
 
 
 def _provider_manager(request: Request) -> MCPProviderManager:
@@ -312,4 +317,40 @@ async def mcp_heartbeat(request: Request) -> Envelope[tuple[dict[str, Any], ...]
     return envelope(
         cast("tuple[dict[str, Any], ...]", payload),
         meta={"count": len(payload), "running": monitor.is_running},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics (Milestone 10.5 Task Group E)
+# ---------------------------------------------------------------------------
+@router.get("/diagnostics", response_model=Envelope[dict[str, Any]])
+async def mcp_diagnostics(request: Request) -> Envelope[dict[str, Any]]:
+    """Every MCP subsystem in one payload -- the same aggregate
+    ``jarvis mcp list --json`` prints, from the same singleton, so the
+    two delivery mechanisms can never report different facts.
+
+    Read-only, like the rest of this router: it collects what each
+    subsystem already knows and connects to nothing."""
+    diagnostics = _diagnostics(request)
+    payload = await diagnostics.report()
+    return envelope(payload, meta=await diagnostics.summary())
+
+
+@router.get("/validate", response_model=Envelope[dict[str, Any]])
+async def mcp_validate(request: Request) -> Envelope[dict[str, Any]]:
+    """Cross-subsystem consistency -- a provider whose transport nothing
+    registered, an auth method no strategy implements, a scope still
+    awaiting a grant decision. The checks no single registry can make
+    about itself.
+
+    Always ``200``: a configuration problem is a finding to report, not
+    a failure of this endpoint. Callers branch on ``data.ok``."""
+    payload = _diagnostics(request).validate()
+    return envelope(
+        payload,
+        meta={
+            "ok": payload["ok"],
+            "error_count": payload["error_count"],
+            "warning_count": payload["warning_count"],
+        },
     )

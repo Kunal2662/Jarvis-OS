@@ -155,7 +155,7 @@ The short version:
 | Knowledge Graph & Universal Search | ✅ Real | `services/knowledge_service.py`, `services/search_service.py` |
 | AI Orchestrator | 🟡 Partial | `agents/graph.py` — Intent, Planning, parallel tool dispatch, interim Permission Validation |
 | Intelligence Layer | ✅ Real | `services/intelligence_service.py` — Goal Manager, Routine/Preference Learning, Daily Briefing |
-| MCP Architecture | 🟡 Partial | `core/mcp/` — M10.5 Task Groups A+B (registry, client/server runtimes, negotiation, heartbeat) and `core/mcp/transports/` (stdio, websocket, http, ipc) |
+| MCP Architecture | ✅ Real | `core/mcp/` — M10.5 complete: registry, client/server runtimes, negotiation, heartbeat, diagnostics; `transports/` (stdio, websocket, http, ipc); `providers/` (registry, lifecycle, health); `auth/` (credentials, encrypted store, strategies, permission bridge); `sdk/` (builders, validators, examples); plus `jarvis mcp` and `/api/v1/mcp/*`. A *real* provider and the OAuth flow are M11 |
 | Self-Healing Architecture | 🔴 Planned | M13B (foundation) → M18 (full platform) |
 
 ## Project layout
@@ -274,8 +274,9 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.15.0` · **Current milestone:** M10B —
-Intelligence Layer (✅ completed; awaiting review before M11 begins).
+**Current version:** `0.20.0` · **Current milestone:** M10.5 — MCP &
+Integration Platform (✅ completed across five task groups; awaiting
+review before M11 begins).
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source
@@ -321,13 +322,13 @@ yet.
 
 ### Future vision
 
-Beyond M10B, the roadmap continues (all planned, none started;
+Beyond M10.5, the roadmap continues (all planned, none started;
 milestone identities never renumbered once assigned — see
-`docs/MASTER_ROADMAP.md` §1's charter): **M10.5 MCP & Integration
+`docs/MASTER_ROADMAP.md` §1's charter). **M10.5 MCP & Integration
 Platform** *(added Aug 2026)* — the Model Context Protocol
-registry/adapter layer, scheduled before M11 so M11's providers build
-on it rather than retrofit onto it; **M11 Integrations & Cloud
-Platform** (OAuth-backed integrations, API Gateway, optional Oracle
+registry/adapter layer — is **complete** as of `0.20.0`, scheduled
+before M11 exactly so M11's providers build on it rather than retrofit
+onto it. Next: **M11 Integrations & Cloud Platform** (OAuth-backed integrations, API Gateway, optional Oracle
 Cloud/MongoDB sync) and its companions M11A (SEO Intelligence) and
 M11B (Productivity Suite — Tasks, Documents, File Manager, Command
 Palette); **M12 Smart Home & IoT**; **M13 Desktop Intelligence &

@@ -78,7 +78,7 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M14/M16-dependent remainder deferred. Context Engine's knowledge-graph half closed by M10A. See §5A below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10A – Universal Search & Knowledge Platform** | ✅ **Completed — File Search deferred pending M11B. See §5B below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10B – Intelligence Layer** | ✅ **Completed — automatic scheduled Daily Briefing delivery deferred pending M7's Scheduler (Phase 6). See §5C below and `MASTER_ROADMAP.md` §8/§14.** |
-| **M10.5 – MCP & Integration Platform** | 🟡 **Active — Task Groups A (Core Runtime), B (Transport Layer), C (Provider Framework) and D (Authentication Foundation) shipped.** Capability Registry, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*` (A); all four transports (stdio/websocket/http/ipc), transport factory, discovery/query, heartbeat (B). Provider Framework and Authentication Foundation are both generic infrastructure -- real providers, the OAuth flow, and vendor integrations remain future work. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
+| **M10.5 – MCP & Integration Platform** | ✅ **Completed (`0.20.0`) — all five task groups.** Capability Registry, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*` (A); all four transports (stdio/websocket/http/ipc), transport factory, discovery/query, heartbeat (B); provider interface, registry with filtered discovery, lifecycle manager, health collection (C); credential model, encrypted store, auth strategies, provider sessions, permission bridge (D); SDK builders, validation framework, `jarvis mcp` CLI, self-contained examples, `MCPDiagnostics`, `/api/v1/mcp/diagnostics` + `/validate` (E). Generic infrastructure throughout — real providers, the OAuth flow, a server-side listener and vendor integrations are M11's scope. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
 | **M13B – Self-Healing & Observability** | 🔴 Planned, not started. *(New lettered companion to M13, added Aug 2026 — the foundational subset of M18/M20A, which remain their full-scale realizations. M13A "AI Sandbox" is unchanged.)* See `MASTER_ROADMAP.md` §8 and §14. |
 | M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
@@ -1217,12 +1217,16 @@ and only the automatic-scheduling half of one feature.
 
 ---
 
-## 5D. M10.5 — MCP & Integration Platform (🟡 Active — Task Group A shipped)
+## 5D. M10.5 — MCP & Integration Platform (✅ Completed — all five task groups)
 
-The protocol-and-registry layer beneath M11. **Task Group A (Core
-Runtime) is complete; the milestone is not.** No network transport and
-no provider integration ships yet — see `MASTER_ROADMAP.md`'s own Aug
-2026 M10.5 Task Group A changelog addendum for the full design.
+The protocol-and-registry layer beneath M11. **Closed Aug 2026 at
+`0.20.0`**, across Task Groups A (Core Runtime), B (Transport Layer),
+C (Provider Framework), D (Authentication Foundation) and E (SDK,
+Developer Experience & Milestone Closure). No *real* provider, no OAuth
+flow and no vendor integration ship here — that was always M11's scope.
+Two acceptance criteria close at 🟡 and are named with where they land
+in `MASTER_ROADMAP.md` §8; see that document's Aug 2026 M10.5 Task
+Group A–E changelog addenda for the full design.
 
 - [x] MCP Capability Registry — `core/mcp/capabilities.py`;
       register/unregister/discovery/metadata/version/permissions,
@@ -1354,6 +1358,58 @@ flow** (it needs an authorization server and a callback endpoint).
         endpoints; GitHub/Gmail/Slack/Calendar/Drive and every other
         vendor integration; MCP tools surfaced through the agent Tool
         Registry and Agent Trace; a server-side network listener.
+
+### Task Group E — SDK, Developer Experience & Milestone Closure (✅ shipped)
+
+The author-facing surface, and the milestone's close. Nothing here is
+vendor-specific and nothing connects to an external service.
+
+- [x] **MCP SDK** — `core/mcp/sdk/builders.py`. `CapabilityBuilder`,
+      `ProviderBuilder`, `TransportBuilder`, `AuthBuilder`,
+      `ConfigBuilder`, each producing the **existing** runtime model.
+      No new runtime type; nothing in `core/mcp/` imports the SDK, so
+      the dependency runs one way.
+- [x] Registry helpers — `register_provider` (validates metadata and
+      config *together* before anything is registered),
+      `expose_capabilities` (all-or-nothing), `capability_names`.
+- [x] **Validation framework** — `core/mcp/sdk/validation.py`.
+      `ValidationReport`/`ValidationIssue` with stable codes and
+      ERROR/WARNING severity; validators for capability, provider
+      metadata, provider config, transport config, auth, and
+      **registry consistency** — the cross-object check no single model
+      can make about itself.
+- [x] **Developer CLI** — `jarvis mcp status|validate|list|inspect|
+      capabilities|transports|providers|auth|connections`, with
+      `--json` and `--config`. Read-only, no vendor commands, dispatched
+      from `main.py` before the run-mode parser so it never launches the
+      app. `run_command` returns `(output, exit_code)`.
+- [x] **Example implementations** — `core/mcp/sdk/examples.py`. A
+      capability, provider, config, transport and auth strategy, all
+      self-contained and all imported by tests so they cannot rot.
+      Reuses the existing `in_process` transport identifier rather than
+      widening the closed `TRANSPORT_TYPES` set.
+- [x] **Diagnostics** — `core/mcp/diagnostics.py`. One read-only
+      aggregator over every MCP subsystem; collects, never computes;
+      holds no state. Reuses `RuntimeManager`'s existing hooks (it needs
+      none of its own) and `HealthMonitor`'s single `mcp` collector.
+- [x] REST — `GET /api/v1/mcp/diagnostics`, `GET /api/v1/mcp/validate`.
+      Read-only; `validate` always returns `200` and callers branch on
+      `data.ok`.
+- [x] DI — one `mcp_diagnostics` singleton, resolved by both the CLI and
+      the REST layer, so the two can never report different facts.
+- [x] **Final Runtime Review** — audited for duplicate registries,
+      lifecycle managers, permission systems, health systems and
+      authentication systems; none found. Two real defects fixed (a
+      stale `TRANSPORT_TYPES` comment, a dead import in
+      `auth/manager.py`); one pre-existing layering exception recorded
+      and left alone. Full findings in `MASTER_ROADMAP.md`'s Task Group
+      E addendum.
+- [x] 137 new tests across six files; suite 1296 → 1433, all passing.
+  - **Deferred to M11**: Agent Trace integration for MCP tool calls
+        (needs MCP capabilities in the Tool Registry, which needs a real
+        provider); a server-side network listener (belongs with M11's
+        API Gateway); the OAuth2 and client-credentials flows; every
+        vendor integration.
 
 **Dependencies note:** M10.5's formal dependencies — M5A (agent tool
 exposure), M9 (Permission Model, Service Manager lifecycle), M10

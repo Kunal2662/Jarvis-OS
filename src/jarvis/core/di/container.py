@@ -417,6 +417,32 @@ def _build_mcp_auth_manager(
     )
 
 
+def _build_mcp_diagnostics(
+    *,
+    mcp_server_runtime: Any,
+    mcp_client_runtime: Any,
+    mcp_transport_registry: Any,
+    mcp_provider_manager: Any,
+    mcp_auth_manager: Any,
+    mcp_auth_strategies: Any,
+    mcp_heartbeat_monitor: Any,
+) -> Any:
+    """Read-only aggregator over every MCP subsystem (M10.5 Task Group E).
+    Reads the same singletons the REST API does, so the CLI and the API
+    can never report a different truth."""
+    from jarvis.core.mcp.diagnostics import MCPDiagnostics
+
+    return MCPDiagnostics(
+        server=mcp_server_runtime,
+        client=mcp_client_runtime,
+        transports=mcp_transport_registry,
+        provider_manager=mcp_provider_manager,
+        auth_manager=mcp_auth_manager,
+        auth_strategies=mcp_auth_strategies,
+        heartbeat=mcp_heartbeat_monitor,
+    )
+
+
 def _build_mcp_provider_registry() -> Any:
     from jarvis.core.mcp.providers.registry import MCPProviderRegistry
 
@@ -789,6 +815,18 @@ class Container(containers.DeclarativeContainer):
         mcp_transport_registry=mcp_transport_registry,
         permission_model=permission_model,
         event_bus=event_bus,
+    )
+
+    # ---- Milestone 10.5 Task Group E -- SDK & Developer Experience --------
+    mcp_diagnostics = providers.Singleton(
+        _build_mcp_diagnostics,
+        mcp_server_runtime=mcp_server_runtime,
+        mcp_client_runtime=mcp_client_runtime,
+        mcp_transport_registry=mcp_transport_registry,
+        mcp_provider_manager=mcp_provider_manager,
+        mcp_auth_manager=mcp_auth_manager,
+        mcp_auth_strategies=mcp_auth_strategies,
+        mcp_heartbeat_monitor=mcp_heartbeat_monitor,
     )
 
     # ---- Milestone 10A -- Universal Search & Knowledge Platform ------------
