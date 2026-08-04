@@ -1,12 +1,18 @@
 """Agent Trace panel -- Milestone 5-Agents, Developer Mode section.
 
 Lets a developer run an ad-hoc prompt through the real
-``AgentOrchestrator`` and watch each graph step (planner -> tool-selector
--> tool-executor -> critic -> responder) arrive live via
+``AgentOrchestrator`` and watch each graph step arrive live via
 ``AgentStepEvent`` on the shared ``EventBus``, plus the final answer.
-Event-bus push rather than a polling ``QTimer`` — same reasoning as
-``VoiceStateChangedEvent``/``UpdatePhaseEvent`` subscribers elsewhere in
-this UI: steps happen when they happen, not on a fixed cadence.
+``_on_step_event`` renders whatever ``event.node`` names generically
+(no fixed enum), so it already covers Milestone 5-Agents' original
+sequence (planner -> tool-selector -> tool-executor -> critic ->
+responder) plus Milestone 10's additions (intent-classifier ->
+context-engine ahead of planning; permission-validator between tool
+selection and execution) without needing a UI change when a future
+milestone adds another node. Event-bus push rather than a polling
+``QTimer`` — same reasoning as ``VoiceStateChangedEvent``/
+``UpdatePhaseEvent`` subscribers elsewhere in this UI: steps happen
+when they happen, not on a fixed cadence.
 """
 
 from __future__ import annotations
