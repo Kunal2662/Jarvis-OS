@@ -3,6 +3,100 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.15.0] — M10B, Intelligence Layer (complete)
+
+M10B extends the M10A Universal Search & Knowledge Platform rather than
+introducing a parallel system: `IntelligenceService` mirrors
+`KnowledgeService`'s exact architecture (same `database`/`event_bus`
+constructor shape, same repository-per-session pattern, same lazy
+event-import idiom), `IntelligenceRepository` mirrors
+`KnowledgeRepository`, and Goal Manager registers into `SearchService`'s
+existing provider registry as a fourth source (`GoalSearchSource`) with
+zero changes to `SearchService` itself -- the extensibility M10A's
+registry design was built for. No RuntimeManager changes, no new
+lifecycle manager, no background scheduler.
+
+### Added
+- Goal Manager -- `Goal` (self-referential parent/child hierarchy) in
+  `infrastructure/database/models.py`; `IntelligenceRepository` CRUD +
+  hierarchy + progress + status + search; `IntelligenceService` auto-
+  completes a goal at >=100% progress and publishes `goal.updated`
+  (`action`: created/progress_updated/completed/deleted).
+- Routine Learning -- deterministic, direct-observation reinforcement
+  (not LLM-driven pattern mining): `Routine` rows keyed by
+  hour-of-day/day-of-week wildcards, `IntelligenceRepository.
+  reinforce_routine()` increments `observation_count` and confidence on
+  a repeated observation; a routine only surfaces in suggestions once
+  it crosses `_ROUTINE_SUGGESTION_MIN_OBSERVATIONS`.
+- Preference Learning -- a structured `Preference` key-value store,
+  separate from M3's freeform `MemoryType.PREFERENCE` memories; a
+  `suggestion_boost_keyword` preference multiplies a matching
+  suggestion's score, giving Predictive Suggestions a second,
+  independent way to change from learned signal (plain keyword-boost
+  logic, not an LLM reranker -- consistent with M10A's own deferred AI
+  reranking).
+- Context Awareness -- `IntelligenceService.get_context_signals()`
+  (hour of day, day of week, recent memory snippets via
+  `MemoryService.browse()`, active conversation id); intentionally
+  *not* wired into the agent graph's `context_engine.py` node, since
+  it answers a different question (time/activity signals for
+  suggestions) than that node's LLM-prompt context assembly. No
+  location signal -- no location provider exists anywhere in the
+  codebase yet, documented rather than faked.
+- Predictive Suggestions -- `IntelligenceService.predict_suggestions()`
+  combines due-soon goals, reinforced routines, and the preference-
+  boost pass into a single ranked list.
+- Daily Briefing -- `IntelligenceService.generate_daily_briefing()`,
+  on-demand only, publishes `briefing.generated`. **Automatic scheduled
+  delivery is explicitly deferred**, the same gap M10A left with
+  Scheduled Reflection: M7's Scheduler (Phase 6) does not exist yet
+  (`SchedulerSettings` has been declared for forward compatibility only
+  since Phase 1) -- this route/tool is the only way to produce one
+  today.
+- Agent integration -- `agents/tools/intelligence_tools.py`
+  (`create_goal`/`list_goals`/`update_goal_progress`/`get_suggestions`/
+  `get_daily_briefing`).
+- `infrastructure/api/routes/intelligence.py` -- `POST/GET /api/v1/goals`,
+  `GET /api/v1/goals/{id}`, `PATCH /api/v1/goals/{id}/progress`,
+  `POST /api/v1/goals/{id}/complete`, `DELETE /api/v1/goals/{id}`,
+  `GET /api/v1/intelligence/context|suggestions|briefing`,
+  `POST/GET /api/v1/intelligence/preferences`. Same Bearer auth +
+  envelope convention as `routes/knowledge.py`.
+- `goal`/`briefing` WebSocket categories on the Runtime WebSocket relay
+  -- `goal.updated`, `briefing.generated`.
+- Universal Search -- `GoalSearchSource` registered as a fourth
+  provider (`memory`, `knowledge`, `goals`, `commands`).
+
+### Deferred (documented, not silently dropped)
+- Automatic scheduled Daily Briefing delivery -- needs M7's Scheduler
+  (Phase 6), not started; Daily Briefing is on-demand only today.
+- Location-aware Context Signals -- no location provider exists in the
+  codebase.
+- AI reranking of Predictive Suggestions -- plain keyword-boost logic
+  only, matching M10A's own deferred AI reranking of search results.
+
+### Permissions
+No new scopes introduced. Reuses M10A's existing `memory.read`/
+`memory.write` scopes; no `goal.read`/`goal.write` introduced.
+
+### Testing
+936/936 tests passing (+48), zero regressions -- one integration test
+per Acceptance Criterion (AC1 goal persistence + progress tracking over
+REST and the real WebSocket relay, AC2 a learned routine measurably
+changing a future Predictive Suggestion, AC3 Daily Briefing generation
+relayed over the real WebSocket), each against a real temp-file SQLite
+database and the real DI container. One pre-existing M10A test
+(`test_search_returns_envelope`) asserted an exact 3-source set; updated
+to the now-correct 4-source set rather than treated as a regression, since
+Goal Manager registering a fourth provider is the exact extensibility
+the Search Provider Registry was designed for. mypy diffed against a
+clean baseline via `git stash -u`: 266 -> 266, byte-for-byte unchanged
+after removing 14 genuinely-unnecessary `type: ignore` comments from
+`intelligence_service.py`. Ruff findings proportional to the
+pre-existing accepted baseline (665 -> 720, +55, entirely `PLC0415`
+lazy-import lines matching `KnowledgeService`'s already-accepted
+pattern) -- zero new categories introduced.
+
 ## [0.14.0] — M10A, Universal Search & Knowledge Platform (complete)
 
 Unlike M10, M10A's own declared dependencies (M3 Memory Platform, M5A

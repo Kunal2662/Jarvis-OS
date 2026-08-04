@@ -68,7 +68,7 @@ def test_search_returns_envelope(client, auth_headers) -> None:
     body = response.json()
     assert "data" in body
     assert "sources" in body["meta"]
-    assert set(body["meta"]["sources"]) == {"memory", "knowledge", "commands"}
+    assert set(body["meta"]["sources"]) == {"memory", "knowledge", "goals", "commands"}
 
 
 def test_learn_then_get_entity(client, auth_headers) -> None:

@@ -360,7 +360,9 @@ exception — a Server-Sent Events response, not a `{data, meta}` JSON
 body, by the nature of the transport, the same way `/api/v1/sessions`
 already is one. `routes/knowledge.py` (M10A, complete) follows the
 contract in full for every one of its routes (`/search`,
-`/knowledge/*`) — no further exceptions. Cursor pagination remains
+`/knowledge/*`) — no further exceptions. `routes/intelligence.py`
+(M10B, complete) follows suit for every one of its routes (`/goals`,
+`/intelligence/*`) — no further exceptions. Cursor pagination remains
 unproven — no shipped route yet returns a list large enough to need
 it.
 
@@ -467,7 +469,9 @@ router. *As shipped (M9 Task Group E):* `get_current_session`
 resource routers (`routes/plugins.py`/`devtools.py`) depend on it.
 *As shipped (M10, partial):* `routes/agent.py` depends on it too, for
 both `/agent/invoke` and `/agent/stream`. *As shipped (M10A):*
-`routes/knowledge.py` depends on it for every route it defines.
+`routes/knowledge.py` depends on it for every route it defines. *As
+shipped (M10B):* `routes/intelligence.py` depends on it for every
+route it defines.
 
 ### Validation
 
@@ -497,10 +501,14 @@ table below for why this shipped as `agent`, not the `ai` category this
 section originally sketched), and, from M10A, `memory`
 (`memory.updated`/`memory.recalled` — finally real, closing the gap
 this note used to describe) and `knowledge`
-(`knowledge.entity_updated`/`knowledge.correction_applied`). The
-`voice`/`automation`/`progress`/`notification` categories below remain
-the documented target for their owning milestones — not yet relayed,
-since nothing publishes them as real `EventBus` events yet.
+(`knowledge.entity_updated`/`knowledge.correction_applied`), plus two
+more from M10B: `goal` (`goal.updated` — one relay name, an `action`
+payload field distinguishes created/progress_updated/completed/deleted,
+the same shape `memory.updated` established) and `briefing`
+(`briefing.generated`). The `voice`/`automation`/`progress`/
+`notification` categories below remain the documented target for their
+owning milestones — not yet relayed, since nothing publishes them as
+real `EventBus` events yet.
 
 ### Single connection
 
@@ -536,6 +544,8 @@ categories map directly to the Event Bus categories in §7:
 | `automation` | `automation.step_started`, `automation.step_completed`, `automation.workflow_finished` |
 | `memory` | `memory.updated`, `memory.recalled` *(shipped M10A — `services/memory_service.py`'s `remember`/`forget`/`forget_all`/`recall`, via an optional `event_bus` constructor parameter)* |
 | `knowledge` | `knowledge.entity_updated`, `knowledge.correction_applied` *(shipped M10A — `services/knowledge_service.py`, `core/lifecycle/runtime_ws_hub.py`)* |
+| `goal` | `goal.updated` *(shipped M10B — `services/intelligence_service.py`'s Goal Manager, `action` payload field distinguishes created/progress_updated/completed/deleted)* |
+| `briefing` | `briefing.generated` *(shipped M10B — `services/intelligence_service.py`'s `generate_daily_briefing()`, on-demand only; §16's Scheduling standard — M7 Phase 6's Scheduler is the only path a feature runs unattended — is why this doesn't build its own timer)* |
 | `progress` | `progress.update` (long-running non-AI operations — backups, sync) |
 | `notification` | `notification.created` (user-facing toast-equivalent) |
 | `runtime` | `runtime.module_state_changed` (relays §4 transitions); `runtime.started`/`runtime.ready`/`runtime.stopping`/`runtime.shutdown` *(shipped M9 Task Group B — the application-lifecycle-wide sequence, distinct from a single module's §4 transitions above)*; `runtime.crash_recovered` *(shipped M9 Task Group C — Crash Recovery detected the previous run never reached a clean shutdown, `core/lifecycle/crash_recovery.py`)* |
@@ -1048,15 +1058,17 @@ Formalizes M10 (AI Orchestrator)'s pipeline (`MASTER_ROADMAP.md` §8) as
 the binding standard every AI-driven feature routes through — no
 feature builds its own agent loop.
 
-**Status (Aug 2026, M10 partial + M10A complete):** Intent, Planning,
-Execution, Verification, Memory are real, shipped rows below —
-extending `agents/nodes/` directly. Permissions is real but interim
-(routes through `AgentPermissionGate`, not yet M14). The
-Feedback/Learning rows in full depend on milestones — M16, M10B —
-that haven't started, and remain the documented target, not yet built
-(M10A's own `KnowledgeService.correct()` is a scoped correction
-primitive satisfying M10A's own Acceptance Criterion 3, not the
-general-purpose Learning Engine this row describes).
+**Status (Aug 2026, M10 partial + M10A/M10B complete):** Intent,
+Planning, Execution, Verification, Memory, Learning are real, shipped
+rows below — extending `agents/nodes/` directly. Permissions is real
+but interim (routes through `AgentPermissionGate`, not yet M14). The
+Feedback row in full depends on M16's Reflection Engine, which hasn't
+started, and remains the documented target, not yet built (M10A's own
+`KnowledgeService.correct()` is a scoped correction primitive
+satisfying M10A's own Acceptance Criterion 3, and M10B's Routine/
+Preference Learning are deterministic direct-observation reinforcement
+— neither is the general-purpose learning-from-feedback loop this row
+describes).
 
 | Stage | Standard |
 |---|---|
@@ -1068,7 +1080,7 @@ general-purpose Learning Engine this row describes).
 | **Execution** | ✅ Tool execution extends M5A's `tool_executor` node — every tool call is logged to Agent Trace, success or failure; concurrent for independent calls (M10 AC1). |
 | **Verification** | ✅ Extends M5A's `critic` node — an AI action is not considered complete until verified, not just "the LLM said so." |
 | **Feedback** | 🔴 Not yet built. Closes through M16's Reflection Engine (Workflow Reflection, Behaviour Reflection) once M16 ships — feedback is a read from Reflection's existing analysis, not a second, competing feedback loop (per M10's own Learning/Feedback item). |
-| **Learning** | 🔴 Not yet built. Backed by M10B's Intelligence Layer (Routine Learning, Preference Learning) once M10B ships — an AI feature that wants to "learn" from usage reads/writes through M10B, never invents its own learning mechanism. |
+| **Learning** | ✅ Real, deterministic. `services/intelligence_service.py`'s Routine Learning (direct-observation reinforcement, not LLM pattern mining) and Preference Learning (structured key-value store) back Predictive Suggestions — an AI feature that wants to "learn" from usage reads/writes through M10B, never invents its own learning mechanism. Not an AI reranker and not the general-purpose learning-from-feedback loop the Feedback row above still awaits from M16. |
 
 **Prompt-injection standard (already shipped, extended):** every tool
 whose output includes untrusted external content (web pages, OCR'd

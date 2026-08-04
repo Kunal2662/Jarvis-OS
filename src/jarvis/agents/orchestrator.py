@@ -61,6 +61,7 @@ if TYPE_CHECKING:
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
+    from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.system_service import SystemService
@@ -84,6 +85,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         system: SystemService | None = None,
         vision: VisionService | None = None,
         knowledge: KnowledgeService | None = None,
+        intelligence: IntelligenceService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -97,6 +99,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         self._system = system
         self._vision = vision
         self._knowledge = knowledge
+        self._intelligence = intelligence
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -132,6 +135,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 chat=self._chat,
                 vision=self._vision,
                 knowledge=self._knowledge,
+                intelligence=self._intelligence,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

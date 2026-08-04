@@ -185,9 +185,16 @@ def _build_knowledge_service(
     )
 
 
+def _build_intelligence_service(database: Any, memory: Any, event_bus: Any) -> Any:
+    from jarvis.services.intelligence_service import IntelligenceService
+
+    return IntelligenceService(database=database, memory=memory, event_bus=event_bus)
+
+
 def _build_search_service(
     memory_service: Any,
     knowledge_service: Any,
+    intelligence_service: Any,
     automation_service: Any,
     browser_service: Any,
     system_service: Any,
@@ -206,6 +213,7 @@ def _build_search_service(
     from jarvis.services.search_service import SearchService
     from jarvis.services.search_sources import (
         CommandSearchSource,
+        GoalSearchSource,
         KnowledgeSearchSource,
         MemorySearchSource,
     )
@@ -224,6 +232,7 @@ def _build_search_service(
     service = SearchService()
     service.register_source(MemorySearchSource(memory_service))
     service.register_source(KnowledgeSearchSource(knowledge_service))
+    service.register_source(GoalSearchSource(intelligence_service))
     service.register_source(CommandSearchSource(tool_descriptions, plugin_registry=plugin_registry))
     return service
 
@@ -407,6 +416,7 @@ def _build_agent_orchestrator(
     system: Any,
     vision: Any,
     knowledge: Any,
+    intelligence: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -422,6 +432,7 @@ def _build_agent_orchestrator(
         system=system,
         vision=vision,
         knowledge=knowledge,
+        intelligence=intelligence,
         event_bus=event_bus,
     )
 
@@ -500,6 +511,12 @@ class Container(containers.DeclarativeContainer):
         database=database,
         vector_store=vector_store,
         llm=llm_provider,
+        memory=memory_service,
+        event_bus=event_bus,
+    )
+    intelligence_service = providers.Singleton(
+        _build_intelligence_service,
+        database=database,
         memory=memory_service,
         event_bus=event_bus,
     )
@@ -624,6 +641,7 @@ class Container(containers.DeclarativeContainer):
         _build_search_service,
         memory_service=memory_service,
         knowledge_service=knowledge_service,
+        intelligence_service=intelligence_service,
         automation_service=automation_service,
         browser_service=browser_service,
         system_service=system_service,
@@ -697,5 +715,6 @@ class Container(containers.DeclarativeContainer):
         system=system_service,
         vision=vision_service,
         knowledge=knowledge_service,
+        intelligence=intelligence_service,
         event_bus=event_bus,
     )

@@ -87,6 +87,9 @@ def test_every_documented_event_type_is_mapped() -> None:
         "memory.recalled",
         "knowledge.entity_updated",
         "knowledge.correction_applied",
+        # Milestone 10B
+        "goal.updated",
+        "briefing.generated",
     }
 
 

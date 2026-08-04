@@ -1,10 +1,14 @@
 """Repositories for ``conversations``, ``messages``, ``memories``,
-the knowledge graph."""
+the knowledge graph, and the intelligence layer (goals/routines/
+preferences)."""
 
 from __future__ import annotations
 
 from jarvis.infrastructure.database.repositories.conversation_repository import (
     ConversationRepository,
+)
+from jarvis.infrastructure.database.repositories.intelligence_repository import (
+    IntelligenceRepository,
 )
 from jarvis.infrastructure.database.repositories.knowledge_repository import (
     KnowledgeRepository,
@@ -24,6 +28,7 @@ from jarvis.infrastructure.database.repositories.task_history_repository import 
 
 __all__ = [
     "ConversationRepository",
+    "IntelligenceRepository",
     "KnowledgeRepository",
     "MemoryRepository",
     "MessageRepository",

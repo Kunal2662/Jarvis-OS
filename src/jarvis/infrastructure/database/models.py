@@ -262,3 +262,79 @@ class KnowledgeEntityMemory(Base):
     memory_id: Mapped[str] = mapped_column(
         String(32), ForeignKey("memories.id", ondelete="CASCADE"), primary_key=True
     )
+
+
+# ---------------------------------------------------------------------------
+# Milestone 10B — Intelligence Layer
+# ---------------------------------------------------------------------------
+class Goal(Base):
+    """A user or AI-tracked goal -- Goal Manager's data model. Self-
+    referential ``parent_goal_id`` gives the hierarchy the milestone's
+    own Key Features list calls for; the flat CRUD + progress shape M23B's
+    much larger Goal Management module later extends at full
+    orchestration scale, not a competing one."""
+
+    __tablename__ = "goals"
+    __table_args__ = (
+        Index("ix_goals_status", "status"),
+        Index("ix_goals_parent", "parent_goal_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="active")  # active|completed|abandoned
+    progress_percent: Mapped[int] = mapped_column(default=0)
+    parent_goal_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("goals.id", ondelete="CASCADE"), nullable=True
+    )
+    target_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Routine(Base):
+    """A learned recurring behavior pattern -- Routine Learning's data
+    model. ``hour_of_day``/``day_of_week`` are nullable "any" wildcards
+    so a routine can be as coarse as "uses this often" or as specific as
+    "every Monday at 9am"; repeated observations of the same pattern
+    increment ``observation_count``/``confidence`` on the existing row
+    rather than creating duplicates (deduplication happens at the
+    service layer, mirroring ``KnowledgeService.learn_from_text``'s own
+    find-or-create pattern)."""
+
+    __tablename__ = "routines"
+    __table_args__ = (Index("ix_routines_action_type", "action_type"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    action_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    hour_of_day: Mapped[int | None] = mapped_column(nullable=True)
+    day_of_week: Mapped[int | None] = mapped_column(nullable=True)
+    observation_count: Mapped[int] = mapped_column(default=1)
+    confidence: Mapped[float] = mapped_column(default=0.3)
+    last_observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class Preference(Base):
+    """A learned or explicitly-stated user preference -- Preference
+    Learning's data model. Distinct from M3's freeform
+    ``MemoryType.PREFERENCE`` memories (unstructured notes like "call me
+    Sam"): this is a structured key/value store Predictive Suggestions
+    can query by key, the capability neither M3 nor the Knowledge Graph
+    already provides."""
+
+    __tablename__ = "preferences"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[float] = mapped_column(default=0.7)
+    source: Mapped[str] = mapped_column(String(32), default="inferred")  # explicit|inferred
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )

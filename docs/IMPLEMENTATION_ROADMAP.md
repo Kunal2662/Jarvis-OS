@@ -22,7 +22,10 @@
 > §5A below. M10A (Universal Search & Knowledge Platform) has since
 > shipped in full except File Search (deferred pending M11B) —
 > **M10A is complete**, closing M10's own Context Engine
-> knowledge-graph deferral in the process. See §5B below.
+> knowledge-graph deferral in the process. See §5B below. M10B
+> (Intelligence Layer) has since shipped in full except automatic
+> scheduled Daily Briefing delivery (deferred pending M7's Scheduler
+> Phase 6) — **M10B is complete.** See §5C below.
 
 **Document owner:** project lead
 **Status:** Aug 2026 — tracks M8 (React Frontend & Desktop Experience)
@@ -74,7 +77,8 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | **M9 – Runtime & Core Services** | ✅ **Completed — all five task groups (A–E) shipped, see §5 below.** |
 | **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M14/M16-dependent remainder deferred. Context Engine's knowledge-graph half closed by M10A. See §5A below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10A – Universal Search & Knowledge Platform** | ✅ **Completed — File Search deferred pending M11B. See §5B below and `MASTER_ROADMAP.md` §8/§14.** |
-| M10B, M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
+| **M10B – Intelligence Layer** | ✅ **Completed — automatic scheduled Daily Briefing delivery deferred pending M7's Scheduler (Phase 6). See §5C below and `MASTER_ROADMAP.md` §8/§14.** |
+| M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
 M7's Phases 4–6 (Workflow Builder, Recorder, Scheduler) were paused
 pending the UI Foundation review; that review is superseded by the
@@ -1126,6 +1130,88 @@ for the full reasoning and design.
 **Dependencies note:** M10A's formal dependencies, M3 (Memory
 Platform) and M5A (agent tool exposure), were both already shipped —
 this milestone was never blocked, unlike M10.
+
+---
+
+## 5C. M10B — Intelligence Layer (✅ Completed)
+
+Extends M10A's architecture directly rather than introducing a
+parallel system: `IntelligenceService`/`IntelligenceRepository` mirror
+`KnowledgeService`/`KnowledgeRepository`'s exact shape, and Goal
+Manager registers into `SearchService`'s existing provider registry as
+a fourth source with zero changes to `SearchService` itself. One key
+feature is explicitly deferred, not silently dropped: automatic
+scheduled Daily Briefing delivery needs M7's Scheduler (Phase 6),
+which does not exist yet — see `MASTER_ROADMAP.md`'s own Aug 2026 M10B
+changelog addendum for the full reasoning and design.
+
+- [x] Goal Manager — `Goal` (self-referential `parent_goal_id`
+      hierarchy) in the existing `infrastructure/database/models.py`;
+      `IntelligenceRepository` mirrors `KnowledgeRepository`'s
+      method-by-method pattern. Progress auto-completes a goal at
+      ≥100%, publishing `goal.updated`.
+- [x] Routine Learning — deterministic, direct-observation
+      reinforcement (`Routine` rows, hour-of-day/day-of-week
+      wildcards, confidence scoring), not LLM-driven pattern mining. A
+      routine only surfaces in suggestions once past a minimum
+      observation count.
+- [x] Preference Learning — a structured `Preference` key-value store,
+      deliberately separate from M3's freeform preference memories.
+- [x] Context Awareness — `get_context_signals()`: hour of day, day of
+      week, recent memory snippets (via `MemoryService.browse()`,
+      tolerant of failure), active conversation id. No location signal
+      — no location provider exists anywhere in the codebase, documented
+      rather than faked.
+- [x] Predictive Suggestions — combines due-soon goals, reinforced
+      routines, and a preference-boost pass into one ranked list.
+      Plain keyword-boost logic, not an AI reranker.
+- [x] Daily Briefing — on-demand generation (REST + agent tool),
+      publishes `briefing.generated`. Automatic scheduled delivery via
+      M7 remains deferred (see below).
+- [x] Agent integration — new `agents/tools/intelligence_tools.py`
+      (`create_goal`/`list_goals`/`update_goal_progress`/
+      `get_suggestions`/`get_daily_briefing`), wired into
+      `build_tool_registry()` as a new optional `intelligence`
+      parameter.
+- [x] REST API — `POST/GET /api/v1/goals`, `GET /api/v1/goals/{id}`,
+      `PATCH /api/v1/goals/{id}/progress`,
+      `POST /api/v1/goals/{id}/complete`, `DELETE /api/v1/goals/{id}`,
+      `GET /api/v1/intelligence/context|suggestions|briefing`,
+      `POST/GET /api/v1/intelligence/preferences`. Same Bearer auth +
+      envelope convention as `routes/knowledge.py`.
+- [x] WebSocket integration — `core/lifecycle/runtime_ws_hub.py`
+      gained `goal.updated`/`briefing.generated`, verified over the
+      real relay in `tests/integration/test_intelligence_platform_e2e.py`.
+- [x] Universal Search integration — `GoalSearchSource` registered as
+      a fourth provider (`memory`, `knowledge`, `goals`, `commands`),
+      with no `SearchService` changes required.
+- [x] Permission Model — no new scopes; reuses M10A's existing
+      `memory.read`/`memory.write` scopes.
+- [x] 48 new tests across five new files plus one new test in
+      `test_search_sources.py`, including one integration test per
+      Acceptance Criterion, each against a real temp-file SQLite
+      database and the real DI container — AC1 (goal persistence +
+      progress tracking over REST and the real WebSocket), AC2 (a
+      learned routine measurably changing a future suggestion), AC3
+      (Daily Briefing generation relayed over the real WebSocket).
+      936/936 passing (up from 888), zero regressions — one
+      pre-existing M10A test updated for the now-correct 4-source
+      Universal Search set. mypy diffed against a clean baseline via
+      `git stash -u`: 266 → 266, byte-for-byte unchanged after removing
+      14 unnecessary `type: ignore` comments. Ruff findings
+      proportional to the pre-existing accepted baseline — zero new
+      categories left unresolved.
+  - **Deferred** (documented, not silently dropped): automatic
+        scheduled Daily Briefing delivery (needs M7's Scheduler Phase
+        6, not started); location-aware Context Signals (no location
+        provider exists); AI reranking of Predictive Suggestions
+        (plain keyword-boost logic only).
+
+**Dependencies note:** M10B's formal dependencies are M3 (Memory
+Platform), M7 (Scheduler, for automatic Daily Briefing delivery — not
+started, hence that one deferral), and M10A (knowledge/context
+substrate, already shipped). Only the M7 dependency blocked anything,
+and only the automatic-scheduling half of one feature.
 
 ---
 

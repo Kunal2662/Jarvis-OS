@@ -196,9 +196,16 @@ yet, so the dependent remainder is explicitly deferred — **not 100%
 complete.** **M10A — Universal Search & Knowledge Platform shipped in
 full** (except File Search, deferred pending M11B) — a real Knowledge
 Graph, `SearchService`'s pluggable provider registry spanning memory,
-knowledge, and commands, and a real `/api/v1/search` +
+knowledge, goals, and commands, and a real `/api/v1/search` +
 `/api/v1/knowledge` REST API, closing M10's own Context Engine
-knowledge-graph deferral.
+knowledge-graph deferral. **M10B — Intelligence Layer shipped in
+full** — a Goal Manager with hierarchical progress tracking, deterministic
+Routine and Preference Learning, keyword-boosted Predictive Suggestions,
+an on-demand Daily Briefing, and a real `/api/v1/goals` +
+`/api/v1/intelligence` REST API, registered into Universal Search as a
+fourth `goals` provider; automatic scheduled delivery of the briefing
+remains deferred pending M7's Scheduler (Phase 6), which does not exist
+yet.
 
 ## License
 

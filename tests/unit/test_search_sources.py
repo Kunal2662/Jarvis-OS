@@ -61,6 +61,25 @@ async def test_knowledge_search_source_wraps_knowledge_service_search() -> None:
     assert results[0].id == "e1"
 
 
+class _FakeIntelligenceService:
+    async def search(self, query: str, *, top_k: int = 10):
+        from jarvis.core.interfaces.search import SearchResult
+
+        return [SearchResult(id="g1", title="Learn Rust", content="", source="goals", score=1.0)]
+
+
+@pytest.mark.asyncio
+async def test_goal_search_source_wraps_intelligence_service_search() -> None:
+    from jarvis.services.search_sources import GoalSearchSource
+
+    source = GoalSearchSource(_FakeIntelligenceService())
+
+    results = await source.search("rust")
+
+    assert source.source_type == "goals"
+    assert results[0].id == "g1"
+
+
 class _FakePluginManifest:
     def __init__(self, commands: list) -> None:
         self.commands = commands

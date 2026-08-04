@@ -1,7 +1,8 @@
 """Concrete :class:`~jarvis.core.interfaces.search.ISearchSource` adapters
-(Milestone 10A) -- one per searchable subsystem, each a thin wrapper over
-an already-real component (``MemoryService``, ``KnowledgeService``,
-``PluginRegistry``), never a second implementation of the thing it wraps.
+(Milestone 10A, extended Milestone 10B) -- one per searchable subsystem,
+each a thin wrapper over an already-real component (``MemoryService``,
+``KnowledgeService``, ``IntelligenceService``, ``PluginRegistry``), never
+a second implementation of the thing it wraps.
 
 ``CommandSearchSource`` deliberately takes a flat, pre-resolved
 ``list[tuple[name, description]]`` for *agent tools* rather than
@@ -25,6 +26,7 @@ from jarvis.core.interfaces.search import SearchResult
 
 if TYPE_CHECKING:
     from jarvis.core.plugins.registry import PluginRegistry
+    from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
 
@@ -65,6 +67,22 @@ class KnowledgeSearchSource:
 
     async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
         return await self._knowledge.search(query, top_k=top_k)
+
+
+class GoalSearchSource:
+    """Wraps :meth:`IntelligenceService.search` (Milestone 10B) -- goal
+    title/description lookup, no separate index. Proves the Search
+    Provider Registry's own extensibility requirement: a new searchable
+    subsystem registers here without any change to ``SearchService``
+    itself."""
+
+    source_type = "goals"
+
+    def __init__(self, intelligence: IntelligenceService) -> None:
+        self._intelligence = intelligence
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._intelligence.search(query, top_k=top_k)
 
 
 class CommandSearchSource:

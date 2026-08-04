@@ -34,7 +34,11 @@ Milestone 10A (Universal Search & Knowledge Platform) finally realizes
 the ``memory`` category §6's table has documented since before any of
 these managers existed (``memory.updated``, ``memory.recalled``), plus a
 new ``knowledge`` category (``knowledge.entity_updated``,
-``knowledge.correction_applied``).
+``knowledge.correction_applied``). Milestone 10B (Intelligence Layer)
+adds ``goal`` (``goal.updated`` -- one relay name, an ``action`` payload
+field distinguishes created/progress_updated/completed/deleted, the
+same shape ``memory.updated`` already established) and ``briefing``
+(``briefing.generated``).
 """
 
 from __future__ import annotations
@@ -50,7 +54,9 @@ from jarvis.core.events.events import (
     AppReadyEvent,
     ConfigurationUpdatedEvent,
     CrashRecoveredEvent,
+    DailyBriefingGeneratedEvent,
     Event,
+    GoalUpdatedEvent,
     HealthUpdatedEvent,
     KnowledgeCorrectionAppliedEvent,
     KnowledgeEntityUpdatedEvent,
@@ -117,6 +123,8 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     PluginPermissionGrantedEvent: "plugin.permission_granted",
     PluginPermissionDeniedEvent: "plugin.permission_denied",
     AgentStepEvent: "agent.step",
+    GoalUpdatedEvent: "goal.updated",
+    DailyBriefingGeneratedEvent: "briefing.generated",
     MemoryUpdatedEvent: "memory.updated",
     MemoryRecalledEvent: "memory.recalled",
     KnowledgeEntityUpdatedEvent: "knowledge.entity_updated",

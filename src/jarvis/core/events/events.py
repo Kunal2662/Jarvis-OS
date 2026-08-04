@@ -249,6 +249,24 @@ class KnowledgeCorrectionAppliedEvent(Event):
     Acceptance Criterion 3)."""
 
 
+# --- Intelligence Layer (Milestone 10B) --------------------------------------
+@dataclass(frozen=True, slots=True)
+class GoalUpdatedEvent(Event):
+    """Published by :class:`~jarvis.services.intelligence_service.IntelligenceService`
+    on goal create/progress-update/complete/delete."""
+
+    goal_id: str = ""
+    action: str = "created"  # "created" | "progress_updated" | "completed" | "deleted"
+
+
+@dataclass(frozen=True, slots=True)
+class DailyBriefingGeneratedEvent(Event):
+    """Published by :class:`~jarvis.services.intelligence_service.IntelligenceService`
+    each time ``IntelligenceService.generate_daily_briefing`` runs. On-demand
+    only today -- see that method's own docstring for why automatic
+    scheduling via M7 is deferred, not built here."""
+
+
 @dataclass(frozen=True, slots=True)
 class VisionProviderStatusEvent(Event):
     """Reports a vision/OCR provider's health (Milestone 6, Phase 4). Not
