@@ -30,6 +30,9 @@ from typing import TYPE_CHECKING, Any
 from jarvis.core.events.events import (
     MCPCapabilitiesChangedEvent,
     MCPConnectionChangedEvent,
+    MCPHandshakeCompletedEvent,
+    MCPNegotiationCompletedEvent,
+    MCPTransportFailedEvent,
 )
 from jarvis.core.interfaces.mcp import MCPCapability, MCPError, MCPTransportError
 from jarvis.core.interfaces.service import HealthStatus, ServiceStatus
@@ -57,6 +60,10 @@ class MCPConnectionState(enum.StrEnum):
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
     CONNECTED = "connected"
+    #: Milestone 10.5 Task Group B -- distinguishes a deliberate
+    #: reconnect from a first connect, so a subscriber can tell recovery
+    #: from initial setup without tracking prior state itself.
+    RECONNECTING = "reconnecting"
     FAILED = "failed"
 
 
@@ -155,6 +162,7 @@ class MCPClientRuntime:
                     attempts,
                     err,
                 )
+                await self._publish_transport_failed(connection, last_error)
                 await self._safe_disconnect(connection)
                 if attempt < attempts and self._backoff:
                     await asyncio.sleep(self._backoff * attempt)
@@ -182,6 +190,9 @@ class MCPClientRuntime:
 
     async def reconnect(self, server_id: str, *, granted_scopes: Collection[str] = ()) -> bool:
         """Disconnect-then-connect with the bounded retry enabled."""
+        connection = self._connections.get(server_id)
+        if connection is not None:
+            await self._set_state(connection, MCPConnectionState.RECONNECTING)
         await self.disconnect(server_id)
         return await self.connect(server_id, granted_scopes=granted_scopes, retry=True)
 
@@ -206,6 +217,7 @@ class MCPClientRuntime:
                 str(response.get("failure_reason") or "Handshake failed: no agreed version.")
             )
         connection.agreed_version = agreed
+        await self._publish_handshake_completed(connection, agreed)
         return agreed
 
     async def _discover(
@@ -228,6 +240,7 @@ class MCPClientRuntime:
         connection.capabilities.register_all(result.capabilities, replace=True)
         connection.rejected = result.rejected
         await self._publish_capabilities_changed(connection)
+        await self._publish_negotiation_completed(connection, result)
 
     async def negotiated(
         self, server_id: str, *, granted_scopes: Collection[str] = ()
@@ -343,6 +356,41 @@ class MCPClientRuntime:
         await self._event_bus.publish(
             MCPCapabilitiesChangedEvent(
                 owner=connection.server_id, count=len(connection.capabilities)
+            )
+        )
+
+    async def _publish_handshake_completed(self, connection: MCPConnection, agreed: str) -> None:
+        if self._event_bus is None:
+            return
+        await self._event_bus.publish(
+            MCPHandshakeCompletedEvent(
+                server_id=connection.server_id,
+                agreed_version=agreed,
+                transport_type=connection.transport.transport_type,
+            )
+        )
+
+    async def _publish_negotiation_completed(
+        self, connection: MCPConnection, result: NegotiationResult
+    ) -> None:
+        if self._event_bus is None:
+            return
+        await self._event_bus.publish(
+            MCPNegotiationCompletedEvent(
+                server_id=connection.server_id,
+                accepted=len(result.capabilities),
+                rejected=len(result.rejected),
+            )
+        )
+
+    async def _publish_transport_failed(self, connection: MCPConnection, detail: str) -> None:
+        if self._event_bus is None:
+            return
+        await self._event_bus.publish(
+            MCPTransportFailedEvent(
+                server_id=connection.server_id,
+                transport_type=connection.transport.transport_type,
+                detail=detail,
             )
         )
 

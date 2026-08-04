@@ -94,6 +94,11 @@ def test_every_documented_event_type_is_mapped() -> None:
         "mcp.connection_changed",
         "mcp.capabilities_changed",
         "mcp.permission_denied",
+        # Milestone 10.5 Task Group B
+        "mcp.handshake_completed",
+        "mcp.negotiation_completed",
+        "mcp.transport_failed",
+        "mcp.heartbeat",
     }
 
 

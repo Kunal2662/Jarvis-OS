@@ -3,6 +3,84 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.0] — M10.5 Task Group B, MCP Transport Layer & Runtime Connectivity
+
+Fills the seam Task Group A left: all four transports the milestone
+names are now real. **Still not the whole milestone** — no provider
+integration ships, and OAuth/cloud sync remain M11's scope.
+
+### Added
+- **Stdio transport** — spawns a peer process, speaks newline-delimited
+  JSON-RPC over its stdin/stdout, and shuts it down gracefully (close
+  stdin, wait, escalate to kill).
+- **WebSocket transport** — persistent outbound JSON-RPC over
+  `websockets`. Distinct from `RuntimeWebSocketHub`, which serves
+  JARVIS's *own* event relay inbound; they share a wire technology and
+  nothing else.
+- **HTTP transport** — stateless JSON-RPC over POST, with an honest
+  `connect` that distinguishes an unreachable host from a peer-level
+  error (see Fixed).
+- **IPC transport** — a Windows named pipe or a Unix domain socket, not
+  loopback TCP: a TCP socket would occupy a port, be reachable by any
+  local process, and carry none of the OS-level access control the real
+  primitives do.
+- `JsonRpcStreamChannel` — newline framing plus request/response
+  correlation over an asyncio stream pair, shared by `stdio` and `ipc`
+  (which differ only in how they obtain that pair). `websocket` does
+  not reuse it — a WebSocket already delivers discrete messages.
+- **Transport factory** — builds any transport from plain config and
+  registers all five into Task Group A's registry at the DI composition
+  root, which is exactly what that registry was left empty for.
+- **Transport discovery/query** — `discover()`, `describe()`,
+  `describe_all()` on the existing registry, backed by declarative
+  traits so a transport can be described without constructing one.
+- **`MCPHeartbeatMonitor`** — one loop over every connected peer
+  (mirroring `HealthMonitor`, not a timer per peer), riding the
+  `request` primitive rather than a new port method, so a future
+  transport gets heartbeat for free. `ping` was registered on the
+  server through Task Group A's own `register_method` seam.
+- Four new relay events — `mcp.handshake_completed`,
+  `mcp.negotiation_completed`, `mcp.transport_failed`, `mcp.heartbeat`
+  — deliberately distinct: a transport failure is a connectivity
+  problem, whereas a permission denial or negotiation rejection is the
+  protocol working correctly.
+- `MCPConnectionState.RECONNECTING`, so a subscriber can tell recovery
+  from initial setup without tracking prior state.
+- REST (still read-only) — `GET /api/v1/mcp/transports` now returns one
+  descriptor per transport; `GET /api/v1/mcp/transports/{id}` adds the
+  connections using it; `GET /api/v1/mcp/heartbeat` reports the last
+  probe per peer without ever forcing one.
+
+### Fixed
+- `HttpTransport.connect` routed its reachability probe through
+  `request`, which wraps every `httpx` failure as `MCPTransportError` —
+  so an unreachable host was swallowed and the transport reported
+  itself connected. Caught by a functional test against a real closed
+  port; the probe now uses `httpx` directly, and only a genuine
+  transport failure fails the connect.
+
+### Reused, not duplicated
+Reconnect, handshake, discovery and negotiation stay
+`MCPClientRuntime`'s; permission enforcement stays
+`MCPServerRuntime`'s; health rides `HealthMonitor.register_collector`;
+lifecycle rides `RuntimeManager` hooks. No second connection manager,
+no transport base class — every transport satisfies the Protocol
+structurally.
+
+### Deferred
+Provider integrations, OAuth and cloud sync (M11); MCP tools surfaced
+through the agent Tool Registry / Agent Trace; a server-side network
+listener (Task Group B ships the outbound/client half of all four
+transports); write endpoints for provider management.
+
+### Testing
+100 new tests across eight files, against **real** peers throughout: a
+real subprocess for stdio, a real `websockets` server, a real HTTP
+server, and a real named pipe / Unix socket for IPC. mypy 266 → 266,
+unchanged, zero errors in any MCP file; ruff's category list identical
+to the baseline's 22 after fixing the two genuinely-new findings this
+pass introduced.
+
 ## [0.16.0] — M10.5 Task Group A, MCP & Integration Platform (core runtime)
 
 The first implementation pass on M10.5. Ships the **MCP runtime

@@ -205,6 +205,17 @@ class MCPServerRuntime:
         self.register_method("initialize", self._handle_initialize)
         self.register_method("capabilities/list", self._handle_list)
         self.register_method("capabilities/call", self._handle_call)
+        # Milestone 10.5 Task Group B -- heartbeat. Registered through
+        # the same extension seam a later task group would use, rather
+        # than special-cased in the dispatch.
+        self.register_method("ping", self._handle_ping)
+
+    async def _handle_ping(self, params: dict[str, Any], client_id: str) -> dict[str, Any]:
+        """Liveness probe. Deliberately ungated: proving the runtime is
+        answering reveals nothing a connected peer does not already
+        know, and gating it would make an unpermissioned peer
+        indistinguishable from a dead one."""
+        return {"pong": True, "server_id": self.server_id}
 
     async def _handle_initialize(self, params: dict[str, Any], client_id: str) -> dict[str, Any]:
         remote_versions = list(params.get("protocol_versions") or [])

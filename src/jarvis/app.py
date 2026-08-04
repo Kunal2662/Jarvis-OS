@@ -447,12 +447,33 @@ class ApplicationBootstrapper:
 
             runtime_manager.register("mcp_server", _stop_mcp_server, priority=PRIORITY_FIRST - 1)
 
+        heartbeat_monitor = self._container.mcp_heartbeat_monitor()
+
         if settings.mcp.client_enabled:
 
             async def _stop_mcp_client() -> None:
                 await client_runtime.disconnect_all()
 
             runtime_manager.register("mcp_client", _stop_mcp_client, priority=PRIORITY_FIRST - 1)
+
+            # Milestone 10.5 Task Group B -- the heartbeat loop. Starts
+            # after the client runtime is wired and stops before it tears
+            # down, so a probe never races a disconnecting transport.
+            if settings.mcp.heartbeat_enabled:
+
+                async def _start_mcp_heartbeat() -> None:
+                    await heartbeat_monitor.start()
+
+                runtime_manager.register_startup(
+                    "mcp_heartbeat", _start_mcp_heartbeat, priority=PRIORITY_FIRST + 13
+                )
+
+                async def _stop_mcp_heartbeat() -> None:
+                    await heartbeat_monitor.stop()
+
+                runtime_manager.register(
+                    "mcp_heartbeat", _stop_mcp_heartbeat, priority=PRIORITY_FIRST - 2
+                )
 
         async def _collect_mcp_health() -> dict[str, Any]:
             server_health = await server_runtime.health()
@@ -463,6 +484,13 @@ class ApplicationBootstrapper:
                 "client_healthy": client_health.healthy,
                 "capability_count": len(server_runtime.capabilities),
                 "connection_count": len(client_runtime.server_ids),
+                # Task Group B -- transport + heartbeat visibility rides
+                # the same single health snapshot.
+                "registered_transports": list(
+                    self._container.mcp_transport_registry().registered_types
+                ),
+                "heartbeat_running": heartbeat_monitor.is_running,
+                "heartbeats": list(heartbeat_monitor.snapshot()),
             }
 
         health_monitor.register_collector("mcp", _collect_mcp_health)

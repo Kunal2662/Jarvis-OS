@@ -78,7 +78,7 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M14/M16-dependent remainder deferred. Context Engine's knowledge-graph half closed by M10A. See §5A below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10A – Universal Search & Knowledge Platform** | ✅ **Completed — File Search deferred pending M11B. See §5B below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10B – Intelligence Layer** | ✅ **Completed — automatic scheduled Daily Briefing delivery deferred pending M7's Scheduler (Phase 6). See §5C below and `MASTER_ROADMAP.md` §8/§14.** |
-| **M10.5 – MCP & Integration Platform** | 🟡 **Active — Task Group A (Core Runtime) shipped.** Capability Registry, transport abstraction, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*`. Network transports and provider integrations are later task groups. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
+| **M10.5 – MCP & Integration Platform** | 🟡 **Active — Task Groups A (Core Runtime) and B (Transport Layer) shipped.** Capability Registry, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*` (A); all four transports (stdio/websocket/http/ipc), transport factory, discovery/query, heartbeat (B). Provider integrations are a later task group. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
 | **M13B – Self-Healing & Observability** | 🔴 Planned, not started. *(New lettered companion to M13, added Aug 2026 — the foundational subset of M18/M20A, which remain their full-scale realizations. M13A "AI Sandbox" is unchanged.)* See `MASTER_ROADMAP.md` §8 and §14. |
 | M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
@@ -1254,10 +1254,43 @@ no provider integration ships yet — see `MASTER_ROADMAP.md`'s own Aug
 - [x] 89 new tests across seven files — unit, lifecycle, DI,
       permission, negotiation, registry, route, and a real-WebSocket
       integration suite.
-  - **Deferred to later task groups / M11**: network transports;
-        provider integrations, OAuth and cloud sync (M11 throughout);
-        MCP tools surfaced through the agent Tool Registry and Agent
-        Trace; write endpoints for provider management.
+  - *(Network transports were deferred here and are now shipped --
+        see Task Group B immediately below.)*
+
+### Task Group B — Transport Layer & Runtime Connectivity (✅ shipped)
+
+- [x] Stdio transport — real subprocess, newline-delimited JSON-RPC
+      over stdin/stdout, graceful shutdown escalating to kill.
+- [x] WebSocket transport — persistent outbound JSON-RPC. Distinct
+      from `RuntimeWebSocketHub`, which serves JARVIS's own relay
+      inbound.
+- [x] HTTP transport — stateless POST, with a `connect` that
+      distinguishes an unreachable host from a peer-level error.
+- [x] IPC transport — Windows named pipe / Unix domain socket, not
+      loopback TCP (which is not local IPC and carries no OS-level
+      access control).
+- [x] `JsonRpcStreamChannel` — framing + correlation shared by stdio
+      and ipc; websocket deliberately does not reuse it.
+- [x] Transport factory + registry discovery/query — all five
+      transports registered at the DI composition root.
+- [x] `MCPHeartbeatMonitor` — one loop over every connected peer,
+      riding the existing `request` primitive rather than a new port
+      method; `ping` registered through Task Group A's own
+      `register_method` seam.
+- [x] Four new relay events (`handshake_completed`,
+      `negotiation_completed`, `transport_failed`, `heartbeat`) plus a
+      `reconnecting` connection state.
+- [x] REST — `GET /api/v1/mcp/transports`, `/transports/{id}`,
+      `/heartbeat`. Still read-only.
+- [x] 100 new tests across eight files, against real peers throughout
+      (real subprocess, real websockets server, real HTTP server, real
+      named pipe / Unix socket).
+  - **Deferred to later task groups / M11**: provider integrations,
+        OAuth and cloud sync (M11 throughout); MCP tools surfaced
+        through the agent Tool Registry and Agent Trace; a server-side
+        network listener (this task group ships the outbound/client
+        half of all four transports); write endpoints for provider
+        management.
 
 **Dependencies note:** M10.5's formal dependencies — M5A (agent tool
 exposure), M9 (Permission Model, Service Manager lifecycle), M10

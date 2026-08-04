@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.16.0`
+**Current version:** `0.17.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -2182,16 +2182,18 @@ roadmap extension. Not a renumbering: M10.5 is additive, following the
 decimal-companion precedent **M5.5** (Production Stabilization Pass,
 §3) already set, and alters no existing milestone's identity or scope.)*
 
-**Status: 🟡 Active — Task Group A (Core Runtime) shipped.** The MCP
-runtime foundation is real: Capability Registry, transport abstraction,
-client runtime (connection/handshake/discovery/health/reconnect), server
-runtime (capability exposure + permission enforcement), capability
-negotiation, DI wiring, runtime events, and a read-only
-``/api/v1/mcp/*`` REST surface. **Not the whole milestone** — no
-network transport (``stdio``/``websocket``/``http``/``ipc``) and no
-provider integration ships yet; both are later task groups, and
-provider/OAuth/cloud scope remains M11's. See the Aug 2026 M10.5 Task
-Group A changelog addendum for the full design.
+**Status: 🟡 Active — Task Groups A (Core Runtime) and B (Transport
+Layer) shipped.** The MCP runtime foundation is real: Capability
+Registry, transport abstraction, client runtime
+(connection/handshake/discovery/health/reconnect), server runtime
+(capability exposure + permission enforcement), capability negotiation,
+DI wiring, runtime events, and a read-only ``/api/v1/mcp/*`` REST
+surface (Task Group A) — plus **all four network transports**
+(``stdio``, ``websocket``, ``http``, ``ipc``), a config-driven
+transport factory, transport discovery/query, and a heartbeat monitor
+(Task Group B). **Not the whole milestone** — no provider integration
+ships yet, and provider/OAuth/cloud scope remains M11's. See the Aug
+2026 M10.5 Task Group A and B changelog addenda for the full design.
 
 **Objective:** the protocol-level foundation for every external tool
 and context provider JARVIS consumes — standardizing on **MCP (Model
@@ -2244,13 +2246,14 @@ this milestone mirrors).
 **Complexity:** L.
 
 **Acceptance criteria:**
-1. 🟡 **Partially met (Task Group A).** A registered MCP server's
-   capability is discovered, negotiated and successfully invoked
-   end-to-end over a real transport — verified in
-   `tests/integration/test_mcp_platform_e2e.py`. The *external* half
-   (a real out-of-process peer) needs a network transport, which is a
-   later task group; Agent Trace integration is likewise deferred to
-   the task group that exposes MCP tools through the Tool Registry.
+1. 🟡 **Substantially met (Task Groups A + B).** A registered MCP
+   server's capability is discovered, negotiated and successfully
+   invoked end-to-end over a real transport against a **real
+   out-of-process peer** — verified in
+   `tests/integration/test_mcp_transport_e2e.py` (stdio subprocess) and
+   `tests/unit/test_mcp_transports_live.py` (real WebSocket and HTTP
+   servers). Agent Trace integration remains deferred to the task group
+   that exposes MCP tools through the Tool Registry.
 2. ✅ **Met.** An MCP capability whose declared scope is not granted is
    refused — by M9's existing `PermissionModel`, namespaced
    `mcp:<client_id>`, with no second permission system and no new
@@ -2258,10 +2261,12 @@ this milestone mirrors).
    (the capability is dropped) and at the invocation layer (the call
    raises), plus a `mcp.permission_denied` event over the real
    WebSocket relay.
-3. 🟡 **Partially met (Task Group A).** `MCPServerRuntime` exposes
-   JARVIS capabilities over the protocol and serves `initialize`/
-   `capabilities/list`/`capabilities/call` to a real client. Consumption
-   by an *external* client again awaits a network transport.
+3. 🟡 **Partially met (Task Groups A + B).** `MCPServerRuntime` exposes
+   JARVIS capabilities and serves `initialize`/`capabilities/list`/
+   `capabilities/call`/`ping` to a real client. Consumption by an
+   external client additionally needs JARVIS to *listen* on a network
+   transport (Task Group B ships the outbound/client half of all four);
+   a server-side listener is a later task group.
 4. ✅ **Met.** Connection loss, bounded retry with backoff, reconnect,
    and clean deregistration are all real and unit-tested; health is
    reported through M9's existing `HealthMonitor.register_collector`
@@ -9360,7 +9365,8 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.13** | M10       | AI Orchestrator                  | 🟡 **Partial** — buildable-now scope shipped (Intent Engine, scoped Context Engine, parallel dispatch AC1, interim Permission Validation AC3, real streaming AC2 for the composed path, Decision Engine, `/api/v1/agent`); M10A/M14/M16-dependent remainder deferred, documented. |
 | **0.14** | M10A      | Universal Search & Knowledge Platform | ✅ **Completed** — Knowledge Graph, Universal Search (provider registry), `/api/v1/search` + `/api/v1/knowledge/*`; File Search deferred pending M11B. |
 | **0.15** | M10B      | Intelligence Layer               | ✅ **Completed** — Goal Manager, Routine/Preference Learning, Predictive Suggestions, Daily Briefing, `/api/v1/goals` + `/api/v1/intelligence/*`; automatic scheduled briefing delivery deferred pending M7's Scheduler (Phase 6). |
-| **0.16** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group A (Core Runtime) shipped: Capability Registry, transport abstraction, client/server runtimes, negotiation, `/api/v1/mcp/*`. Network transports and provider integrations are later task groups. |
+| **0.16** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group A (Core Runtime) shipped: Capability Registry, transport abstraction, client/server runtimes, negotiation, `/api/v1/mcp/*`. |
+| **0.17** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group B (Transport Layer) shipped: stdio/websocket/http/ipc transports, transport factory, discovery/query, heartbeat monitor, four new relay events. Provider integrations remain a later task group. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -12574,3 +12580,96 @@ categories (the growth is entirely `PLC0415`, the established
 lazy-import convention) after fixing the three genuinely-new findings
 this pass introduced (`SIM300`, `RUF059`, `I001`). Version bumped
 `0.15.0` -> `0.16.0`.
+
+*Aug 2026 addendum -- M10.5 Task Group B (MCP Transport Layer &
+Runtime Connectivity):* fills the seam Task Group A left. All four
+transports the milestone names are now real -- ``stdio``,
+``websocket``, ``http``, ``ipc`` -- plus a config-driven factory,
+transport discovery/query, and a heartbeat monitor. **Still not the
+whole milestone:** no provider integration ships, and OAuth/cloud sync
+remain M11's scope throughout.
+
+**Nothing from Task Group A was duplicated or rewritten.** Reconnect,
+handshake, capability discovery and negotiation stay
+``MCPClientRuntime``'s; permission enforcement stays
+``MCPServerRuntime``'s; a transport's entire responsibility is to move
+one JSON-RPC request and return its response. That boundary is what
+kept four transports from becoming four connection managers.
+
+**Framing is shared where it is genuinely the same, and not otherwise.**
+``JsonRpcStreamChannel`` owns newline-delimited framing plus
+request/response correlation over an ``(StreamReader, StreamWriter)``
+pair; ``stdio`` and ``ipc`` both use it and differ only in how they
+obtain that pair (a subprocess' pipes versus a local socket/named
+pipe). ``websocket`` deliberately does *not* reuse it -- a WebSocket
+already delivers discrete messages, and wrapping a message-oriented
+protocol in a stream abstraction just to unwrap it again would be
+duplication of a different kind. ``http`` is stateless and needs no
+channel at all.
+
+**IPC uses the real OS primitive, not loopback TCP.** A named pipe on
+Windows, a Unix domain socket elsewhere -- one branch, six lines. A TCP
+socket on ``127.0.0.1`` would have been uniform but is not local IPC:
+it occupies a port, is reachable by any process that can bind a client
+socket, and carries none of the OS-level access control the real
+primitives do. Local-first and security-by-design both pointed the same
+way.
+
+**Heartbeat is composed, not bolted onto the port.** Adding ``ping()``
+to ``IMCPTransport`` would have forced every transport -- including
+Task Group A's shipped ``InProcessTransport`` -- to implement a concern
+that is identical across all of them. ``MCPHeartbeatMonitor`` instead
+rides the ``request`` primitive each transport already exposes, so a
+transport added in a later milestone gets heartbeat for free. It runs
+one loop over every connection (mirroring M9's ``HealthMonitor``, not a
+timer per peer), reports failures rather than raising, and leaves
+recovery to the client runtime's existing reconnect. The ``ping``
+method itself was registered on the server through Task Group A's own
+``register_method`` seam -- which is what that seam was for.
+
+**Honest ``connect`` semantics for a stateless transport.** An early
+version of ``HttpTransport.connect`` routed its reachability probe
+through ``request``, which wraps every ``httpx`` failure as
+``MCPTransportError`` -- so "host unreachable" was indistinguishable
+from "peer answered with a JSON-RPC error", and swallowing the latter
+meant an unreachable endpoint silently reported itself connected. A
+functional test against a real closed port caught it. The probe now
+uses ``httpx`` directly: only a genuine transport failure fails the
+connect; any HTTP response at all proves reachability, which is the
+only thing a stateless transport's ``connect`` can honestly assert.
+``tests/unit/test_mcp_transports_live.py`` guards the regression.
+
+Runtime events -- ``mcp.handshake_completed``,
+``mcp.negotiation_completed``, ``mcp.transport_failed`` and
+``mcp.heartbeat`` join Task Group A's three, all over the existing
+relay. They are deliberately distinct from one another: a transport
+failure is a connectivity problem, whereas a permission denial or a
+negotiation rejection is the protocol working correctly, and collapsing
+them into one event would lose exactly the distinction an operator
+needs. ``MCPConnectionState`` gained ``reconnecting`` so a subscriber
+can tell recovery from initial setup without tracking prior state.
+
+REST stays read-only: ``GET /api/v1/mcp/transports`` now returns one
+descriptor per transport (traits, config keys, registered-or-not),
+``GET /api/v1/mcp/transports/{id}`` adds the connections currently
+using it, and ``GET /api/v1/mcp/heartbeat`` reports the last probe per
+peer without ever forcing one -- so polling it cannot generate peer
+traffic. A 404 there means "not in the vocabulary"; "known but not
+registered in this build" is a 200 with ``registered: false``, which is
+a genuinely different situation.
+
+Testing -- 100 new tests across eight files, against **real** peers
+throughout: a real subprocess for stdio (``tests/fixtures/
+mcp_stdio_peer.py``), a real ``websockets`` server, a real HTTP server,
+and a real named pipe / Unix socket for IPC. A stubbed peer would
+exercise neither process lifecycle nor stream framing, which is most of
+what these transports are. One test-harness subtlety worth recording:
+a real subprocess' pipes are bound to the event loop that created them,
+so each integration test runs all of its transport work inside a single
+``asyncio.run`` scenario rather than one call per ``asyncio.run`` --
+the first draft did the latter and failed with a dead-loop write error
+that looked like a product bug but was not. Ruff/mypy diffed against
+the repository baseline: mypy 266 -> 266, unchanged, zero errors in any
+MCP file; ruff's category list is identical to the baseline's 22 after
+fixing the two genuinely-new findings this pass introduced (`RUF100`,
+`PLW2901`). Version bumped `0.16.0` -> `0.17.0`.

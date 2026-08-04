@@ -291,6 +291,51 @@ class MCPCapabilitiesChangedEvent(Event):
 
 
 @dataclass(frozen=True, slots=True)
+class MCPHandshakeCompletedEvent(Event):
+    """Published once a peer and JARVIS agree on a protocol version.
+    Distinct from :class:`MCPConnectionChangedEvent` -- a transport can
+    be connected while the handshake is still in flight, and a failed
+    handshake is a *protocol* problem, not a connectivity one."""
+
+    server_id: str = ""
+    agreed_version: str = ""
+    transport_type: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class MCPNegotiationCompletedEvent(Event):
+    """Published after capability negotiation resolves -- how many of a
+    peer's offered capabilities survived permission filtering, and how
+    many were dropped."""
+
+    server_id: str = ""
+    accepted: int = 0
+    rejected: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class MCPTransportFailedEvent(Event):
+    """A transport-level failure (connect refused, stream lost, peer
+    process died). Separate from a permission denial or a negotiation
+    rejection, both of which are the protocol working correctly."""
+
+    server_id: str = ""
+    transport_type: str = ""
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class MCPHeartbeatEvent(Event):
+    """One liveness probe result, published per connected peer per tick
+    by :class:`~jarvis.core.mcp.heartbeat.MCPHeartbeatMonitor`."""
+
+    server_id: str = ""
+    healthy: bool = True
+    latency_ms: float = 0.0
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class MCPPermissionDeniedEvent(Event):
     """Published when the MCP server runtime refuses a capability
     invocation. Distinct from

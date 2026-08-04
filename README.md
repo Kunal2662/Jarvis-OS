@@ -155,7 +155,7 @@ The short version:
 | Knowledge Graph & Universal Search | ✅ Real | `services/knowledge_service.py`, `services/search_service.py` |
 | AI Orchestrator | 🟡 Partial | `agents/graph.py` — Intent, Planning, parallel tool dispatch, interim Permission Validation |
 | Intelligence Layer | ✅ Real | `services/intelligence_service.py` — Goal Manager, Routine/Preference Learning, Daily Briefing |
-| MCP Architecture | 🟡 Partial | `core/mcp/` — M10.5 Task Group A (registry, transports, client/server runtimes, negotiation) |
+| MCP Architecture | 🟡 Partial | `core/mcp/` — M10.5 Task Groups A+B (registry, client/server runtimes, negotiation, heartbeat) and `core/mcp/transports/` (stdio, websocket, http, ipc) |
 | Self-Healing Architecture | 🔴 Planned | M13B (foundation) → M18 (full platform) |
 
 ## Project layout

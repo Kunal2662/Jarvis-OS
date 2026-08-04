@@ -42,6 +42,49 @@ _logger = get_logger("jarvis.core.mcp.transport")
 #: ``docs/ARCHITECTURE.md``'s development principles.
 TransportFactory = Callable[[dict[str, Any]], "IMCPTransport"]
 
+#: Static traits per transport identifier, for the read-only discovery
+#: surface (``GET /api/v1/mcp/transports``). Declared as data rather than
+#: probed from a live instance so a transport can be described without
+#: constructing one -- describing is a read, and reads must not spawn a
+#: subprocess or open a socket.
+TRANSPORT_TRAITS: dict[str, dict[str, Any]] = {
+    "in_process": {
+        "stateful": True,
+        "local_only": True,
+        "requires_subprocess": False,
+        "config_keys": ["client_id"],
+        "summary": "Direct dispatch to JARVIS's own in-process MCP server.",
+    },
+    "stdio": {
+        "stateful": True,
+        "local_only": True,
+        "requires_subprocess": True,
+        "config_keys": ["command", "args", "cwd", "env"],
+        "summary": "Newline-delimited JSON-RPC over a child process' stdin/stdout.",
+    },
+    "websocket": {
+        "stateful": True,
+        "local_only": False,
+        "requires_subprocess": False,
+        "config_keys": ["url", "headers"],
+        "summary": "Persistent JSON-RPC over an outbound WebSocket connection.",
+    },
+    "http": {
+        "stateful": False,
+        "local_only": False,
+        "requires_subprocess": False,
+        "config_keys": ["url", "headers", "verify"],
+        "summary": "Stateless JSON-RPC over HTTP POST; one request per call.",
+    },
+    "ipc": {
+        "stateful": True,
+        "local_only": True,
+        "requires_subprocess": False,
+        "config_keys": ["endpoint"],
+        "summary": "JSON-RPC over a Windows named pipe or a Unix domain socket.",
+    },
+}
+
 
 class TransportFactoryRegistry:
     """Maps a transport type name to the factory that builds it.
@@ -81,6 +124,34 @@ class TransportFactoryRegistry:
 
     def supports(self, transport_type: str) -> bool:
         return transport_type in self._factories
+
+    # ------------------------------------------------------------------
+    # Discovery / query (Milestone 10.5 Task Group B, deliverable 6)
+    # ------------------------------------------------------------------
+    def discover(self) -> tuple[str, ...]:
+        """Every transport identifier the platform *knows*, registered or
+        not -- the vocabulary, not the capability. Pair with
+        :attr:`registered_types` to see the gap between what is named and
+        what this build can actually create."""
+        return tuple(sorted(TRANSPORT_TYPES))
+
+    def describe(self, transport_type: str) -> dict[str, Any] | None:
+        """One transport's descriptor, or ``None`` if the identifier is
+        not even in the vocabulary (distinct from "known but not
+        registered", which returns a descriptor with
+        ``registered: False``)."""
+        if transport_type not in TRANSPORT_TYPES:
+            return None
+        traits = TRANSPORT_TRAITS.get(transport_type, {})
+        return {
+            "id": transport_type,
+            "registered": transport_type in self._factories,
+            **traits,
+        }
+
+    def describe_all(self) -> tuple[dict[str, Any], ...]:
+        descriptors = (self.describe(t) for t in self.discover())
+        return tuple(d for d in descriptors if d is not None)
 
 
 class InProcessTransport:

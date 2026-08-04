@@ -140,14 +140,14 @@ class KnowledgeSettings(BaseSettings):
 
 
 class MCPSettings(BaseSettings):
-    """Milestone 10.5 Task Group A -- MCP & Integration Platform.
+    """Milestone 10.5 -- MCP & Integration Platform.
 
     ``server_enabled`` controls whether JARVIS exposes its own
     capabilities over MCP; ``client_enabled`` whether it consumes
     external MCP servers. Both default on -- the runtime is inert until
-    a capability is exposed or a connection registered, so neither
-    default starts network activity on its own (no network transport
-    exists in this task group; see ``core/mcp/transport.py``).
+    a capability is exposed or a connection is registered, so neither
+    default initiates network activity on its own even now that Task
+    Group B's real transports exist (``core/mcp/transports/``).
     """
 
     server_enabled: bool = True
@@ -155,6 +155,14 @@ class MCPSettings(BaseSettings):
     server_id: str = "jarvis"
     reconnect_attempts: int = 3
     reconnect_backoff_seconds: float = 0.5
+
+    # Milestone 10.5 Task Group B -- transport layer tunables. The
+    # heartbeat loop is opt-in (``heartbeat_enabled``) and only ever
+    # probes peers that are already connected, so leaving it on costs
+    # nothing until a connection exists.
+    heartbeat_enabled: bool = True
+    heartbeat_interval_seconds: float = 30.0
+    request_timeout_seconds: float = 30.0
 
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}MCP_", extra="ignore")
 
@@ -560,7 +568,7 @@ class Settings(BaseSettings):
     env: Environment = Environment.DEVELOPMENT
     debug: bool = True
     app_name: str = "JARVIS OS"
-    app_version: str = "0.16.0"
+    app_version: str = "0.17.0"
     data_dir: Path | None = None
 
     llm_default_provider: LLMProviderName = LLMProviderName.OLLAMA

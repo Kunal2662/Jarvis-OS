@@ -134,10 +134,14 @@ def test_events_relay_over_the_real_websocket(client, auth_headers) -> None:
 
         asyncio.run(runtime.connect("self", granted_scopes=set()))
 
-        types = [ws.receive_json()["type"] for _ in range(3)]
+        types = [ws.receive_json()["type"] for _ in range(5)]
         assert types == [
             "mcp.connection_changed",  # connecting
+            # Task Group B added handshake/negotiation visibility to
+            # this same sequence.
+            "mcp.handshake_completed",
             "mcp.capabilities_changed",  # discovery replaced the peer set
+            "mcp.negotiation_completed",
             "mcp.connection_changed",  # connected
         ]
 
@@ -196,12 +200,21 @@ def test_mcp_health_joins_the_existing_health_snapshot(client) -> None:
     assert snapshot["mcp"]["connection_count"] == 1
 
 
-def test_no_network_transport_ships_in_task_group_a(client, auth_headers) -> None:
-    """Guards the scope boundary: the abstraction is real, the network
-    transports are explicitly future work."""
+def test_every_known_transport_is_registered(client, auth_headers) -> None:
+    """This asserted ``registered == []`` in Task Group A, guarding the
+    scope boundary that no network transport shipped yet. Task Group B
+    moved that boundary deliberately, so the assertion is inverted
+    rather than deleted -- the vocabulary is still the same five, and
+    now every one of them is constructible."""
     headers, _token = auth_headers
 
-    body = client.get("/api/v1/mcp/transports", headers=headers).json()["data"]
+    body = client.get("/api/v1/mcp/transports", headers=headers).json()
 
-    assert body["registered"] == []
-    assert set(body["known"]) == {"in_process", "stdio", "websocket", "http", "ipc"}
+    assert {t["id"] for t in body["data"]} == {
+        "in_process",
+        "stdio",
+        "websocket",
+        "http",
+        "ipc",
+    }
+    assert all(t["registered"] for t in body["data"])

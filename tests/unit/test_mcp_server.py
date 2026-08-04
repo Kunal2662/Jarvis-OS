@@ -78,6 +78,9 @@ async def test_status_reports_capabilities_and_methods(server: MCPServerRuntime)
         "initialize",
         "capabilities/list",
         "capabilities/call",
+        # Milestone 10.5 Task Group B registered this through the
+        # ``register_method`` seam, without editing the dispatch.
+        "ping",
     }
 
 

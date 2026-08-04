@@ -119,11 +119,27 @@ def test_connections_reports_a_registered_peer(client, auth_headers) -> None:
     assert body["data"][0]["transport"] == "in_process"
 
 
-def test_transports_distinguishes_known_from_registered(client, auth_headers) -> None:
-    """Task Group A ships the abstraction, not the network transports --
-    the endpoint reports that gap honestly."""
+def test_transports_reports_the_whole_vocabulary(client, auth_headers) -> None:
+    """Task Group A shipped the abstraction with nothing registered and
+    this endpoint returned a bare ``{known, registered}`` pair. Task
+    Group B registered all five and reshaped the response into one
+    descriptor per transport -- an intra-milestone shape change, with
+    the old pair's information preserved (``data[].id`` is the former
+    ``known``; ``meta.registered`` is the former ``registered``)."""
     body = client.get("/api/v1/mcp/transports", headers=auth_headers).json()
 
-    assert body["data"]["known"] == ["http", "in_process", "ipc", "stdio", "websocket"]
-    assert body["data"]["registered"] == []
-    assert body["meta"]["count"] == 0
+    assert sorted(t["id"] for t in body["data"]) == [
+        "http",
+        "in_process",
+        "ipc",
+        "stdio",
+        "websocket",
+    ]
+    assert sorted(body["meta"]["registered"]) == [
+        "http",
+        "in_process",
+        "ipc",
+        "stdio",
+        "websocket",
+    ]
+    assert body["meta"]["count"] == 5

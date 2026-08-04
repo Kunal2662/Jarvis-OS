@@ -368,13 +368,30 @@ def _build_mcp_client_runtime(*, event_bus: Any, settings: Settings) -> Any:
     )
 
 
-def _build_mcp_transport_registry() -> Any:
-    """Empty of network transports by design -- ``stdio``/``websocket``/
-    ``http``/``ipc`` each register here in their own later task group
-    (M10.5 Task Group A ships the abstraction, not the transports)."""
-    from jarvis.core.mcp.transport import TransportFactoryRegistry
+def _build_mcp_transport_registry(*, mcp_server_runtime: Any) -> Any:
+    """Every shipped transport, registered (M10.5 Task Group B).
 
-    return TransportFactoryRegistry()
+    Task Group A left this registry deliberately empty and documented
+    that a later pass would populate it at the DI composition root --
+    this is that call. Passing the server runtime also registers the
+    ``in_process`` transport, so JARVIS's own MCP server is reachable
+    through the same factory as any remote peer.
+    """
+    from jarvis.core.mcp.transports.factory import build_default_transport_registry
+
+    return build_default_transport_registry(in_process_server=mcp_server_runtime)
+
+
+def _build_mcp_heartbeat_monitor(
+    *, mcp_client_runtime: Any, event_bus: Any, settings: Settings
+) -> Any:
+    from jarvis.core.mcp.heartbeat import MCPHeartbeatMonitor
+
+    return MCPHeartbeatMonitor(
+        mcp_client_runtime,
+        event_bus=event_bus,
+        interval_seconds=settings.mcp.heartbeat_interval_seconds,
+    )
 
 
 def _build_plugin_store(*, plugin_registry: Any, settings: Settings) -> Any:
@@ -667,7 +684,6 @@ class Container(containers.DeclarativeContainer):
     )
 
     # ---- Milestone 10.5 Task Group A -- MCP & Integration Platform --------
-    mcp_transport_registry = providers.Singleton(_build_mcp_transport_registry)
     mcp_server_runtime = providers.Singleton(
         _build_mcp_server_runtime,
         permission_model=permission_model,
@@ -676,6 +692,17 @@ class Container(containers.DeclarativeContainer):
     )
     mcp_client_runtime = providers.Singleton(
         _build_mcp_client_runtime,
+        event_bus=event_bus,
+        settings=settings,
+    )
+    # ---- Milestone 10.5 Task Group B -- Transport Layer -------------------
+    mcp_transport_registry = providers.Singleton(
+        _build_mcp_transport_registry,
+        mcp_server_runtime=mcp_server_runtime,
+    )
+    mcp_heartbeat_monitor = providers.Singleton(
+        _build_mcp_heartbeat_monitor,
+        mcp_client_runtime=mcp_client_runtime,
         event_bus=event_bus,
         settings=settings,
     )

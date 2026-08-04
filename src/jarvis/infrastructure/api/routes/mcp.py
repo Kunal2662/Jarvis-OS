@@ -20,13 +20,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from jarvis.core.mcp.negotiation import PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
 
 if TYPE_CHECKING:
     from jarvis.core.mcp.client import MCPClientRuntime
+    from jarvis.core.mcp.heartbeat import MCPHeartbeatMonitor
     from jarvis.core.mcp.server import MCPServerRuntime
     from jarvis.core.mcp.transport import TransportFactoryRegistry
 
@@ -101,20 +102,59 @@ async def mcp_connections(request: Request) -> Envelope[tuple[dict[str, Any], ..
     return envelope(payload, meta={"count": len(payload)})
 
 
-@router.get("/transports", response_model=Envelope[dict[str, Any]])
-async def mcp_transports(request: Request) -> Envelope[dict[str, Any]]:
-    """Which transports are actually registered versus merely named.
+@router.get("/transports", response_model=Envelope[tuple[dict[str, Any], ...]])
+async def mcp_transports(request: Request) -> Envelope[tuple[dict[str, Any], ...]]:
+    """Every transport identifier this platform knows, each with its
+    static traits and whether this build can actually create it.
 
-    ``known`` is the identifier vocabulary
-    (``core/interfaces/mcp.py``'s ``TRANSPORT_TYPES``); ``registered``
-    is what this build can genuinely create. They differ by design in
-    Task Group A -- reporting the gap honestly beats implying transports
-    exist that do not.
+    Task Group A returned a bare `{known, registered}` pair here because
+    nothing was registered yet. Now that all five are, the endpoint
+    returns one descriptor per transport -- a superset of the old shape's
+    information, and the shape `/transports/{id}` returns a single
+    element of.
     """
-    from jarvis.core.interfaces.mcp import TRANSPORT_TYPES
-
-    registered = list(_transports(request).registered_types)
+    registry = _transports(request)
+    payload = registry.describe_all()
     return envelope(
-        {"known": sorted(TRANSPORT_TYPES), "registered": registered},
-        meta={"count": len(registered)},
+        payload,
+        meta={
+            "count": len(payload),
+            "registered": list(registry.registered_types),
+        },
+    )
+
+
+@router.get("/transports/{transport_id}", response_model=Envelope[dict[str, Any]])
+async def mcp_transport_detail(transport_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    """One transport's descriptor, plus the connections currently using
+    it. A 404 means the identifier is not in the vocabulary at all --
+    "known but not registered in this build" is a 200 with
+    ``registered: false``, which is a different thing and worth
+    distinguishing."""
+    registry = _transports(request)
+    descriptor = registry.describe(transport_id)
+    if descriptor is None:
+        raise HTTPException(status_code=404, detail=f"Unknown transport {transport_id!r}.")
+
+    in_use = [
+        connection
+        for connection in _client(request).snapshot()
+        if connection.get("transport") == transport_id
+    ]
+    return envelope(
+        {**descriptor, "connections": in_use},
+        meta={"connection_count": len(in_use)},
+    )
+
+
+@router.get("/heartbeat", response_model=Envelope[tuple[dict[str, Any], ...]])
+async def mcp_heartbeat(request: Request) -> Envelope[tuple[dict[str, Any], ...]]:
+    """The most recent liveness result per connected peer. Read-only --
+    it reports what the monitor last observed and never forces a probe,
+    so polling this endpoint cannot generate peer traffic."""
+    monitor = cast("MCPHeartbeatMonitor", request.app.state.container.mcp_heartbeat_monitor())
+    payload = monitor.snapshot()
+    return envelope(
+        cast("tuple[dict[str, Any], ...]", payload),
+        meta={"count": len(payload), "running": monitor.is_running},
     )
