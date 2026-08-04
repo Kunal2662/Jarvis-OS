@@ -1780,6 +1780,81 @@ M14-routed form uses an interim `AgentPermissionGate` until M14 ships)
 this project has applied since the M0-M9 Project Completion Audit.
 **Do not treat M10 as 100% complete.**
 
+**M10 Closure Summary (Aug 2026):**
+
+✅ **Completed** (buildable now, no missing dependency):
+- Intent Engine -- `agents/nodes/intent_classifier.py`, diagnostic
+  classification ahead of planning.
+- Context Engine (current implementation) -- `agents/nodes/
+  context_engine.py`, M3 Memory only; see Deferred for the
+  knowledge-graph half.
+- Decision Engine -- `response_mode` on the `responder` node.
+- Parallel Tool Dispatch -- `tool_selector`'s `tool_parallel` shape +
+  `tool_executor`'s concurrent dispatch (Acceptance Criterion 1).
+- Permission Validation (interim) -- `agents/permission.py`'s
+  `AgentPermissionGate` + `permission_validator` node (Acceptance
+  Criterion 3).
+- Token Streaming -- real per-token output via `ILLMProvider.stream()`
+  for the tool-composed path (Acceptance Criterion 2).
+- Runtime WebSocket integration -- `agent.step` on
+  `RuntimeWebSocketHub.EVENT_TYPE_NAMES`.
+- `/api/v1/agent` endpoints -- `POST /agent/invoke`,
+  `POST /agent/stream`.
+
+🟠 **Deferred** (blocked on a milestone that hasn't shipped -- see each
+item's own reason, not silently dropped):
+- **Knowledge Graph integration** -- needs **M10A** (Universal Search &
+  Knowledge Platform), not started; Context Engine today reads M3
+  Memory only, no knowledge graph exists to query yet.
+- **Final Authorization Engine integration** -- needs **M14**
+  (Authorization Engine), not started; `AgentPermissionGate` is the
+  interim single enforcement point, built so swapping in M14 later
+  means replacing its `authorize()` body, not the graph wiring.
+- **Learning & Feedback** -- needs **M16** (Reflection Engine), not
+  started; M10's own spec routes this through M16, not a second
+  learning mechanism.
+- **Intent Engine gating graph routing** -- needs real signal from
+  **M10A/M10B**, neither started; today the classification is recorded
+  but diagnostic-only.
+- **Final streaming optimizations** -- `tool_selector`'s "final"
+  (no-tool-needed) shortcut still replays precomposed text rather than
+  streaming real tokens, since its answer is embedded inside a JSON
+  decision object; fixing this means restructuring tool selection
+  itself, out of this pass's scope.
+- **Remaining UI integration** -- wiring the PySide6 Agent Trace view
+  or a React frontend surface to `/api/v1/agent` is **M8**'s own
+  remaining phases (Phases 2-3/5-7), unchanged and unblocked by this
+  pass.
+
+**Regression Audit (Aug 2026, post-M10, ahead of M10A):** a full
+milestone-by-milestone check of M1 through M9 for anything M10
+disturbed.
+
+| Milestone | Status |
+|---|---|
+| M0-M6 | ✅ Stable |
+| M7 | ✅ Stable |
+| M8 | ✅ Stable -- zero frontend files touched by M10 |
+| M9 | ✅ Stable |
+
+- **Fixed regression:** `test_runtime_ws_hub.py::
+  test_every_documented_event_type_is_mapped` hardcoded the full
+  `EVENT_TYPE_NAMES` value set; M10's new `agent.step` entry broke it
+  -- an expected, mechanical update, not a design gap.
+- **Fixed documentation issue:** `agent_trace_view.py`'s module
+  docstring listed the fixed five-node M5A sequence, stale after M10
+  added three nodes; the code itself already renders any node name
+  generically, so this was a comment-only fix.
+- **Remaining accepted technical debt (pre-existing, not a
+  regression):** `AgentOrchestrator` has never been registered in
+  `app.py`'s `RuntimeManager` shutdown hooks (true since M5A, unchanged
+  by M10) -- its SQLite checkpointer connection relies on explicit
+  `.stop()` calls rather than the app's own shutdown sequence.
+- **Verification:** full suite 839/839 passing before and after;
+  ruff 570 -> 597 findings (+27, 100% the established `PLC0415`
+  lazy-import pattern, zero new categories); mypy 266 -> 266,
+  byte-for-byte unchanged.
+
 **Objective:** formalize and expand the M5A `AgentOrchestrator`
 (the compiled LangGraph `StateGraph`: `planner → tool_selector →
 tool_executor → critic → responder`) into a dedicated orchestration
