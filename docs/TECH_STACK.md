@@ -97,13 +97,16 @@ owns only state that has no backend source of truth.
 
 ## 3. Backend stack
 
-| Concern | Technology | Notes |
-|---|---|---|
-| Language | Python 3.13 | Unchanged from the current codebase. |
-| API framework | FastAPI | Replaces direct in-process Qt calls as the UI's entry point. |
-| Real-time | WebSocket | Streaming chat tokens, agent trace events, voice state, live automation/workflow progress — anywhere the current `EventBus` publishes today. |
-| Sync calls | REST | Request/response operations — settings reads/writes, history queries, one-shot commands. |
-| Everything below FastAPI | Unchanged | `services → agents → core.interfaces`, `infrastructure → core.interfaces`, DI container, Event Bus — all exactly as shipped in M0–M7. FastAPI's routers become the new (and, per M5's "Backend Platform" reframing, only) consumer of these services; PySide6's direct in-process calls are retired as the UI migrates. |
+| Concern | Technology | What it does | Why it was selected |
+|---|---|---|---|
+| Language | Python 3.13 | The entire backend runtime. | Unchanged from the current codebase — the AI/ML ecosystem (LangChain, transformers, Whisper, ChromaDB clients) is Python-native; rewriting the runtime in another language to chase a UI-technology change would be a solution in search of a problem. |
+| API framework | FastAPI | Exposes every backend service over HTTP/WebSocket. | Async-native (matches the existing `asyncio`-based service layer), Pydantic-validated request/response models for free, and it was already the control-plane server from M0 — this migration grows its role rather than introducing a second framework. Replaces direct in-process Qt calls as the UI's entry point. |
+| Real-time | WebSocket | Streaming chat tokens, agent trace events, voice state, live automation/workflow progress. | Anywhere the current `EventBus` publishes today needs a push channel, not polling — one connection per client session (`docs/ARCHITECTURE.md` §6), multiplexed by event category. |
+| Sync calls | REST | Request/response operations — settings reads/writes, history queries, one-shot commands. | Simpler caching/retry semantics than a bidirectional channel for anything that isn't inherently a stream. |
+| Agent runtime | LangGraph + LangChain | Orchestrates the multi-step tool-use/reasoning graph (Intent → Planning → Tool Execution → Verification) behind every AI-driven feature — `agents/graph.py`, `agents/nodes/*`. | A graph-based orchestrator makes each reasoning step (and its Agent Trace visibility) an inspectable node/edge instead of an opaque prompt chain — the binding requirement `docs/ARCHITECTURE.md` §15 (AI standards) formalizes so no feature builds its own ad hoc agent loop. |
+| Local LLM | Ollama | Runs open-weight models entirely on-device — no network call, no per-token cost, no data leaving the machine. | The backbone of JARVIS's local-first default: every AI feature must work with zero cloud dependency; Ollama is the local inference path every LLM-backed service falls back to (or prefers) depending on user settings. |
+| Cloud LLM | OpenAI | Optional, higher-capability model access when the user opts in. | Additive, never required — matches the "cloud features are additive" principle (§9 below); the same `ILLMProvider` port both Ollama and OpenAI implement means a feature never hardcodes which one it's talking to. |
+| Everything below FastAPI | Unchanged | `services → agents → core.interfaces`, `infrastructure → core.interfaces`, DI container, Event Bus — all exactly as shipped in M0–M7. | FastAPI's routers become the new (and, per M5's "Backend Platform" reframing, only) consumer of these services; PySide6's direct in-process calls are retired as the UI migrates. |
 
 **Backend/frontend contract:** FastAPI route handlers and WebSocket
 consumers are the only new code this migration requires in the
@@ -115,10 +118,20 @@ existing port gains a concrete adapter in `infrastructure/`.
 
 ## 4. Database
 
-| Concern | Technology | Notes |
-|---|---|---|
-| Structured data | SQLite | Unchanged — same engine, same `IDatabase` port, same Alembic migration chain. |
-| Vector memory | ChromaDB | Unchanged — see `MASTER_ROADMAP.md` §12. |
+**Three storage tiers, three distinct jobs — none of them overlap, and
+none of them replaces another:**
+
+| Concern | Technology | What it stores | Why it was selected |
+|---|---|---|---|
+| **Local structured data** | **SQLite** | Every transactional record JARVIS owns — conversations, messages, memories, goals, routines, preferences, plugin state, settings. The single source of truth for anything queried by exact field (`WHERE id = ...`, `WHERE status = 'active'`). | Zero-ops, single-file, ships with Python — no server process to run or secure for a local-first product. Unchanged — same engine, same `IDatabase` port, same Alembic migration chain since M0. |
+| **Vector memory** | **ChromaDB** | Embeddings for semantic search/recall over memory and knowledge-graph content — the *meaning*-based index SQLite's exact-match queries can't serve. One shared collection, records distinguished by `record_type` metadata (M10A) rather than a separate collection per feature. | Purpose-built for approximate-nearest-neighbor search over embeddings; running it alongside SQLite (rather than trying to bolt vector search onto a relational store) keeps each engine doing the one thing it's actually good at. See `MASTER_ROADMAP.md` §12. |
+| **Cloud sync** *(future — see §5)* | **MongoDB** | An optional, outbound-only mirror of a user's data for multi-device sync — **not** a replacement for SQLite. SQLite remains the authoritative local store on every device; MongoDB (when a user opts in) is a sync target, the same "optional, additive, never required" role Oracle Cloud already occupies below. | Document-shaped, schema-flexible storage matches syncing heterogeneous, evolving record types (goals, memories, preferences) across devices without a rigid cross-device schema migration story — a different job than SQLite's single-machine transactional store, which is why it sits alongside it, not instead of it. |
+
+**The rule, stated once so it doesn't need repeating per document:**
+SQLite = local, ChromaDB = vector, MongoDB = cloud sync (future). Each
+answers a different question (exact record / semantic similarity /
+multi-device availability); a feature never picks one because "it's
+the database," it picks the one whose question it's actually asking.
 
 ---
 
@@ -127,6 +140,7 @@ existing port gains a concrete adapter in `infrastructure/`.
 | Concern | Technology | Notes |
 |---|---|---|
 | Cloud provider | Oracle Cloud | Optional — local-first remains the default; nothing requires a cloud account to run JARVIS. Used for the M11 Integrations & Cloud Platform's outbound sync target, when enabled. |
+| Cloud data sync | MongoDB *(future)* | Not started, not yet assigned to a specific milestone — conceptually extends M11 Integrations & Cloud Platform's sync scope alongside Oracle Cloud. See §4 above for why it doesn't replace SQLite. |
 
 ---
 
@@ -259,3 +273,21 @@ an icon-font dependency).
    frontend).
 4. Every new capability ships with tests in the same pass it ships in
    — see §6 above for which tool owns which layer.
+
+---
+
+## 10. Future technology
+
+*(Not started. Listed here so a new developer knows what's coming and
+why, without mistaking any of it for shipped scope — cross-check
+`MASTER_ROADMAP.md` §8 before assuming any of the below is scheduled
+for a specific milestone; several are not yet assigned one.)*
+
+| Technology | What it will do | Why it's the right fit | Status |
+|---|---|---|---|
+| **MongoDB** | Optional multi-device cloud sync target for a user's data. | Document-shaped storage matches syncing heterogeneous, evolving record types across devices without a rigid schema-migration story — see §4's storage-tier table for why this sits alongside SQLite, never instead of it. | Not started; not yet assigned a milestone. Conceptually extends M11 Integrations & Cloud Platform. |
+| **MCP (Model Context Protocol)** | A standardized way for JARVIS to consume external tool/context providers (and, potentially, expose its own tools to other MCP-aware clients) without a bespoke integration per provider. | The same "ports and adapters" principle JARVIS already applies to LLMs/STT/TTS/vector stores (§9 above, `docs/ARCHITECTURE.md` §1) — MCP would be one more standardized protocol adapter, not a parallel integration mechanism. | Not started; not yet assigned a milestone. Conceptually extends M11 Integrations & Cloud Platform's provider-abstraction pattern. |
+| **Plugin Marketplace evolution** | Growing M9's already-shipped Plugin Marketplace Foundation (backend index/install/uninstall API) and M8's Marketplace UI into a full discovery/distribution surface — ratings, versioned updates, a public listing. | Extends real, shipped infrastructure (`core/plugins/`, `routes/plugins.py`) rather than building a second plugin distribution mechanism. | Foundation shipped (M9); full marketplace experience not started. |
+| **SDK** | A packaged, documented developer kit for building JARVIS plugins outside this repository — versioned, publishable, with its own compatibility contract (`sdk_range` in the module manifest, `docs/ARCHITECTURE.md` §10, already real). | The plugin manifest's `sdk_range` field and `IPlatformAdapter` capability-probing already exist specifically so a plugin can be built and version-checked independent of the host app's release cadence — an SDK package is that same contract, distributed. | Manifest contract shipped (M9); a standalone distributable SDK package not started. |
+| **Mobile Companion** | Voice conversations, chat interface, notification center, remote assistant, personal dashboard, activity feed, and AI suggestions from a phone. | Reuses the same REST/WebSocket contract the React/Tauri desktop client uses (`docs/ARCHITECTURE.md` §5/§6) — a second client of the existing backend, not a second backend. | Not started. Planned under M21 Mobile Platform — see `MASTER_ROADMAP.md` §8. |
+| **Wearables / AR Glasses (e.g. Mentra Live)** | Hands-free, glanceable JARVIS access — notifications, voice interaction, and lightweight visual overlays from a wearable device. | Same client-of-the-backend model as Mobile Companion; a wearable is a thin, capability-constrained client, not a reason to duplicate backend logic. Specific hardware partners (e.g. Mentra Live) are a client-integration detail, not an architecture decision — the backend contract doesn't change per device. | Not started. Planned under M21 Mobile Platform's Wearable integration scope alongside Mobile Companion. |

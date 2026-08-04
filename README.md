@@ -21,6 +21,63 @@ for how to swap a mock provider for a real one.
 
 ---
 
+## Vision
+
+JARVIS OS is not a desktop application with an AI feature bolted on —
+it is an **AI Operating System**. The UI (PySide6 today, React + Tauri
+from M8 onward) is one replaceable layer; the Python runtime
+underneath — AI orchestration, Memory, Knowledge, Automation, Voice,
+Vision, Plugins, Integrations — is the actual product, and does not
+change shape because the UI's rendering technology changed. The
+long-term direction is a single, local-first assistant that grows a
+real memory (M3), a real knowledge graph and universal search over
+everything it knows (M10A), a real goal/routine/preference-learning
+intelligence layer (M10B), and eventually genuine proactive and
+reflective capability (M15 Personality Engine, M16 Reflection Engine,
+M17 Companion Intelligence) — reachable from the desktop, the browser,
+mobile, and wearables (M21) alike, all talking to the same backend
+through the same REST/WebSocket contract. See
+[Future vision](#future-vision) below and
+[`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) §8 for the full,
+milestone-by-milestone plan.
+
+**Engineering philosophy** — the rules every milestone follows,
+not just the ones convenient for it (full detail:
+[`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) §4,
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §1):
+
+- **Local-first, offline-first.** JARVIS runs with zero cloud
+  dependency by default — local LLMs via Ollama, local storage via
+  SQLite, local vector memory via ChromaDB. Cloud (Oracle Cloud today;
+  MongoDB sync, planned) is additive, opt-in, and never required.
+- **Modular, plugin-first.** Every capability is a self-contained
+  module behind a manifest (`docs/ARCHITECTURE.md` §10); third-party
+  plugins use the exact same extension points first-party modules do.
+- **Event-driven.** Cross-cutting state changes flow through the
+  `EventBus`, relayed to clients over one multiplexed WebSocket — not
+  direct callbacks across layer boundaries.
+- **Dependency injection everywhere.** No service ever imports a
+  concrete adapter directly, only its port (`core/di/container.py`).
+- **SOLID, composition over inheritance.** One responsibility per
+  class/module; behavior is composed from small services, not built up
+  through deep inheritance hierarchies.
+- **Single source of truth.** `docs/MASTER_ROADMAP.md` for scope and
+  status, `docs/ARCHITECTURE.md` for standards, `docs/TECH_STACK.md`
+  for technology choices — one authoritative document per question,
+  cross-referenced, never duplicated and left to drift.
+- **Security by design.** Every tool invocation passes through
+  Permission Validation before executing; least-privilege by
+  construction, not bolted on after the fact (`docs/ARCHITECTURE.md`
+  §17).
+- **Backward compatibility, incremental evolution.** A milestone
+  extends the public surface; it does not silently break an existing
+  one. Reuse existing systems instead of building parallel
+  implementations — the single rule most consistently enforced across
+  every milestone in this repository's history.
+- **Shared runtime, not per-feature reinvention.** One `RuntimeManager`,
+  one `EventBus`, one DI container, one plugin system — every new
+  capability plugs into them rather than shipping its own copy.
+
 ## Highlights
 
 - **Clean, layered SOLID architecture** — `core` / `services` /
@@ -82,6 +139,24 @@ Deep-dive on the as-shipped architecture above:
 [`docs/ARCHITECTURE_LEGACY.md`](docs/ARCHITECTURE_LEGACY.md). For the
 Aug 2026 forward-looking architecture standard (React + Tauri +
 FastAPI, M8 onward), see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+### Domain architecture
+
+Where each capability actually lives, and whether it's real yet — the
+full table (every domain, status, owning milestone, source location)
+is [`docs/ARCHITECTURE.md` §21 — Domain architecture map](docs/ARCHITECTURE.md#21-domain-architecture-map).
+The short version:
+
+| Domain | Status | Detail |
+|---|---|---|
+| Runtime & Dependency Injection | ✅ Real | `core/lifecycle/`, `core/di/container.py` |
+| Plugin Architecture | ✅ Real | `core/plugins/` — SDK, Loader, Sandbox, Permission Model, Marketplace Foundation |
+| Memory Architecture | ✅ Real | `services/memory_service.py` — Working/Conversation/Episodic/Semantic/Preference/Knowledge/Vector Memory |
+| Knowledge Graph & Universal Search | ✅ Real | `services/knowledge_service.py`, `services/search_service.py` |
+| AI Orchestrator | 🟡 Partial | `agents/graph.py` — Intent, Planning, parallel tool dispatch, interim Permission Validation |
+| Intelligence Layer | ✅ Real | `services/intelligence_service.py` — Goal Manager, Routine/Preference Learning, Daily Briefing |
+| MCP Architecture | 🔴 Planned | Not yet assigned a milestone — see `docs/TECH_STACK.md` §10 |
+| Self-Healing Architecture | 🔴 Planned | M18 |
 
 ## Project layout
 
@@ -161,9 +236,46 @@ pytest -m "not windows"      # skip Windows-only tests
 pre-commit install
 ```
 
-See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+Full setup, day-to-day commands, and Alembic migration workflow:
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+
+### Coding standards
+
+Clean Architecture layering (`ui → features → services → agents →
+core.interfaces`, `infrastructure → core.interfaces`, never the other
+way), dependency injection for every new adapter, `EventBus` for
+cross-cutting notifications, `mypy --strict` typing, no fake or
+simulated data in a production code path — a loading state, an empty
+state, or a real value, never a placeholder dressed up to look real.
+Full standard: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §5.
+
+### Testing strategy
+
+Every new port ships with a fake in `tests/fakes/` in the same pass it
+ships in; a milestone that reduces the passing test count, or removes
+a test without replacing its coverage, does not ship. Unit tests
+(`pytest -m unit`) exercise services/repositories against a real
+temp-file SQLite database and fakes for external providers (LLM,
+vector store); integration tests (`pytest -m integration`) exercise
+one full flow per Acceptance Criterion end-to-end — real DI container,
+real `TestClient`, real WebSocket relay where applicable — never
+doubles of the unit tests. See
+[`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) §5 (Validation
+gate) and §4 (Engineering standards).
+
+### Git workflow
+
+Feature branches: `feat/<milestone>-<short-name>`. Every milestone's
+commit follows the pattern `feat(<milestone>): <summary>` /
+`docs(<milestone>): <summary>`, validated (Black clean, Ruff/mypy
+baseline unchanged, full suite passing) before it merges to `main`.
+See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
+
+**Current version:** `0.15.0` · **Current milestone:** M10B —
+Intelligence Layer (✅ completed; awaiting review before M11 begins).
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source
@@ -206,6 +318,32 @@ an on-demand Daily Briefing, and a real `/api/v1/goals` +
 fourth `goals` provider; automatic scheduled delivery of the briefing
 remains deferred pending M7's Scheduler (Phase 6), which does not exist
 yet.
+
+### Future vision
+
+Beyond M10B, the roadmap continues (all planned, none started;
+milestone identities never renumbered once assigned — see
+`docs/MASTER_ROADMAP.md` §1's charter): **M11 Integrations & Cloud
+Platform** (OAuth-backed integrations, API Gateway, optional Oracle
+Cloud/MongoDB sync) and its companions M11A (SEO Intelligence) and
+M11B (Productivity Suite — Tasks, Documents, File Manager, Command
+Palette); **M12 Smart Home & IoT**; **M13 Desktop Intelligence &
+Computer Control** and **M13A AI Sandbox**; **M14 Security Platform**
+(the Authorization Engine several earlier milestones already defer
+to) and **M14A Backup Platform**; **M15 Personality Engine**, **M16
+Reflection Engine**, and **M17 Companion Intelligence** (+ **M17A
+Training Studio**) — the personality, learning-from-feedback, and
+synthesis layer built on M10A/M10B's foundation; **M18 Self-Healing &
+Diagnostics Platform**; **M19 Knowledge Graph & Digital Twin
+Platform** (M10A's full realization); **M20 Predictive Intelligence
+Platform** (+ **M20A Analytics & Observability**); **M21 Mobile
+Platform** (Mobile Companion, wearables/AR glasses); **M22 Edge AI
+Platform**; **M23 Distributed JARVIS** (+ **M23A Robotics & Hardware
+Control**, **M23B Autonomous Planning & Decision Engine**); and
+**M24 Production Release (v1.0)**, followed by M25–M27's Cognitive
+Intelligence, Self-Learning, and World Model platforms. Full detail,
+dependencies, and acceptance criteria for every one of these:
+`docs/MASTER_ROADMAP.md` §8.
 
 ## License
 

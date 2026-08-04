@@ -53,6 +53,7 @@ mistakes a standard for a shipped guarantee.
 18. [Testing standards](#18-testing-standards)
 19. [Performance standards](#19-performance-standards)
 20. [Governance — how this document changes](#20-governance--how-this-document-changes)
+21. [Domain architecture map](#21-domain-architecture-map)
 
 ---
 
@@ -1198,3 +1199,40 @@ ships and real measurements replace estimates.
   is simply no longer the standard for what ships next. Nothing in
   this document retroactively changes what `ARCHITECTURE_LEGACY.md`
   records.
+
+---
+
+## 21. Domain architecture map
+
+*(Added Aug 2026, post-M10B documentation synchronization pass.)*
+Sections 1–20 above are **standards** — binding rules every module
+follows, not a feature-by-feature walkthrough. This section is the
+missing piece a new developer actually reaches for first: "where does
+domain X live, is it real yet, and what milestone owns it." It is a
+map, not a duplicate — depth on any row lives in `MASTER_ROADMAP.md`
+§8 (the milestone's full design) or the cited source file, never
+repeated here.
+
+| Domain | Status | Owning milestone(s) | Where it lives |
+|---|---|---|---|
+| Layered Architecture | ✅ Real | M0 (as-shipped) → M8+ (current) | §1 above (current standard); `ARCHITECTURE_LEGACY.md` §2 (as-shipped M0–M7) |
+| Runtime Architecture | ✅ Real | M9 | §1 above (Core Runtime box); `core/lifecycle/` — `RuntimeManager`, `ServiceManager`, `SessionManager`, `ConfigurationManager`, `HealthMonitor` |
+| Dependency Injection | ✅ Real | M0, extended every milestone since | `core/di/container.py`; `docs/DEPENDENCY_INJECTION.md` |
+| Event Bus | ✅ Real | M0, extended M9/M10/M10A/M10B | §7 above; `core/events/` |
+| Service Architecture | ✅ Real | M0 → ongoing | §8 above |
+| Plugin Architecture | ✅ Real | M9 Task Group D | §10 above (Module Manifest spec); `core/plugins/` (SDK, Loader, Sandbox, Extension API, Permission Model, Registration, Store, Marketplace Foundation) |
+| Memory Architecture | ✅ Real | M3 | `MASTER_ROADMAP.md` §3/§8 M3; `services/memory_service.py` — Working, Conversation, Episodic, Semantic, Preference, Knowledge, Vector Memory |
+| Knowledge Graph | ✅ Real | M10A | `MASTER_ROADMAP.md` §8 M10A; `services/knowledge_service.py`, `infrastructure/database/repositories/knowledge_repository.py` |
+| Universal Search | ✅ Real | M10A, extended M10B | `MASTER_ROADMAP.md` §8 M10A; `services/search_service.py`'s provider registry (`ISearchSource`) — `memory`/`knowledge`/`goals`/`commands` sources registered today |
+| AI Orchestrator | 🟡 Partial | M10 | §15 above (AI standards); `MASTER_ROADMAP.md` §8 M10 — buildable-now scope shipped, M14/M16-dependent remainder deferred |
+| Intelligence Layer | ✅ Real | M10B | `MASTER_ROADMAP.md` §8 M10B; `services/intelligence_service.py` — Goal Manager, Routine/Preference Learning, Predictive Suggestions, Daily Briefing |
+| Streaming Runtime | 🟡 Partial | M10 | §6 above (WebSocket standards); real token-level streaming for the tool-composed path via `/api/v1/agent/stream`'s SSE response |
+| Automation Architecture | 🟡 Active | M4 (shipped) / M7 (Phases 1–2 shipped, 3–6 pending) | §16 above |
+| Security Architecture | 🟠 Interim | M14 (not started) | §17 above — today's enforcement (`AgentPermissionGate`, Permission Model) is real but interim, pending M14's Authorization Engine |
+| MCP Architecture | 🔴 Planned | Not yet assigned a milestone | `docs/TECH_STACK.md` §10 (Future technology) — conceptually extends M11 Integrations & Cloud Platform's provider-abstraction pattern; nothing built yet |
+| Self-Healing Architecture | 🔴 Planned | M18 | `MASTER_ROADMAP.md` §8 M18 — Self-Healing & Diagnostics Platform |
+| Observability | 🔴 Planned | M20A | `MASTER_ROADMAP.md` §8 M20A — Analytics & Observability Platform |
+| Cloud Architecture | 🟠 Partial | M11 | §1 above (Cloud box — Oracle Cloud, optional, outbound-only); `docs/TECH_STACK.md` §5 — MongoDB sync target not yet started |
+| Mobile Architecture | 🔴 Planned | M21 | `MASTER_ROADMAP.md` §8 M21 — Mobile Platform (Mobile Companion, Wearable integration); `docs/TECH_STACK.md` §10 |
+| Enterprise Architecture | 🔴 Planned | No single dedicated milestone — cross-cutting scope distributed across M15/M16/M18/M19/M20/M23 | `MASTER_ROADMAP.md` — "Enterprise collaboration" under M23 Distributed JARVIS is the primary owner; Personality/Plugin-Health/Model marketplaces (M15/M18/M22) are the marketplace-shaped pieces |
+| Future Extension Points | — | Ongoing, every milestone | §20 Governance above; the `ISearchSource`/`IPlatformAdapter`/provider-registry pattern this document's standards require at every external boundary is itself the extension mechanism — a future capability is a new adapter/source/provider, never a parallel system |
