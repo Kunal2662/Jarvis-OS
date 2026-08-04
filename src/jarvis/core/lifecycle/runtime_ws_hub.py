@@ -65,6 +65,8 @@ from jarvis.core.events.events import (
     AgentStepEvent,
     AppReadyEvent,
     AutomationStepEvent,
+    CalendarEventUpdatedEvent,
+    CalendarUpdatedEvent,
     ConfigurationUpdatedEvent,
     CrashRecoveredEvent,
     DailyBriefingGeneratedEvent,
@@ -99,6 +101,7 @@ from jarvis.core.events.events import (
     PluginUnloadedEvent,
     PluginUpdatedEvent,
     ProjectUpdatedEvent,
+    ReminderUpdatedEvent,
     ResourceBudgetExceededEvent,
     RuntimeShutdownCompleteEvent,
     RuntimeStartedEvent,
@@ -111,6 +114,7 @@ from jarvis.core.events.events import (
     TaskCompletedEvent,
     TaskFailedEvent,
     TaskStartedEvent,
+    TaskUpdatedEvent,
     UpdatePhaseEvent,
     VoiceStateChangedEvent,
     WorkspaceUpdatedEvent,
@@ -188,6 +192,15 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     WorkspaceUpdatedEvent: "workspace.updated",
     ProjectUpdatedEvent: "project.updated",
     NoteUpdatedEvent: "note.updated",
+    # Milestone 11 Task Group B -- Productivity Core. Same one-name-
+    # per-entity-with-an-action-field shape. `task.updated` is
+    # distinct from Task Group C's `task.started`/`completed`/
+    # `failed`, which are the Background Task Manager's runtime
+    # tasks -- a different noun that unfortunately shares a word.
+    TaskUpdatedEvent: "task.updated",
+    CalendarUpdatedEvent: "calendar.updated",
+    CalendarEventUpdatedEvent: "calendar.event_updated",
+    ReminderUpdatedEvent: "reminder.updated",
 }
 
 #: Declared but never published, so deliberately absent from the relay

@@ -27,9 +27,12 @@ from jarvis.core.interfaces.search import SearchResult
 
 if TYPE_CHECKING:
     from jarvis.core.plugins.registry import PluginRegistry
+    from jarvis.services.calendar_service import CalendarService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.reminder_service import ReminderService
+    from jarvis.services.task_service import TaskService
     from jarvis.services.workspace_service import WorkspaceService
 
 
@@ -193,3 +196,48 @@ class NoteSearchSource:
 
     async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
         return await self._workspaces.search_notes(query, top_k=top_k)
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group B — Productivity Core
+# ---------------------------------------------------------------------------
+class TaskSearchSource:
+    """Wraps :meth:`TaskService.search`. The service does the scoring --
+    an open, urgent task outranks a cancelled one -- so this stays the
+    thin adapter every other source in this module is."""
+
+    source_type = "tasks"
+
+    def __init__(self, tasks: TaskService) -> None:
+        self._tasks = tasks
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._tasks.search(query, top_k=top_k)
+
+
+class CalendarSearchSource:
+    """Wraps :meth:`CalendarService.search`, which returns events *and*
+    calendars under one source type: someone searching "standup" wants
+    the meeting and someone searching "Work" wants the calendar, and
+    making them choose a source first would be the tool asking the user
+    to know its schema. ``metadata["kind"]`` distinguishes them."""
+
+    source_type = "calendar"
+
+    def __init__(self, calendar: CalendarService) -> None:
+        self._calendar = calendar
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._calendar.search(query, top_k=top_k)
+
+
+class ReminderSearchSource:
+    """Wraps :meth:`ReminderService.search`."""
+
+    source_type = "reminders"
+
+    def __init__(self, reminders: ReminderService) -> None:
+        self._reminders = reminders
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._reminders.search(query, top_k=top_k)

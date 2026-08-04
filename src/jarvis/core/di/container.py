@@ -203,6 +203,9 @@ def _build_search_service(
     vision_service: Any,
     plugin_registry: Any,
     workspace_service: Any,
+    task_service: Any,
+    calendar_service: Any,
+    reminder_service: Any,
 ) -> Any:
     """Wires the Search Provider Registry (Milestone 10A, Additional
     Requirement #1): resolves the *existing* Tool Registry and Plugin
@@ -213,12 +216,15 @@ def _build_search_service(
     from jarvis.agents.tools import build_tool_registry
     from jarvis.services.search_service import SearchService
     from jarvis.services.search_sources import (
+        CalendarSearchSource,
         CommandSearchSource,
         GoalSearchSource,
         KnowledgeSearchSource,
         MemorySearchSource,
         NoteSearchSource,
         ProjectSearchSource,
+        ReminderSearchSource,
+        TaskSearchSource,
         WorkspaceSearchSource,
     )
 
@@ -244,6 +250,11 @@ def _build_search_service(
     service.register_source(WorkspaceSearchSource(workspace_service))
     service.register_source(ProjectSearchSource(workspace_service))
     service.register_source(NoteSearchSource(workspace_service))
+    # Milestone 11 Task Group B -- three more, same registry, still
+    # no change to SearchService itself.
+    service.register_source(TaskSearchSource(task_service))
+    service.register_source(CalendarSearchSource(calendar_service))
+    service.register_source(ReminderSearchSource(reminder_service))
     return service
 
 
@@ -451,6 +462,87 @@ def _build_workspace_manager(
         knowledge_service=knowledge_service,
         search_service=search_service,
         memory_service=memory_service,
+    )
+
+
+def _build_task_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
+    from jarvis.services.task_service import TaskService
+
+    return TaskService(database=database, workspace_service=workspace_service, event_bus=event_bus)
+
+
+def _build_calendar_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
+    from jarvis.services.calendar_service import CalendarService
+
+    return CalendarService(
+        database=database, workspace_service=workspace_service, event_bus=event_bus
+    )
+
+
+def _build_reminder_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
+    from jarvis.services.reminder_service import ReminderService
+
+    return ReminderService(
+        database=database, workspace_service=workspace_service, event_bus=event_bus
+    )
+
+
+def _build_task_manager(
+    *,
+    task_service: Any,
+    workspace_service: Any,
+    knowledge_service: Any,
+    search_service: Any,
+    memory_service: Any,
+) -> Any:
+    """Milestone 11 Task Group B. Composed at the composition root, like
+    ``workspace_manager`` -- the service stays single-subsystem."""
+    from jarvis.services.productivity_managers import TaskManager
+
+    return TaskManager(
+        task_service,
+        workspace_service=workspace_service,
+        knowledge_service=knowledge_service,
+        search_service=search_service,
+        memory_service=memory_service,
+    )
+
+
+def _build_calendar_manager(
+    *,
+    calendar_service: Any,
+    workspace_service: Any,
+    knowledge_service: Any,
+    search_service: Any,
+    memory_service: Any,
+) -> Any:
+    from jarvis.services.productivity_managers import CalendarManager
+
+    return CalendarManager(
+        calendar_service,
+        workspace_service=workspace_service,
+        knowledge_service=knowledge_service,
+        search_service=search_service,
+        memory_service=memory_service,
+    )
+
+
+def _build_reminder_manager(
+    *,
+    reminder_service: Any,
+    task_service: Any,
+    calendar_service: Any,
+    workspace_service: Any,
+    search_service: Any,
+) -> Any:
+    from jarvis.services.productivity_managers import ReminderManager
+
+    return ReminderManager(
+        reminder_service,
+        task_service=task_service,
+        calendar_service=calendar_service,
+        workspace_service=workspace_service,
+        search_service=search_service,
     )
 
 
@@ -709,6 +801,26 @@ class Container(containers.DeclarativeContainer):
         event_bus=event_bus,
     )
 
+    # ---- Milestone 11 Task Group B -- Productivity Core -------------------
+    task_service = providers.Singleton(
+        _build_task_service,
+        database=database,
+        workspace_service=workspace_service,
+        event_bus=event_bus,
+    )
+    calendar_service = providers.Singleton(
+        _build_calendar_service,
+        database=database,
+        workspace_service=workspace_service,
+        event_bus=event_bus,
+    )
+    reminder_service = providers.Singleton(
+        _build_reminder_service,
+        database=database,
+        workspace_service=workspace_service,
+        event_bus=event_bus,
+    )
+
     memory_recall_hook = providers.Singleton(
         "jarvis.services.semantic_memory_recall_hook.SemanticMemoryRecallHook",
         memory_service=memory_service,
@@ -900,6 +1012,9 @@ class Container(containers.DeclarativeContainer):
         vision_service=vision_service,
         plugin_registry=plugin_registry,
         workspace_service=workspace_service,
+        task_service=task_service,
+        calendar_service=calendar_service,
+        reminder_service=reminder_service,
     )
 
     # Declared after `search_service` because it composes it -- the
@@ -910,6 +1025,34 @@ class Container(containers.DeclarativeContainer):
         knowledge_service=knowledge_service,
         search_service=search_service,
         memory_service=memory_service,
+    )
+
+    # Declared after `search_service` for the same reason
+    # `workspace_manager` is: each composes it rather than duplicating a
+    # second ranking path.
+    task_manager = providers.Singleton(
+        _build_task_manager,
+        task_service=task_service,
+        workspace_service=workspace_service,
+        knowledge_service=knowledge_service,
+        search_service=search_service,
+        memory_service=memory_service,
+    )
+    calendar_manager = providers.Singleton(
+        _build_calendar_manager,
+        calendar_service=calendar_service,
+        workspace_service=workspace_service,
+        knowledge_service=knowledge_service,
+        search_service=search_service,
+        memory_service=memory_service,
+    )
+    reminder_manager = providers.Singleton(
+        _build_reminder_manager,
+        reminder_service=reminder_service,
+        task_service=task_service,
+        calendar_service=calendar_service,
+        workspace_service=workspace_service,
+        search_service=search_service,
     )
 
     # ---- Milestone 9 Task Group E -- Developer Platform Tools --------------

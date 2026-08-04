@@ -604,3 +604,63 @@ class NoteUpdatedEvent(Event):
     workspace_id: str = ""
     project_id: str = ""
     action: str = "created"  # created|updated|deleted
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group B — Productivity Core
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class TaskUpdatedEvent(Event):
+    """Published by :class:`~jarvis.services.task_service.TaskService` on
+    task create/update/complete/delete.
+
+    One class with an ``action`` field, not one class per transition --
+    the shape ``memory.updated``/``goal.updated``/``workspace.updated``
+    all use. Carries ``workspace_id`` so a subscriber scoped to one
+    workspace can filter without a lookup."""
+
+    task_id: str = ""
+    workspace_id: str = ""
+    project_id: str = ""
+    action: str = "created"  # created|updated|completed|deleted
+
+
+@dataclass(frozen=True, slots=True)
+class CalendarEventUpdatedEvent(Event):
+    """Published by :class:`~jarvis.services.calendar_service.CalendarService`
+    on event create/update/delete.
+
+    Named for the *calendar event* it describes; the doubled word is
+    unfortunate but the alternative (``EventUpdatedEvent``) would read as
+    "an event about events" next to a base class already called
+    ``Event``."""
+
+    event_id: str = ""
+    calendar_id: str = ""
+    workspace_id: str = ""
+    action: str = "created"  # created|updated|deleted
+
+
+@dataclass(frozen=True, slots=True)
+class CalendarUpdatedEvent(Event):
+    """Published on calendar create/update/delete -- the container, not
+    its events."""
+
+    calendar_id: str = ""
+    workspace_id: str = ""
+    action: str = "created"  # created|updated|deleted
+
+
+@dataclass(frozen=True, slots=True)
+class ReminderUpdatedEvent(Event):
+    """Published by :class:`~jarvis.services.reminder_service.ReminderService`
+    on reminder create/update/dismiss/cancel/delete.
+
+    Note what is *not* here: there is no ``reminder.fired``. Nothing in
+    Milestone 11 Task Group B delivers a reminder -- that is M7's
+    Scheduler (Phase 6). Defining a firing event now would advertise a
+    transition no code can reach."""
+
+    reminder_id: str = ""
+    workspace_id: str = ""
+    action: str = "created"  # created|updated|dismissed|cancelled|deleted

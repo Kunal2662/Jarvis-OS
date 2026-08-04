@@ -1,6 +1,7 @@
 """Repositories for ``conversations``, ``messages``, ``memories``,
 the knowledge graph, the intelligence layer (goals/routines/
-preferences), and the workspace domain (workspaces/projects/notes)."""
+preferences), the workspace domain (workspaces/projects/notes), and
+the productivity core (tasks/calendars/events/reminders)."""
 
 from __future__ import annotations
 
@@ -19,6 +20,11 @@ from jarvis.infrastructure.database.repositories.memory_repository import (
 from jarvis.infrastructure.database.repositories.message_repository import (
     MessageRepository,
 )
+from jarvis.infrastructure.database.repositories.productivity_repository import (
+    CalendarRepository,
+    ReminderRepository,
+    TaskRepository,
+)
 from jarvis.infrastructure.database.repositories.runtime_session_repository import (
     RuntimeSessionRepository,
 )
@@ -32,6 +38,7 @@ from jarvis.infrastructure.database.repositories.workspace_repository import (
 )
 
 __all__ = [
+    "CalendarRepository",
     "ConversationRepository",
     "IntelligenceRepository",
     "KnowledgeRepository",
@@ -39,7 +46,9 @@ __all__ = [
     "MessageRepository",
     "NoteRepository",
     "ProjectRepository",
+    "ReminderRepository",
     "RuntimeSessionRepository",
     "TaskHistoryRepository",
+    "TaskRepository",
     "WorkspaceRepository",
 ]

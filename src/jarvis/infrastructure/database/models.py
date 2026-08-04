@@ -384,6 +384,22 @@ class Workspace(Base):
         cascade="all, delete-orphan",
         order_by="Note.created_at",
     )
+    # Milestone 11 Task Group B. These three exist for the cascade, not
+    # for convenience: SQLite ignores ``ON DELETE`` unless
+    # ``PRAGMA foreign_keys=ON`` is set, and this application never sets
+    # it -- so every ``ondelete=`` in this file is documentation of
+    # intent, and the ORM-level ``cascade`` on a relationship is what
+    # actually deletes children. A child table with a workspace foreign
+    # key and no relationship here would silently survive its parent.
+    tasks: Mapped[list[Task]] = relationship(
+        back_populates="workspace", cascade="all, delete-orphan"
+    )
+    calendars: Mapped[list[Calendar]] = relationship(
+        back_populates="workspace", cascade="all, delete-orphan"
+    )
+    reminders: Mapped[list[Reminder]] = relationship(
+        back_populates="workspace", cascade="all, delete-orphan"
+    )
 
 
 class Project(Base):
@@ -460,3 +476,187 @@ class Note(Base):
 
     workspace: Mapped[Workspace] = relationship(back_populates="notes")
     project: Mapped[Project | None] = relationship(back_populates="notes")
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group B — Productivity Core
+# ---------------------------------------------------------------------------
+class Task(Base):
+    """A unit of work. Shaped like ``Note``: required ``workspace_id``,
+    optional ``project_id`` -- a task jotted down before it is filed is
+    the normal case, and Task Group A's substrate is what makes that
+    "unfiled but not homeless" state expressible.
+
+    ``tags_json`` holds a normalized list (lower-cased, de-duplicated;
+    see ``domain/productivity/models.py``). A tag table would be the
+    right call once tags need their own metadata -- colour, description,
+    rename-everywhere -- and none of that exists yet, so this follows
+    the ``Memory.meta_json`` precedent rather than adding a join for a
+    list of strings.
+    """
+
+    __tablename__ = "tasks"
+    __table_args__ = (
+        Index("ix_tasks_workspace", "workspace_id"),
+        Index("ix_tasks_project", "project_id"),
+        Index("ix_tasks_status", "status"),
+        Index("ix_tasks_due", "due_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="todo")
+    priority: Mapped[str] = mapped_column(String(16), default="normal")
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tags_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    workspace: Mapped[Workspace] = relationship(back_populates="tasks")
+    reminders: Mapped[list[Reminder]] = relationship(
+        back_populates="task", cascade="all, delete-orphan"
+    )
+
+
+class Calendar(Base):
+    """A named container for events, scoped to a workspace.
+
+    A separate table rather than events hanging off the workspace
+    directly, because "Work" and "Personal" are the first thing anyone
+    wants to toggle independently, and a colour on a calendar is what
+    makes that visible. External providers (Google, Outlook) are Task
+    Group E's -- this is the local engine only, and ``is_default``
+    exists so a caller creating an event without naming a calendar has
+    somewhere to put it.
+    """
+
+    __tablename__ = "calendars"
+    __table_args__ = (Index("ix_calendars_workspace", "workspace_id"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    color: Mapped[str] = mapped_column(String(32), default="")
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    workspace: Mapped[Workspace] = relationship(back_populates="calendars")
+    events: Mapped[list[CalendarEvent]] = relationship(
+        back_populates="calendar",
+        cascade="all, delete-orphan",
+        order_by="CalendarEvent.starts_at",
+    )
+
+
+class CalendarEvent(Base):
+    """One event on a calendar.
+
+    ``recurrence_json`` stores a ``RecurrenceRule`` -- the *rule*, never
+    its expansion. Materializing occurrences as rows would mean a yearly
+    event writes 100 rows nobody asked for, and editing the series would
+    have to find and rewrite all of them. Expansion is a pure function
+    over the stored rule (``RecurrenceRule.occurrences``), computed when
+    a view asks for a date range.
+
+    Deliberately no ``workspace_id``: the calendar owns that, and
+    duplicating it here would create a second source of truth that can
+    disagree the moment a calendar is moved. Queries that need it join
+    through ``calendars``.
+    """
+
+    __tablename__ = "calendar_events"
+    __table_args__ = (
+        Index("ix_calendar_events_calendar", "calendar_id"),
+        Index("ix_calendar_events_starts", "starts_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    calendar_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("calendars.id", ondelete="CASCADE"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    location: Mapped[str] = mapped_column(String(256), default="")
+    category: Mapped[str] = mapped_column(String(32), default="general")
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    all_day: Mapped[bool] = mapped_column(Boolean, default=False)
+    recurrence_json: Mapped[str] = mapped_column(Text, default="{}")
+    meta_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    calendar: Mapped[Calendar] = relationship(back_populates="events")
+    reminders: Mapped[list[Reminder]] = relationship(
+        back_populates="event", cascade="all, delete-orphan"
+    )
+
+
+class Reminder(Base):
+    """A "tell me at this time" record.
+
+    **Scheduling metadata only.** ``remind_at`` says when it *should*
+    fire and ``status`` says what has happened to it -- but nothing in
+    this task group fires anything. There is no loop, no queue and no
+    timer; ``status`` only ever leaves ``pending`` because a caller
+    dismissed or cancelled it. Execution is M7's Scheduler (Phase 6),
+    which has not shipped, and inventing a second scheduler here is
+    exactly the duplication this repository has spent several milestones
+    avoiding.
+
+    ``task_id`` and ``event_id`` are both optional and both nullable: a
+    reminder can stand alone, or hang off a task or an event. Two
+    explicit columns rather than a polymorphic ``target_type``/
+    ``target_id`` pair, because two is the whole set today and a real
+    foreign key catches a dangling reference that a string pair would
+    not.
+    """
+
+    __tablename__ = "reminders"
+    __table_args__ = (
+        Index("ix_reminders_workspace", "workspace_id"),
+        Index("ix_reminders_status", "status"),
+        Index("ix_reminders_remind_at", "remind_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    task_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True
+    )
+    event_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("calendar_events.id", ondelete="CASCADE"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    remind_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    recurrence_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    workspace: Mapped[Workspace] = relationship(back_populates="reminders")
+    task: Mapped[Task | None] = relationship(back_populates="reminders")
+    event: Mapped[CalendarEvent | None] = relationship(back_populates="reminders")

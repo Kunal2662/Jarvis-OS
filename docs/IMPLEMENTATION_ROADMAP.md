@@ -1525,11 +1525,39 @@ addendum.
       `SearchService` change.
 - [x] 56 tests across unit / repository / REST / integration.
 
-### Task Groups B–F (🔴 not started)
+### Task Group B — Productivity Core (✅ shipped, `0.24.0`)
+
+- [x] Task domain — model, repository, `TaskService`, `TaskManager`;
+      status, priority, due dates, normalized tags, agenda.
+- [x] Local Calendar engine — `Calendar` + `CalendarEvent`,
+      `CalendarRepository`, `CalendarService`, `CalendarManager`;
+      categories, metadata, per-workspace default calendar.
+- [x] `RecurrenceRule` — four frequencies, interval, count/until, with
+      bounded pure expansion and month-end clamping. **Rules stored,
+      occurrences computed on demand.**
+- [x] Reminder domain — model, repository, `ReminderService`,
+      `ReminderManager`; scheduling metadata and status transitions.
+      **No execution** — see below.
+- [x] Four relay events; three search sources through M10A's registry;
+      DI singletons for all six components.
+- [x] REST — `/api/v1/tasks`, `/api/v1/calendar/*`,
+      `/api/v1/reminders`, plus `/agenda`, `/occurrences`, `/due`,
+      `/context`.
+- [x] 97 tests across domain / service / manager / REST / integration.
+
+**Scope boundary:** nothing fires. `due_before()` and `/reminders/due`
+report which reminders have come due and change nothing — no loop, no
+timer, no queue, no `reminder.fired` event. Scheduler execution is M7
+Phase 6.
+
+**External calendar providers are not here.** Google, Outlook and
+synchronization are Task Group E; this is the local engine they will
+map onto.
+
+### Task Groups C–F (🔴 not started)
 
 | Task Group | Scope |
 |---|---|
-| **B — Productivity Core** | Tasks, Calendar, Reminders, Scheduling, productivity APIs |
 | **C — File Platform** | File Manager, File Browser, File Search, document indexing, file metadata |
 | **D — AI Workspace** | Workspace AI context, Knowledge integration, context retrieval, AI assistance |
 | **E — External Integrations** | GitHub, Gmail, Google Drive, Outlook, Slack, Discord, Notion, calendar providers |

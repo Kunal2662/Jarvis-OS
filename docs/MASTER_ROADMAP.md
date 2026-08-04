@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.23.0`
+**Current version:** `0.24.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -2308,8 +2308,8 @@ deferral blocks M11: the substrate M11 registers against is complete.
 
 ### M11 — Intelligent Workspace & Productivity
 
-**Status: 🟡 Active — Task Group A (Workspace Foundation) shipped
-(Aug 2026, `0.23.0`).**
+**Status: 🟡 Active — Task Groups A (Workspace Foundation) and B
+(Productivity Core) shipped (Aug 2026, `0.23.0` and `0.24.0`).**
 
 *(Scope refined Aug 2026, at the start of implementation: the milestone
 now opens with a **Workspace Foundation** and is organised into six
@@ -2329,7 +2329,7 @@ what is now one of six task groups.)*
 | Task Group | Scope | Status |
 |---|---|---|
 | **A — Workspace Foundation** | Workspace domain, Project and Note models, repositories, `WorkspaceService`, `WorkspaceManager`, settings/metadata, events, search sources, DI, REST | ✅ **Shipped** (`0.23.0`) |
-| **B — Productivity Core** | Tasks, Calendar, Reminders, Scheduling, productivity APIs | 🔴 Not started |
+| **B — Productivity Core** | Tasks, local Calendar, Reminders, productivity APIs | ✅ **Shipped** (`0.24.0`) |
 | **C — File Platform** | File Manager, File Browser, File Search, document indexing, file metadata | 🔴 Not started |
 | **D — AI Workspace** | Workspace AI context, Knowledge integration, context retrieval, AI assistance | 🔴 Not started |
 | **E — External Integrations** | GitHub, Gmail, Google Drive, Outlook, Slack, Discord, Notion, calendar providers | 🔴 Not started |
@@ -9443,6 +9443,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.21** | *(none)* | Backlog Completion & Stabilization Pass | ✅ **Completed** — not a milestone. Closes documented §15 backlog belonging to already-complete milestones: five published-but-unrelayed WebSocket categories, the `HealthMonitor` disk collector, `/api/v1/health`, and `/api/v1/sessions`'s envelope (one intentional breaking change). Also fixes two UI surfaces found rendering invented data over working backends — the Plugin Manager's mock provider and the Module Manager's randomised update flag. M8's deferred frontend backlog is deliberately untouched: it is the M8 milestone itself, in a UI stack being replaced. |
 | **0.22** | *(none)* | Final Backlog Completion Pass | ✅ **Completed** — not a milestone. Closes what the roadmap had *not* written down: the startup greeting fed the LLM invented tasks, calendar events, weather and now-playing data and spoke them as fact (now real Goal Manager data, or nothing); three Settings pages still advertised milestones that had already shipped (M4 Automation ×2, M9 Plugins); and the Home dashboard's five service cards showed a green "connected" light over illustrative data (now an explicit preview state). Sweep found zero TODO/FIXME/HACK/XXX in `src/`, zero dead routes, zero unwired DI services. **All backlog for completed milestones is finished.** |
 | **0.23** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group A (Workspace Foundation) shipped: `Workspace`/`Project`/`Note` models, three repositories, `WorkspaceService`, `WorkspaceManager`, per-workspace settings and derived metadata, three relay events, three search sources, DI, and `/api/v1/workspaces` + `/api/v1/projects` + `/api/v1/notes`. CRUD only — no collaboration, sharing or sync. Task Groups B–F not started. |
+| **0.24** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group B (Productivity Core) shipped: `Task`, `Calendar`, `CalendarEvent` and `Reminder` models, three repositories, three services, three managers, recurrence rules with bounded expansion, four relay events, three search sources, DI, and `/api/v1/tasks` + `/api/v1/calendar` + `/api/v1/reminders`. Local calendar engine only — no external provider, no sync. **Reminders record scheduling metadata and fire nothing**: delivery is M7's Scheduler (Phase 6). Task Groups C–F not started. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -13277,3 +13278,86 @@ Suite 1460 -> 1516, all passing. mypy 263 -> 263 (a `list` method name
 shadowed the builtin in three return annotations; renamed per entity
 rather than suppressed). Ruff 21 categories, unchanged. Version bumped
 `0.22.0` -> `0.23.0`.
+
+*Aug 2026 addendum -- M11 Task Group B (Productivity Core):* Tasks, the
+local Calendar engine, and Reminders -- the three domains that hang off
+Task Group A's Workspace substrate.
+
+**The substrate paid off immediately.** None of these three invented a
+container: a task takes a `workspace_id` and an optional `project_id`,
+exactly the shape `Note` already had; a calendar belongs to a
+workspace; a reminder does too. Deleting a workspace takes the whole
+tree, and a task can be filed under a project without either domain
+knowing anything about the other's schema. That was the argument for
+building A first, and it held.
+
+**The one boundary this task group is defined by: nothing fires.** A
+reminder stores `remind_at` and a status, and `due_before()` reports
+which have come due -- as a *query*. There is no loop, no timer, no
+queue, and no `reminder.fired` event, because defining one would
+advertise a transition no code can reach. Delivery is M7's Scheduler
+(Phase 6). Building a timer here would have been a second scheduler
+competing with the one the roadmap already assigns, and "reuse the
+system rather than shipping a parallel copy" is this repository's most
+consistently enforced rule. Three separate tests assert the boundary at
+the service, manager and HTTP layers: an overdue reminder observed by
+every read path is still `pending` afterwards.
+
+**Recurrence is stored, never materialized.** `RecurrenceRule` is a
+small, explicit subset of RFC 5545 -- four frequencies, an interval,
+and one of count/until -- rather than a full RRULE parser, because a
+calendar that claims RRULE support and then mishandles `BYSETPOS` is
+worse than one that says up front what it does. Occurrences are
+computed by a pure function when a view asks for a window;
+materializing them as rows would mean a yearly event writes 100 rows
+nobody asked for and editing the series has to find and rewrite all of
+them. `CalendarManager.occurrences` is where expansion happens, and it
+is the capability no single service call provides: the repository can
+only filter on an event's *stored* start, so a weekly standup created
+in January is invisible to a March query until its rule is expanded.
+
+**Three design decisions with a plausible alternative:**
+
+- *Month arithmetic clamps rather than overflowing.* The 31st plus one
+  month is the 28th, not the 3rd of the month after -- a monthly event
+  set on the 31st should land in every month, which is what a user
+  means by "monthly".
+- *Deleting a calendar takes its events, unlike deleting a project,
+  which keeps its notes.* A note outlives its project because it is
+  content in its own right; an event without a calendar is not
+  "unfiled", it is meaningless -- there is no workspace-level event
+  list for it to fall back to.
+- *A reminder targets a task or an event, never both.* Two nullable
+  foreign keys rather than a polymorphic `target_type`/`target_id`
+  pair: two is the whole set today, and a real foreign key catches a
+  dangling reference that a string pair would not.
+
+**A real defect found and fixed on the way.** The workspace cascade did
+not reach any Task Group B table. `ON DELETE CASCADE` is declared on
+every foreign key, but **SQLite ignores it entirely unless
+`PRAGMA foreign_keys=ON` is set, and this application never sets it** --
+so Task Group A's cascade had been working purely through SQLAlchemy's
+ORM-level `cascade="all, delete-orphan"` on `Workspace.projects` and
+`Workspace.notes`. New child tables with a workspace foreign key and no
+relationship on `Workspace` silently survived their parent. Fixed by
+adding the relationships, and documented in `models.py` so Task Group C
+does not rediscover it: in this schema, `ondelete=` is a statement of
+intent and the ORM relationship is the enforcement.
+
+**Deliberately not built:** File Manager and File Search (Task Group
+C); workspace AI context beyond the deterministic text match the
+managers use (D); every external calendar and vendor integration --
+Google, Outlook, GitHub, Gmail, Slack (E); the React UI (F). No
+scheduler execution anywhere.
+
+Testing -- 97 new tests across five files: recurrence expansion and tag
+normalization as pure functions, the three services and their three
+repositories against real temp-file SQLite, the three managers'
+collect-never-compute and degrade-gracefully contracts, the REST
+surface including auth/envelope/400-vs-404 and the two literal-path
+route-ordering traps (`/tasks/agenda`, `/reminders/due`), and an
+end-to-end suite asserting REST writes reach a real WebSocket
+subscriber and the three sources joined the shared `SearchService`.
+Suite 1516 -> 1613, all passing. mypy 263 -> 263 (one `scalar()`
+returning `Any` narrowed rather than suppressed). Ruff 21 categories,
+unchanged. Version bumped `0.23.0` -> `0.24.0`.

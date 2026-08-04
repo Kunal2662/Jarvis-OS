@@ -3,6 +3,67 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.0] — M11 Task Group B, Productivity Core
+
+Tasks, the local Calendar engine, and Reminders — the three domains
+that hang off Task Group A's Workspace substrate. None of them invented
+a container, which was the argument for building A first.
+
+### Added
+- **Task domain** — `Task` model, `TaskRepository`, `TaskService`,
+  `TaskManager`. Status, priority, due dates, normalized tags, and an
+  agenda (overdue / due-soon / status counts) with an injectable clock.
+- **Local Calendar engine** — `Calendar`, `CalendarEvent`,
+  `CalendarRepository`, `CalendarService`, `CalendarManager`. Event
+  CRUD, categories, metadata, per-workspace default calendar, and
+  recurrence **rules**.
+- **`RecurrenceRule`** — a small explicit subset of RFC 5545 (four
+  frequencies, interval, one of count/until) with bounded, pure
+  expansion. Month arithmetic clamps: the 31st plus one month is the
+  28th, not the 3rd.
+- **`CalendarManager.occurrences`** — expands stored rules into the
+  concrete datetimes in a window. The capability no single service call
+  provides, because the repository can only filter on an event's
+  *stored* start.
+- **Reminder domain** — `Reminder`, `ReminderRepository`,
+  `ReminderService`, `ReminderManager`. Scheduling metadata, status
+  transitions, target resolution across Tasks and Calendar.
+- **Four relay events** — `task.updated`, `calendar.updated`,
+  `calendar.event_updated`, `reminder.updated`, each one class with an
+  `action` field.
+- **Three search sources** — `tasks`, `calendar`, `reminders`, through
+  M10A's provider registry with no change to `SearchService`.
+- **REST** — `/api/v1/tasks`, `/api/v1/calendar/*`, `/api/v1/reminders`
+  plus `/tasks/agenda`, `/calendar/occurrences`, `/reminders/due` and
+  per-entity `/context`.
+- DI singletons for all three services and all three managers.
+
+### Fixed
+- **The workspace cascade did not reach any Task Group B table.**
+  `ON DELETE CASCADE` is declared on every foreign key, but SQLite
+  ignores it unless `PRAGMA foreign_keys=ON` is set and this
+  application never sets it — so Task Group A's cascade had been
+  working purely through SQLAlchemy's ORM-level `cascade` on
+  `Workspace.projects`/`notes`. New child tables silently survived
+  their parent. Fixed by adding the relationships, and documented in
+  `models.py` so the next task group does not rediscover it.
+- `ReminderService.next_occurrence_after` returned the naive datetime
+  SQLite hands back, which would raise on comparison against
+  `datetime.now(UTC)`. Now always aware.
+
+### Notes
+- **Nothing in this task group fires a reminder.** `due_before()` and
+  `/reminders/due` *report*; there is no loop, no timer, no queue, and
+  deliberately no `reminder.fired` event. Delivery is M7's Scheduler
+  (Phase 6). Three tests assert the boundary at the service, manager
+  and HTTP layers.
+- **Local calendar only** — no Google, no Outlook, no synchronization.
+  Those are Task Group E.
+- Not built: File Manager/Search (C), workspace AI context (D), every
+  external integration (E), the React UI (F).
+- 1516 → 1613 tests, all passing. mypy 263 → 263; ruff 21 categories
+  unchanged; black clean.
+
 ## [0.23.0] — M11 Task Group A, Workspace Foundation
 
 The first implementation pass on M11, and the substrate the rest of the

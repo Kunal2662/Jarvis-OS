@@ -115,6 +115,13 @@ def test_every_documented_event_type_is_mapped() -> None:
         "workspace.updated",
         "project.updated",
         "note.updated",
+        # Milestone 11 Task Group B. `task.updated` is the productivity
+        # task; `task.started`/`completed`/`failed` above are M9's
+        # Background Task Manager -- a different noun, same word.
+        "task.updated",
+        "calendar.updated",
+        "calendar.event_updated",
+        "reminder.updated",
     }
 
 

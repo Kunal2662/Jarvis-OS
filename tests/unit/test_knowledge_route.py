@@ -80,6 +80,10 @@ def test_search_returns_envelope(client, auth_headers) -> None:
         "workspaces",
         "projects",
         "notes",
+        # Milestone 11 Task Group B
+        "tasks",
+        "calendar",
+        "reminders",
     }
 
 
