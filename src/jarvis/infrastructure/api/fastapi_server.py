@@ -58,12 +58,36 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
 
     app.state.container = container
     if container is not None:
+        from jarvis.infrastructure.api.routes import devtools as devtools_routes
+        from jarvis.infrastructure.api.routes import plugins as plugin_routes
         from jarvis.infrastructure.api.routes import runtime_ws as runtime_ws_routes
         from jarvis.infrastructure.api.routes import sessions as session_routes
 
         app.state.runtime_ws_hub = container.runtime_ws_hub()
         app.include_router(session_routes.router, prefix="/api/v1")
         app.include_router(runtime_ws_routes.router, prefix="/api/v1")
+        app.include_router(plugin_routes.router, prefix="/api/v1")
+        app.include_router(devtools_routes.router, prefix="/api/v1")
+
+        # Milestone 9 Task Group E -- API Inspector. A real
+        # Starlette BaseHTTPMiddleware, not a decorator-based
+        # ``@app.middleware("http")`` (which can't take the
+        # constructor-time ``inspector`` argument cleanly); bound via
+        # functools.partial so the recording logic stays owned by
+        # ``core/devtools/api_inspector.py``, not duplicated here.
+        if settings.devtools.api_inspector_enabled:
+            import functools
+
+            from starlette.middleware.base import BaseHTTPMiddleware
+
+            from jarvis.core.devtools.api_inspector import api_inspector_middleware
+
+            app.add_middleware(
+                BaseHTTPMiddleware,
+                dispatch=functools.partial(
+                    api_inspector_middleware, inspector=container.api_inspector()
+                ),
+            )
 
     return app
 

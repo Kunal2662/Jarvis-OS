@@ -142,6 +142,7 @@ class ApplicationBootstrapper:
         health_monitor = self._register_task_group_b_hooks(runtime_manager, settings)
         self._register_task_group_c_hooks(runtime_manager)
         self._register_task_group_d_hooks(runtime_manager, settings)
+        self._register_task_group_e_hooks(runtime_manager, settings)
 
         # Milestone 3.1 — preload the local Whisper model eagerly instead of
         # paying the load cost on the user's first PTT/toggle-listen call.
@@ -399,6 +400,57 @@ class ApplicationBootstrapper:
             await plugin_registry.stop_all()
 
         runtime_manager.register("plugin_registry", _stop_plugins, priority=PRIORITY_FIRST - 1)
+
+    def _register_task_group_e_hooks(
+        self, runtime_manager: RuntimeManager, settings: Settings
+    ) -> None:
+        """Milestone 9 Task Group E -- Developer Platform Tools. Debug
+        Console and Performance Profiler are observability, not runtime
+        logic -- they bookend every other hook so they capture as much
+        of the real startup/shutdown sequence as possible: startup
+        priority -1 (one earlier than Configuration Manager's own 0, so
+        they're attached before anything else has a chance to log or
+        report health), shutdown priority 8 (one later than Task Group
+        C's Crash Recovery mark-clean at 7, so they keep capturing
+        until the very end). Neither is a hard dependency of anything
+        else -- both are no-ops if `settings.devtools.*_enabled` is
+        false.
+        """
+        from jarvis.core.lifecycle.runtime_manager import PRIORITY_FIRST
+
+        assert self._container is not None
+        debug_console = self._container.debug_console()
+        performance_profiler = self._container.performance_profiler()
+
+        if settings.devtools.debug_console_enabled:
+
+            async def _start_debug_console() -> None:
+                debug_console.start(level=settings.devtools.debug_console_level)
+
+            runtime_manager.register_startup(
+                "debug_console", _start_debug_console, priority=PRIORITY_FIRST - 1
+            )
+
+            async def _stop_debug_console() -> None:
+                debug_console.stop()
+
+            runtime_manager.register(
+                "debug_console", _stop_debug_console, priority=PRIORITY_FIRST + 8
+            )
+
+        async def _start_performance_profiler() -> None:
+            performance_profiler.start()
+
+        runtime_manager.register_startup(
+            "performance_profiler", _start_performance_profiler, priority=PRIORITY_FIRST - 1
+        )
+
+        async def _stop_performance_profiler() -> None:
+            performance_profiler.stop()
+
+        runtime_manager.register(
+            "performance_profiler", _stop_performance_profiler, priority=PRIORITY_FIRST + 8
+        )
 
     def _run_headless(self) -> int:
         from loguru import logger

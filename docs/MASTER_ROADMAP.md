@@ -105,16 +105,18 @@ future work; see M6's own §3 entry for the full scope note.
   this blocks M9, which has no real dependency on it (see
   `IMPLEMENTATION_ROADMAP.md` §5's own Dependencies note). **M8 is not
   100% complete** — do not treat it as shipped.
-- **M9 — Runtime & Core Services** (see §8) — Runtime Core, Reliability,
-  and Plugin Platform modules fully shipped across Task Group A
-  (Runtime Manager, Application Lifecycle), Task Group B (Service
-  Manager, Session Manager, Configuration Manager, Runtime Health
-  Monitor, Runtime WebSocket API, Runtime Integration), Task Group C
-  (Background Task Manager, Crash Recovery, Resource Manager), and Task
-  Group D (Plugin SDK, Loader, Sandbox, Extension API, Permission
-  Model, Registration System, Store, Marketplace Foundation). Task
-  Group E (Developer Platform Tools) is 🔴 planned, not yet started —
-  see `IMPLEMENTATION_ROADMAP.md` §5.
+- **M9 — Runtime & Core Services** (see §8) — ✅ **100% complete, all
+  five task groups shipped:** Task Group A (Runtime Manager,
+  Application Lifecycle), Task Group B (Service Manager, Session
+  Manager, Configuration Manager, Runtime Health Monitor, Runtime
+  WebSocket API, Runtime Integration), Task Group C (Background Task
+  Manager, Crash Recovery, Resource Manager), Task Group D (Plugin SDK,
+  Loader, Sandbox, Extension API, Permission Model, Registration
+  System, Store, Marketplace Foundation), and Task Group E (Debug
+  Console, Live Logs, Performance Profiler, State Inspector, API
+  Inspector, Plugin Marketplace Foundation REST API, Permission
+  Management API, Plugin Diagnostics) — see
+  `IMPLEMENTATION_ROADMAP.md` §5.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -1698,8 +1700,9 @@ ship a real, installable plugin until this milestone's Plugin Loader
 ships; a first-party module can use
 every one of these extension points today.
 
-#### Developer Platform Tools *(🔴 Task Group E, planned — Developer
-Mode)*
+#### Developer Platform Tools *(✅ Task Group E, shipped Aug 2026 —
+Developer Mode; closes out M9 in full — see the changelog addendum at
+the end of this document for implementation detail)*
 - Debug Console — a live, filterable view over the runtime's own
   structured logs (loguru/structlog), rendered by M8's frontend.
 - Live Logs — streamed over the same WebSocket channel M8's Agent
@@ -8942,7 +8945,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | *(patch)* | —       | `0.5.1` security patch (cryptography upgrade), `0.5.2` DI container architecture fix — both out-of-band per §6, not milestones | ✅ Shipped |
 | **0.6** | M7        | Workflow Intelligence           | 🟡 Active (Phase 1–2 shipped; Phase 3 deferred; Phases 4–6 paused) |
 | **0.7** | M8        | React Frontend & Desktop Experience | 🟡 Active (Phase 1+4 shipped; Phase 3 partial; Phases 2/5/6/7 + Phase 3 remainder deferred — see Deferred Backlog, §8) |
-| **0.8→0.11** | M9   | Runtime & Core Services          | 🟡 Active — see the versioning-granularity note below. Task Groups A–D shipped (Runtime Core, Reliability, Plugin Platform, actual versions `0.9.0`–`0.11.0` per `CHANGELOG.md`); Task Group E (Developer Platform Tools) 🔴 planned. |
+| **0.8→0.12** | M9   | Runtime & Core Services          | ✅ **Completed** — see the versioning-granularity note below. All five task groups shipped (Runtime Core, Reliability, Plugin Platform, Developer Platform Tools), actual versions `0.8.0`–`0.12.0` per `CHANGELOG.md` — one minor bump per task group, not one bump for the whole milestone. |
 | *(next)* | M10       | AI Orchestrator                  | 🔴 Planned |
 | *(next)* | M10A      | Universal Search & Knowledge Platform | 🔴 Planned |
 | *(next)* | M10B      | Intelligence Layer               | 🔴 Planned |
@@ -11494,4 +11497,113 @@ reviews with real user identity; an interactive permission-approval UI
 (the workflow and its audit trail are real today; only the visual
 surface is Task Group E's Developer Platform Tools to build); Task
 Group E (Developer Platform Tools), M9's one remaining module. Bump
+this line whenever you edit the roadmap.*
+
+*Aug 2026 addendum — M9 Task Group E (Developer Platform Tools):*
+closes out M9 in full -- **Milestone 9 is now 100% complete across all
+five task groups.** Architecture unchanged -- Python + FastAPI + Tauri;
+this addendum documents implementation only.
+
+`core/devtools/` -- four small, focused components, each a thin
+wrapper over already-real M9 infrastructure rather than a second data
+source: `debug_console.py`'s `DebugConsole` attaches as a real loguru
+sink (the exact mechanism `core/logging/logger.py`'s own JSON/console/
+file sinks already use) into a bounded, filterable buffer -- "Debug
+Console" (query it) and "Live Logs" (watch it grow via a published
+`DebugLogCapturedEvent` per line) are one mechanism, not two.
+`performance_profiler.py`'s `PerformanceProfiler` subscribes to
+`HealthMonitor`'s existing `HealthUpdatedEvent` and keeps real
+time-series history per metric -- `HealthMonitor.snapshot()` already
+gave the latest value; this adds the trend. `state_inspector.py`'s
+`StateInspector` combines `ServiceManager.snapshot()` (Task Group B)
+and `PluginRegistry.snapshot()` (Task Group D) into one view.
+`api_inspector.py`'s `ApiInspector` is a real Starlette middleware
+recording this app's own `/api/v1/*` request/response metadata --
+method, path, status, duration only, deliberately never bodies or
+headers (a secret could be in either).
+
+`infrastructure/api/auth.py` -- the real `Depends(get_current_session)`
+Bearer-auth dependency `docs/ARCHITECTURE.md` sections 5/6 have
+referenced by name since Task Group B, but that no route had actually
+depended on until now (both prior real routes,
+`/api/v1/health`/`/api/v1/sessions`, are documented, deliberate
+exceptions to needing it). Validates the same `SessionManager` session
+id `RuntimeWebSocketHub.authenticate()` already validates for the
+WebSocket -- one real session concept, two transports. Also adds the
+real `{data, meta}` `Envelope` response wrapper section 5 specifies.
+
+`infrastructure/api/routes/plugins.py` -- "the backend index/install/
+uninstall API that M8's Marketplace UI renders," this module's own
+words for what M9's Plugin Platform module still needed after Task
+Group D shipped the domain layer underneath it: full plugin lifecycle
+(list/get/enable/disable/install/uninstall/update), permission
+management (grant/deny/revoke, a pending queue, an audit log), and
+marketplace browse/search/categories/get/reviews -- every route a thin
+FastAPI layer over exactly one `PluginRegistry`/`PluginStore`/
+`PermissionModel`/`Marketplace` method call. The first real resource
+routes to follow section 5's contract in full, resolving the two
+documented exceptions `/api/v1/sessions` needed (see section 5's own
+"M10+ resource routes are expected to follow this section exactly,
+unwinding both exceptions" note -- Task Group E turned out to be the
+one that did, not M10).
+
+`infrastructure/api/routes/devtools.py` -- REST reads over the four
+new `core/devtools/` components, plus Plugin Diagnostics: one combined
+view (a plugin's status, health, recent related logs filtered by
+plugin id, and its own permission audit trail) rather than a fourth
+data source alongside the three this task group already built.
+
+`app.py`'s new `_register_task_group_e_hooks` wires Debug Console and
+Performance Profiler into `RuntimeManager` as observability that
+bookends every other hook: startup priority -1 (one earlier than
+Configuration Manager's own 0, so capture starts before anything else
+can log or report health) and shutdown priority 8 (one later than Task
+Group C's Crash Recovery mark-clean at 7, so capture continues until
+the very end). `RuntimeWebSocketHub.EVENT_TYPE_NAMES` gained the eleven
+`plugin.*` categories Task Group D's events had defined but never
+wired to a relay, plus `devtools.log_captured`.
+
+A real, Windows-first-breaking bug in Task Group D was found and fixed
+by these same tests running for the first time against a genuine
+Windows machine rather than Task Group D's own hardcoded-`"x86_64"`
+test double: `platform.machine()` reports `"AMD64"` on Windows, not
+`"x86_64"` -- every plugin manifest's *default* `supported_arch` list
+was silently rejecting every real Windows x86_64 plugin install.
+`infrastructure/platform/adapter.py`'s `DefaultPlatformAdapter.info()`
+now normalizes the OS-reported architecture string to this project's
+own canonical vocabulary at the Platform Abstraction Layer boundary --
+exactly the kind of quirk that layer exists to absorb, so nothing
+above it ever needs to know Windows spells it differently.
+
+74 new tests across nine files, including a real end-to-end test
+(`tests/integration/test_devtools_platform_e2e.py`) proving the new
+REST API genuinely drives Task Group D's `PluginRegistry`/
+`PermissionModel` *and* that the result is relayed over the real
+Runtime WebSocket API -- install over REST, watch `plugin.installed`/
+`plugin.load_failed` arrive over the socket (the plugin's own `on_load`
+genuinely exercises a permission-gated capability, so the failure is
+real, not staged); grant the permission over REST, watch
+`plugin.permission_granted` arrive; enable over REST, watch
+`plugin.loaded`/`plugin.enabled` arrive; read diagnostics over REST and
+see the same final state. Full suite: 815 passed (up from 741), zero
+regressions; frontend unaffected (this task group is backend-only).
+mypy/ruff/black diffed against a clean pre-task-group `git stash -u`
+baseline: every finding category's count is byte-for-byte unchanged
+except `PLC0415` (+24, the same accepted lazy-import-inside-test-
+fixture convention `test_runtime_ws_route.py` already established) --
+zero new findings of any other kind, and zero new mypy findings at
+all.
+
+**Future Work** (explicitly out of scope for this task group, not
+implemented): a real interactive permission-approval UI (the workflow
+and its audit trail this task group's own REST routes expose are real
+today; only a visual surface consuming them is future work, most
+naturally M8's React frontend's Developer Mode panels); Live Logs'
+real-time relay is fire-and-forget per line today, not batched --
+acceptable for a developer-only tool, revisit if it ever needs to
+handle sustained high-volume logging; Performance Profiler's history is
+in-memory only, not persisted across a restart; API Inspector has no
+REST-exposed clear/reset endpoint (only Debug Console does). None of
+M9's own five task groups have further scope remaining -- the next
+work in this milestone's own numbering is M10 (AI Orchestrator). Bump
 this line whenever you edit the roadmap.*

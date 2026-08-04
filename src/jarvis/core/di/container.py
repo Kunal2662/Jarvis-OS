@@ -304,6 +304,36 @@ def _build_marketplace(*, settings: Settings) -> Any:
     return Marketplace(LocalPluginRepository(index_path))
 
 
+def _build_debug_console(*, event_bus: Any, settings: Settings) -> Any:
+    from jarvis.core.devtools.debug_console import DebugConsole
+
+    return DebugConsole(event_bus, max_entries=settings.devtools.debug_console_max_entries)
+
+
+def _build_performance_profiler(*, event_bus: Any, settings: Settings) -> Any:
+    from jarvis.core.devtools.performance_profiler import PerformanceProfiler
+
+    return PerformanceProfiler(event_bus, history_size=settings.devtools.performance_history_size)
+
+
+def _build_api_inspector(*, settings: Settings) -> Any:
+    from jarvis.core.devtools.api_inspector import ApiInspector
+
+    return ApiInspector(max_records=settings.devtools.api_inspector_max_records)
+
+
+def _build_state_inspector(
+    *, service_manager: Any, plugin_registry: Any, runtime_manager: Any
+) -> Any:
+    from jarvis.core.devtools.state_inspector import StateInspector
+
+    return StateInspector(
+        service_manager=service_manager,
+        plugin_registry=plugin_registry,
+        runtime_manager=runtime_manager,
+    )
+
+
 def _build_agent_orchestrator(
     *,
     settings: Settings,
@@ -515,6 +545,28 @@ class Container(containers.DeclarativeContainer):
     marketplace = providers.Singleton(
         _build_marketplace,
         settings=settings,
+    )
+
+    # ---- Milestone 9 Task Group E -- Developer Platform Tools --------------
+    debug_console = providers.Singleton(
+        _build_debug_console,
+        event_bus=event_bus,
+        settings=settings,
+    )
+    performance_profiler = providers.Singleton(
+        _build_performance_profiler,
+        event_bus=event_bus,
+        settings=settings,
+    )
+    api_inspector = providers.Singleton(
+        _build_api_inspector,
+        settings=settings,
+    )
+    state_inspector = providers.Singleton(
+        _build_state_inspector,
+        service_manager=service_manager,
+        plugin_registry=plugin_registry,
+        runtime_manager=runtime_manager,
     )
 
     # ---- Milestone 5 -- UI / Developer Mode / API Center / Update Center --

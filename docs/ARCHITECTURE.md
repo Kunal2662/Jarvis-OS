@@ -343,13 +343,19 @@ applied to every named module.
 **Status:** this is the binding contract every new route follows.
 `GET /api/health`/`/api/ready` (M0) and `POST`/`GET`/`DELETE
 /api/v1/sessions` (M9 Task Group B, `infrastructure/api/routes/
-sessions.py`) are real today — the rest of this section's conventions
-(the `{data, meta}` response envelope, cursor pagination, most routes'
-Bearer auth) have no second real resource route yet to prove them
-against; `/api/v1/sessions` itself is a deliberate, narrow exception
-to two of them (see Request/response schema and Authentication below)
-rather than full compliance. M10+ resource routes are expected to
-follow this section exactly, unwinding both exceptions.
+sessions.py`) are real, and remain the two narrow, deliberate
+exceptions documented below (Request/response schema and
+Authentication) — health is public by design, sessions is what issues
+the token every other route needs. `infrastructure/api/routes/
+plugins.py` and `routes/devtools.py` (M9 Task Group E) are the real
+"next real resource route" this note used to say M10+ would need to
+add — both follow this section's contract in full: the `{data, meta}`
+envelope (`infrastructure/api/auth.py`'s `Envelope`) and
+`Depends(get_current_session)` Bearer auth (also `auth.py` — the
+dependency this section referenced by name since Task Group B but no
+route had actually used until Task Group E). Cursor pagination remains
+unproven — no shipped route yet returns a list large enough to need
+it.
 
 ### Naming and versioning
 
@@ -381,12 +387,14 @@ shapes.
 }
 ```
 
-*As shipped:* `/api/v1/sessions` (M9 Task Group B) returns its
-`SessionResponse` Pydantic model directly, not wrapped in this
-envelope — tracked as real, open debt (`MASTER_ROADMAP.md` §15
-Pending), deliberately not retrofitted before a second real resource
-route exists to prove the wrapper shape against, rather than an
-accepted permanent exception.
+*As shipped:* `/api/v1/sessions` (M9 Task Group B) still returns its
+`SessionResponse` Pydantic model directly, not wrapped in this envelope
+— now a deliberate, permanent exception (it is the mechanism that
+issues the very session token this envelope's own consumers need,
+before any wrapper convention can matter) rather than open debt. Every
+other real route (`infrastructure/api/routes/plugins.py`/`devtools.py`,
+M9 Task Group E) uses the real envelope (`infrastructure/api/auth.py`'s
+`Envelope`), proving the shape this section always specified.
 
 ```jsonc
 // Error envelope — every non-2xx response, using the universal
@@ -434,15 +442,18 @@ is actively watching.
 `/api/v1/health` — a pre-existing prefix inconsistency, confirmed
 during M9 Task Group B and not fixed there (out of that task group's
 scope; tracked in `MASTER_ROADMAP.md` §15 Pending). `/api/v1/sessions`
-(M9 Task Group B) is a second, deliberate exception below — it has no
-auth dependency at all, being the mechanism that issues the very
-session token every *other* route's Bearer auth requires; nothing
-exists yet to authenticate a request for a session with.
+(M9 Task Group B) is a second, deliberate, permanent exception below —
+it has no auth dependency at all, being the mechanism that issues the
+very session token every *other* route's Bearer auth requires; nothing
+exists to authenticate a request for a session with.
 
-Every route except `/api/v1/health` requires a session token
-(Bearer, `Authorization: Bearer <token>`), issued by the session
-mechanism §17 defines, validated by FastAPI dependency injection
-(`Depends(get_current_session)`) — never re-implemented per router.
+Every route except `/api/health` and `/api/v1/sessions` requires a
+session token (Bearer, `Authorization: Bearer <token>`), issued by the
+session mechanism §17 defines, validated by FastAPI dependency
+injection (`Depends(get_current_session)`) — never re-implemented per
+router. *As shipped (M9 Task Group E):* `get_current_session`
+(`infrastructure/api/auth.py`) is real, not aspirational — both new
+resource routers (`routes/plugins.py`/`devtools.py`) depend on it.
 
 ### Validation
 

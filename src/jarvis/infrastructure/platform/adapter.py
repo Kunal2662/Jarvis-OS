@@ -30,6 +30,31 @@ _FAMILY_BY_SYSTEM = {
     "Darwin": PlatformFamily.MACOS,
 }
 
+# ``platform.machine()`` returns the OS's own native spelling, not this
+# project's ``supported_arch`` vocabulary
+# (``core/plugins/manifest.py``'s ``SUPPORTED_ARCH_VALUES`` --
+# "x86_64"/"arm64"/"x86") -- Windows in particular reports "AMD64", not
+# "x86_64". Found as a real bug (Milestone 9 Task Group E route tests,
+# the first tests to exercise this class against a real, unfaked
+# Windows machine rather than a hardcoded "x86_64" test double): every
+# plugin manifest's default ``supported_arch`` was silently rejecting
+# every real Windows x86_64 install. Normalizing here, once, at the PAL
+# boundary, is exactly what this layer exists for -- every caller above
+# it keeps using the one canonical vocabulary.
+_ARCH_NORMALIZATION = {
+    "amd64": "x86_64",
+    "x86_64": "x86_64",
+    "aarch64": "arm64",
+    "arm64": "arm64",
+    "i386": "x86",
+    "i686": "x86",
+    "x86": "x86",
+}
+
+
+def _normalize_architecture(raw: str) -> str:
+    return _ARCH_NORMALIZATION.get(raw.lower(), raw.lower())
+
 
 class DefaultPlatformAdapter:
     """Implements ``IPlatformAdapter``. Stateless and cheap -- safe as
@@ -40,7 +65,7 @@ class DefaultPlatformAdapter:
         return PlatformInfo(
             family=_FAMILY_BY_SYSTEM.get(detected.system, PlatformFamily.UNKNOWN),
             os_release=detected.release,
-            architecture=detected.machine,
+            architecture=_normalize_architecture(detected.machine),
             python_version=detected.python,
         )
 

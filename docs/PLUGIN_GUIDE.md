@@ -1,20 +1,27 @@
 # Plugin Guide
 
 Status: **superseded by the real backend Plugin Platform (M9 Task
-Group D, Aug 2026) — this document now describes only the legacy M5
+Groups D+E, Aug 2026) — this document now describes only the legacy M5
 PySide6 Developer Mode view below, not the current plugin
 architecture.** A real Plugin SDK, Loader, Sandbox, Extension API,
 Permission Model, Registration System, Store, and Marketplace
-foundation now exist in `core/plugins/` — see `docs/MASTER_ROADMAP.md`
-§8's Plugin Platform module and `docs/IMPLEMENTATION_ROADMAP.md` §5
-Task Group D for the real, shipped architecture. That backend is
-**not yet wired to the PySide6 view described below** — replacing
-`MockPluginProvider` with a real `IPluginProvider` adapter over
-`core/plugins/registry.py`'s `PluginRegistry`, and building the real
-Marketplace UI, is M8's React frontend's job per the roadmap's own
-design (the PySide6 UI is not the surface future plugin management
-renders through). Everything below this line still accurately
-describes the M5 PySide6 mock, unchanged by Task Group D.
+foundation now exist in `core/plugins/` (Task Group D), and a real REST
+API over all of it -- `infrastructure/api/routes/plugins.py`:
+`/api/v1/plugins` (list/get/enable/disable/install/uninstall/update),
+`/api/v1/permissions` (grant/deny/revoke/pending/audit), and
+`/api/v1/marketplace` (browse/search/categories/reviews), plus
+`infrastructure/api/routes/devtools.py`'s Plugin Diagnostics
+(Task Group E) -- see `docs/MASTER_ROADMAP.md` §8's Plugin Platform and
+Developer Platform Tools modules and `docs/IMPLEMENTATION_ROADMAP.md`
+§5 for the real, shipped architecture. That backend is **not yet wired
+to the PySide6 view described below** -- replacing `MockPluginProvider`
+with a real `IPluginProvider` adapter over `core/plugins/registry.py`'s
+`PluginRegistry` (or simply pointing a client at the real REST API
+above), and building the real Marketplace UI, is M8's React frontend's
+job per the roadmap's own design (the PySide6 UI is not the surface
+future plugin management renders through). Everything below this line
+still accurately describes the M5 PySide6 mock, unchanged by Task
+Groups D/E.
 
 ## What exists today (PySide6 Developer Mode, still mocked)
 

@@ -178,13 +178,16 @@ architecture layer); **M7 — Workflow Intelligence** active (Phases
 1–2 shipped); **M8 — React Frontend & Desktop Experience** active
 (migrating the UI from PySide6 to React + Tauri — the PySide6 UI
 above remains the one that actually runs today); **M9 — Runtime &
-Core Services** active (Runtime Core, Reliability, and Plugin Platform
-modules shipped — Runtime/Service/Session/Configuration Managers,
-Health Monitor, Background Task Manager, Crash Recovery, Resource
-Manager, a real `/api/v1/ws` WebSocket API, and a full plugin platform
-— SDK, Loader, Sandbox, Extension API, Permission Model, Registration
-System, Store, and Marketplace foundations; only the Developer Platform
-Tools module remains pending).
+Core Services shipped in full** — Runtime/Service/Session/Configuration
+Managers, Health Monitor, Background Task Manager, Crash Recovery,
+Resource Manager, a real `/api/v1/ws` WebSocket API, a full plugin
+platform (SDK, Loader, Sandbox, Extension API, Permission Model,
+Registration System, Store, Marketplace), and the Developer Platform
+Tools that expose it all — Debug Console, Live Logs, Performance
+Profiler, State Inspector, API Inspector, and a real `/api/v1/plugins`
++ `/api/v1/devtools` REST API (the first routes to follow
+`docs/ARCHITECTURE.md` §5's full contract — Bearer auth + the
+`{data, meta}` envelope).
 
 ## License
 

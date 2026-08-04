@@ -359,6 +359,23 @@ class PluginNotificationEvent(Event):
     message: str = ""
 
 
+## --- Developer Platform Tools (Milestone 9 Task Group E) ---------------------
+@dataclass(frozen=True, slots=True)
+class DebugLogCapturedEvent(Event):
+    """Published by :class:`~jarvis.core.devtools.debug_console.
+    DebugConsole` for every log line captured through its own loguru
+    sink -- the real-time half of "Debug Console"/"Live Logs" (the
+    console's own bounded buffer, queried over REST, is the other
+    half). Fire-and-forget (``EventBus.publish_nowait``) since loguru's
+    ``enqueue=True`` sink runs on its own background writer thread, not
+    the app's main event loop."""
+
+    level: str = ""
+    logger: str = ""
+    message: str = ""
+    at: str = ""
+
+
 @dataclass(frozen=True, slots=True)
 class ScheduledJobFiredEvent(Event):
     """Fired when the Scheduler (Milestone 7, Phase 6) dispatches a due

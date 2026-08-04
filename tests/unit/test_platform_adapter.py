@@ -7,7 +7,8 @@ from __future__ import annotations
 import pytest
 
 from jarvis.core.interfaces.platform import CAPABILITY_VOCABULARY, IPlatformAdapter, PlatformFamily
-from jarvis.infrastructure.platform.adapter import DefaultPlatformAdapter
+from jarvis.core.plugins.manifest import SUPPORTED_ARCH_VALUES
+from jarvis.infrastructure.platform.adapter import DefaultPlatformAdapter, _normalize_architecture
 
 
 def _adapter() -> DefaultPlatformAdapter:
@@ -23,6 +24,34 @@ def test_info_reports_a_real_known_family():
     assert info.family in set(PlatformFamily)
     assert info.architecture
     assert info.python_version
+
+
+def test_info_architecture_is_always_in_the_manifest_vocabulary():
+    """Regression test (found via Milestone 9 Task Group E's real route
+    tests): a real Windows machine's ``platform.machine()`` reports
+    "AMD64", not "x86_64" -- every plugin manifest's default
+    ``supported_arch`` (``core/plugins/manifest.py``'s
+    ``SUPPORTED_ARCH_VALUES``) was silently rejecting every real
+    Windows install before this was normalized at the PAL boundary."""
+    info = _adapter().info()
+    assert info.architecture in SUPPORTED_ARCH_VALUES
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("AMD64", "x86_64"),
+        ("amd64", "x86_64"),
+        ("x86_64", "x86_64"),
+        ("ARM64", "arm64"),
+        ("aarch64", "arm64"),
+        ("i386", "x86"),
+        ("i686", "x86"),
+        ("x86", "x86"),
+    ],
+)
+def test_normalize_architecture(raw, expected):
+    assert _normalize_architecture(raw) == expected
 
 
 def test_has_capability_unknown_name_is_false():

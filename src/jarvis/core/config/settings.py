@@ -490,6 +490,28 @@ class PluginSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}PLUGINS_", extra="ignore")
 
 
+class DevToolsSettings(BaseSettings):
+    """Milestone 9 Task Group E -- Developer Platform Tools.
+
+    Separate from ``DeveloperModeSettings`` (M5's password-gated UI
+    shell) -- this gates real backend instrumentation (a loguru sink,
+    an HTTP middleware) that has a genuine, if small, per-request/
+    per-log-line cost, not just a UI panel's visibility. Defaults on
+    (``debug_console_enabled=True``) since this whole milestone is a
+    developer-facing, opt-out-if-you-must tool, not a hardened
+    production data path.
+    """
+
+    debug_console_enabled: bool = True
+    debug_console_level: str = "INFO"
+    debug_console_max_entries: int = 2000
+    performance_history_size: int = 240
+    api_inspector_enabled: bool = True
+    api_inspector_max_records: int = 500
+
+    model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}DEVTOOLS_", extra="ignore")
+
+
 # ---------------------------------------------------------------------------
 # Root settings
 # ---------------------------------------------------------------------------
@@ -499,7 +521,7 @@ class Settings(BaseSettings):
     env: Environment = Environment.DEVELOPMENT
     debug: bool = True
     app_name: str = "JARVIS OS"
-    app_version: str = "0.11.0"
+    app_version: str = "0.12.0"
     data_dir: Path | None = None
 
     llm_default_provider: LLMProviderName = LLMProviderName.OLLAMA
@@ -539,6 +561,7 @@ class Settings(BaseSettings):
     ocr: OCRSettings = Field(default_factory=OCRSettings)
     resource: ResourceSettings = Field(default_factory=ResourceSettings)
     plugins: PluginSettings = Field(default_factory=PluginSettings)
+    devtools: DevToolsSettings = Field(default_factory=DevToolsSettings)
 
     model_config = SettingsConfigDict(
         env_prefix=ENV_PREFIX,

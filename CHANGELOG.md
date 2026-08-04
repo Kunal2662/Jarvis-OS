@@ -3,6 +3,103 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.0] — M9, Task Group E (Developer Platform Tools) — closes out Milestone 9
+
+The last of M9's modules. **Milestone 9 (Runtime & Core Services) is
+now 100% complete** across all five task groups (A: Runtime Core: B:
+Service/Session/Configuration Manager, Health Monitor, Runtime
+WebSocket API; C: Reliability; D: Plugin Platform; E: this release).
+Architecture unchanged -- Python + FastAPI + Tauri, no migration.
+
+### Added
+- `core/devtools/` -- Debug Console + Live Logs (`debug_console.py`,
+  a real loguru sink with a bounded, filterable buffer), Performance
+  Profiler (`performance_profiler.py`, real time-series history over
+  `HealthMonitor`'s existing poll-tick snapshots), State Inspector
+  (`state_inspector.py`, a unified view combining `ServiceManager`,
+  `PluginRegistry`, and `RuntimeManager`'s own real state), API
+  Inspector (`api_inspector.py`, a real Starlette middleware recording
+  this app's own `/api/v1/*` request/response metadata -- method,
+  path, status, duration only, never bodies or headers).
+- `infrastructure/api/auth.py` -- the real `Depends(get_current_session)`
+  Bearer-auth dependency and `{data, meta}` `Envelope` helper
+  `docs/ARCHITECTURE.md` section 5 has referenced by name since Task
+  Group B but that no route had ever actually used until now.
+- `infrastructure/api/routes/plugins.py` -- the real "Plugin
+  Marketplace Foundation" + Permission Management REST API: full
+  plugin lifecycle (list/get/enable/disable/install/uninstall/update),
+  permission management (per-plugin grant/deny/revoke, pending queue,
+  audit log), and marketplace browse/search/categories/get/reviews --
+  all thin routes over Task Group D's real domain classes. The first
+  real resource routes to follow `docs/ARCHITECTURE.md` section 5's
+  full contract (envelope + Bearer auth), resolving the two documented
+  exceptions `/api/v1/sessions` needed.
+- `infrastructure/api/routes/devtools.py` -- REST reads over the new
+  `core/devtools/` components, plus Plugin Diagnostics (one combined
+  view: a plugin's status, health, recent related logs, and permission
+  audit trail).
+- Fourteen new `plugin.*`/`devtools.*` relay categories: eleven
+  `plugin.*` events (Task Group D's event types, now actually relayed
+  -- see the 0.11.0 entry) plus `devtools.log_captured` extend
+  `RuntimeWebSocketHub.EVENT_TYPE_NAMES`.
+- `DevToolsSettings` (`core/config/settings.py`) --
+  `debug_console_enabled`, `debug_console_level`,
+  `debug_console_max_entries`, `performance_history_size`,
+  `api_inspector_enabled`, `api_inspector_max_records`.
+- 74 new unit/integration tests across nine files, including a real
+  end-to-end test (`tests/integration/test_devtools_platform_e2e.py`)
+  proving the new REST API genuinely drives Task Group D's
+  `PluginRegistry`/`PermissionModel` *and* that the result is relayed
+  over the real Runtime WebSocket API -- install over REST, watch
+  `plugin.installed`/`plugin.load_failed` arrive over the socket; grant
+  a permission over REST, watch `plugin.permission_granted` arrive;
+  enable over REST, watch `plugin.loaded`/`plugin.enabled` arrive.
+
+### Fixed
+- **A real, Windows-first-breaking bug in Task Group D**, found by
+  these same end-to-end tests running for the first time against a
+  genuine Windows machine (Task Group D's own tests only ever used a
+  hardcoded-`"x86_64"` test double): `platform.machine()` reports
+  `"AMD64"` on Windows, not `"x86_64"` -- every plugin manifest's
+  *default* `supported_arch` list (`["x86_64", "arm64", "x86"]`) was
+  silently rejecting every real Windows x86_64 plugin install.
+  `infrastructure/platform/adapter.py`'s `DefaultPlatformAdapter.info()`
+  now normalizes the OS-reported architecture string to this project's
+  own canonical vocabulary at the Platform Abstraction Layer boundary
+  -- exactly what that layer exists for.
+
+### Changed
+- `app.py` gained `_register_task_group_e_hooks`: Debug Console and
+  Performance Profiler bookend every other startup/shutdown hook
+  (startup priority -1, one before Configuration Manager; shutdown
+  priority 8, one after Crash Recovery's mark-clean) so they capture as
+  much of the real lifecycle as observability tooling reasonably can.
+- `core/di/container.py` gained `debug_console`, `performance_profiler`,
+  `state_inspector`, and `api_inspector` providers.
+- `infrastructure/api/fastapi_server.py` mounts the two new routers and
+  conditionally attaches the API Inspector middleware.
+
+### Known limitations (documented, not silently implied otherwise)
+- Debug Console's real-time relay publishes one `EventBus` event per
+  captured log line via `publish_nowait`'s no-running-loop fallback
+  (loguru's `enqueue=True` sink runs on its own background thread) --
+  a real per-line cost, acceptable for a developer-only, opt-in tool,
+  not free.
+- Performance Profiler's "per-service" data is honestly process-wide
+  (service **state** is per-service; CPU/memory are not -- the same
+  limit `core/plugins/sandbox.py` already documents for the same
+  underlying `psutil.Process` reason).
+- API Inspector never records request/response bodies or headers
+  (secrets-handling boundary, `docs/ARCHITECTURE.md` section 17) --
+  method/path/status/duration only.
+
+Full suite: 815 passed (up from 741 at 0.11.0), zero regressions;
+frontend unaffected (this release is backend-only). mypy/ruff/black
+diffed against a clean pre-task-group `git stash -u` baseline: zero
+new findings outside the same accepted `PLC0415` lazy-import pattern
+every prior task group's own tests already carry (every other finding
+category's count is byte-for-byte unchanged).
+
 ## [0.11.0] — M9, Task Group D (Plugin Platform)
 
 Closes out M9's Plugin Platform module in full, preserving the
