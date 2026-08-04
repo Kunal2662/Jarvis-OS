@@ -17,9 +17,12 @@
 > Task Groups D (Plugin Platform) and E (Developer Platform Tools) have
 > since shipped — **Milestone 9 is now 100% complete.** See §5 below.
 > M10 (AI Orchestrator) has since shipped its buildable-now scope —
-> **M10 is partial, not 100% complete;** the M10A/M14/M16-dependent
+> **M10 is partial, not 100% complete;** the M14/M16-dependent
 > remainder is explicitly deferred, documented rather than dropped. See
-> §5 below.
+> §5A below. M10A (Universal Search & Knowledge Platform) has since
+> shipped in full except File Search (deferred pending M11B) —
+> **M10A is complete**, closing M10's own Context Engine
+> knowledge-graph deferral in the process. See §5B below.
 
 **Document owner:** project lead
 **Status:** Aug 2026 — tracks M8 (React Frontend & Desktop Experience)
@@ -69,8 +72,9 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | M7 — Workflow Intelligence | 🟡 Active (Phases 1–2 shipped; Phase 3 🟠 deferred; Phases 4–6 pending). See `MASTER_ROADMAP.md` §8. |
 | **M8 – React Frontend & Desktop Experience** | 🟡 **Active — this document tracks it.** Phase 1 and Phase 4 shipped; Phase 3 partial; Phases 2, 5, 6, 7 and the rest of Phase 3 🟠 **deferred — see §6, Deferred Backlog.** **Not 100% complete.** |
 | **M9 – Runtime & Core Services** | ✅ **Completed — all five task groups (A–E) shipped, see §5 below.** |
-| **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M10A/M14/M16-dependent remainder deferred. See §5 below and `MASTER_ROADMAP.md` §8/§14.** |
-| M10A, M10B, M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
+| **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M14/M16-dependent remainder deferred. Context Engine's knowledge-graph half closed by M10A. See §5A below and `MASTER_ROADMAP.md` §8/§14.** |
+| **M10A – Universal Search & Knowledge Platform** | ✅ **Completed — File Search deferred pending M11B. See §5B below and `MASTER_ROADMAP.md` §8/§14.** |
+| M10B, M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
 M7's Phases 4–6 (Workflow Builder, Recorder, Scheduler) were paused
 pending the UI Foundation review; that review is superseded by the
@@ -1021,19 +1025,107 @@ reasoning and design. **M10 is not 100% complete.**
       dispatch, permission denial, and real streaming end-to-end).
       839/839 passing, zero regressions. Ruff/mypy findings proportional
       to the pre-existing accepted baseline — zero new categories.
-  - **Deferred** (documented, not silently dropped): Context Engine's
-        knowledge-graph half (needs M10A); Learning/Feedback via M16's
-        Reflection Engine (needs M16); Permission Validation's final
-        M14-routed form (needs M14); Intent Engine gating graph routing
-        (needs M10A/M10B for real signal); the "final" shortcut path's
-        real token streaming; PySide6 Agent Trace view / React frontend
-        wiring to `/api/v1/agent` (M8's own remaining phases).
+  - **Deferred** (documented, not silently dropped): Learning/Feedback
+        via M16's Reflection Engine (needs M16); Permission Validation's
+        final M14-routed form (needs M14); Intent Engine gating graph
+        routing (needs M10A/M10B for real signal); the "final" shortcut
+        path's real token streaming; PySide6 Agent Trace view / React
+        frontend wiring to `/api/v1/agent` (M8's own remaining phases).
+        *(Context Engine's knowledge-graph half, originally deferred
+        here pending M10A, is now real — see §5B below.)*
 
 **Dependencies note:** M10's formal dependencies are M5A (✅, extended
 directly), M8 (🟡 partial — the backend WebSocket transport this pass
 needed is real via M9; M8's own remaining frontend phases are
-unaffected either way), M10A (🔴, blocks Context Engine's full scope),
-M14 (🔴, blocks Permission Validation's final form).
+unaffected either way), M10A (✅ **now shipped**, closing Context
+Engine's knowledge-graph deferral — see §5B below), M14 (🔴, blocks
+Permission Validation's final form).
+
+---
+
+## 5B. M10A — Universal Search & Knowledge Platform (✅ Completed)
+
+Unlike M10, M10A's own declared dependencies (M3 Memory Platform, M5A
+Agent Orchestrator exposure) were both already shipped when this pass
+began, so this milestone was buildable to near-full completion in one
+pass. One key feature is explicitly deferred, not silently dropped:
+File Search needs M11B's File Manager surface, which doesn't exist
+yet — see `MASTER_ROADMAP.md`'s own Aug 2026 M10A changelog addendum
+for the full reasoning and design.
+
+- [x] Knowledge Graph / Relationship Graph — `KnowledgeEntity` /
+      `KnowledgeRelationship` / `KnowledgeEntityMemory` in the existing
+      `infrastructure/database/models.py`, `Base.metadata.create_all()`
+      boot-time creation, no new persistence framework. LLM-driven
+      extraction reuses the same JSON-decision pattern the agent nodes
+      already established.
+- [x] Persistent Memory — reuses `MemoryService.set_pinned` rather than
+      a second durability mechanism.
+- [x] Reflection Foundation — `KnowledgeService.learn_from_recent_memories()`,
+      on-demand (REST `/api/v1/knowledge/learn` or an agent tool),
+      never a scheduled background job — no `RuntimeManager` changes,
+      no new lifecycle manager, no scheduler.
+- [x] Learning, scoped (Acceptance Criterion 3) —
+      `KnowledgeService.correct()` supersedes the prior
+      `(subject, predicate)` relationship and inserts a
+      higher-confidence replacement rather than deleting history. A
+      scoped correction primitive, not a general-purpose Learning
+      Engine.
+- [x] Digital Twin Foundation — the Knowledge Graph schema itself is
+      the substrate; no separate twin-building code, matching this
+      milestone's own "does not itself claim to build one" scope note.
+- [x] Universal Search / Search Provider Registry —
+      `services/search_service.py`'s `SearchService` owns
+      `register_source`/`unregister_source`/`get_sources`; three
+      sources registered (`MemorySearchSource`, `KnowledgeSearchSource`,
+      `CommandSearchSource` — agent tools + plugin commands, the latter
+      read *live* from `PluginRegistry.list_manifests()` on every
+      query, never snapshotted once). `SearchResult` is deliberately
+      extensible: `confidence`/`reason` fields exist now, unpopulated,
+      for a future AI-reranking milestone to fill in without an API
+      change.
+- [x] ChromaDB integration — reuses the single existing collection,
+      tagged `record_type: "knowledge_entity"` metadata; no second
+      vector store, no new adapter.
+- [x] Agent / Context Engine integration — new
+      `agents/tools/knowledge_tools.py` (`ask_knowledge`/
+      `search_knowledge`); `context_engine.py` gained an optional
+      `knowledge` parameter, closing M10's own documented
+      knowledge-graph deferral.
+- [x] REST API — `POST /api/v1/search`, `GET /api/v1/knowledge/entities/{name}`,
+      `GET /api/v1/knowledge/ask`, `POST /api/v1/knowledge/correct`,
+      `POST /api/v1/knowledge/learn`, `GET/POST /api/v1/knowledge/export|import`.
+      Same Bearer auth + envelope convention as
+      `routes/plugins.py`/`routes/devtools.py`/`routes/agent.py`.
+- [x] WebSocket integration — `core/lifecycle/runtime_ws_hub.py`
+      finally realizes the `memory` category (`memory.updated`,
+      `memory.recalled`) `docs/ARCHITECTURE.md` §6 documented as a
+      target since before the Milestone 9 managers existed, plus a new
+      `knowledge` category. `MemoryService` gained an optional
+      `event_bus` constructor parameter to publish these — additive,
+      every existing call site unaffected.
+- [x] Permission Model — no new scopes; reuses M9's existing
+      `memory.read`/`memory.write` Plugin SDK scopes.
+- [x] 49 new tests across seven files, including one integration test
+      per Acceptance Criterion, each against a real temp-file SQLite
+      database and the real DI container — AC1 (`ask()` synthesis
+      answer), AC2 (export/import round-trip), AC3 (correction
+      relayed over the real WebSocket), AC4 (Universal Search spanning
+      ≥2 real source types over the real REST API). 888/888 passing,
+      zero regressions. mypy diffed against a clean baseline via
+      `git stash -u`: 266 → 266, byte-for-byte unchanged after two
+      real fixes. Ruff findings proportional to the pre-existing
+      accepted baseline — zero new categories left unresolved.
+  - **Deferred** (documented, not silently dropped): File Search
+        (needs M11B's File Manager, not started); AI reranking
+        (`SearchResult.confidence`/`.reason` exist but are unpopulated);
+        scheduled Reflection (on-demand only; M7 Scheduler integration
+        is future work); a full, general-purpose Learning Engine
+        (`correct()` is a scoped primitive, not that engine).
+
+**Dependencies note:** M10A's formal dependencies, M3 (Memory
+Platform) and M5A (agent tool exposure), were both already shipped —
+this milestone was never blocked, unlike M10.
 
 ---
 

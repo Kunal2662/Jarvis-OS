@@ -127,6 +127,18 @@ class MemorySettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}MEMORY_", extra="ignore")
 
 
+class KnowledgeSettings(BaseSettings):
+    """Milestone 10A — Universal Search & Knowledge Platform tunables."""
+
+    enabled: bool = True
+    default_entity_confidence: float = 0.7
+    correction_confidence: float = 0.95
+    reflection_batch_size: int = 20  # memories per learn_from_recent_memories() call
+    search_top_k: int = 20
+
+    model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}KNOWLEDGE_", extra="ignore")
+
+
 class OpenAISettings(BaseSettings):
     enabled: bool = False
     api_key: SecretStr = SecretStr("")
@@ -528,7 +540,7 @@ class Settings(BaseSettings):
     env: Environment = Environment.DEVELOPMENT
     debug: bool = True
     app_name: str = "JARVIS OS"
-    app_version: str = "0.13.0"
+    app_version: str = "0.14.0"
     data_dir: Path | None = None
 
     llm_default_provider: LLMProviderName = LLMProviderName.OLLAMA
@@ -569,6 +581,7 @@ class Settings(BaseSettings):
     resource: ResourceSettings = Field(default_factory=ResourceSettings)
     plugins: PluginSettings = Field(default_factory=PluginSettings)
     devtools: DevToolsSettings = Field(default_factory=DevToolsSettings)
+    knowledge: KnowledgeSettings = Field(default_factory=KnowledgeSettings)
 
     model_config = SettingsConfigDict(
         env_prefix=ENV_PREFIX,

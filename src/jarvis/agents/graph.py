@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 
     from jarvis.core.interfaces.llm_provider import ILLMProvider
     from jarvis.features.automation.permission import ConfirmationCallback
+    from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
 
 
@@ -65,6 +66,7 @@ def build_agent_graph(
     tools: list[BaseTool],
     checkpointer: Any,
     memory: MemoryService | None = None,
+    knowledge: KnowledgeService | None = None,
     permission_gate: AgentPermissionGate | None = None,
     confirm: ConfirmationCallback | None = None,
     max_parallel_steps: int = 4,
@@ -93,7 +95,9 @@ def build_agent_graph(
     # stub-resolution limitation, not a suppression of real errors.
     graph = StateGraph(AgentState)
     graph.add_node("intent_classifier", make_intent_classifier_node(llm))  # type: ignore[call-overload]
-    graph.add_node("context_engine", make_context_engine_node(memory))  # type: ignore[call-overload]
+    graph.add_node(
+        "context_engine", make_context_engine_node(memory, knowledge)
+    )  # type: ignore[call-overload]
     graph.add_node("planner", make_planner_node(llm, tools))  # type: ignore[call-overload]
     graph.add_node("tool_selector", make_tool_selector_node(llm, tools))  # type: ignore[call-overload]
     graph.add_node(

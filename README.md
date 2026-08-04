@@ -189,11 +189,16 @@ Profiler, State Inspector, API Inspector, and a real `/api/v1/plugins`
 `docs/ARCHITECTURE.md` §5's full contract — Bearer auth + the
 `{data, meta}` envelope); **M10 — AI Orchestrator active (partial)** —
 extends M5A's `AgentOrchestrator` with an Intent Engine, a Context
-Engine (M3 Memory-scoped), parallel tool dispatch, interim Permission
-Validation, real token-level streaming for the tool-composed path, and
-a real `/api/v1/agent` REST API. M10 formally depends on M10A and M14,
-neither shipped yet, so the dependent remainder is explicitly deferred
-— **not 100% complete.**
+Engine, parallel tool dispatch, interim Permission Validation, real
+token-level streaming for the tool-composed path, and a real
+`/api/v1/agent` REST API. M10 formally depends on M14, not shipped
+yet, so the dependent remainder is explicitly deferred — **not 100%
+complete.** **M10A — Universal Search & Knowledge Platform shipped in
+full** (except File Search, deferred pending M11B) — a real Knowledge
+Graph, `SearchService`'s pluggable provider registry spanning memory,
+knowledge, and commands, and a real `/api/v1/search` +
+`/api/v1/knowledge` REST API, closing M10's own Context Engine
+knowledge-graph deferral.
 
 ## License
 

@@ -185,3 +185,80 @@ class TaskHistory(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[float] = mapped_column(default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Milestone 10A — Universal Search & Knowledge Platform
+# ---------------------------------------------------------------------------
+class KnowledgeEntity(Base):
+    """A named thing (person, project, file, topic, ...) extracted from
+    memory content -- the node type of the knowledge graph.
+
+    Deliberately a plain string ``entity_type`` column, not a DB enum,
+    matching ``Memory.memory_type``'s own "never requires a migration to
+    add a new value" reasoning.
+    """
+
+    __tablename__ = "knowledge_entities"
+    __table_args__ = (
+        Index("ix_knowledge_entities_name", "name"),
+        Index("ix_knowledge_entities_type", "entity_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(32), default="other")
+    description: Mapped[str] = mapped_column(Text, default="")
+    confidence: Mapped[float] = mapped_column(default=0.7)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class KnowledgeRelationship(Base):
+    """A directed, predicated edge between two :class:`KnowledgeEntity`
+    rows -- the knowledge graph's edge type.
+
+    ``superseded`` implements Milestone 10A's correction/Learning
+    Acceptance Criterion: a correction never hard-deletes the relationship
+    it replaces (auditable history), it marks the old edge
+    ``superseded=True`` and inserts a new one with higher confidence --
+    every read path filters ``superseded=False`` by default.
+    """
+
+    __tablename__ = "knowledge_relationships"
+    __table_args__ = (
+        Index("ix_knowledge_rel_subject", "subject_id"),
+        Index("ix_knowledge_rel_object", "object_id"),
+        Index("ix_knowledge_rel_superseded", "superseded"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    subject_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("knowledge_entities.id", ondelete="CASCADE"), nullable=False
+    )
+    predicate: Mapped[str] = mapped_column(String(64), nullable=False)
+    object_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("knowledge_entities.id", ondelete="CASCADE"), nullable=False
+    )
+    confidence: Mapped[float] = mapped_column(default=0.7)
+    source_memory_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("memories.id", ondelete="SET NULL"), nullable=True
+    )
+    superseded: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class KnowledgeEntityMemory(Base):
+    """Join table: which memories mention/support a knowledge entity --
+    mirrors :class:`MemoryTag`'s join-table shape."""
+
+    __tablename__ = "knowledge_entity_memories"
+
+    entity_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("knowledge_entities.id", ondelete="CASCADE"), primary_key=True
+    )
+    memory_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("memories.id", ondelete="CASCADE"), primary_key=True
+    )

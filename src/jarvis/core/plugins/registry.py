@@ -349,6 +349,19 @@ class PluginRegistry:
         entry = self._entries.get(plugin_id)
         return None if entry is None else entry.context
 
+    def get_manifest(self, plugin_id: str) -> PluginManifest | None:
+        entry = self._entries.get(plugin_id)
+        return None if entry is None else entry.manifest
+
+    def list_manifests(self) -> tuple[PluginManifest, ...]:
+        """Every currently-registered plugin's manifest -- Milestone 10A's
+        Command Search reads this fresh at query time (see
+        ``services/search_sources.py``'s ``CommandSearchSource``) so a
+        plugin installed/enabled after the search index was first wired
+        still shows up, unlike a value baked in once at DI-construction
+        time would."""
+        return tuple(entry.manifest for entry in self._entries.values())
+
     def is_registered(self, plugin_id: str) -> bool:
         return plugin_id in self._entries
 

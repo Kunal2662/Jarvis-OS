@@ -3,6 +3,90 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.14.0] — M10A, Universal Search & Knowledge Platform (complete)
+
+Unlike M10, M10A's own declared dependencies (M3 Memory Platform, M5A
+Agent Orchestrator exposure) were both already shipped, so this
+milestone was buildable to near-full completion in one pass. Every new
+component extends an existing one rather than introducing a parallel
+system: `RuntimeManager`, `ServiceManager`, `MemoryService`,
+`ChromaVectorStore`, `AgentOrchestrator`, Context Engine, `EventBus`,
+the Runtime WebSocket Hub, `PluginRegistry`, and the Tool Registry are
+all reused as-is. **One key feature is explicitly deferred, not
+dropped:** File Search needs M11B's File Manager surface, which
+doesn't exist yet.
+
+### Added
+- Knowledge Graph / Relationship Graph -- `KnowledgeEntity` /
+  `KnowledgeRelationship` / `KnowledgeEntityMemory` in the existing
+  `infrastructure/database/models.py`; `KnowledgeRepository` mirrors
+  `MemoryRepository`'s shape. LLM-driven entity/relationship
+  extraction reuses the agent nodes' existing JSON-decision pattern
+  (relocated to `jarvis/utils/llm_json.py` so `services/` could reuse
+  it without creating a `services -> agents` dependency;
+  `agents/prompting.py` re-exports both names unchanged).
+- Persistent Memory -- reuses `MemoryService.set_pinned` rather than a
+  second durability mechanism.
+- Reflection Foundation -- `KnowledgeService.learn_from_recent_memories()`,
+  on-demand only (REST or agent tool), never a scheduled background
+  job.
+- Correction / scoped Learning (Acceptance Criterion 3) --
+  `KnowledgeService.correct()` supersedes the prior relationship and
+  inserts a higher-confidence replacement rather than deleting
+  history.
+- Universal Search / Search Provider Registry --
+  `services/search_service.py`'s `SearchService` owns
+  `register_source`/`unregister_source`/`get_sources`
+  (`core/interfaces/search.py`'s `ISearchSource` protocol); three
+  sources registered today (`MemorySearchSource`,
+  `KnowledgeSearchSource`, `CommandSearchSource` -- agent tools +
+  live-read plugin commands). `SearchResult` is deliberately
+  extensible: `confidence`/`reason` fields exist now, unpopulated, for
+  a future AI-reranking milestone.
+- ChromaDB integration -- reuses the single existing collection,
+  tagged `record_type: "knowledge_entity"` metadata; no second vector
+  store.
+- Agent integration -- `agents/tools/knowledge_tools.py`
+  (`ask_knowledge`/`search_knowledge`); `context_engine.py` gained an
+  optional `knowledge` parameter, closing M10's own documented
+  Context Engine knowledge-graph deferral.
+- `infrastructure/api/routes/knowledge.py` -- `POST /api/v1/search`,
+  `GET /api/v1/knowledge/entities/{name}`, `GET /api/v1/knowledge/ask`,
+  `POST /api/v1/knowledge/correct`, `POST /api/v1/knowledge/learn`,
+  `GET/POST /api/v1/knowledge/export|import`. Same Bearer auth +
+  envelope convention as `routes/plugins.py`/`routes/devtools.py`/
+  `routes/agent.py`.
+- `memory`/`knowledge` WebSocket categories on the Runtime WebSocket
+  relay -- `memory.updated`/`memory.recalled` finally realize the
+  category `docs/ARCHITECTURE.md` §6 has documented as a target since
+  before the Milestone 9 managers existed; `knowledge.entity_updated`/
+  `knowledge.correction_applied` are new. `MemoryService` gained an
+  optional `event_bus` constructor parameter to publish these.
+
+### Deferred (documented, not silently dropped)
+- File Search -- needs M11B's File Manager surface (not started).
+- AI reranking -- `SearchResult.confidence`/`.reason` exist but are
+  unpopulated.
+- Scheduled Reflection -- `learn_from_recent_memories()` is on-demand
+  only; M7 Scheduler integration is future work.
+- A full, general-purpose Learning Engine -- `correct()` is a scoped
+  primitive, not that engine.
+
+### Permissions
+No new scopes introduced. Plugin access reuses M9's existing
+`memory.read`/`memory.write` Plugin SDK scopes.
+
+### Testing
+888/888 tests passing (+49), zero regressions -- one integration test
+per Acceptance Criterion (AC1 `ask()` synthesis, AC2 export/import
+round-trip, AC3 correction relayed over the real WebSocket, AC4
+Universal Search spanning ≥2 real source types), each against a real
+temp-file SQLite database and the real DI container. mypy diffed
+against a clean baseline via `git stash -u`: 266 -> 266, byte-for-byte
+unchanged after two real fixes in `knowledge_service.py`. Ruff
+findings proportional to the pre-existing accepted baseline -- zero
+new categories left unresolved.
+
 ## [0.13.0] — M10, AI Orchestrator (partial -- buildable-now scope)
 
 Milestone 10 formally depends on M10A (Universal Search & Knowledge

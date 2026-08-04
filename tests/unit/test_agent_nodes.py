@@ -307,6 +307,58 @@ async def test_context_engine_node_tolerates_memory_failure() -> None:
     assert result["context"] == ""
 
 
+@pytest.mark.asyncio
+async def test_context_engine_node_includes_knowledge_when_supplied() -> None:
+    """Milestone 10A closes M10's own documented deferral: Context Engine
+    now also draws on the knowledge graph when one is supplied."""
+    from dataclasses import dataclass, field
+
+    from jarvis.agents.nodes.context_engine import make_context_engine_node
+
+    @dataclass
+    class _Rel:
+        predicate: str
+        other_entity: str
+        direction: str
+        confidence: float = 0.9
+
+    @dataclass
+    class _Detail:
+        id: str = "e1"
+        name: str = "Project X"
+        entity_type: str = "project"
+        description: str = "A project."
+        confidence: float = 0.9
+        relationships: list = field(default_factory=lambda: [_Rel("works_on", "Alice", "incoming")])
+        memory_contents: list = field(default_factory=list)
+
+    class _Knowledge:
+        async def get_entity_detail(self, query: str):
+            return _Detail()
+
+    node = make_context_engine_node(None, _Knowledge())
+
+    result = await node({"prompt": "what do you know about Project X?"})
+
+    assert "Project X" in result["context"]
+    assert "works_on" in result["context"]
+
+
+@pytest.mark.asyncio
+async def test_context_engine_node_tolerates_knowledge_failure() -> None:
+    from jarvis.agents.nodes.context_engine import make_context_engine_node
+
+    class _BrokenKnowledge:
+        async def get_entity_detail(self, query: str):
+            raise RuntimeError("db unavailable")
+
+    node = make_context_engine_node(None, _BrokenKnowledge())
+
+    result = await node({"prompt": "x"})
+
+    assert result["context"] == ""
+
+
 # ---------------------------------------------------------------------------
 # Milestone 10 AC1 -- parallel tool dispatch
 # ---------------------------------------------------------------------------

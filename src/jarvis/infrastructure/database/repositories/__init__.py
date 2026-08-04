@@ -1,9 +1,13 @@
-"""Repositories for ``conversations``, ``messages``, ``memories``."""
+"""Repositories for ``conversations``, ``messages``, ``memories``,
+the knowledge graph."""
 
 from __future__ import annotations
 
 from jarvis.infrastructure.database.repositories.conversation_repository import (
     ConversationRepository,
+)
+from jarvis.infrastructure.database.repositories.knowledge_repository import (
+    KnowledgeRepository,
 )
 from jarvis.infrastructure.database.repositories.memory_repository import (
     MemoryRepository,
@@ -20,6 +24,7 @@ from jarvis.infrastructure.database.repositories.task_history_repository import 
 
 __all__ = [
     "ConversationRepository",
+    "KnowledgeRepository",
     "MemoryRepository",
     "MessageRepository",
     "RuntimeSessionRepository",

@@ -214,6 +214,41 @@ class AgentStepEvent(Event):
     detail: str = ""
 
 
+# --- Universal Search & Knowledge Platform (Milestone 10A) -------------------
+@dataclass(frozen=True, slots=True)
+class MemoryUpdatedEvent(Event):
+    """Published by :class:`~jarvis.services.memory_service.MemoryService`
+    on ``remember``/``forget``/``forget_all`` -- realizes the ``memory``
+    WebSocket category ``docs/ARCHITECTURE.md`` §6 documented as a target
+    since Milestone 9 but nothing published until now."""
+
+    memory_id: str = ""
+    action: str = "created"  # "created" | "deleted" | "cleared"
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryRecalledEvent(Event):
+    """Published by :class:`~jarvis.services.memory_service.MemoryService`
+    when :meth:`~jarvis.services.memory_service.MemoryService.recall`
+    returns at least one result."""
+
+    query: str = ""
+    result_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeEntityUpdatedEvent(Event):
+    """Published by :class:`~jarvis.services.knowledge_service.KnowledgeService`
+    when entity/relationship extraction persists at least one new row."""
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeCorrectionAppliedEvent(Event):
+    """Published by :class:`~jarvis.services.knowledge_service.KnowledgeService`
+    when a correction supersedes or creates a relationship (Milestone 10A
+    Acceptance Criterion 3)."""
+
+
 @dataclass(frozen=True, slots=True)
 class VisionProviderStatusEvent(Event):
     """Reports a vision/OCR provider's health (Milestone 6, Phase 4). Not

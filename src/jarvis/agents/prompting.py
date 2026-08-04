@@ -20,56 +20,27 @@ milestone's declared dependencies comes from.
 
 from __future__ import annotations
 
-import json
-import re
 from typing import TYPE_CHECKING, Any
 
-from jarvis.core.exceptions import LLMProviderError
-from jarvis.core.logging.logger import get_logger
-from jarvis.core.types import ChatMessage
+# Re-exported for backward compatibility -- every node in this package
+# imports these two from here. Both now live in ``jarvis.utils.llm_json``
+# since neither has any LangGraph/AgentState coupling and
+# ``services/knowledge_service.py`` (Milestone 10A) needed the same
+# extraction logic without creating a services -> agents dependency (this
+# project's layering rule is the other way around: agents depends on
+# services, never the reverse).
+from jarvis.utils.llm_json import parse_json_object, safe_complete
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
-    from jarvis.core.interfaces.llm_provider import ILLMProvider
-
-_logger = get_logger("jarvis.agents.prompting")
-
-_JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
-
-
-async def safe_complete(llm: ILLMProvider, prompt: str, *, fallback: str) -> str:
-    """Call ``llm.complete`` for a single-turn prompt; never raises.
-
-    Every node in this graph must degrade gracefully rather than crash the
-    whole agent run on a transient provider error — matching
-    ``MemoryService.summarize``'s "fall back to truncation" precedent.
-    """
-    try:
-        result = await llm.complete([ChatMessage(role="user", content=prompt)])
-        return (result or "").strip() or fallback
-    except LLMProviderError as err:
-        _logger.warning("Agent node LLM call failed, using fallback: {}", err)
-        return fallback
-
-
-def parse_json_object(text: str) -> dict[str, Any]:
-    """Best-effort extraction of a JSON object from LLM output.
-
-    Tolerates markdown code fences and leading/trailing prose by taking
-    the first ``{...}`` span. Returns ``{}`` (never raises) on anything
-    that still doesn't parse, so callers always get a dict to read
-    ``.get(...)`` off of.
-    """
-    text = (text or "").strip()
-    match = _JSON_BLOCK.search(text)
-    candidate = match.group(0) if match else text
-    try:
-        parsed = json.loads(candidate)
-        return parsed if isinstance(parsed, dict) else {}
-    except json.JSONDecodeError:
-        _logger.warning("Agent node produced non-JSON output: {!r}", text[:200])
-        return {}
+__all__ = [
+    "UNTRUSTED_TOOL_OUTPUT_NOTICE",
+    "format_tool_call_history",
+    "format_tool_descriptions",
+    "parse_json_object",
+    "safe_complete",
+]
 
 
 def format_tool_descriptions(tools: list[BaseTool]) -> str:

@@ -30,6 +30,11 @@ the backend half of M10 AC2's "real streaming over M8's WebSocket layer"
 requirement (the token-level half is ``/api/v1/agent/stream``'s SSE
 response, since per-token events over this hub would mean one WS frame per
 LLM token -- see ``docs/MASTER_ROADMAP.md``'s M10 changelog addendum).
+Milestone 10A (Universal Search & Knowledge Platform) finally realizes
+the ``memory`` category §6's table has documented since before any of
+these managers existed (``memory.updated``, ``memory.recalled``), plus a
+new ``knowledge`` category (``knowledge.entity_updated``,
+``knowledge.correction_applied``).
 """
 
 from __future__ import annotations
@@ -47,6 +52,10 @@ from jarvis.core.events.events import (
     CrashRecoveredEvent,
     Event,
     HealthUpdatedEvent,
+    KnowledgeCorrectionAppliedEvent,
+    KnowledgeEntityUpdatedEvent,
+    MemoryRecalledEvent,
+    MemoryUpdatedEvent,
     PluginDisabledEvent,
     PluginDiscoveredEvent,
     PluginEnabledEvent,
@@ -108,6 +117,10 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     PluginPermissionGrantedEvent: "plugin.permission_granted",
     PluginPermissionDeniedEvent: "plugin.permission_denied",
     AgentStepEvent: "agent.step",
+    MemoryUpdatedEvent: "memory.updated",
+    MemoryRecalledEvent: "memory.recalled",
+    KnowledgeEntityUpdatedEvent: "knowledge.entity_updated",
+    KnowledgeCorrectionAppliedEvent: "knowledge.correction_applied",
 }
 
 _BASE_FIELD_NAMES = {f.name for f in dataclasses.fields(Event)}

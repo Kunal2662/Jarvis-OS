@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
+    from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.system_service import SystemService
     from jarvis.services.vision_service import VisionService
@@ -34,6 +35,7 @@ def build_tool_registry(
     voice: VoiceService | None = None,
     chat: ChatService | None = None,
     vision: VisionService | None = None,
+    knowledge: KnowledgeService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -41,6 +43,10 @@ def build_tool_registry(
         from jarvis.agents.tools.memory_tools import build_memory_tools
 
         tools += build_memory_tools(memory)
+    if knowledge is not None:
+        from jarvis.agents.tools.knowledge_tools import build_knowledge_tools
+
+        tools += build_knowledge_tools(knowledge)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

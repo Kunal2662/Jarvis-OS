@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.13.0`
+**Current version:** `0.14.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -118,17 +118,29 @@ future work; see M6's own §3 entry for the full scope note.
   Management API, Plugin Diagnostics) — see
   `IMPLEMENTATION_ROADMAP.md` §5.
 - **M10 — AI Orchestrator** (see §8) — 🟡 **partial: the buildable-now
-  scope shipped, the M10A/M14/M16-dependent remainder explicitly
-  deferred, not silently dropped.** Shipped: Intent Engine (diagnostic),
-  Context Engine (M3-Memory-only scope), parallel tool dispatch (AC1,
-  absorbing M7 Phase 3), interim Permission Validation (AC3), real
-  token-level streaming for the tool-composed path (AC2), Decision
-  Engine's `response_mode`, `agent.step` on the Runtime WebSocket relay,
-  and `/api/v1/agent/invoke` + `/api/v1/agent/stream`. Deferred pending
-  their owning milestones: Context Engine's knowledge-graph half (needs
-  M10A), Learning/Feedback via M16's Reflection Engine (needs M16),
-  Permission Validation's final M14-routed form (needs M14). **M10 is
-  not 100% complete** — do not treat it as shipped in full.
+  scope shipped, the M14/M16-dependent remainder explicitly deferred,
+  not silently dropped.** Shipped: Intent Engine (diagnostic), Context
+  Engine, parallel tool dispatch (AC1, absorbing M7 Phase 3), interim
+  Permission Validation (AC3), real token-level streaming for the
+  tool-composed path (AC2), Decision Engine's `response_mode`,
+  `agent.step` on the Runtime WebSocket relay, and
+  `/api/v1/agent/invoke` + `/api/v1/agent/stream`. Context Engine's
+  knowledge-graph half, originally deferred pending M10A, is now real
+  -- see M10A below. Still deferred pending their owning milestones:
+  Learning/Feedback via M16's Reflection Engine (needs M16), Permission
+  Validation's final M14-routed form (needs M14). **M10 is not 100%
+  complete** — do not treat it as shipped in full.
+- **M10A — Universal Search & Knowledge Platform** (see §8) — ✅
+  **Completed.** Knowledge Graph/Relationship Graph, Persistent Memory
+  (reuses M3's `pinned`), Reflection Foundation (on-demand, not
+  scheduled), scoped Learning (correction supersedes stale
+  relationships), Universal Search with a provider registry
+  (`register_source`/`unregister_source`/`get_sources`), Memory/
+  Command/Semantic/AI Search, `/api/v1/search` + `/api/v1/knowledge/*`,
+  `memory`/`knowledge` WebSocket categories, agent tool integration,
+  and closing M10's own Context Engine deferral. One key feature
+  explicitly deferred: File Search (needs M11B's File Manager, not
+  started) — see M10A's own entry for the full Deferred list.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -1929,6 +1941,59 @@ the "Universal Search" scope from the Aug 2026 frontend migration
 brief. Not a renumbering: M10A is additive, per the "zero renumbering"
 rule.)*
 
+**Status (Aug 2026): ✅ Completed.** Unlike M10, M10A's own declared
+dependencies (M3, M5A) were both already shipped, so this milestone
+was buildable to near-full completion in one pass -- see the Aug 2026
+M10A changelog addendum for the full design. **One key feature is
+explicitly deferred, not silently dropped:** File Search needs M11B's
+File Manager surface, which doesn't exist yet; the `ISearchSource`
+provider-registry architecture is the documented seam it plugs into
+once M11B ships, requiring no `SearchService` changes when it does.
+
+**M10A Closure Summary (Aug 2026):**
+
+✅ **Completed:**
+- Knowledge Graph / Relationship Graph -- `KnowledgeEntity` /
+  `KnowledgeRelationship` / `KnowledgeEntityMemory`, LLM-driven
+  extraction from memory content.
+- Persistent Memory -- reuses M3's existing `pinned` mechanism rather
+  than a second durability concept.
+- Reflection Foundation -- `KnowledgeService.learn_from_recent_memories()`,
+  on-demand (REST/agent tool), never a scheduled background job.
+- Learning (scoped) -- `KnowledgeService.correct()` supersedes prior
+  relationships with a higher-confidence replacement (Acceptance
+  Criterion 3), an interim primitive, not a full Learning Engine.
+- Digital Twin Foundation -- the Knowledge Graph schema itself is the
+  substrate; this milestone does not itself claim to build a twin.
+- Universal Search -- `SearchService`'s provider registry
+  (`register_source`/`unregister_source`/`get_sources`), fanning out
+  to every registered `ISearchSource` concurrently.
+- Memory Search, Command Search, Semantic Search, Search Indexing, AI
+  Search -- `MemorySearchSource`/`CommandSearchSource`/
+  `KnowledgeSearchSource`, all reusing existing infrastructure (M3
+  Memory, the Tool Registry, `PluginRegistry`, the single shared
+  Chroma collection) rather than a parallel implementation.
+- `/api/v1/search` + `/api/v1/knowledge/*` REST API, `memory`/
+  `knowledge` WebSocket categories over the existing Runtime WebSocket
+  relay, agent tool integration (`ask_knowledge`/`search_knowledge`),
+  and Context Engine's knowledge-graph half -- closing the deferral
+  M10's own closure documented.
+
+🟠 **Deferred** (blocked on a milestone that hasn't shipped):
+- **File Search** -- needs **M11B** (Productivity Suite), not started;
+  no File Manager surface exists yet to index. The `ISearchSource`
+  protocol is the seam it plugs into later.
+- **AI reranking** -- `SearchResult`'s `confidence`/`reason` fields
+  exist now (extensible model, per this milestone's own design
+  requirement) but are unpopulated; deliberately not implemented this
+  pass, reserved for a future milestone.
+- **Scheduled Reflection** -- `learn_from_recent_memories()` is
+  on-demand only; wiring it to M7's Scheduler for periodic execution
+  is explicitly out of scope, deferred to a future pass.
+- **Full Learning Engine** -- `correct()` is a scoped correction
+  primitive satisfying Acceptance Criterion 3, not the general-purpose
+  learning engine a future milestone might build.
+
 **Objective:** turn the M3 Memory Platform's flat semantic store into
 a real, queryable knowledge base — the foundation every "companion
 intelligence" milestone later in this roadmap (M15–M20) builds on —
@@ -1972,15 +2037,23 @@ the same way every other service is).
 **Complexity:** L.
 
 **Acceptance criteria:**
-1. A query like "what do you know about Project X" returns a coherent
-   answer drawing on multiple related memories, not just a keyword
-   match.
-2. The knowledge graph survives an export/import round-trip.
-3. A correction ("actually, my meeting is on Thursday not Wednesday")
-   measurably updates future recall.
-4. A single Universal Search query returns relevant results spanning
-   at least two distinct source types (e.g. memory + files) in one
-   response.
+1. ✅ **Met.** A query like "what do you know about Project X" returns
+   a coherent answer drawing on multiple related memories, not just a
+   keyword match -- `KnowledgeService.ask()`, verified end-to-end via
+   `tests/integration/test_knowledge_platform_e2e.py`.
+2. ✅ **Met.** The knowledge graph survives an export/import
+   round-trip -- `KnowledgeService.export_graph()`/`import_graph()`,
+   verified both at the unit level (fresh-database round-trip) and
+   over the real REST API.
+3. ✅ **Met.** A correction ("actually, my meeting is on Thursday not
+   Wednesday") measurably updates future recall --
+   `KnowledgeService.correct()` supersedes the prior relationship and
+   inserts a higher-confidence replacement, verified end-to-end
+   including over the real Runtime WebSocket relay.
+4. ✅ **Met.** A single Universal Search query returns relevant
+   results spanning at least two distinct source types (e.g. memory +
+   knowledge) in one response -- `SearchService.search()`, verified
+   over the real REST API with real memory and knowledge-graph data.
 
 ### M10B — Intelligence Layer
 
@@ -9057,7 +9130,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.7** | M8        | React Frontend & Desktop Experience | 🟡 Active (Phase 1+4 shipped; Phase 3 partial; Phases 2/5/6/7 + Phase 3 remainder deferred — see Deferred Backlog, §8) |
 | **0.8→0.12** | M9   | Runtime & Core Services          | ✅ **Completed** — see the versioning-granularity note below. All five task groups shipped (Runtime Core, Reliability, Plugin Platform, Developer Platform Tools), actual versions `0.8.0`–`0.12.0` per `CHANGELOG.md` — one minor bump per task group, not one bump for the whole milestone. |
 | **0.13** | M10       | AI Orchestrator                  | 🟡 **Partial** — buildable-now scope shipped (Intent Engine, scoped Context Engine, parallel dispatch AC1, interim Permission Validation AC3, real streaming AC2 for the composed path, Decision Engine, `/api/v1/agent`); M10A/M14/M16-dependent remainder deferred, documented. |
-| *(next)* | M10A      | Universal Search & Knowledge Platform | 🔴 Planned |
+| **0.14** | M10A      | Universal Search & Knowledge Platform | ✅ **Completed** — Knowledge Graph, Universal Search (provider registry), `/api/v1/search` + `/api/v1/knowledge/*`; File Search deferred pending M11B. |
 | *(next)* | M10B      | Intelligence Layer               | 🔴 Planned |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
@@ -11862,3 +11935,149 @@ this codebase's already-established lazy-import convention -- zero new
 finding categories of any kind. Version bumped `0.12.0` -> `0.13.0`,
 continuing the one-minor-bump-per-milestone-scope-of-work granularity
 §14's versioning-granularity note already documents.
+
+*Aug 2026 addendum — M10A (Universal Search & Knowledge Platform):*
+unlike M10, M10A's own declared dependencies (M3 Memory Platform, M5A
+Agent Orchestrator exposure) were both already shipped when this pass
+began, so this milestone was buildable to near-full completion in one
+pass rather than a partial one. The single exception, documented not
+dropped: File Search needs M11B's File Manager surface, which doesn't
+exist yet.
+
+**Implementation principles honored throughout:** every new component
+extends an existing one rather than introducing a parallel system --
+`RuntimeManager`, `ServiceManager`, `MemoryService`, `ChromaVectorStore`,
+`AgentOrchestrator`, Context Engine, `EventBus`, the Runtime WebSocket
+Hub, `PluginRegistry`, and the Tool Registry are all reused as-is, none
+rewritten.
+
+Universal Search / Search Provider Registry -- `services/search_service.py`'s
+`SearchService` owns a provider registry (`register_source`/
+`unregister_source`/`get_sources`) so a future module or plugin can add
+a new `ISearchSource` (new `core/interfaces/search.py` Protocol)
+without `SearchService` itself ever changing -- no hardcoded source
+list, no `isinstance` dispatch on source type. Three sources registered
+today: `MemorySearchSource` (wraps `MemoryService.search`),
+`KnowledgeSearchSource` (wraps `KnowledgeService.search`), and
+`CommandSearchSource` (agent tools, resolved once at the DI composition
+root via the existing `build_tool_registry`, plus plugin-declared
+commands read *live* from `PluginRegistry.list_manifests()` on every
+query -- a plugin installed after `SearchService` was first wired still
+shows up, not a value snapshotted once and left stale). `SearchResult`
+(also in `core/interfaces/search.py`) is deliberately extensible per
+this pass's own design requirement: `confidence` and `reason` fields
+exist now, unpopulated, so a future milestone can add real AI reranking
+without changing the model's shape or any caller's field access.
+
+Knowledge Platform / Knowledge Graph -- three new tables in the
+existing `infrastructure/database/models.py` (`Base.metadata.create_all()`
+idempotent boot-time creation, no new persistence framework, no Alembic
+migration -- matching M3's own established convention):
+`KnowledgeEntity`, `KnowledgeRelationship` (a `superseded` flag
+implements the correction primitive below -- old edges are marked
+superseded, never hard-deleted, so history stays auditable), and
+`KnowledgeEntityMemory` (a join table mirroring `MemoryTag`'s own
+shape). `KnowledgeRepository` mirrors `MemoryRepository`'s exact
+method-by-method pattern. `services/knowledge_service.py`'s
+`KnowledgeService` communicates with the memory store *only* through
+`MemoryService`'s existing public interface (`recall`/`browse`/
+`summarize`/`set_pinned`) -- never touches memory SQL rows directly.
+"Persistent Memory" reuses `MemoryService.set_pinned` rather than
+inventing a second durability mechanism, since M3's existing pinned
+memories already skip retention-policy expiry. "Reflection Foundation"
+(`learn_from_recent_memories()`) is deliberately on-demand only -- no
+`RuntimeManager` hook, no scheduler, no additional lifecycle manager;
+wiring it to M7's existing Scheduler for periodic execution is
+explicit future work, not built here. Entity/relationship extraction
+uses the same LLM JSON-decision pattern the agent nodes already
+established (`jarvis.agents.prompting`'s `safe_complete`/
+`parse_json_object`, relocated to `jarvis.utils.llm_json` during this
+pass specifically so `KnowledgeService` -- a `services` module -- could
+reuse them without creating a `services` -> `agents` dependency, since
+this project's layering rule runs the other way: `agents` depends on
+`services`, never the reverse; `agents/prompting.py` now re-exports
+both names unchanged so every existing node import keeps working).
+
+Correction / scoped Learning (Acceptance Criterion 3) --
+`KnowledgeService.correct(statement)` extracts the corrected fact(s)
+from *statement* using the same extraction pipeline, then
+`KnowledgeRepository.supersede_relationships()` marks every prior
+`(subject, predicate)` edge superseded before inserting the new one at
+`confidence=0.95`. Verified for real: a `meeting occurs_on Wednesday`
+relationship, corrected to `Thursday`, and `get_entity_detail("meeting")`
+returns Thursday afterward -- not merely asserted, executed against a
+real SQLite database. This is a scoped correction primitive, not the
+general-purpose Learning Engine a future milestone might build --
+documented as deferred, not implemented as if it were the same thing.
+
+ChromaDB integration -- the *existing* single Chroma collection is
+reused as-is; entity records are upserted into it tagged
+`record_type: "knowledge_entity"` metadata so semantic entity lookup
+can filter separately from (or alongside) memory content. No second
+vector store, no new adapter class.
+
+Agent / Context Engine integration -- new `agents/tools/knowledge_tools.py`
+(`ask_knowledge`/`search_knowledge`, mirroring `memory_tools.py`'s
+shape exactly), wired into `build_tool_registry()` as a new optional
+`knowledge` parameter -- additive, every existing call site unaffected.
+`agents/nodes/context_engine.py` gained an optional `knowledge`
+parameter too: when supplied, it now also queries the knowledge graph
+for entities/relationships related to the prompt, closing the
+knowledge-graph-half deferral M10's own completion report documented.
+`AgentOrchestrator`, `build_agent_graph`, and the DI container's
+`agent_orchestrator` provider all thread `knowledge` through --
+`KnowledgeService` is exposed as an agent tool the same way every
+other service already is, per M10A's own declared dependency on M5A.
+
+Runtime integration -- `KnowledgeService`/`SearchService` are plain DI
+singletons with no background loop of their own, the same lifecycle
+class `MemoryService` already occupies -- no `RuntimeManager` changes,
+no new lifecycle manager.
+
+REST API / WebSocket integration -- new `infrastructure/api/routes/knowledge.py`:
+`POST /api/v1/search` (Universal Search), `GET /api/v1/knowledge/entities/{name}`,
+`GET /api/v1/knowledge/ask`, `POST /api/v1/knowledge/correct`,
+`POST /api/v1/knowledge/learn` (the on-demand Reflection Foundation
+trigger), `GET/POST /api/v1/knowledge/export|import` -- same
+`Depends(get_current_session)` Bearer auth + `{data, meta}` envelope
+convention as `routes/plugins.py`/`routes/devtools.py`/`routes/agent.py`.
+`core/lifecycle/runtime_ws_hub.py`'s `EVENT_TYPE_NAMES` finally
+realizes the `memory` category (`memory.updated`, `memory.recalled`)
+`docs/ARCHITECTURE.md` §6 has documented as a target since before any
+of the Milestone 9 managers existed, plus a new `knowledge` category
+(`knowledge.entity_updated`, `knowledge.correction_applied`) -- both
+verified over the real relay in
+`tests/integration/test_knowledge_platform_e2e.py`, not just asserted
+at the unit level (REST write -> real service -> real WebSocket read,
+the same discipline `test_devtools_platform_e2e.py` established).
+`MemoryService` gained an optional `event_bus` constructor parameter to
+publish these -- additive, defaulting to `None`, every existing call
+site unaffected.
+
+Permission Model -- no new scopes introduced. Plugin access reuses M9's
+already-defined `memory.read`/`memory.write` permission scopes, since
+knowledge is conceptually an extension of memory for permission
+purposes; agent-tool-initiated knowledge reads/writes stay ungated,
+matching `remember`/`forget`'s own existing ungated precedent.
+
+Testing -- 49 new tests across seven files (`test_knowledge_repository.py`,
+`test_knowledge_service.py`, `test_search_service.py`,
+`test_search_sources.py`, `test_knowledge_tools.py`,
+`test_knowledge_route.py`, `tests/integration/test_knowledge_platform_e2e.py`,
+plus two new Context Engine tests in `test_agent_nodes.py`), including
+one integration test per Acceptance Criterion, each exercised against a
+real temp-file SQLite database and the real DI container, not doubles
+of each other. Full suite: 888 passed (up from 839), zero regressions.
+Ruff/mypy diffed against a clean pre-milestone baseline using the
+established `git stash -u` methodology: mypy 266 -> 266, byte-for-byte
+unchanged after two real fixes in `knowledge_service.py` (a
+`dict[str, Any]` annotation for a Chroma metadata dict mixing string
+and `list[float]` values, and removing seven copy-pasted `# type:
+ignore[assignment]` comments that turned out unnecessary in this file's
+context); ruff findings proportional to the pre-existing accepted
+baseline, entirely `PLC0415` (the established lazy-import convention)
+plus a handful of genuinely new, immediately-fixed issues (two unused
+imports, one import-ordering fix, one unused-unpacked-variable rename)
+-- zero new finding categories left unresolved. Version bumped
+`0.13.0` -> `0.14.0`, continuing the one-minor-bump-per-milestone-scope
+granularity.

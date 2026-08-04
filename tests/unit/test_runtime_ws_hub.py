@@ -82,6 +82,11 @@ def test_every_documented_event_type_is_mapped() -> None:
         "plugin.permission_denied",
         # Milestone 10
         "agent.step",
+        # Milestone 10A
+        "memory.updated",
+        "memory.recalled",
+        "knowledge.entity_updated",
+        "knowledge.correction_applied",
     }
 
 

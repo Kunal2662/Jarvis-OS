@@ -161,10 +161,71 @@ def _build_conversation_service(database: Any) -> Any:
     return ConversationService(database=database)
 
 
-def _build_memory_service(database: Any, vector_store: Any, llm: Any, settings: Settings) -> Any:
+def _build_memory_service(
+    database: Any, vector_store: Any, llm: Any, settings: Settings, event_bus: Any
+) -> Any:
     from jarvis.services.memory_service import MemoryService
 
-    return MemoryService(database=database, vector_store=vector_store, llm=llm, settings=settings)
+    return MemoryService(
+        database=database,
+        vector_store=vector_store,
+        llm=llm,
+        settings=settings,
+        event_bus=event_bus,
+    )
+
+
+def _build_knowledge_service(
+    database: Any, vector_store: Any, llm: Any, memory: Any, event_bus: Any
+) -> Any:
+    from jarvis.services.knowledge_service import KnowledgeService
+
+    return KnowledgeService(
+        database=database, vector_store=vector_store, llm=llm, memory=memory, event_bus=event_bus
+    )
+
+
+def _build_search_service(
+    memory_service: Any,
+    knowledge_service: Any,
+    automation_service: Any,
+    browser_service: Any,
+    system_service: Any,
+    voice_service: Any,
+    chat_service: Any,
+    vision_service: Any,
+    plugin_registry: Any,
+) -> Any:
+    """Wires the Search Provider Registry (Milestone 10A, Additional
+    Requirement #1): resolves the *existing* Tool Registry and Plugin
+    Registry once, here at the composition root, and registers one
+    ``ISearchSource`` per subsystem -- ``SearchService`` itself never
+    imports ``agents`` or ``core.plugins`` directly (see
+    ``services/search_sources.py``'s own module docstring for why)."""
+    from jarvis.agents.tools import build_tool_registry
+    from jarvis.services.search_service import SearchService
+    from jarvis.services.search_sources import (
+        CommandSearchSource,
+        KnowledgeSearchSource,
+        MemorySearchSource,
+    )
+
+    tools = build_tool_registry(
+        memory=memory_service,
+        automation=automation_service,
+        browser=browser_service,
+        system=system_service,
+        voice=voice_service,
+        chat=chat_service,
+        vision=vision_service,
+    )
+    tool_descriptions = [(t.name, t.description) for t in tools]
+
+    service = SearchService()
+    service.register_source(MemorySearchSource(memory_service))
+    service.register_source(KnowledgeSearchSource(knowledge_service))
+    service.register_source(CommandSearchSource(tool_descriptions, plugin_registry=plugin_registry))
+    return service
 
 
 def _build_automation_service(
@@ -345,6 +406,7 @@ def _build_agent_orchestrator(
     voice: Any,
     system: Any,
     vision: Any,
+    knowledge: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -359,6 +421,7 @@ def _build_agent_orchestrator(
         voice=voice,
         system=system,
         vision=vision,
+        knowledge=knowledge,
         event_bus=event_bus,
     )
 
@@ -430,6 +493,15 @@ class Container(containers.DeclarativeContainer):
         vector_store=vector_store,
         llm=llm_provider,
         settings=settings,
+        event_bus=event_bus,
+    )
+    knowledge_service = providers.Singleton(
+        _build_knowledge_service,
+        database=database,
+        vector_store=vector_store,
+        llm=llm_provider,
+        memory=memory_service,
+        event_bus=event_bus,
     )
     memory_recall_hook = providers.Singleton(
         "jarvis.services.semantic_memory_recall_hook.SemanticMemoryRecallHook",
@@ -547,6 +619,20 @@ class Container(containers.DeclarativeContainer):
         settings=settings,
     )
 
+    # ---- Milestone 10A -- Universal Search & Knowledge Platform ------------
+    search_service = providers.Singleton(
+        _build_search_service,
+        memory_service=memory_service,
+        knowledge_service=knowledge_service,
+        automation_service=automation_service,
+        browser_service=browser_service,
+        system_service=system_service,
+        voice_service=voice_service,
+        chat_service=chat_service,
+        vision_service=vision_service,
+        plugin_registry=plugin_registry,
+    )
+
     # ---- Milestone 9 Task Group E -- Developer Platform Tools --------------
     debug_console = providers.Singleton(
         _build_debug_console,
@@ -610,5 +696,6 @@ class Container(containers.DeclarativeContainer):
         voice=voice_service,
         system=system_service,
         vision=vision_service,
+        knowledge=knowledge_service,
         event_bus=event_bus,
     )

@@ -35,6 +35,7 @@ from jarvis.infrastructure.database.repositories import MemoryRepository
 
 if TYPE_CHECKING:
     from jarvis.core.config.settings import Settings
+    from jarvis.core.events.event_bus import EventBus
     from jarvis.core.interfaces.database import IDatabase
     from jarvis.core.interfaces.llm_provider import ILLMProvider
     from jarvis.core.interfaces.vector_store import IVectorStore
@@ -90,11 +91,17 @@ class MemoryService:
         vector_store: IVectorStore,
         llm: ILLMProvider,
         settings: Settings,
+        *,
+        event_bus: EventBus | None = None,
     ) -> None:
         self._db = database
         self._vs = vector_store
         self._llm = llm
         self._settings = settings
+        # Milestone 10A: optional so every existing call site (this
+        # constructor predates the Runtime WebSocket API) keeps working
+        # unchanged -- publishing is a no-op until one is supplied.
+        self._event_bus = event_bus
 
     # ------------------------------------------------------------------
     # Write
@@ -165,6 +172,7 @@ class MemoryService:
         except VectorStoreError as err:
             _logger.warning("Vector upsert failed for memory {}: {}", memory_id, err)
 
+        await self._publish_updated(memory_id, action="created")
         return memory_id
 
     async def forget(self, memory_id: str) -> None:
@@ -175,6 +183,7 @@ class MemoryService:
             await self._vs.delete([memory_id])
         except VectorStoreError:
             _logger.warning("Vector delete failed for {}.", memory_id)
+        await self._publish_updated(memory_id, action="deleted")
 
     async def forget_all(self) -> int:
         """Clear every memory from both stores. Returns the count removed.
@@ -192,6 +201,8 @@ class MemoryService:
             except VectorStoreError as err:
                 _logger.warning("Vector bulk-delete failed: {}", err)
         _logger.info("Cleared {} memories.", removed)
+        if removed:
+            await self._publish_updated("", action="cleared")
         return removed
 
     # ------------------------------------------------------------------
@@ -242,7 +253,10 @@ class MemoryService:
             return []
 
         # 4. Materialise ordered SQL rows.
-        return await self._load_ordered(fused_ids[:top_k], vector_scores=dict(vector_hits))
+        records = await self._load_ordered(fused_ids[:top_k], vector_scores=dict(vector_hits))
+        if records:
+            await self._publish_recalled(query, result_count=len(records))
+        return records
 
     async def search(
         self,
@@ -558,6 +572,20 @@ class MemoryService:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+    async def _publish_updated(self, memory_id: str, *, action: str) -> None:
+        if self._event_bus is None:
+            return
+        from jarvis.core.events.events import MemoryUpdatedEvent
+
+        await self._event_bus.publish(MemoryUpdatedEvent(memory_id=memory_id, action=action))
+
+    async def _publish_recalled(self, query: str, *, result_count: int) -> None:
+        if self._event_bus is None:
+            return
+        from jarvis.core.events.events import MemoryRecalledEvent
+
+        await self._event_bus.publish(MemoryRecalledEvent(query=query, result_count=result_count))
+
     async def _embed(self, text: str) -> list[float]:
         embeddings = await self._llm.embed([text])
         if not embeddings or not embeddings[0]:
