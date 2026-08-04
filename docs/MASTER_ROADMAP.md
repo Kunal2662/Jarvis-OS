@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.17.0`
+**Current version:** `0.18.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -2182,8 +2182,8 @@ roadmap extension. Not a renumbering: M10.5 is additive, following the
 decimal-companion precedent **M5.5** (Production Stabilization Pass,
 §3) already set, and alters no existing milestone's identity or scope.)*
 
-**Status: 🟡 Active — Task Groups A (Core Runtime) and B (Transport
-Layer) shipped.** The MCP runtime foundation is real: Capability
+**Status: 🟡 Active — Task Groups A (Core Runtime), B (Transport
+Layer) and C (Provider Framework) shipped.** The MCP runtime foundation is real: Capability
 Registry, transport abstraction, client runtime
 (connection/handshake/discovery/health/reconnect), server runtime
 (capability exposure + permission enforcement), capability negotiation,
@@ -2191,9 +2191,14 @@ DI wiring, runtime events, and a read-only ``/api/v1/mcp/*`` REST
 surface (Task Group A) — plus **all four network transports**
 (``stdio``, ``websocket``, ``http``, ``ipc``), a config-driven
 transport factory, transport discovery/query, and a heartbeat monitor
-(Task Group B). **Not the whole milestone** — no provider integration
-ships yet, and provider/OAuth/cloud scope remains M11's. See the Aug
-2026 M10.5 Task Group A and B changelog addenda for the full design.
+(Task Group B) — plus the generic **Provider Framework** every future
+integration plugs into: provider interface, registry with filtered
+discovery, lifecycle manager, metadata/configuration models, health
+collection and read-only `/api/v1/mcp/providers/*` routes (Task Group
+C). **Not the whole milestone** — no *real* provider ships, and
+authentication/OAuth and vendor integrations remain Task Group D and
+M11's scope. See the Aug 2026 M10.5 Task Group A, B and C changelog
+addenda for the full design.
 
 **Objective:** the protocol-level foundation for every external tool
 and context provider JARVIS consumes — standardizing on **MCP (Model
@@ -9367,6 +9372,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.15** | M10B      | Intelligence Layer               | ✅ **Completed** — Goal Manager, Routine/Preference Learning, Predictive Suggestions, Daily Briefing, `/api/v1/goals` + `/api/v1/intelligence/*`; automatic scheduled briefing delivery deferred pending M7's Scheduler (Phase 6). |
 | **0.16** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group A (Core Runtime) shipped: Capability Registry, transport abstraction, client/server runtimes, negotiation, `/api/v1/mcp/*`. |
 | **0.17** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group B (Transport Layer) shipped: stdio/websocket/http/ipc transports, transport factory, discovery/query, heartbeat monitor, four new relay events. Provider integrations remain a later task group. |
+| **0.18** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group C (Provider Framework) shipped: provider interface, registry with filtered discovery, lifecycle manager, metadata/config models, health collection, `/api/v1/mcp/providers/*`. Generic infrastructure only — real providers, authentication and OAuth are Task Group D. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -12673,3 +12679,68 @@ the repository baseline: mypy 266 -> 266, unchanged, zero errors in any
 MCP file; ruff's category list is identical to the baseline's 22 after
 fixing the two genuinely-new findings this pass introduced (`RUF100`,
 `PLW2901`). Version bumped `0.16.0` -> `0.17.0`.
+
+*Aug 2026 addendum -- M10.5 Task Group C (MCP Provider Framework):*
+the generic framework every future MCP integration plugs into
+**without modifying the MCP runtime**. Infrastructure only -- no real
+provider, no authentication, no OAuth, no vendor code; those are Task
+Group D and M11.
+
+**The framework is three collaborators, not one god object**, split
+the way ``core/plugins/`` already splits its own:
+
+- ``metadata.py`` -- what a provider *is* (``ProviderMetadata``) and how
+  this install *runs* it (``ProviderConfig``). Inert, validated at
+  registration. The separation is what lets a deployment move a
+  provider from stdio to websocket without editing the provider, and it
+  is why ``ProviderConfig.transport`` overrides
+  ``ProviderMetadata.transport`` rather than duplicating it.
+- ``registry.py`` -- what providers *exist*. **Registration is inert**:
+  no transport built, no subprocess spawned, no socket opened. That is
+  precisely what makes ``discover()`` safe to call from a REST handler,
+  and it is why lifecycle does not live here.
+- ``manager.py`` -- what providers are *doing*. Lifecycle, events,
+  health collection, permission resolution.
+
+**Nothing was duplicated.** Every connect/disconnect delegates through
+``TransportBackedProvider`` to Task Group A's ``MCPClientRuntime``;
+transports are built by Task Group B's ``TransportFactoryRegistry``;
+permissions resolve against M9's ``PermissionModel`` (namespaced
+``mcp:<provider_id>``, the same prefix Task Group A established, with
+**no new scope vocabulary** -- a provider may only request scopes the
+plugin platform already defines); health is a plain dict for
+``HealthMonitor.register_collector``; shutdown ordering is a
+``RuntimeManager`` hook. There is no second registry, lifecycle
+manager, health subsystem or permission system anywhere in this task
+group.
+
+**Eight transitions, one event class.** ``mcp.provider_changed`` carries
+an ``action`` field (registered/initialized/connected/disconnected/
+suspended/resumed/failed/removed) plus the resting ``state`` -- the
+shape ``memory.updated``/``goal.updated``/``mcp.connection_changed``
+already established, rather than eight event classes. The two fields
+genuinely differ for ``resumed``, which lands in ``connected``:
+``ProviderState`` deliberately has no ``RESUMED`` member, because
+inventing a state nothing rests in would make the state machine lie.
+
+**Credential-shaped surfaces were built defensively now, not
+retrofitted later.** ``ProviderConfig.as_dict()`` reports option *key
+names only, never values* -- provider options will carry tokens once
+M11's integrations exist, and a REST test asserts a secret value never
+appears in the response body.
+
+Scopes resolve fresh on every connect rather than being cached at
+install time, so granting a permission after installation takes effect
+on the next connect without re-registering the provider -- verified
+end-to-end against a real peer.
+
+Testing -- 84 new tests across five files: metadata/config validation,
+registry and every discovery filter, the full lifecycle including
+failure and fault-isolated batch operations, health, events, REST, DI
+singleton identity, and an end-to-end suite driving a **real stdio peer
+subprocess** through the real DI container and real ``PermissionModel``
+with lifecycle events verified over the real WebSocket relay. Ruff/mypy
+diffed against the repository baseline: mypy 266 -> 266, unchanged,
+zero errors in any new file; ruff's category list identical to the
+baseline's 22 after fixing the two genuinely-new findings this pass
+introduced (`I001`, `SIM300`). Version bumped `0.17.0` -> `0.18.0`.

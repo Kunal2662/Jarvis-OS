@@ -28,6 +28,8 @@ from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_sessi
 if TYPE_CHECKING:
     from jarvis.core.mcp.client import MCPClientRuntime
     from jarvis.core.mcp.heartbeat import MCPHeartbeatMonitor
+    from jarvis.core.mcp.providers.manager import MCPProviderManager
+    from jarvis.core.mcp.providers.registry import MCPProviderRegistry
     from jarvis.core.mcp.server import MCPServerRuntime
     from jarvis.core.mcp.transport import TransportFactoryRegistry
 
@@ -44,6 +46,14 @@ def _client(request: Request) -> MCPClientRuntime:
 
 def _transports(request: Request) -> TransportFactoryRegistry:
     return cast("TransportFactoryRegistry", request.app.state.container.mcp_transport_registry())
+
+
+def _provider_registry(request: Request) -> MCPProviderRegistry:
+    return cast("MCPProviderRegistry", request.app.state.container.mcp_provider_registry())
+
+
+def _provider_manager(request: Request) -> MCPProviderManager:
+    return cast("MCPProviderManager", request.app.state.container.mcp_provider_manager())
 
 
 @router.get("/status", response_model=Envelope[dict[str, Any]])
@@ -145,6 +155,63 @@ async def mcp_transport_detail(transport_id: str, request: Request) -> Envelope[
         {**descriptor, "connections": in_use},
         meta={"connection_count": len(in_use)},
     )
+
+
+@router.get("/providers", response_model=Envelope[tuple[dict[str, Any], ...]])
+async def mcp_providers(
+    request: Request,
+    transport: str | None = None,
+    capability: str | None = None,
+    state: str | None = None,
+    protocol: str | None = None,
+    permission: str | None = None,
+    enabled_only: bool = False,
+) -> Envelope[tuple[dict[str, Any], ...]]:
+    """Registered providers, with the registry's own discovery filters
+    exposed as query parameters. Filters combine with AND; omitting one
+    does not constrain."""
+    registry = _provider_registry(request)
+    records = registry.discover(
+        transport=transport,
+        capability=capability,
+        state=state,
+        protocol=protocol,
+        permission=permission,
+        enabled_only=enabled_only,
+    )
+    payload = tuple(record.as_dict() for record in records)
+    return envelope(payload, meta={"count": len(payload), "total": len(registry)})
+
+
+@router.get("/providers/{provider_id}", response_model=Envelope[dict[str, Any]])
+async def mcp_provider_detail(provider_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    """One provider's full status -- registration, configuration, live
+    connection detail, and its granted-versus-pending permissions."""
+    manager = _provider_manager(request)
+    if not manager.registry.has(provider_id):
+        raise HTTPException(status_code=404, detail=f"Unknown provider {provider_id!r}.")
+    return envelope(await manager.status(provider_id))
+
+
+@router.get("/providers/{provider_id}/health", response_model=Envelope[dict[str, Any]])
+async def mcp_provider_health(provider_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    """One provider's liveness. Rides the same check M9's
+    ``HealthMonitor`` collector aggregates -- not a second health path."""
+    manager = _provider_manager(request)
+    if not manager.registry.has(provider_id):
+        raise HTTPException(status_code=404, detail=f"Unknown provider {provider_id!r}.")
+    health = await manager.health(provider_id)
+    return envelope(health, meta={"healthy": health["healthy"]})
+
+
+@router.get("/providers/{provider_id}/metadata", response_model=Envelope[dict[str, Any]])
+async def mcp_provider_metadata(provider_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    """A provider's declaration alone -- what it is, not what it is
+    doing. Reading it never touches the transport."""
+    metadata = _provider_registry(request).metadata(provider_id)
+    if metadata is None:
+        raise HTTPException(status_code=404, detail=f"Unknown provider {provider_id!r}.")
+    return envelope(metadata.as_dict())
 
 
 @router.get("/heartbeat", response_model=Envelope[tuple[dict[str, Any], ...]])

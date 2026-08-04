@@ -336,6 +336,25 @@ class MCPHeartbeatEvent(Event):
 
 
 @dataclass(frozen=True, slots=True)
+class MCPProviderStateChangedEvent(Event):
+    """Every provider lifecycle transition -- Milestone 10.5 Task Group C.
+
+    One event class carrying an ``action`` field rather than eight
+    classes (registered/initialized/connected/disconnected/suspended/
+    resumed/failed/removed), matching the shape
+    ``MemoryUpdatedEvent``/``GoalUpdatedEvent``/
+    ``MCPConnectionChangedEvent`` already established. ``action`` is the
+    transition; ``state`` is the resting state it landed in -- the two
+    differ for ``resumed``, which lands in ``connected``.
+    """
+
+    provider_id: str = ""
+    action: str = "registered"  # see PROVIDER_ACTIONS
+    state: str = "registered"  # see ProviderState
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class MCPPermissionDeniedEvent(Event):
     """Published when the MCP server runtime refuses a capability
     invocation. Distinct from

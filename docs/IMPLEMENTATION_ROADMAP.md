@@ -78,7 +78,7 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M14/M16-dependent remainder deferred. Context Engine's knowledge-graph half closed by M10A. See §5A below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10A – Universal Search & Knowledge Platform** | ✅ **Completed — File Search deferred pending M11B. See §5B below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10B – Intelligence Layer** | ✅ **Completed — automatic scheduled Daily Briefing delivery deferred pending M7's Scheduler (Phase 6). See §5C below and `MASTER_ROADMAP.md` §8/§14.** |
-| **M10.5 – MCP & Integration Platform** | 🟡 **Active — Task Groups A (Core Runtime) and B (Transport Layer) shipped.** Capability Registry, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*` (A); all four transports (stdio/websocket/http/ipc), transport factory, discovery/query, heartbeat (B). Provider integrations are a later task group. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
+| **M10.5 – MCP & Integration Platform** | 🟡 **Active — Task Groups A (Core Runtime), B (Transport Layer) and C (Provider Framework) shipped.** Capability Registry, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*` (A); all four transports (stdio/websocket/http/ipc), transport factory, discovery/query, heartbeat (B). The Provider Framework is generic infrastructure -- real providers, authentication and OAuth are Task Group D. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
 | **M13B – Self-Healing & Observability** | 🔴 Planned, not started. *(New lettered companion to M13, added Aug 2026 — the foundational subset of M18/M20A, which remain their full-scale realizations. M13A "AI Sandbox" is unchanged.)* See `MASTER_ROADMAP.md` §8 and §14. |
 | M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
@@ -1285,12 +1285,40 @@ no provider integration ships yet — see `MASTER_ROADMAP.md`'s own Aug
 - [x] 100 new tests across eight files, against real peers throughout
       (real subprocess, real websockets server, real HTTP server, real
       named pipe / Unix socket).
-  - **Deferred to later task groups / M11**: provider integrations,
-        OAuth and cloud sync (M11 throughout); MCP tools surfaced
-        through the agent Tool Registry and Agent Trace; a server-side
-        network listener (this task group ships the outbound/client
-        half of all four transports); write endpoints for provider
-        management.
+  - *(Provider management was deferred here and its framework is now
+        shipped -- see Task Group C immediately below.)*
+
+### Task Group C — Provider Framework (✅ shipped)
+
+Infrastructure only. **No real providers**, no OAuth, no vendor code.
+
+- [x] `IMCPProvider` — transport-independent provider port; six
+      lifecycle methods mirroring `IService`, plus `suspend`/`resume`.
+- [x] `ProviderMetadata` / `ProviderConfig` — inert validated models
+      separating what a provider *is* from how this install *runs* it;
+      config carries enabled/transport/options/reconnect/retry/heartbeat.
+- [x] `MCPProviderRegistry` — register/unregister/lookup/enumerate/
+      metadata/validation, plus `discover()` filtered by transport,
+      capability, state, protocol, permission and enabled-ness.
+      Registration is inert, so discovery has no side effects.
+- [x] `MCPProviderManager` — install/initialize/connect/disconnect/
+      suspend/resume/shutdown/remove, fault-isolated in batch.
+- [x] `TransportBackedProvider` — the generic implementation covering
+      every config-driven integration.
+- [x] `mcp.provider_changed` relay event with an `action` field for all
+      eight transitions plus the resting `state`.
+- [x] REST — `GET /api/v1/mcp/providers`, `/providers/{id}`,
+      `/providers/{id}/health`, `/providers/{id}/metadata`. Read-only.
+- [x] DI singletons; RuntimeManager shutdown ordering (providers before
+      the client runtime); health via `HealthMonitor.register_collector`.
+- [x] 84 new tests across five files, including a full lifecycle
+      against a real stdio peer subprocess with events verified over
+      the real WebSocket relay.
+  - **Deferred to Task Group D / M11**: real providers, authentication
+        and OAuth; GitHub/Gmail/Slack/Calendar/Drive and every other
+        vendor integration; create/update/delete provider endpoints;
+        MCP tools surfaced through the agent Tool Registry and Agent
+        Trace; a server-side network listener.
 
 **Dependencies note:** M10.5's formal dependencies — M5A (agent tool
 exposure), M9 (Permission Model, Service Manager lifecycle), M10

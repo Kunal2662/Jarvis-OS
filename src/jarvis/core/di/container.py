@@ -382,6 +382,31 @@ def _build_mcp_transport_registry(*, mcp_server_runtime: Any) -> Any:
     return build_default_transport_registry(in_process_server=mcp_server_runtime)
 
 
+def _build_mcp_provider_registry() -> Any:
+    from jarvis.core.mcp.providers.registry import MCPProviderRegistry
+
+    return MCPProviderRegistry()
+
+
+def _build_mcp_provider_manager(
+    *,
+    mcp_provider_registry: Any,
+    mcp_client_runtime: Any,
+    mcp_transport_registry: Any,
+    permission_model: Any,
+    event_bus: Any,
+) -> Any:
+    from jarvis.core.mcp.providers.manager import MCPProviderManager
+
+    return MCPProviderManager(
+        mcp_provider_registry,
+        client_runtime=mcp_client_runtime,
+        transport_registry=mcp_transport_registry,
+        permission_model=permission_model,
+        event_bus=event_bus,
+    )
+
+
 def _build_mcp_heartbeat_monitor(
     *, mcp_client_runtime: Any, event_bus: Any, settings: Settings
 ) -> Any:
@@ -705,6 +730,16 @@ class Container(containers.DeclarativeContainer):
         mcp_client_runtime=mcp_client_runtime,
         event_bus=event_bus,
         settings=settings,
+    )
+    # ---- Milestone 10.5 Task Group C -- Provider Framework ----------------
+    mcp_provider_registry = providers.Singleton(_build_mcp_provider_registry)
+    mcp_provider_manager = providers.Singleton(
+        _build_mcp_provider_manager,
+        mcp_provider_registry=mcp_provider_registry,
+        mcp_client_runtime=mcp_client_runtime,
+        mcp_transport_registry=mcp_transport_registry,
+        permission_model=permission_model,
+        event_bus=event_bus,
     )
 
     # ---- Milestone 10A -- Universal Search & Knowledge Platform ------------

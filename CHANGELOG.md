@@ -3,6 +3,69 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.18.0] — M10.5 Task Group C, MCP Provider Framework
+
+The generic framework every future MCP integration plugs into **without
+modifying the MCP runtime**. Infrastructure only: **no real providers**,
+no OAuth, no authentication, no vendor code — those are Task Group D and
+M11.
+
+### Added
+- **`IMCPProvider`** (`core/interfaces/mcp.py`) — a transport-independent
+  provider port whose six lifecycle methods mirror `IService` exactly,
+  plus `suspend`/`resume`, the two moves an integration genuinely needs
+  that a service does not.
+- **`ProviderMetadata` / `ProviderConfig`** — inert, validated
+  dataclasses separating *what a provider is* from *how this install
+  runs it*, so a deployment can move a provider stdio → websocket
+  without editing the provider. Config carries `enabled`, transport,
+  runtime options, and reconnect/retry/heartbeat policies.
+- **`MCPProviderRegistry`** — register/unregister/lookup/enumerate plus
+  `discover()` filtered by transport, capability, state, protocol,
+  permission scope and enabled-ness, combining with AND. Registration
+  is **inert**: no transport built, no subprocess spawned — which is
+  what makes discovery side-effect free.
+- **`MCPProviderManager`** — install/initialize/connect/disconnect/
+  suspend/resume/shutdown/remove, with fault-isolated batch operations
+  (`connect_all` never lets one provider's failure stop another's).
+- **`TransportBackedProvider`** — the generic implementation covering
+  every "point at an MCP server with this transport config" case, which
+  is every integration M11 currently anticipates.
+- **`mcp.provider_changed`** relay event carrying an `action` field for
+  all eight documented transitions, plus the resting `state` — the two
+  genuinely differ for `resumed`, which lands in `connected`.
+- Read-only REST: `GET /api/v1/mcp/providers` (with the registry's
+  discovery filters as query params), `/providers/{id}`,
+  `/providers/{id}/health`, `/providers/{id}/metadata`.
+- DI singletons `mcp_provider_registry` and `mcp_provider_manager`.
+
+### Reused, not duplicated
+Connection management delegates to Task Group A's `MCPClientRuntime`;
+transport construction to Task Group B's `TransportFactoryRegistry`;
+permissions to M9's `PermissionModel` (namespaced `mcp:<provider_id>`,
+**no new scope vocabulary** — a provider may only request scopes the
+plugin platform already defines); health to
+`HealthMonitor.register_collector`; shutdown ordering to
+`RuntimeManager` hooks. No second registry, lifecycle manager, health
+subsystem or permission system.
+
+### Security note
+`ProviderConfig.as_dict()` reports option **key names only, never
+values** — those will carry credentials once M11's providers exist, and
+the reporting surface is built for that now rather than retrofitted.
+
+### Deferred
+Real providers, authentication and OAuth (Task Group D); GitHub, Gmail,
+Slack, Calendar, Drive and every other vendor integration (M11);
+create/update/delete provider endpoints.
+
+### Testing
+84 new tests across five files, including a full end-to-end lifecycle
+against a **real stdio peer subprocess** through the real DI container
+and real `PermissionModel`, with lifecycle events verified over the real
+WebSocket relay. mypy 266 → 266, unchanged, zero errors in any new file;
+ruff category list identical to the baseline's 22.
+
 ## [0.17.0] — M10.5 Task Group B, MCP Transport Layer & Runtime Connectivity
 
 Fills the seam Task Group A left: all four transports the milestone

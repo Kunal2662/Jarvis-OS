@@ -448,10 +448,15 @@ class ApplicationBootstrapper:
             runtime_manager.register("mcp_server", _stop_mcp_server, priority=PRIORITY_FIRST - 1)
 
         heartbeat_monitor = self._container.mcp_heartbeat_monitor()
+        provider_manager = self._container.mcp_provider_manager()
 
         if settings.mcp.client_enabled:
 
             async def _stop_mcp_client() -> None:
+                # Providers first: each owns a connection the client
+                # runtime holds, so tearing the runtime down underneath
+                # them would strand their transports.
+                await provider_manager.disconnect_all()
                 await client_runtime.disconnect_all()
 
             runtime_manager.register("mcp_client", _stop_mcp_client, priority=PRIORITY_FIRST - 1)
@@ -491,6 +496,9 @@ class ApplicationBootstrapper:
                 ),
                 "heartbeat_running": heartbeat_monitor.is_running,
                 "heartbeats": list(heartbeat_monitor.snapshot()),
+                # Task Group C -- provider health joins this same
+                # snapshot rather than a second collector.
+                "providers": await provider_manager.collect_health(),
             }
 
         health_monitor.register_collector("mcp", _collect_mcp_health)

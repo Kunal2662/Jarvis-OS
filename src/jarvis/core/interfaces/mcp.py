@@ -84,6 +84,70 @@ class MCPCapability:
 
 
 @runtime_checkable
+class IMCPProvider(Protocol):
+    """One configured MCP integration -- Milestone 10.5 Task Group C.
+
+    Deliberately **transport-independent**: a provider declares which
+    transport it wants in its metadata/config and the framework builds
+    it through the existing ``TransportFactoryRegistry``. Nothing here
+    references a socket, a subprocess, or a URL, so adding a fifth
+    transport never touches a provider.
+
+    The six lifecycle methods mirror ``core/interfaces/service.py``'s
+    ``IService`` exactly, rather than inventing a second lifecycle
+    vocabulary for the same shape. ``suspend``/``resume`` are the two
+    additions a provider genuinely needs that a service does not: an
+    integration can be temporarily parked without being torn down and
+    re-registered.
+
+    ``core/mcp/providers/transport_backed.py`` implements this for the
+    entire "point at an MCP server with this transport config" case,
+    which is every provider M11 currently anticipates. This Protocol
+    exists so a future integration with genuinely different needs (a
+    token refresh loop, say) can supply its own implementation without
+    the framework changing.
+    """
+
+    #: Stable identifier, unique within the provider registry.
+    provider_id: str
+
+    async def initialize(self) -> None:
+        """Resolve dependencies and validate configuration. No network
+        or subprocess I/O -- that belongs to :meth:`connect`."""
+        ...
+
+    async def start(self) -> None:
+        """Begin real work: connect to the peer."""
+        ...
+
+    async def stop(self) -> None:
+        """Graceful, idempotent stop."""
+        ...
+
+    async def suspend(self) -> None:
+        """Park the provider without deregistering it -- the connection
+        drops, the registration and configuration survive."""
+        ...
+
+    async def resume(self) -> None:
+        """Reverse of :meth:`suspend`."""
+        ...
+
+    async def health(self) -> Any:
+        """Cheap liveness signal. Returns
+        ``core/interfaces/service.py``'s ``HealthStatus``."""
+        ...
+
+    async def status(self) -> Any:
+        """Detailed on-demand snapshot. Returns ``ServiceStatus``."""
+        ...
+
+    async def shutdown(self) -> None:
+        """Final resource release beyond :meth:`stop`."""
+        ...
+
+
+@runtime_checkable
 class IMCPTransport(Protocol):
     """Abstract MCP transport. One instance per connection.
 
