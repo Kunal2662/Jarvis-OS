@@ -417,6 +417,18 @@ def _build_mcp_auth_manager(
     )
 
 
+def _build_health_monitor(*, service_manager: Any, event_bus: Any, settings: Settings) -> Any:
+    """Points the disk metrics at the data directory -- the volume
+    JARVIS can actually fill, and therefore the one worth budgeting."""
+    from jarvis.core.lifecycle.health_monitor import HealthMonitor
+
+    return HealthMonitor(
+        service_manager,
+        event_bus,
+        disk_path=str(settings.resolved_data_dir),
+    )
+
+
 def _build_mcp_diagnostics(
     *,
     mcp_server_runtime: Any,
@@ -712,9 +724,10 @@ class Container(containers.DeclarativeContainer):
         settings=settings,
     )
     health_monitor = providers.Singleton(
-        "jarvis.core.lifecycle.health_monitor.HealthMonitor",
+        _build_health_monitor,
         service_manager=service_manager,
         event_bus=event_bus,
+        settings=settings,
     )
     runtime_ws_hub = providers.Singleton(
         "jarvis.core.lifecycle.runtime_ws_hub.RuntimeWebSocketHub",

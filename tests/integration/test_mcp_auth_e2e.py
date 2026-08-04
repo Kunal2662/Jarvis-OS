@@ -54,7 +54,7 @@ def client(tmp_path: Path, secret_key: str):
 
 @pytest.fixture
 def auth_headers(client):
-    session = client.post("/api/v1/sessions", json={}).json()
+    session = client.post("/api/v1/sessions", json={}).json()["data"]
     return {"Authorization": f"Bearer {session['session_id']}"}, session["session_id"]
 
 

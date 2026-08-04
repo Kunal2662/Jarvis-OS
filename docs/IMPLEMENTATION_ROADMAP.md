@@ -1418,6 +1418,50 @@ all already shipped, so this task group was never blocked.
 
 ---
 
+## 5E. Backlog Completion & Stabilization Pass (✅ Completed — `0.21.0`, pre-M11)
+
+Not a milestone. A sweep of documented backlog belonging to milestones
+already marked complete, plus the UI/runtime audit that implies. Full
+reasoning in `MASTER_ROADMAP.md`'s own Aug 2026 addendum; §15 there
+carries the per-item resolutions.
+
+**Closed §15 items:**
+
+- [x] Five WebSocket categories published but never relayed —
+      `voice.state_changed`, `automation.step`, `progress.update_phase`,
+      `notification.plugin`, `plugin.custom`. `UNPUBLISHED_EVENT_TYPES`
+      names the four still absent because nothing publishes them, and a
+      test fails if that changes silently.
+- [x] `HealthMonitor` disk collector — flat `disk_percent` /
+      `disk_free_bytes` / `disk_total_bytes`, so
+      `ResourceManager.register_budget()` can target them. **GPU stays
+      open** (needs a vendor library this project has no dependency on).
+- [x] `/api/v1/health` + `/api/v1/ready` — added alongside the original
+      `/api/health` + `/api/ready`, not instead of them.
+- [x] `/api/v1/sessions` `{data, meta}` envelope — **the one intentional
+      breaking change**; callers read
+      `response.json()["data"]["session_id"]`.
+
+**Found and fixed by the UI audit** (previously untracked):
+
+- [x] Plugin Manager rendered two invented plugins and an invented
+      marketplace from an M5-era mock, next to the real Plugin Platform
+      M9 Task Group C shipped. Now reads the live `PluginRegistry` via
+      `PluginRegistryProvider`; the mock was deleted.
+- [x] Module Manager fabricated "update available" 30% of the time via
+      `random.random()`. Now reports "No update channel", which is the
+      one honest answer available.
+
+**Deliberately out of scope** — recorded so a later pass does not
+re-litigate it: M8's Deferred Backlog (§6 below) is the M8 *milestone*,
+not stabilization, and M8 is an active migration off PySide6 — building
+those surfaces in the outgoing stack means writing them twice. M7's
+Scheduler, M10A's File Search, M10B's scheduled briefing, M10's
+Learning/Feedback and M10.5's two 🟡 acceptance criteria are each
+blocked on a milestone that has not started, not on effort.
+
+---
+
 ## 6. Deferred Backlog
 
 *(Added Aug 2026 — roadmap reconciliation pass, ahead of M9 Task Group

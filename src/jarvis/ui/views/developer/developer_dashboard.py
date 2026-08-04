@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from jarvis.features.plugins.registry_provider import PluginRegistryProvider
 from jarvis.ui.components import KeyValueRow, SectionCard, StatTile
 from jarvis.ui.components.buttons import NavItemButton
 from jarvis.ui.components.icons import Icon
@@ -140,8 +141,11 @@ class DeveloperDashboard(QDialog):
             "api_center": lambda: ApiCenterView(container.api_center_service()),
             "update_center": lambda: UpdateCenterView(container.update_service()),
             "modules": lambda: ModuleManagerView(settings),
+            # The real Plugin Platform (M9 Task Group C), not the M5-era
+            # mock this view used to construct for itself.
             "plugins": lambda: PluginManagerView(
-                settings, voice_announcer=container.voice_announcement_service()
+                PluginRegistryProvider(container.plugin_registry(), container.marketplace()),
+                voice_announcer=container.voice_announcement_service(),
             ),
             "ai_models": lambda: AiModelManagerView(settings),
             "performance": lambda: PerformanceMonitorView(),

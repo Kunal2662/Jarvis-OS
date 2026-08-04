@@ -1,14 +1,24 @@
-"""Plugin Manager -- Milestone 5, section 7 (expanded from the original
-10A placeholder).
+"""Plugin Manager -- Milestone 5, section 7.
 
-There is still no real third-party plugin loader -- that remains
-genuine future work and is never faked here. What this view now shows
-is the full architecture the brief asks for: installed-plugin details
-(version, author, dependencies, permissions), Enable/Disable/Reload
-wired to a mock ``IPluginProvider`` (``MockPluginProvider``), a
-Marketplace placeholder tab, and Install/Uninstall/Update controls that
-exist and are visibly disabled with an honest tooltip rather than
-hidden -- "prepare architecture only", exactly as instructed.
+**Reads the real Plugin Platform** (Aug 2026 backlog pass). When this
+view was written there was no plugin loader, so it rendered two
+invented plugins and a three-entry invented catalogue against a mock
+provider. Milestone 9 Task Group C shipped the real thing -- registry,
+loader, sandbox, permission model, marketplace -- and this view was
+simply never rewired, so it kept showing fabricated rows next to a
+working runtime.
+
+Every row now comes from
+:class:`~jarvis.features.plugins.registry_provider.PluginRegistryProvider`
+over the live ``PluginRegistry``. Enable, Disable and Reload perform
+real lifecycle transitions. An install with no plugins renders an empty
+state rather than invented examples.
+
+Install/Uninstall/Update stay visibly disabled with a tooltip that says
+why: the registry implements all three, but each needs a *source
+directory* the user picks, and that file-dialog flow is not part of
+this pass. Disabled-and-explained beats hidden, and beats a button that
+silently does nothing.
 """
 
 from __future__ import annotations
@@ -25,27 +35,38 @@ from PySide6.QtWidgets import (
 )
 
 from jarvis.domain.voice_announcements.events import AnnouncementEvent
-from jarvis.features.plugins.mock_provider import MockPluginProvider
 from jarvis.ui.async_utils import fire_and_forget
 from jarvis.ui.components import Card, CardGrid, StatTile, StatusBadge
 
 if TYPE_CHECKING:
-    from jarvis.core.config.settings import Settings
+    from jarvis.core.interfaces.providers import IPluginProvider
     from jarvis.services.voice_announcement_service import VoiceAnnouncementService
 
-_STATUS_STATE = {"enabled": "success", "disabled": "neutral", "reloading": "warning"}
+_STATUS_STATE = {
+    "enabled": "success",
+    "disabled": "neutral",
+    "reloading": "warning",
+    "discovered": "neutral",
+    # A plugin that crashed on load is not the same as one the user
+    # switched off, and the badge says so.
+    "failed": "danger",
+}
 
 
 class PluginManagerView(QWidget):
     def __init__(
         self,
-        settings: Settings,
+        provider: IPluginProvider,
         parent: QWidget | None = None,
         *,
         voice_announcer: VoiceAnnouncementService | None = None,
     ) -> None:
+        """*provider* is injected rather than constructed here, so this
+        view depends on the port and the composition root decides which
+        implementation backs it -- the same rule every other view in
+        this dashboard already follows."""
         super().__init__(parent)
-        self._provider = MockPluginProvider(settings.resolved_data_dir / "plugins")
+        self._provider = provider
         self._voice_announcer = voice_announcer
 
         outer = QVBoxLayout(self)
@@ -104,9 +125,14 @@ class PluginManagerView(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        note = QLabel("Marketplace placeholder -- browsing only, no real backend yet.")
-        note.setObjectName("rowSubtitle")
-        self._marketplace_layout.addWidget(note)
+        if not listings:
+            empty = QLabel(
+                "No marketplace index configured. Point "
+                "`plugins.marketplace_index_path` at an index to browse."
+            )
+            empty.setObjectName("rowSubtitle")
+            empty.setWordWrap(True)
+            self._marketplace_layout.addWidget(empty)
 
         for listing in listings:
             card = Card()
@@ -120,7 +146,10 @@ class PluginManagerView(QWidget):
             layout.addWidget(author)
             install_btn = QPushButton("Install")
             install_btn.setEnabled(False)
-            install_btn.setToolTip("Future placeholder -- no plugin loader exists yet.")
+            install_btn.setToolTip(
+                "Installing needs a package source to install from; "
+                "use POST /api/v1/plugins/install for now."
+            )
             layout.addWidget(install_btn)
             self._marketplace_layout.addWidget(card)
         self._marketplace_layout.addStretch(1)
@@ -156,6 +185,13 @@ class PluginManagerView(QWidget):
         permissions.setObjectName("rowSubtitle")
         layout.addWidget(permissions)
 
+        # A failed plugin explains itself rather than showing a bare badge.
+        if plugin.get("error"):
+            error = QLabel(f"Error: {plugin['error']}")
+            error.setObjectName("rowSubtitle")
+            error.setWordWrap(True)
+            layout.addWidget(error)
+
         actions = QHBoxLayout()
         actions.setSpacing(6)
 
@@ -178,12 +214,17 @@ class PluginManagerView(QWidget):
 
         update_btn = QPushButton("Update")
         update_btn.setEnabled(False)
-        update_btn.setToolTip("Future placeholder -- no update channel exists for plugins yet.")
+        update_btn.setToolTip(
+            "Updating needs a source directory to update from; use the REST API for now."
+        )
         actions.addWidget(update_btn)
 
         uninstall_btn = QPushButton("Uninstall")
         uninstall_btn.setEnabled(False)
-        uninstall_btn.setToolTip("Future placeholder -- no plugin loader exists yet.")
+        uninstall_btn.setToolTip(
+            "Uninstalling from this view is not wired yet; "
+            "use DELETE /api/v1/plugins/{id} for now."
+        )
         actions.addWidget(uninstall_btn)
 
         actions.addStretch(1)

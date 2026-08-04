@@ -54,7 +54,15 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         allow_headers=["*"],
     )
 
+    # Mounted twice on purpose (Aug 2026 backlog pass, closing the §15
+    # "health router mount prefix mismatch" item). `docs/ARCHITECTURE.md`
+    # §5/§6 have always documented `/api/v1/health`, but this router has
+    # served `/api/health` since M0 and may be polled by external tooling
+    # that predates the docs. Adding the documented path is additive;
+    # removing the original would break those callers for no benefit, so
+    # both stay live and the docs now say so.
     app.include_router(health_routes.router, prefix="/api")
+    app.include_router(health_routes.router, prefix="/api/v1")
 
     app.state.container = container
     if container is not None:

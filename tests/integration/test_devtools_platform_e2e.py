@@ -75,7 +75,7 @@ def _write_plugin(root: Path, plugin_id: str, *, permissions=()) -> Path:
 
 
 def test_install_and_grant_via_rest_relay_over_websocket(client) -> None:
-    session = client.post("/api/v1/sessions", json={}).json()
+    session = client.post("/api/v1/sessions", json={}).json()["data"]
     token = session["session_id"]
     headers = {"Authorization": f"Bearer {token}"}
 

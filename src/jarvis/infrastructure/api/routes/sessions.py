@@ -6,6 +6,18 @@ docstring) -- issues and reads back a
 :class:`~jarvis.core.lifecycle.session_manager.SessionManager` session,
 the one real session concept this task group builds. A session id
 returned here is the ``token`` query param ``/api/v1/ws`` expects.
+
+**Response shape (changed Aug 2026, backlog pass).** These routes now
+return the ``{data, meta}`` envelope ``docs/ARCHITECTURE.md`` §5
+mandates, like every other resource route. They were the last holdout:
+§15 deferred the change while ``/sessions`` was the *only* real
+resource route, on the reasoning that adopting a wrapper before a
+second route proved the pattern risked getting it wrong and changing it
+twice. Six route modules now use the envelope consistently, so that
+reasoning has expired and the inconsistency was the only thing left.
+
+Callers read ``response.json()["data"]["session_id"]`` where they
+previously read ``response.json()["session_id"]``.
 """
 
 from __future__ import annotations
@@ -14,6 +26,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+
+from jarvis.infrastructure.api.auth import Envelope, envelope
 
 if TYPE_CHECKING:
     from jarvis.core.lifecycle.session_manager import SessionManager
@@ -49,24 +63,24 @@ def _to_response(info: Any) -> SessionResponse:
     )
 
 
-@router.post("/sessions", response_model=SessionResponse, status_code=201)
-async def create_session(body: CreateSessionRequest, request: Request) -> SessionResponse:
+@router.post("/sessions", response_model=Envelope[SessionResponse], status_code=201)
+async def create_session(body: CreateSessionRequest, request: Request) -> Envelope[SessionResponse]:
     manager = _session_manager(request)
     info = await manager.create(
         conversation_id=body.conversation_id,
         thread_id=body.thread_id,
         metadata=body.metadata,
     )
-    return _to_response(info)
+    return envelope(_to_response(info), meta={"created": True})
 
 
-@router.get("/sessions/{session_id}", response_model=SessionResponse)
-async def get_session(session_id: str, request: Request) -> SessionResponse:
+@router.get("/sessions/{session_id}", response_model=Envelope[SessionResponse])
+async def get_session(session_id: str, request: Request) -> Envelope[SessionResponse]:
     manager = _session_manager(request)
     info = manager.get(session_id)
     if info is None:
         raise HTTPException(status_code=404, detail="Session not found or already closed.")
-    return _to_response(info)
+    return envelope(_to_response(info))
 
 
 @router.delete("/sessions/{session_id}", status_code=204)

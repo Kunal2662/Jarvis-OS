@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.20.0`
+**Current version:** `0.21.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -9403,6 +9403,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.18** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group C (Provider Framework) shipped: provider interface, registry with filtered discovery, lifecycle manager, metadata/config models, health collection, `/api/v1/mcp/providers/*`. Generic infrastructure only — real providers, authentication and OAuth are Task Group D. |
 | **0.19** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group D (Authentication Foundation) shipped: credential model, encrypted-at-rest store, auth strategy registry, provider sessions, permission bridge, `/api/v1/mcp/auth/*`. Infrastructure only — no real providers, no OAuth flow, no vendor integrations. |
 | **0.20** | M10.5     | MCP & Integration Platform      | ✅ **Completed** — Task Group E (SDK, Developer Experience & Milestone Closure) shipped: SDK builders, validation framework, `jarvis mcp` CLI, self-contained examples, `MCPDiagnostics`, `/api/v1/mcp/diagnostics` + `/api/v1/mcp/validate`. Milestone closed across five task groups; Agent Trace integration and a server-side listener deferred to M11 (named in §8). |
+| **0.21** | *(none)* | Backlog Completion & Stabilization Pass | ✅ **Completed** — not a milestone. Closes documented §15 backlog belonging to already-complete milestones: five published-but-unrelayed WebSocket categories, the `HealthMonitor` disk collector, `/api/v1/health`, and `/api/v1/sessions`'s envelope (one intentional breaking change). Also fixes two UI surfaces found rendering invented data over working backends — the Plugin Manager's mock provider and the Module Manager's randomised update flag. M8's deferred frontend backlog is deliberately untouched: it is the M8 milestone itself, in a UI stack being replaced. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -9642,7 +9643,16 @@ across the whole repository is tracked, not just M0–M7's)*:
   WebSocket category table to the pre-existing `voice`/`ai`/
   `automation`/`memory`/`progress`/`notification` categories (only the
   Runtime/Service/Session/Configuration/Health/Task/Resource
-  categories are relayed today); a genuine headless `_run_api_only()`
+  categories are relayed today — **closed Aug 2026, backlog pass**:
+  `voice.state_changed`, `automation.step`, `progress.update_phase`,
+  `notification.plugin` and `plugin.custom` are relayed now. Every one
+  of those events was already published by real code; only the
+  `EVENT_TYPE_NAMES` entry was missing. Four event classes stay out
+  because nothing publishes them yet — `WorkflowStepEvent`,
+  `ScheduledJobFiredEvent` (both M7), `VisionProviderStatusEvent` (M6's
+  remainder), `PluginCrashedEvent` (the deferred supervisor) — and
+  `DebugLogCapturedEvent` stays out because it fires per log line and
+  this hub has no per-category subscription); a genuine headless `_run_api_only()`
   runtime mode (the embedded API server exists only inside the GUI
   runtime path); M14's real Bearer/JWT session-token issuance (today's
   `/api/v1/ws` auth uses a `SessionManager` session id as a real,
@@ -9650,31 +9660,53 @@ across the whole repository is tracked, not just M0–M7's)*:
 - **M9 Task Group C** — an external supervisor/watchdog process for
   genuine automatic process restart after a crash (Crash Recovery only
   detects and reports today, by design — a process cannot restart
-  itself after crashing); GPU/disk collectors for `HealthMonitor`
-  (`ResourceManager.register_budget()` already supports them once a
-  collector exists); enforcement (throttle/kill) on a Resource Manager
+  itself after crashing); ~~GPU/disk collectors for `HealthMonitor`~~
+  **disk closed Aug 2026, backlog pass** — `disk_percent`/
+  `disk_free_bytes`/`disk_total_bytes` are in the snapshot as flat
+  top-level keys, which is what makes them targetable by
+  `ResourceManager.register_budget()`; **GPU stays open** and is not
+  faked, because reading it needs a vendor library this project does
+  not depend on; enforcement (throttle/kill) on a Resource Manager
   budget breach; persisting/resuming the Background Task Manager's
   queue across a restart.
-- **`/api/v1/sessions`'s response shape** — returns `SessionResponse`
-  directly, not wrapped in the `{"data": ..., "meta": ...}` envelope
-  `docs/ARCHITECTURE.md` §5 mandates for every successful response.
-  Deliberately not retrofitted in this audit pass: it's the only real
-  REST resource route today, and rewriting one route's response shape
-  (plus every test asserting its current flat shape) in isolation,
-  before a second real resource route exists to prove the envelope
-  pattern is actually being followed consistently, risks getting the
-  wrapper shape wrong and having to change it twice. Revisit once M9
-  Task Group D or M10+ adds the next real REST resource.
-- **Health router mount prefix mismatch** *(found Aug 2026, Project
-  Completion Audit)* — `docs/ARCHITECTURE.md` §5/§6 document
-  `/api/v1/health` as the health-check route; the real router
-  (`infrastructure/api/routes/health.py`, shipped M0) has always
-  mounted at `/api/health`, no `/v1`. Confirmed during M9 Task Group B
-  and left alone as out of that task group's scope; still open. Low
-  risk to fix (add the `/v1` prefix, update the two doc references),
-  but touches a route that's been live and possibly polled by external
-  tooling since M0 — a deliberate, separate change, not bundled into
-  an unrelated task group.
+- ~~**`/api/v1/sessions`'s response shape**~~ — **closed Aug 2026,
+  backlog pass.** The route now returns the `{"data": ..., "meta": ...}`
+  envelope §5 mandates. The stated precondition ("revisit once M9 Task
+  Group D or M10+ adds the next real REST resource") was met several
+  times over — six route modules use the envelope consistently — so the
+  reasoning for deferring had expired and the inconsistency was the only
+  thing left. This is the pass's one intentional breaking change:
+  callers read `response.json()["data"]["session_id"]`. The route keeps
+  its separate *authentication* exemption.
+- ~~**Health router mount prefix mismatch**~~ — **closed Aug 2026,
+  backlog pass.** The router is now mounted at **both** `/api` and
+  `/api/v1`, so the documented `/api/v1/health` works without breaking
+  the `/api/health` that external monitoring may have polled since M0.
+  One router, mounted twice — not two implementations that could drift
+  apart, and a test pins that their bodies stay identical.
+
+**Found *and* closed by the Aug 2026 backlog pass** *(previously
+untracked — the audit surfaced them, so they are recorded here with
+their resolution rather than filed as new debt)*:
+
+- ~~**Desktop Plugin Manager rendered fabricated data**~~ — the M5-era
+  `PluginManagerView` was still wired to a `MockPluginProvider` that
+  seeded two invented plugins ("Weather Widget", "Spotify Connector")
+  and a three-entry invented marketplace. M9 Task Group C had shipped
+  the real Plugin Platform — registry, loader, sandbox, permission
+  model, marketplace, `/api/v1/plugins/*` — and this view was simply
+  never rewired, so it showed made-up rows next to a working runtime.
+  That is exactly what M8 AC2 ("no screen renders fake, simulated, or
+  placeholder data") forbids. Now reads the live `PluginRegistry`
+  through a new `PluginRegistryProvider`; Enable/Disable/Reload perform
+  real lifecycle transitions; an install with no plugins shows an empty
+  state. The mock was deleted, not left beside the real one.
+- ~~**Module Manager invented update availability**~~ — `check_update`
+  rolled `random.random() < 0.3` and fabricated a bumped version number
+  when it came up, so the same click told the user a different story
+  each time. There is no module update channel, which has exactly one
+  honest answer; the UI now says "No update channel" rather than the
+  equally untrue "Up to Date".
 
 ### Future
 
@@ -12980,3 +13012,86 @@ acceptance criteria remain 🟡 and are named in §8 with where they land
 provider, no OAuth flow, no vendor integration ships here -- that was
 always M11's scope, and the substrate M11 registers against is now
 complete.
+
+*Aug 2026 addendum -- Backlog Completion & Stabilization Pass
+(pre-M11):* not a milestone. A sweep of the documented backlog belonging
+to milestones already marked complete, plus the UI and runtime audit
+that sweep implies.
+
+**Two screens were showing invented data over a working backend**, and
+finding them is the main reason this pass was worth running. The
+desktop Plugin Manager was still wired to an M5-era mock that seeded
+"Weather Widget" and "Spotify Connector" and a three-entry invented
+marketplace. M9 Task Group C had shipped the real Plugin Platform --
+registry, loader, sandbox, permission model, marketplace, REST routes --
+and nobody rewired the view, so it rendered fabricated rows beside a
+runtime that could have answered honestly. The Module Manager was worse
+in kind if not in scale: `check_update` rolled a die and invented a
+version number 30% of the time, so the same button told the user a
+different story on each click. Both are now real or honestly empty, and
+the mock provider was deleted rather than left sitting next to its
+replacement.
+
+This is the failure mode worth naming for future passes: neither was a
+bug in code anyone wrote recently. Both were *stale wiring* -- honest
+placeholders written when there was genuinely nothing behind them,
+which quietly became lies the moment the backend shipped. Nothing fails
+when that happens. Only an audit that reads a docstring's claim against
+the current tree catches it, which is why the docstrings that made those
+claims were rewritten too, not just the code.
+
+**Four §15 items closed**, all with their stated preconditions already
+met:
+
+- *Five WebSocket categories that were published but never relayed.*
+  `voice.state_changed`, `automation.step`, `progress.update_phase`,
+  `notification.plugin`, `plugin.custom` -- every one had a real
+  publisher and no `EVENT_TYPE_NAMES` entry, so no subscriber could
+  ever receive them. `UNPUBLISHED_EVENT_TYPES` now names the four
+  classes still absent because nothing publishes them, and a test fails
+  if one gains a publisher without gaining a relay entry.
+  `DebugLogCapturedEvent` stays out on its own reasoning: it fires once
+  per log line, and this hub broadcasts to every connection with no
+  per-category subscription, so relaying it would drown every other
+  event in the replay buffer.
+- *The `HealthMonitor` disk collector.* Flat `disk_percent` /
+  `disk_free_bytes` / `disk_total_bytes` keys rather than a nested
+  collector payload -- `ResourceManager.register_budget()` reads one
+  top-level key and compares a float, so nesting would have left them
+  unbudgetable, and "so a budget can target it" was the entire reason
+  §15 tracked the item. GPU stays open and unfaked: it needs a vendor
+  library this project does not depend on.
+- *The health router prefix mismatch.* Mounted at both `/api` and
+  `/api/v1` rather than moved. An unversioned liveness probe is the URL
+  external monitoring is likeliest to have hard-coded, and breaking it
+  to satisfy a doc would be the wrong trade; a test pins that both
+  paths return identical bodies.
+- *`/api/v1/sessions`'s response shape.* **The pass's one intentional
+  breaking change.** §15 deferred wrapping it while `/sessions` was the
+  only real resource route, reasoning that adopting a wrapper before a
+  second route proved the shape risked getting it wrong twice. Six route
+  modules now use the envelope consistently, so that reasoning had
+  expired and the inconsistency was the only thing left. Callers read
+  `response.json()["data"]["session_id"]`; the route keeps its separate
+  authentication exemption, which was always a different question from
+  its response shape.
+
+**What was deliberately not done, and why.** M8's deferred backlog --
+Notification Center, Context Menu system, Workspace views, window
+management, responsive/DPI/multi-monitor, Phases 2/5/6/7 -- is not
+stabilization work. It is the M8 milestone itself, M8 is *active* rather
+than complete, and it is an XL migration off PySide6. Building those
+surfaces in the outgoing stack would mean writing them twice. M7's
+Scheduler, M10A's File Search, M10B's scheduled briefing, M10's
+Learning/Feedback and M10.5's two partial acceptance criteria are each
+blocked on a milestone that has not started (M7 Phase 6, M11B, M15,
+M16, M14, M11) -- blocked on dependencies, not on effort, and
+implementing any of them here would be starting those milestones early
+under another name.
+
+Validation: 1433 -> 1451 tests, all passing. mypy 266 -> 265 (the
+`HealthMonitor` DI factory replaced a string-path provider, removing one
+`var-annotated` error). Ruff's category list unchanged at 22 after
+fixing the one new finding (`I001`). Version bumped `0.20.0` ->
+`0.21.0` -- a minor bump rather than a patch, because the sessions
+envelope is a breaking change to a live route.

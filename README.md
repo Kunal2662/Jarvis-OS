@@ -274,9 +274,10 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.20.0` · **Current milestone:** M10.5 — MCP &
-Integration Platform (✅ completed across five task groups; awaiting
-review before M11 begins).
+**Current version:** `0.21.0` · **Current milestone:** M10.5 — MCP &
+Integration Platform (✅ completed across five task groups). `0.21.0` is
+a backlog completion & stabilization pass over already-completed
+milestones, not a new milestone — awaiting review before M11 begins.
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source

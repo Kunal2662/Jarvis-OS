@@ -3,6 +3,79 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.21.0] — Backlog Completion & Stabilization Pass (pre-M11)
+
+Not a milestone. A pass over the documented backlog of milestones that
+are already complete, plus the UI/runtime audit that surfaced two
+places where a screen was showing invented data next to a working
+backend.
+
+### Fixed
+- **The desktop Plugin Manager rendered fabricated plugins.** It was
+  still wired to an M5-era `MockPluginProvider` that seeded two invented
+  entries ("Weather Widget", "Spotify Connector") and a three-item
+  invented marketplace. M9 Task Group C shipped the real Plugin Platform
+  — registry, loader, sandbox, permission model, marketplace — and this
+  view was simply never rewired. It now reads the live `PluginRegistry`
+  through a new `PluginRegistryProvider`; Enable/Disable/Reload perform
+  real lifecycle transitions, a failed plugin shows its actual error,
+  and an install with no plugins shows an empty state. The mock was
+  deleted rather than left beside the real thing.
+- **The Module Manager invented update availability.** `check_update`
+  rolled `random.random() < 0.3` and fabricated a bumped version number
+  when it came up, so the same click told the user a different story
+  each time. There is no module update channel; the button now says
+  "No update channel" instead of the equally untrue "Up to Date".
+- Install/Uninstall/Update tooltips in the Plugin Manager claimed "no
+  plugin loader exists yet", which stopped being true at M9. They now
+  name the real reason (each needs a source directory this surface does
+  not ask for) and point at the REST route that does the job.
+
+### Added
+- **Five WebSocket relay categories that were published but never
+  relayed** (`MASTER_ROADMAP.md` §15, M9 Task Group B): `voice.state_changed`,
+  `automation.step`, `progress.update_phase`, `notification.plugin` and
+  `plugin.custom`. Every one had a real publisher; only the
+  `EVENT_TYPE_NAMES` entry was missing, so no subscriber could ever see
+  them. `UNPUBLISHED_EVENT_TYPES` now names the four event classes still
+  deliberately absent, and a test fails if one of them gains a publisher
+  without gaining a relay entry.
+- **Disk metrics in the health snapshot** (§15, M9 Task Group C):
+  `disk_percent`, `disk_free_bytes`, `disk_total_bytes`, as flat
+  top-level keys so `ResourceManager.register_budget()` can target them
+  — which was the whole point of tracking the item. GPU stays
+  unimplemented and unfaked: it needs a vendor library this project does
+  not depend on.
+- `/api/v1/health` and `/api/v1/ready` (§15): the paths
+  `docs/ARCHITECTURE.md` has always documented. The original
+  `/api/health` and `/api/ready` keep working — one router, mounted
+  twice, with a test pinning that both return identical bodies.
+
+### Changed
+- **BREAKING — `/api/v1/sessions` now returns the `{data, meta}`
+  envelope** (§15). It was the last route outside the envelope
+  `ARCHITECTURE.md` §5 mandates; §15 deferred the change until a second
+  resource route existed to prove the shape, and six now do. Callers
+  read `response.json()["data"]["session_id"]`. The route keeps its
+  separate authentication exemption — it is what issues the token every
+  other route needs.
+- `HealthMonitor` takes a `disk_path`, wired by DI to the data directory
+  — the volume JARVIS can actually fill.
+
+### Notes
+- **M8's deferred backlog is untouched, deliberately.** Notification
+  Center, Context Menu system, Workspace views, window management,
+  responsive/DPI/multi-monitor, Phases 2/5/6/7 — that is the M8
+  milestone itself, not stabilization, and M8 is an *active* frontend
+  migration whose PySide6 surfaces are slated for replacement. Building
+  them in the outgoing stack would be work thrown away twice.
+- M7's Scheduler, M10A's File Search, M10B's scheduled briefing, M10's
+  Learning/Feedback and M10.5's two partial acceptance criteria all
+  remain open with named owners (M7 Phase 6, M11B, M15, M16, M14, M11).
+  Each is blocked on a milestone that has not started, not on effort.
+- 1433 → 1451 tests, all passing. mypy 266 → 265; ruff category list
+  unchanged at 22; black clean.
+
 ## [0.20.0] — M10.5 Task Group E, SDK, Developer Experience & Milestone Closure
 
 The last task group of M10.5. It ships nothing a *user* sees and

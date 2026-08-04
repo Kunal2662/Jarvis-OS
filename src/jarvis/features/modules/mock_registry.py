@@ -15,7 +15,6 @@ the mock registry, not the actual running subsystem.
 from __future__ import annotations
 
 import asyncio
-import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -130,18 +129,23 @@ class ModuleRegistryService:
         return module
 
     async def check_update(self, name: str) -> dict:
+        """Always reports "no update available", because there is no
+        module update channel to ask.
+
+        This used to roll a die (``random.random() < 0.3``) and invent a
+        bumped version number when it came up. That made the Module
+        Manager tell the user a different story on every click, none of
+        it true. A subsystem with no update source has exactly one
+        honest answer, and ``checked`` says the question was asked
+        rather than silently skipped (Aug 2026 backlog pass).
+        """
         await asyncio.sleep(0.1)
         module = self._modules[name]
-        has_update = random.random() < 0.3
         return {
             "module": name,
             "current_version": module.version,
-            "latest_version": _bump(module.version) if has_update else module.version,
-            "update_available": has_update,
+            "latest_version": module.version,
+            "update_available": False,
+            "checked": False,
+            "detail": "No module update channel exists yet.",
         }
-
-
-def _bump(version: str) -> str:
-    parts = version.split(".")
-    parts[-1] = str(int(parts[-1]) + 1)
-    return ".".join(parts)

@@ -349,12 +349,15 @@ applied to every named module.
 ## 5. API contract standards
 
 **Status:** this is the binding contract every new route follows.
-`GET /api/health`/`/api/ready` (M0) and `POST`/`GET`/`DELETE
+`GET /api/health`/`/api/ready` (M0, also served under `/api/v1`) and `POST`/`GET`/`DELETE
 /api/v1/sessions` (M9 Task Group B, `infrastructure/api/routes/
-sessions.py`) are real, and remain the two narrow, deliberate
-exceptions documented below (Request/response schema and
-Authentication) — health is public by design, sessions is what issues
-the token every other route needs. `infrastructure/api/routes/
+sessions.py`) are real. Both remain **authentication** exceptions
+documented below — health is public by design, sessions is what issues
+the token every other route needs — but as of the Aug 2026 backlog
+pass neither is a *response-shape* exception any more: sessions moved
+onto the envelope, and health stays flat because a liveness probe is
+polled by tooling expecting a minimal body, not because it was
+overlooked. `infrastructure/api/routes/
 plugins.py` and `routes/devtools.py` (M9 Task Group E) are the real
 "next real resource route" this note used to say M10+ would need to
 add — both follow this section's contract in full: the `{data, meta}`
@@ -363,10 +366,10 @@ envelope (`infrastructure/api/auth.py`'s `Envelope`) and
 dependency this section referenced by name since Task Group B but no
 route had actually used until Task Group E). `routes/agent.py` (M10,
 partial) follows suit for `POST /api/v1/agent/invoke`; its sibling
-`POST /api/v1/agent/stream` is this contract's third documented
+`POST /api/v1/agent/stream` is this contract's one response-shape
 exception — a Server-Sent Events response, not a `{data, meta}` JSON
-body, by the nature of the transport, the same way `/api/v1/sessions`
-already is one. `routes/knowledge.py` (M10A, complete) follows the
+body, by the nature of the transport. (`/api/v1/sessions` used to be a
+second; the Aug 2026 backlog pass moved it onto the envelope.) `routes/knowledge.py` (M10A, complete) follows the
 contract in full for every one of its routes (`/search`,
 `/knowledge/*`) — no further exceptions. `routes/intelligence.py`
 (M10B, complete) follows suit for every one of its routes (`/goals`,
@@ -408,12 +411,18 @@ shapes.
 }
 ```
 
-*As shipped:* `/api/v1/sessions` (M9 Task Group B) still returns its
-`SessionResponse` Pydantic model directly, not wrapped in this envelope
-— now a deliberate, permanent exception (it is the mechanism that
-issues the very session token this envelope's own consumers need,
-before any wrapper convention can matter) rather than open debt.
-`POST /api/v1/agent/stream` (M10, partial) is a second, deliberate,
+*As shipped:* `/api/v1/sessions` (M9 Task Group B) **now uses this
+envelope**, as of the Aug 2026 backlog pass. It was the last holdout:
+§15 deferred wrapping it while `/sessions` was the only real resource
+route, reasoning that adopting a wrapper before a second route proved
+the shape risked getting it wrong and changing it twice. Six route
+modules now use it consistently, so that reasoning expired and the
+inconsistency was the only thing left. Callers read
+`response.json()["data"]["session_id"]`. The route keeps its
+*authentication* exemption — it is what issues the token every other
+route's Bearer auth requires — but that was always a separate question
+from its response shape.
+`POST /api/v1/agent/stream` (M10, partial) remains a deliberate,
 permanent exception: a Server-Sent Events body (`data: <chunk>` frames)
 by the nature of the transport, not one JSON object — its sibling
 `POST /api/v1/agent/invoke` uses the real envelope normally. Every
@@ -463,16 +472,20 @@ is actively watching.
 
 ### Authentication
 
-*As shipped:* the real health router (M0) mounts at `/api/health`, not
-`/api/v1/health` — a pre-existing prefix inconsistency, confirmed
-during M9 Task Group B and not fixed there (out of that task group's
-scope; tracked in `MASTER_ROADMAP.md` §15 Pending). `/api/v1/sessions`
+*As shipped:* the health router (M0) is mounted at **both**
+`/api/health` and `/api/v1/health` (likewise `/ready`). It served only
+the unversioned path until the Aug 2026 backlog pass, which added the
+documented `/v1` form rather than moving the route — an unversioned
+liveness probe is exactly the URL external monitoring is most likely to
+have hard-coded, so removing it would break callers for no benefit.
+One router, mounted twice; there is no second implementation to drift.
+`/api/v1/sessions`
 (M9 Task Group B) is a second, deliberate, permanent exception below —
 it has no auth dependency at all, being the mechanism that issues the
 very session token every *other* route's Bearer auth requires; nothing
 exists to authenticate a request for a session with.
 
-Every route except `/api/health` and `/api/v1/sessions` requires a
+Every route except the health/readiness probes and `/api/v1/sessions` requires a
 session token (Bearer, `Authorization: Bearer <token>`), issued by the
 session mechanism §17 defines, validated by FastAPI dependency
 injection (`Depends(get_current_session)`) — never re-implemented per
@@ -550,17 +563,17 @@ categories map directly to the Event Bus categories in §7:
 
 | Category | Example events |
 |---|---|
-| `voice` | `voice.state_changed`, `voice.transcript_partial`, `voice.transcript_final` |
+| `voice` | `voice.state_changed` *(**relayed since the Aug 2026 backlog pass** — `services/voice_service.py` had been publishing `VoiceStateChangedEvent` all along; only the `EVENT_TYPE_NAMES` entry was missing, so no subscriber could see it)*; `voice.transcript_partial`, `voice.transcript_final` *(not yet published)* |
 | `ai` | *(superseded by `agent`, below — M10 shipped against the actual `AgentStepEvent`/`AgentOrchestrator` domain naming already used throughout `agents/`, matching how `plugin`/`task`/`resource` etc. are all named after their real domain noun, not a generic umbrella term)* |
 | `agent` | `agent.step` *(shipped M10, partial — Agent Trace visibility over `AgentOrchestrator`'s LangGraph node transitions, `core/lifecycle/runtime_ws_hub.py`. Token-level streaming, §15, is `/api/v1/agent/stream`'s SSE response, not a WS event — one WS frame per LLM token was judged not worth the relay traffic)* |
-| `automation` | `automation.step_started`, `automation.step_completed`, `automation.workflow_finished` |
+| `automation` | `automation.step` *(**relayed since the Aug 2026 backlog pass** — `features/automation/executor.py`'s `AutomationStepEvent`, one relay name carrying a `status` field rather than one event per outcome, the shape `memory.updated`/`goal.updated` established)*. The original `step_started`/`step_completed`/`workflow_finished` triple was never built; the single-event-with-status shape replaced it. |
 | `memory` | `memory.updated`, `memory.recalled` *(shipped M10A — `services/memory_service.py`'s `remember`/`forget`/`forget_all`/`recall`, via an optional `event_bus` constructor parameter)* |
 | `knowledge` | `knowledge.entity_updated`, `knowledge.correction_applied` *(shipped M10A — `services/knowledge_service.py`, `core/lifecycle/runtime_ws_hub.py`)* |
 | `goal` | `goal.updated` *(shipped M10B — `services/intelligence_service.py`'s Goal Manager, `action` payload field distinguishes created/progress_updated/completed/deleted)* |
 | `mcp` | `mcp.connection_changed`, `mcp.capabilities_changed`, `mcp.permission_denied` *(shipped M10.5 Task Group A — `core/mcp/`; `connection_changed` carries a `state` payload field rather than one event class per transition)*; `mcp.handshake_completed`, `mcp.negotiation_completed`, `mcp.transport_failed`, `mcp.heartbeat` *(shipped M10.5 Task Group B — kept distinct from each other because a transport failure is a connectivity problem, whereas a permission denial or negotiation rejection is the protocol working correctly)*; `mcp.provider_changed` *(shipped M10.5 Task Group C — one relay name carrying an `action` field for all eight provider transitions plus the resting `state`, the same shape `memory.updated`/`goal.updated` established)*; `mcp.auth_changed` *(shipped M10.5 Task Group D — the eight authentication transitions. Deliberately carries no token: every WebSocket subscriber receives relayed events, so a credential value here would be a leak)* |
 | `briefing` | `briefing.generated` *(shipped M10B — `services/intelligence_service.py`'s `generate_daily_briefing()`, on-demand only; §16's Scheduling standard — M7 Phase 6's Scheduler is the only path a feature runs unattended — is why this doesn't build its own timer)* |
-| `progress` | `progress.update` (long-running non-AI operations — backups, sync) |
-| `notification` | `notification.created` (user-facing toast-equivalent) |
+| `progress` | `progress.update_phase` *(**relayed since the Aug 2026 backlog pass** — `services/update_service.py`'s `UpdatePhaseEvent`, carrying `phase`/`progress_percent`/`message` for the Update Center's live feed)* |
+| `notification` | `notification.plugin` *(**relayed since the Aug 2026 backlog pass** — a plugin's permission-gated notification through the Extension API's `notifications` scope, `core/plugins/extension_api.py`)*. A general `notification.created` for app-originated toasts is M8's Notification Center work, not yet built. |
 | `runtime` | `runtime.module_state_changed` (relays §4 transitions); `runtime.started`/`runtime.ready`/`runtime.stopping`/`runtime.shutdown` *(shipped M9 Task Group B — the application-lifecycle-wide sequence, distinct from a single module's §4 transitions above)*; `runtime.crash_recovered` *(shipped M9 Task Group C — Crash Recovery detected the previous run never reached a clean shutdown, `core/lifecycle/crash_recovery.py`)* |
 | `service` | `service.started`/`service.stopped`/`service.failed` *(shipped M9 Task Group B — Service Manager's per-service lifecycle, `core/lifecycle/service_manager.py`)* |
 | `configuration` | `configuration.updated` *(shipped M9 Task Group B — Configuration Manager's live-reload result, dotted setting keys only, never values)* |
@@ -568,7 +581,7 @@ categories map directly to the Event Bus categories in §7:
 | `health` | `health.updated` *(shipped M9 Task Group B — Runtime Health Monitor's poll-tick snapshot, `core/lifecycle/health_monitor.py`)* |
 | `task` | `task.started`/`task.completed`/`task.failed` *(shipped M9 Task Group C — Background Task Manager's per-task lifecycle, `core/lifecycle/background_task_manager.py`)* |
 | `resource` | `resource.budget_exceeded` *(shipped M9 Task Group C — Resource Manager, published only on the transition into violation, `core/lifecycle/resource_manager.py`)* |
-| `plugin` | `plugin.discovered`/`loaded`/`load_failed`/`unloaded`/`enabled`/`disabled`/`installed`/`uninstalled`/`updated`/`permission_granted`/`permission_denied` *(shipped M9 Task Group D — `PluginRegistry`/`PermissionModel` lifecycle, `core/plugins/registry.py` + `permissions.py`; a plugin's own `PluginCustomEvent`/`PluginNotificationEvent`, published through `core/plugins/extension_api.py`'s Extension API, are not relayed here)* |
+| `plugin` | `plugin.discovered`/`loaded`/`load_failed`/`unloaded`/`enabled`/`disabled`/`installed`/`uninstalled`/`updated`/`permission_granted`/`permission_denied` *(shipped M9 Task Group D — `PluginRegistry`/`PermissionModel` lifecycle, `core/plugins/registry.py` + `permissions.py`; a plugin's own `plugin.custom` and `notification.plugin`, published through `core/plugins/extension_api.py`'s Extension API, joined the relay in the Aug 2026 backlog pass)* |
 
 ### Heartbeat and reconnect
 

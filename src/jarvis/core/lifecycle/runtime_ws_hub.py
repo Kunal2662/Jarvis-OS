@@ -42,6 +42,15 @@ same shape ``memory.updated`` already established) and ``briefing``
 Integration Platform) adds ``mcp``
 (``mcp.connection_changed`` -- again one relay name with a ``state``
 payload field, ``mcp.capabilities_changed``, ``mcp.permission_denied``).
+
+The Aug 2026 backlog pass finally closes the rest of §6's original
+table: ``voice``, ``automation``, ``progress`` and ``notification``.
+Every one of those events was already being published by real code --
+``VoiceService``, the automation executor, ``UpdateService``, the
+plugin Extension API -- and only the relay entry was missing, so no
+subscriber could see them. See :data:`UNPUBLISHED_EVENT_TYPES` below
+for the four event classes still absent from the relay on purpose, and
+the note beneath it for why ``DebugLogCapturedEvent`` stays out.
 """
 
 from __future__ import annotations
@@ -55,6 +64,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from jarvis.core.events.events import (
     AgentStepEvent,
     AppReadyEvent,
+    AutomationStepEvent,
     ConfigurationUpdatedEvent,
     CrashRecoveredEvent,
     DailyBriefingGeneratedEvent,
@@ -74,12 +84,14 @@ from jarvis.core.events.events import (
     MCPTransportFailedEvent,
     MemoryRecalledEvent,
     MemoryUpdatedEvent,
+    PluginCustomEvent,
     PluginDisabledEvent,
     PluginDiscoveredEvent,
     PluginEnabledEvent,
     PluginInstalledEvent,
     PluginLoadedEvent,
     PluginLoadFailedEvent,
+    PluginNotificationEvent,
     PluginPermissionDeniedEvent,
     PluginPermissionGrantedEvent,
     PluginUninstalledEvent,
@@ -97,6 +109,8 @@ from jarvis.core.events.events import (
     TaskCompletedEvent,
     TaskFailedEvent,
     TaskStartedEvent,
+    UpdatePhaseEvent,
+    VoiceStateChangedEvent,
 )
 
 if TYPE_CHECKING:
@@ -154,7 +168,43 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     MemoryRecalledEvent: "memory.recalled",
     KnowledgeEntityUpdatedEvent: "knowledge.entity_updated",
     KnowledgeCorrectionAppliedEvent: "knowledge.correction_applied",
+    # Aug 2026 backlog pass -- the four categories §6's table has
+    # documented since before any of these managers existed, and which
+    # §15 tracked as open Task Group B work. Every one of these events
+    # was already being published by real code; only the relay entry was
+    # missing, so a subscriber had no way to see them.
+    VoiceStateChangedEvent: "voice.state_changed",
+    AutomationStepEvent: "automation.step",
+    UpdatePhaseEvent: "progress.update_phase",
+    PluginNotificationEvent: "notification.plugin",
+    PluginCustomEvent: "plugin.custom",
 }
+
+#: Declared but never published, so deliberately absent from the relay
+#: above -- adding them would ship dead entries that no subscriber could
+#: ever receive. Each belongs to a milestone that has not built its
+#: publisher yet: ``WorkflowStepEvent`` and ``ScheduledJobFiredEvent``
+#: to M7 (Phases 4-6), ``VisionProviderStatusEvent`` to M6's remainder,
+#: ``PluginCrashedEvent`` to the supervisor M9 Task Group C deferred.
+#: Listed by name so the omission reads as a decision rather than an
+#: oversight the next audit re-discovers.
+UNPUBLISHED_EVENT_TYPES: tuple[str, ...] = (
+    "WorkflowStepEvent",
+    "ScheduledJobFiredEvent",
+    "VisionProviderStatusEvent",
+    "PluginCrashedEvent",
+)
+
+#: ``DebugLogCapturedEvent`` is published (by ``DebugConsole``) and is
+#: still not relayed, which is a separate decision from the above: it
+#: fires once per *log line*. This hub has no per-category subscription
+#: -- every connection receives every relayed event, and each one also
+#: enters the bounded replay buffer -- so relaying it would drown every
+#: other event in the buffer and push a frame per log line to every
+#: client. The console's own bounded buffer, queried over
+#: ``/api/v1/devtools/logs``, is the surface for that data. Revisit if
+#: this hub ever grows per-category subscriptions.
+
 
 _BASE_FIELD_NAMES = {f.name for f in dataclasses.fields(Event)}
 

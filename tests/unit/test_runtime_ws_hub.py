@@ -103,6 +103,14 @@ def test_every_documented_event_type_is_mapped() -> None:
         "mcp.provider_changed",
         # Milestone 10.5 Task Group D
         "mcp.auth_changed",
+        # Aug 2026 backlog pass -- §6's original category table, finally
+        # relayed. These events were already published; only the relay
+        # entry was missing.
+        "voice.state_changed",
+        "automation.step",
+        "progress.update_phase",
+        "notification.plugin",
+        "plugin.custom",
     }
 
 
@@ -138,14 +146,19 @@ async def test_started_hub_relays_mapped_events_to_connections() -> None:
 
 @pytest.mark.asyncio
 async def test_unmapped_events_are_not_relayed() -> None:
-    from jarvis.core.events.events import VoiceStateChangedEvent
+    """``VoiceStateChangedEvent`` used to be the example here; the Aug
+    2026 backlog pass mapped it, so this now uses one that is still
+    deliberately unmapped -- ``DebugLogCapturedEvent`` fires once per
+    log line, and this hub broadcasts to every connection with no
+    per-category subscription."""
+    from jarvis.core.events.events import DebugLogCapturedEvent
 
     hub, bus, _ = _hub()
     hub.start()
     connection = _FakeConnection()
     hub.connect(connection)
 
-    await bus.publish(VoiceStateChangedEvent(state="listening"))
+    await bus.publish(DebugLogCapturedEvent(level="INFO", logger="test"))
 
     assert connection.received == []
 
@@ -271,3 +284,72 @@ async def test_hub_replay_returns_false_outside_window() -> None:
     connection = _FakeConnection()
     served = await hub.replay(connection, "never-seen")
     assert served is False
+
+
+# --- Relay coverage (Aug 2026 backlog pass) -------------------------------------
+
+
+def test_previously_unrelayed_published_events_now_reach_subscribers() -> None:
+    """§15 tracked "extend §6's category table to voice/automation/
+    progress/notification" as open Task Group B work. Every one of these
+    events was already published by real code -- only the relay entry
+    was missing, so no subscriber could ever see them."""
+    from jarvis.core.events.events import (
+        AutomationStepEvent,
+        PluginCustomEvent,
+        PluginNotificationEvent,
+        UpdatePhaseEvent,
+        VoiceStateChangedEvent,
+    )
+
+    assert EVENT_TYPE_NAMES[VoiceStateChangedEvent] == "voice.state_changed"
+    assert EVENT_TYPE_NAMES[AutomationStepEvent] == "automation.step"
+    assert EVENT_TYPE_NAMES[UpdatePhaseEvent] == "progress.update_phase"
+    assert EVENT_TYPE_NAMES[PluginNotificationEvent] == "notification.plugin"
+    assert EVENT_TYPE_NAMES[PluginCustomEvent] == "plugin.custom"
+
+
+@pytest.mark.asyncio
+async def test_a_voice_state_change_is_broadcast_end_to_end() -> None:
+    """Through the real bus and the real hub, not by reading the map."""
+    from jarvis.core.events.events import VoiceStateChangedEvent
+
+    hub, bus, _ = _hub()
+    hub.start()
+    connection = _FakeConnection()
+    hub.connect(connection)
+
+    await bus.publish(VoiceStateChangedEvent(state="listening", detail="wake word"))
+
+    assert [e["type"] for e in connection.received] == ["voice.state_changed"]
+    assert connection.received[0]["payload"]["state"] == "listening"
+    hub.stop()
+
+
+def test_every_relayed_name_is_unique() -> None:
+    """Two event classes sharing a relay name would make a subscriber
+    unable to tell them apart."""
+    assert len(set(EVENT_TYPE_NAMES.values())) == len(EVENT_TYPE_NAMES)
+
+
+def test_only_unpublished_events_are_absent_from_the_relay() -> None:
+    """Guards the omission list: an event class that gains a publisher
+    must also gain a relay entry, or this test names it."""
+    import inspect
+
+    from jarvis.core.events import events as events_module
+    from jarvis.core.lifecycle.runtime_ws_hub import UNPUBLISHED_EVENT_TYPES
+
+    all_events = {
+        obj
+        for obj in vars(events_module).values()
+        if inspect.isclass(obj)
+        and issubclass(obj, events_module.Event)
+        and obj is not events_module.Event
+    }
+    absent = {cls.__name__ for cls in all_events - set(EVENT_TYPE_NAMES)}
+
+    # DebugLogCapturedEvent is published but deliberately not relayed --
+    # it fires once per log line, and this hub broadcasts to every
+    # connection with no per-category subscription.
+    assert absent == {*UNPUBLISHED_EVENT_TYPES, "DebugLogCapturedEvent"}

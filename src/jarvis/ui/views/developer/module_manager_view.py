@@ -158,6 +158,11 @@ class ModuleManagerView(QWidget):
         result = await self._registry.check_update(name)
         if result["update_available"]:
             button.setText(f"Update to v{result['latest_version']}")
-        else:
+        elif result.get("checked", True):
             button.setText("Up to Date")
+        else:
+            # Nothing was actually asked, so "Up to Date" would be a
+            # claim this app cannot make.
+            button.setText("No update channel")
+            button.setToolTip(result.get("detail", ""))
         button.setEnabled(True)

@@ -230,39 +230,175 @@ async def test_module_registry_enable_disable_reload_update(tmp_path: Path) -> N
 
 
 def test_plugin_manager_expanded_view(qapp, tmp_path: Path) -> None:
-    from jarvis.core.config.settings import Settings
+    """The view takes an injected provider now -- it no longer builds a
+    mock for itself (Aug 2026 backlog pass)."""
+    from jarvis.features.plugins.registry_provider import PluginRegistryProvider
     from jarvis.ui.views.developer.plugin_manager_view import PluginManagerView
 
-    settings = Settings(data_dir=tmp_path)
-    view = PluginManagerView(settings)
+    view = PluginManagerView(PluginRegistryProvider(_plugin_registry(tmp_path)))
     assert view._tabs.count() == 2
     assert view._tabs.tabText(0) == "Installed"
     assert view._tabs.tabText(1) == "Marketplace"
 
 
-@pytest.mark.asyncio
-async def test_mock_plugin_provider_implements_iplugin_provider(tmp_path: Path) -> None:
-    from jarvis.core.interfaces.providers import IPluginProvider
-    from jarvis.features.plugins.mock_provider import MockPluginProvider
+def _plugin_registry(tmp_path: Path):
+    """A real ``PluginRegistry`` over a real on-disk plugin, built the
+    same way ``tests/unit/test_plugin_registry.py`` builds one."""
+    import json
 
-    provider = MockPluginProvider(tmp_path / "plugins")
+    from jarvis.core.events.event_bus import EventBus
+    from jarvis.core.interfaces.platform import PlatformFamily, PlatformInfo
+    from jarvis.core.plugins.loader import PluginLoader
+    from jarvis.core.plugins.permissions import PermissionModel
+    from jarvis.core.plugins.registry import PluginRegistry
+    from jarvis.core.plugins.sandbox import PluginSandbox
+
+    class _Platform:
+        def info(self) -> PlatformInfo:
+            return PlatformInfo(
+                family=PlatformFamily.WINDOWS,
+                os_release="test",
+                architecture="x86_64",
+                python_version="3.13.0",
+            )
+
+        def has_capability(self, capability: str) -> bool:
+            return False
+
+        def resolve_entry_point(self, entry_point, *, default_key="default"):
+            return entry_point if isinstance(entry_point, str) else entry_point.get(default_key)
+
+    plugins_dir = tmp_path / "plugins"
+    plugin_dir = plugins_dir / "demo"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "name": "demo",
+                "display_name": "Demo Plugin",
+                "version": "1.0.0",
+                "entry_point": "plugin:HelloPlugin",
+                "permissions": ["notifications"],
+                "developer_metadata": {"author": "Test Author"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (plugin_dir / "plugin.py").write_text(
+        "class HelloPlugin:\n"
+        "    async def on_load(self, context) -> None: ...\n"
+        "    async def on_start(self) -> None: ...\n"
+        "    async def on_stop(self) -> None: ...\n",
+        encoding="utf-8",
+    )
+
+    bus = EventBus()
+    return PluginRegistry(
+        loader=PluginLoader(plugins_dir, platform_adapter=_Platform(), app_version="0.20.0"),
+        sandbox=PluginSandbox(),
+        permission_model=PermissionModel(bus, store_path=tmp_path / "permissions.json"),
+        event_bus=bus,
+        platform_adapter=_Platform(),
+        plugin_data_root=tmp_path / "plugin-data",
+    )
+
+
+@pytest.mark.asyncio
+async def test_registry_provider_reports_the_real_registry(tmp_path: Path) -> None:
+    """The Plugin Manager's provider reads the shipped Plugin Platform.
+    Before this pass it returned two invented plugins from a mock, which
+    is exactly the fabricated data M8 AC2 forbids."""
+    from jarvis.core.interfaces.providers import IPluginProvider
+    from jarvis.features.plugins.registry_provider import PluginRegistryProvider
+
+    registry = _plugin_registry(tmp_path)
+    provider = PluginRegistryProvider(registry)
     assert isinstance(provider, IPluginProvider)
 
+    # Nothing discovered yet -- an empty list, not invented examples.
+    assert await provider.list_installed() == []
+
+    await registry.discover_and_load_all()
     installed = await provider.list_installed()
-    assert len(installed) >= 2
-    plugin_id = installed[0]["id"]
 
-    assert await provider.disable(plugin_id) is True
-    assert await provider.enable(plugin_id) is True
-    assert await provider.reload(plugin_id) is True
+    assert [row["id"] for row in installed] == ["demo"]
+    assert installed[0]["name"] == "Demo Plugin"
+    assert installed[0]["version"] == "1.0.0"
+    assert installed[0]["author"] == "Test Author"
+    assert installed[0]["enabled"] is True
+    assert installed[0]["status"] == "enabled"
 
-    # Future placeholders are honestly wired to "not implemented yet".
+
+@pytest.mark.asyncio
+async def test_registry_provider_performs_real_lifecycle_transitions(tmp_path: Path) -> None:
+    """Enable/Disable/Reload move the *registry's* state, rather than a
+    private dict the UI keeps to itself."""
+    from jarvis.features.plugins.registry_provider import PluginRegistryProvider
+
+    registry = _plugin_registry(tmp_path)
+    provider = PluginRegistryProvider(registry)
+    await registry.discover_and_load_all()
+
+    assert await provider.disable("demo") is True
+    assert registry.snapshot()[0].state == "disabled"
+    assert (await provider.list_installed())[0]["enabled"] is False
+
+    assert await provider.enable("demo") is True
+    assert registry.snapshot()[0].state == "running"
+
+    assert await provider.reload("demo") is True
+    assert registry.snapshot()[0].state == "running"
+
+
+@pytest.mark.asyncio
+async def test_registry_provider_marketplace_is_empty_without_an_index(tmp_path: Path) -> None:
+    """An empty catalogue is a true statement about this install;
+    inventing entries to fill the tab is what the mock did wrong."""
+    from jarvis.features.plugins.registry_provider import PluginRegistryProvider
+
+    provider = PluginRegistryProvider(_plugin_registry(tmp_path))
+
+    assert await provider.list_marketplace() == []
+
+
+@pytest.mark.asyncio
+async def test_registry_provider_reads_a_real_marketplace_index(tmp_path: Path) -> None:
+    from jarvis.core.plugins.marketplace import MarketplaceListing
+    from jarvis.features.plugins.registry_provider import PluginRegistryProvider
+
+    class _Repo:
+        def list_all(self):
+            return (
+                MarketplaceListing(
+                    plugin_id="demo",
+                    display_name="Demo",
+                    description="A demo listing.",
+                    author="Someone",
+                    versions=("1.0.0", "1.1.0"),
+                ),
+            )
+
+    from jarvis.core.plugins.marketplace import Marketplace
+
+    provider = PluginRegistryProvider(_plugin_registry(tmp_path), Marketplace(_Repo()))
+    listings = await provider.list_marketplace()
+
+    assert [entry["id"] for entry in listings] == ["demo"]
+    assert listings[0]["version"] == "1.1.0"  # newest, not the first
+
+
+@pytest.mark.asyncio
+async def test_registry_provider_reports_install_paths_as_unwired(tmp_path: Path) -> None:
+    """The registry implements all three, but each needs a source
+    directory this surface does not ask for -- so it says ``False``
+    rather than guessing at one."""
+    from jarvis.features.plugins.registry_provider import PluginRegistryProvider
+
+    provider = PluginRegistryProvider(_plugin_registry(tmp_path))
+
     assert await provider.install("anything") is False
     assert await provider.uninstall("anything") is False
     assert await provider.update("anything") is False
-
-    marketplace = await provider.list_marketplace()
-    assert len(marketplace) >= 1
 
 
 def test_sidebar_update_history_row(qapp) -> None:
@@ -392,17 +528,21 @@ async def test_voice_announcement_service_covers_all_lifecycle_events(tmp_path: 
 @pytest.mark.asyncio
 async def test_plugin_manager_announces_enable_disable(qapp, tmp_path: Path) -> None:
     from jarvis.core.config.settings import Settings
+    from jarvis.features.plugins.registry_provider import PluginRegistryProvider
     from jarvis.services.voice_announcement_service import VoiceAnnouncementService
     from jarvis.ui.views.developer.plugin_manager_view import PluginManagerView
 
     settings = Settings(data_dir=tmp_path)
     announcer = VoiceAnnouncementService(settings)
-    view = PluginManagerView(settings, voice_announcer=announcer)
+    registry = _plugin_registry(tmp_path)
+    await registry.discover_and_load_all()
+    view = PluginManagerView(PluginRegistryProvider(registry), voice_announcer=announcer)
 
-    await view._toggle("weather-widget", True)
+    # A real plugin id now, and a real lifecycle transition underneath.
+    await view._toggle("demo", True)
     assert any("disabled" in h.lower() for h in announcer.history)
 
-    await view._toggle("weather-widget", False)
+    await view._toggle("demo", False)
     assert any("enabled" in h.lower() for h in announcer.history)
 
 
