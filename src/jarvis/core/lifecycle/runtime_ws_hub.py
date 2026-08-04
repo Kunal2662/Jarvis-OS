@@ -63,6 +63,7 @@ from jarvis.core.events.events import (
     HealthUpdatedEvent,
     KnowledgeCorrectionAppliedEvent,
     KnowledgeEntityUpdatedEvent,
+    MCPAuthStateChangedEvent,
     MCPCapabilitiesChangedEvent,
     MCPConnectionChangedEvent,
     MCPHandshakeCompletedEvent,
@@ -147,6 +148,8 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     MCPHeartbeatEvent: "mcp.heartbeat",
     # Milestone 10.5 Task Group C
     MCPProviderStateChangedEvent: "mcp.provider_changed",
+    # Milestone 10.5 Task Group D
+    MCPAuthStateChangedEvent: "mcp.auth_changed",
     MemoryUpdatedEvent: "memory.updated",
     MemoryRecalledEvent: "memory.recalled",
     KnowledgeEntityUpdatedEvent: "knowledge.entity_updated",

@@ -26,6 +26,9 @@ from jarvis.core.mcp.negotiation import PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VER
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
 
 if TYPE_CHECKING:
+    from jarvis.core.mcp.auth.manager import MCPAuthManager
+    from jarvis.core.mcp.auth.store import CredentialStore
+    from jarvis.core.mcp.auth.strategies import AuthStrategyRegistry
     from jarvis.core.mcp.client import MCPClientRuntime
     from jarvis.core.mcp.heartbeat import MCPHeartbeatMonitor
     from jarvis.core.mcp.providers.manager import MCPProviderManager
@@ -46,6 +49,18 @@ def _client(request: Request) -> MCPClientRuntime:
 
 def _transports(request: Request) -> TransportFactoryRegistry:
     return cast("TransportFactoryRegistry", request.app.state.container.mcp_transport_registry())
+
+
+def _auth(request: Request) -> MCPAuthManager:
+    return cast("MCPAuthManager", request.app.state.container.mcp_auth_manager())
+
+
+def _auth_strategies(request: Request) -> AuthStrategyRegistry:
+    return cast("AuthStrategyRegistry", request.app.state.container.mcp_auth_strategies())
+
+
+def _credential_store(request: Request) -> CredentialStore:
+    return cast("CredentialStore", request.app.state.container.mcp_credential_store())
 
 
 def _provider_registry(request: Request) -> MCPProviderRegistry:
@@ -212,6 +227,79 @@ async def mcp_provider_metadata(provider_id: str, request: Request) -> Envelope[
     if metadata is None:
         raise HTTPException(status_code=404, detail=f"Unknown provider {provider_id!r}.")
     return envelope(metadata.as_dict())
+
+
+@router.get("/auth", response_model=Envelope[tuple[dict[str, Any], ...]])
+async def mcp_auth(request: Request) -> Envelope[tuple[dict[str, Any], ...]]:
+    """Authentication state for every provider that has one.
+
+    **Metadata only.** Every payload here comes from
+    ``Credential.to_public_dict``, which reports *whether* a token
+    exists and when it expires -- never its value. There is no code path
+    from this router to a token, by construction rather than by
+    remembering to redact.
+    """
+    manager = _auth(request)
+    payload = manager.public_snapshot()
+    return envelope(
+        payload,
+        meta={
+            "count": len(payload),
+            "supported_methods": list(_auth_strategies(request).supported_methods),
+            "can_persist": _credential_store(request).can_persist,
+        },
+    )
+
+
+@router.get("/auth/methods", response_model=Envelope[tuple[dict[str, Any], ...]])
+async def mcp_auth_methods(request: Request) -> Envelope[tuple[dict[str, Any], ...]]:
+    """Every authentication method in the vocabulary and whether this
+    build can actually perform it -- the same known-versus-supported
+    honesty the transports endpoint reports. ``oauth2`` and
+    ``client_credentials`` are listed and unsupported: both need an
+    authorization server and a callback endpoint, neither of which this
+    task group ships."""
+    payload = _auth_strategies(request).describe()
+    return envelope(payload, meta={"count": len(payload)})
+
+
+@router.get("/auth/{provider_id}", response_model=Envelope[dict[str, Any]])
+async def mcp_auth_detail(provider_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    """One provider's authentication state -- session, credential
+    metadata, and whether it is currently usable."""
+    manager = _auth(request)
+    if provider_id not in manager.provider_ids:
+        raise HTTPException(
+            status_code=404, detail=f"No authentication state for provider {provider_id!r}."
+        )
+    return envelope(manager.status(provider_id))
+
+
+@router.get("/auth/{provider_id}/status", response_model=Envelope[dict[str, Any]])
+async def mcp_auth_status(provider_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    """The compact liveness answer: is this provider authenticated right
+    now, and if not, why not."""
+    manager = _auth(request)
+    if provider_id not in manager.provider_ids:
+        raise HTTPException(
+            status_code=404, detail=f"No authentication state for provider {provider_id!r}."
+        )
+
+    full = manager.status(provider_id)
+    credential = full["credential"] or {}
+    return envelope(
+        {
+            "provider_id": provider_id,
+            "authenticated": full["authenticated"],
+            "session_state": full["session"]["state"],
+            "credential_status": credential.get("status", "missing"),
+            "expires_at": credential.get("expires_at"),
+            "seconds_until_expiry": credential.get("seconds_until_expiry"),
+            "is_refreshable": credential.get("is_refreshable", False),
+            "error": full["session"]["error"],
+        },
+        meta={"healthy": full["authenticated"]},
+    )
 
 
 @router.get("/heartbeat", response_model=Envelope[tuple[dict[str, Any], ...]])

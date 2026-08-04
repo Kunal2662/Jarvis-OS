@@ -382,6 +382,41 @@ def _build_mcp_transport_registry(*, mcp_server_runtime: Any) -> Any:
     return build_default_transport_registry(in_process_server=mcp_server_runtime)
 
 
+def _build_mcp_credential_store(*, settings: Settings) -> Any:
+    """Reuses the existing config-dir convention and the app's own
+    Fernet key -- no second crypto stack, no new location."""
+    from jarvis.core.config import paths as _paths
+    from jarvis.core.mcp.auth.store import CredentialStore
+
+    return CredentialStore(
+        _paths.config_dir(settings.resolved_data_dir) / "mcp_credentials.json",
+        secret_key=settings.security.secret_key.get_secret_value(),
+    )
+
+
+def _build_mcp_auth_strategies() -> Any:
+    from jarvis.core.mcp.auth.strategies import build_default_strategy_registry
+
+    return build_default_strategy_registry()
+
+
+def _build_mcp_auth_manager(
+    *,
+    mcp_credential_store: Any,
+    mcp_auth_strategies: Any,
+    permission_model: Any,
+    event_bus: Any,
+) -> Any:
+    from jarvis.core.mcp.auth.manager import MCPAuthManager
+
+    return MCPAuthManager(
+        mcp_credential_store,
+        mcp_auth_strategies,
+        permission_model,
+        event_bus=event_bus,
+    )
+
+
 def _build_mcp_provider_registry() -> Any:
     from jarvis.core.mcp.providers.registry import MCPProviderRegistry
 
@@ -731,6 +766,20 @@ class Container(containers.DeclarativeContainer):
         event_bus=event_bus,
         settings=settings,
     )
+    # ---- Milestone 10.5 Task Group D -- Authentication --------------------
+    mcp_credential_store = providers.Singleton(
+        _build_mcp_credential_store,
+        settings=settings,
+    )
+    mcp_auth_strategies = providers.Singleton(_build_mcp_auth_strategies)
+    mcp_auth_manager = providers.Singleton(
+        _build_mcp_auth_manager,
+        mcp_credential_store=mcp_credential_store,
+        mcp_auth_strategies=mcp_auth_strategies,
+        permission_model=permission_model,
+        event_bus=event_bus,
+    )
+
     # ---- Milestone 10.5 Task Group C -- Provider Framework ----------------
     mcp_provider_registry = providers.Singleton(_build_mcp_provider_registry)
     mcp_provider_manager = providers.Singleton(

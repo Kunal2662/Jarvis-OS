@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.18.0`
+**Current version:** `0.19.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -2183,7 +2183,8 @@ decimal-companion precedent **M5.5** (Production Stabilization Pass,
 §3) already set, and alters no existing milestone's identity or scope.)*
 
 **Status: 🟡 Active — Task Groups A (Core Runtime), B (Transport
-Layer) and C (Provider Framework) shipped.** The MCP runtime foundation is real: Capability
+Layer), C (Provider Framework) and D (Authentication Foundation)
+shipped.** The MCP runtime foundation is real: Capability
 Registry, transport abstraction, client runtime
 (connection/handshake/discovery/health/reconnect), server runtime
 (capability exposure + permission enforcement), capability negotiation,
@@ -2195,10 +2196,14 @@ transport factory, transport discovery/query, and a heartbeat monitor
 integration plugs into: provider interface, registry with filtered
 discovery, lifecycle manager, metadata/configuration models, health
 collection and read-only `/api/v1/mcp/providers/*` routes (Task Group
-C). **Not the whole milestone** — no *real* provider ships, and
-authentication/OAuth and vendor integrations remain Task Group D and
-M11's scope. See the Aug 2026 M10.5 Task Group A, B and C changelog
-addenda for the full design.
+C) -- plus the **authentication framework** every future provider
+uses: credential model, encrypted-at-rest storage, auth strategies,
+provider sessions, the permission bridge, and read-only
+`/api/v1/mcp/auth/*` routes (Task Group D). **Not the whole
+milestone** — no *real* provider ships, no OAuth flow (which needs an
+authorization server and a callback endpoint), and vendor
+integrations remain M11's scope. See the Aug 2026 M10.5 Task Group
+A, B, C and D changelog addenda for the full design.
 
 **Objective:** the protocol-level foundation for every external tool
 and context provider JARVIS consumes — standardizing on **MCP (Model
@@ -9373,6 +9378,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.16** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group A (Core Runtime) shipped: Capability Registry, transport abstraction, client/server runtimes, negotiation, `/api/v1/mcp/*`. |
 | **0.17** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group B (Transport Layer) shipped: stdio/websocket/http/ipc transports, transport factory, discovery/query, heartbeat monitor, four new relay events. Provider integrations remain a later task group. |
 | **0.18** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group C (Provider Framework) shipped: provider interface, registry with filtered discovery, lifecycle manager, metadata/config models, health collection, `/api/v1/mcp/providers/*`. Generic infrastructure only — real providers, authentication and OAuth are Task Group D. |
+| **0.19** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group D (Authentication Foundation) shipped: credential model, encrypted-at-rest store, auth strategy registry, provider sessions, permission bridge, `/api/v1/mcp/auth/*`. Infrastructure only — no real providers, no OAuth flow, no vendor integrations. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -12744,3 +12750,88 @@ diffed against the repository baseline: mypy 266 -> 266, unchanged,
 zero errors in any new file; ruff's category list identical to the
 baseline's 22 after fixing the two genuinely-new findings this pass
 introduced (`I001`, `SIM300`). Version bumped `0.17.0` -> `0.18.0`.
+
+*Aug 2026 addendum -- M10.5 Task Group D (Authentication & Provider
+Integration Foundation):* the authentication framework every future MCP
+provider uses. Infrastructure only -- no real provider, no vendor code,
+and **no OAuth flow**, which needs an authorization server and a
+callback endpoint this task group explicitly does not ship.
+
+**The security posture is the design.** Tokens are the most dangerous
+thing this milestone has handled, so the protections are structural
+rather than remembered:
+
+- ``Credential`` redacts its own ``__repr__``/``__str__``, so a stray
+  ``logger.info("... {}", credential)`` or an exception rendering its
+  arguments cannot leak one.
+- Two serializers, deliberately: ``to_storage_dict`` (everything, for
+  the encrypted store and nothing else) and ``to_public_dict``
+  (metadata only, for REST, logs and events). "Safe to show" is a
+  choice the type makes, not something each caller must get right.
+- Revoking **clears** both tokens rather than only setting a flag: a
+  revoked credential still holding its secret is a credential waiting
+  to leak.
+- The tests assert against raw artefacts -- the actual REST response
+  text, the actual event payload, the actual health snapshot, the
+  actual bytes on disk -- rather than a parsed field, so a leak
+  anywhere in a payload fails them.
+
+**One deliberate divergence from an existing precedent.**
+``ApiCenterService`` encrypts secret fields when a key is configured and
+writes plaintext when one is not -- a reasonable trade for API
+definitions that are mostly non-secret metadata. Access and refresh
+tokens are not that. ``CredentialStore`` therefore **refuses to
+persist** without a real key: it raises, writes no file at all, and
+records the in-memory-only caveat on the session. An unconfigured
+install still authenticates for the current session; it simply will not
+remember it. Degrading loudly beats degrading quietly when the quiet
+option is a plaintext token on disk.
+
+**The permission bridge is two gates, not one.** A capability is usable
+only when the operator has granted the JARVIS-side scope (M9's
+``PermissionModel``, namespaced ``mcp:<provider_id>`` -- the prefix Task
+Group A established, with **no new scope vocabulary**) *and* the
+credential actually carries the provider-side scope the remote service
+demands (``repo:read``, say). ``authorize_capability`` names which gate
+refused, because "the operator has not granted this" and "the token
+does not carry that scope" call for completely different fixes, and
+collapsing them into one boolean would hide that.
+
+**Sessions are a distinct concept, not a duplicate.** M9's
+``SessionManager`` owns *user* sessions -- the Bearer tokens the REST
+API authenticates callers with. ``ProviderSession`` owns *provider*
+sessions -- how long JARVIS's own credential for an outbound
+integration stays usable. Same word, different subject, different
+lifetime; merging them would couple an operator's login to a provider's
+token expiry.
+
+Three real bugs surfaced during implementation and were fixed in the
+code rather than papered over in the tests. Two shared a root cause:
+``expire()`` inferred "already announced" from the session's derived
+state, but a lazily-created session syncs straight to ``EXPIRED`` before
+anything has been announced -- so the first expiry was never published.
+Fixed with an explicit ``expiry_announced`` flag, because derived state
+genuinely cannot answer that question. The third: ``mark_active`` clears
+``error``, which was also wiping the "held in memory only" note --
+fixed by separating ``warning`` (a caveat that still applies) from
+``error`` (a failure a success clears), which is the more honest model
+anyway.
+
+``oauth2`` and ``client_credentials`` are in the vocabulary and
+reported as **unsupported** by ``GET /api/v1/mcp/auth/methods``.
+Registering a flow that cannot complete would be worse than registering
+none, and the honest report is what lets a caller distinguish "not
+built yet" from "broken".
+
+Testing -- 101 new tests across five files: redaction, both
+serializers, expiry boundaries and naive-datetime normalization,
+encryption at rest verified against real file bytes, wrong-key and
+corrupt-record handling, key rotation, the full lifecycle including
+refresh/revoke/reconnect/failure, both permission gates, health
+sweeping, REST, DI singleton identity, and an end-to-end suite through
+the real container with events verified over the real WebSocket relay.
+Ruff/mypy diffed against the repository baseline: mypy 266 -> 266,
+unchanged, zero errors in any new file; ruff's category list identical
+to the baseline's 22 after fixing the three genuinely-new findings this
+pass introduced (`I001`, `RUF100`, `SIM300`). Version bumped `0.18.0`
+-> `0.19.0`.

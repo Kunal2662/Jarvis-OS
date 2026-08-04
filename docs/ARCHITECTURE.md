@@ -549,7 +549,7 @@ categories map directly to the Event Bus categories in §7:
 | `memory` | `memory.updated`, `memory.recalled` *(shipped M10A — `services/memory_service.py`'s `remember`/`forget`/`forget_all`/`recall`, via an optional `event_bus` constructor parameter)* |
 | `knowledge` | `knowledge.entity_updated`, `knowledge.correction_applied` *(shipped M10A — `services/knowledge_service.py`, `core/lifecycle/runtime_ws_hub.py`)* |
 | `goal` | `goal.updated` *(shipped M10B — `services/intelligence_service.py`'s Goal Manager, `action` payload field distinguishes created/progress_updated/completed/deleted)* |
-| `mcp` | `mcp.connection_changed`, `mcp.capabilities_changed`, `mcp.permission_denied` *(shipped M10.5 Task Group A — `core/mcp/`; `connection_changed` carries a `state` payload field rather than one event class per transition)*; `mcp.handshake_completed`, `mcp.negotiation_completed`, `mcp.transport_failed`, `mcp.heartbeat` *(shipped M10.5 Task Group B — kept distinct from each other because a transport failure is a connectivity problem, whereas a permission denial or negotiation rejection is the protocol working correctly)*; `mcp.provider_changed` *(shipped M10.5 Task Group C — one relay name carrying an `action` field for all eight provider transitions plus the resting `state`, the same shape `memory.updated`/`goal.updated` established)* |
+| `mcp` | `mcp.connection_changed`, `mcp.capabilities_changed`, `mcp.permission_denied` *(shipped M10.5 Task Group A — `core/mcp/`; `connection_changed` carries a `state` payload field rather than one event class per transition)*; `mcp.handshake_completed`, `mcp.negotiation_completed`, `mcp.transport_failed`, `mcp.heartbeat` *(shipped M10.5 Task Group B — kept distinct from each other because a transport failure is a connectivity problem, whereas a permission denial or negotiation rejection is the protocol working correctly)*; `mcp.provider_changed` *(shipped M10.5 Task Group C — one relay name carrying an `action` field for all eight provider transitions plus the resting `state`, the same shape `memory.updated`/`goal.updated` established)*; `mcp.auth_changed` *(shipped M10.5 Task Group D — the eight authentication transitions. Deliberately carries no token: every WebSocket subscriber receives relayed events, so a credential value here would be a leak)* |
 | `briefing` | `briefing.generated` *(shipped M10B — `services/intelligence_service.py`'s `generate_daily_briefing()`, on-demand only; §16's Scheduling standard — M7 Phase 6's Scheduler is the only path a feature runs unattended — is why this doesn't build its own timer)* |
 | `progress` | `progress.update` (long-running non-AI operations — backups, sync) |
 | `notification` | `notification.created` (user-facing toast-equivalent) |
@@ -1118,6 +1118,16 @@ automatable action follows.
 
 ## 17. Security standards
 
+**Credential storage (shipped M10.5 Task Group D).** Any subsystem
+persisting a third-party secret follows `core/mcp/auth/store.py`'s
+contract: encrypted at rest with the app's existing Fernet key, each
+record stamped with the `key_id` that encrypted it so rotation is
+incremental, and **no plaintext fallback** — a store with no key
+configured raises rather than writing a token, and reports the
+in-memory-only caveat instead of silently degrading. Secrets are
+redacted in `__repr__`, excluded from every REST payload and event
+by using a separate public serializer, and never logged.
+
 Formalizes M14 (Security Platform)'s already-designed scope
 (`MASTER_ROADMAP.md` §8) as the binding standard — this section does
 not restate M14's full 12-module detail, only the rules every other
@@ -1233,7 +1243,7 @@ repeated here.
 | Streaming Runtime | 🟡 Partial | M10 | §6 above (WebSocket standards); real token-level streaming for the tool-composed path via `/api/v1/agent/stream`'s SSE response |
 | Automation Architecture | 🟡 Active | M4 (shipped) / M7 (Phases 1–2 shipped, 3–6 pending) | §16 above |
 | Security Architecture | 🟠 Interim | M14 (not started) | §17 above — today's enforcement (`AgentPermissionGate`, Permission Model) is real but interim, pending M14's Authorization Engine |
-| MCP Architecture | 🟡 Partial | **M10.5** (MCP & Integration Platform) | `core/mcp/` — Capability Registry, client/server runtimes, negotiation, heartbeat; `core/mcp/transports/` — stdio/websocket/http/ipc + factory; `core/mcp/providers/` — provider registry, lifecycle manager, metadata/config; `core/interfaces/mcp.py` (ports). Task Groups A+B+C shipped; no *real* provider, no OAuth yet |
+| MCP Architecture | 🟡 Partial | **M10.5** (MCP & Integration Platform) | `core/mcp/` — Capability Registry, client/server runtimes, negotiation, heartbeat; `core/mcp/transports/` — stdio/websocket/http/ipc + factory; `core/mcp/providers/` — provider registry, lifecycle manager, metadata/config; `core/mcp/auth/` — credential model, encrypted store, strategies, sessions, permission bridge; `core/interfaces/mcp.py` (ports). Task Groups A+B+C+D shipped; no *real* provider, no OAuth flow yet |
 | Self-Healing Architecture | 🔴 Planned | **M13B** (foundation) → M18 (full platform) | `MASTER_ROADMAP.md` §8 M13B — Self-Healing & Observability; §8 M18 — Self-Healing & Diagnostics Platform |
 | Observability | 🔴 Planned | **M13B** (foundation) → M20A (full platform) | `MASTER_ROADMAP.md` §8 M13B; §8 M20A — Analytics & Observability Platform |
 | Cloud Architecture | 🟠 Partial | M11 | §1 above (Cloud box — Oracle Cloud, optional, outbound-only); `docs/TECH_STACK.md` §5 — MongoDB sync target not yet started |

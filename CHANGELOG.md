@@ -3,6 +3,81 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.19.0] — M10.5 Task Group D, Authentication & Provider Integration Foundation
+
+The authentication framework every future MCP provider uses.
+Infrastructure only: **no real providers**, no vendor code, and **no
+OAuth flow** — that needs an authorization server and a callback
+endpoint, neither of which this task group ships.
+
+### Added
+- **`AuthMethod`** vocabulary — `api_key`, `bearer_token`,
+  `personal_access_token`, `oauth2`, `client_credentials`, and `none`
+  (a real state: a local stdio peer needs no credential, and modelling
+  that honestly avoids a fake empty credential standing in for it).
+- **`Credential`** — access/refresh tokens, expiry, scopes, provider id,
+  account id and encryption metadata. Frozen, so a failed refresh cannot
+  leave a half-updated credential behind.
+- **`CredentialStore`** — encrypted at rest via the existing Fernet
+  helpers, in the existing `config/` convention. Rotation-ready: each
+  record carries the `key_id` that encrypted it, and `rotate()` re-writes
+  every record under a new key.
+- **`AuthStrategyRegistry`** + `StaticTokenStrategy` / `NoAuthStrategy` —
+  one strategy per method, in a registry a future method plugs into.
+- **`ProviderSession`** — per-provider authentication state, counters and
+  runtime status.
+- **`MCPAuthManager`** — authenticate / refresh / revoke / validate /
+  expire / reconnect, plus the permission bridge and the health payload.
+- **`mcp.auth_changed`** relay event carrying an `action` field for all
+  eight documented transitions.
+- Read-only REST: `GET /api/v1/mcp/auth`, `/auth/methods`,
+  `/auth/{provider}`, `/auth/{provider}/status`.
+- DI singletons `mcp_credential_store`, `mcp_auth_strategies`,
+  `mcp_auth_manager`.
+
+### Security
+- **Tokens are never exposed.** `Credential` redacts its own `repr`/`str`;
+  storage and public serializers are separate methods so "safe to show"
+  is a deliberate choice, not something to remember. Tests assert against
+  raw REST response text, raw event payloads, the raw health snapshot and
+  the raw on-disk file.
+- **Refuses plaintext persistence.** Unlike `ApiCenterService` (which
+  writes plaintext when no key is configured — acceptable for mostly
+  non-secret API metadata), this store raises rather than writing a token
+  unencrypted, and writes no file at all. In-memory operation still works,
+  with the caveat recorded on the session, so an unconfigured install can
+  authenticate for the session and simply will not remember it.
+- **Revoking clears the tokens**, not just a flag — a revoked credential
+  still holding its secret is a credential waiting to leak.
+
+### The permission bridge
+Two independent gates, deliberately not conflated: the **JARVIS-side**
+scope the operator granted (M9's `PermissionModel`, namespaced
+`mcp:<provider_id>`) and the **provider-side** scope the token actually
+carries. `authorize_capability` names which gate refused, because the
+two call for completely different fixes. No new permission vocabulary
+and no second permission store.
+
+### Reused, not duplicated
+`utils/crypto.py`'s Fernet helpers, the `config/` storage convention,
+M9's `PermissionModel`, `HealthMonitor.register_collector` (expiry
+detection rides the existing poll rather than a second timer), the
+`EventBus`, and the DI singleton pattern. M9's `SessionManager` is
+untouched — it owns *user* sessions; this owns *provider* sessions.
+
+### Deferred
+The OAuth2 and client-credentials flows (listed in the vocabulary and
+reported as unsupported rather than half-implemented); login and OAuth
+callback endpoints; write endpoints; every vendor integration (M11).
+
+### Testing
+101 new tests across five files, including on-disk encryption
+verification, a restart round trip, both permission gates, expiry,
+refresh, revoke, reconnect and failure paths, and an end-to-end suite
+through the real DI container with events verified over the real
+WebSocket relay. mypy 266 → 266, unchanged, zero errors in any new file;
+ruff category list identical to the baseline's 22.
+
 ## [0.18.0] — M10.5 Task Group C, MCP Provider Framework
 
 The generic framework every future MCP integration plugs into **without

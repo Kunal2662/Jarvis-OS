@@ -449,6 +449,7 @@ class ApplicationBootstrapper:
 
         heartbeat_monitor = self._container.mcp_heartbeat_monitor()
         provider_manager = self._container.mcp_provider_manager()
+        auth_manager = self._container.mcp_auth_manager()
 
         if settings.mcp.client_enabled:
 
@@ -499,6 +500,11 @@ class ApplicationBootstrapper:
                 # Task Group C -- provider health joins this same
                 # snapshot rather than a second collector.
                 "providers": await provider_manager.collect_health(),
+                # Task Group D -- authentication health likewise. The
+                # collect_health() call also sweeps for newly-expired
+                # credentials, so expiry detection rides the existing
+                # poll instead of adding a second timer.
+                "auth": await auth_manager.collect_health(),
             }
 
         health_monitor.register_collector("mcp", _collect_mcp_health)

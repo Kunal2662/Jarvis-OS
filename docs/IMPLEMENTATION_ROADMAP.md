@@ -78,7 +78,7 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M14/M16-dependent remainder deferred. Context Engine's knowledge-graph half closed by M10A. See §5A below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10A – Universal Search & Knowledge Platform** | ✅ **Completed — File Search deferred pending M11B. See §5B below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10B – Intelligence Layer** | ✅ **Completed — automatic scheduled Daily Briefing delivery deferred pending M7's Scheduler (Phase 6). See §5C below and `MASTER_ROADMAP.md` §8/§14.** |
-| **M10.5 – MCP & Integration Platform** | 🟡 **Active — Task Groups A (Core Runtime), B (Transport Layer) and C (Provider Framework) shipped.** Capability Registry, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*` (A); all four transports (stdio/websocket/http/ipc), transport factory, discovery/query, heartbeat (B). The Provider Framework is generic infrastructure -- real providers, authentication and OAuth are Task Group D. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
+| **M10.5 – MCP & Integration Platform** | 🟡 **Active — Task Groups A (Core Runtime), B (Transport Layer), C (Provider Framework) and D (Authentication Foundation) shipped.** Capability Registry, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*` (A); all four transports (stdio/websocket/http/ipc), transport factory, discovery/query, heartbeat (B). Provider Framework and Authentication Foundation are both generic infrastructure -- real providers, the OAuth flow, and vendor integrations remain future work. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
 | **M13B – Self-Healing & Observability** | 🔴 Planned, not started. *(New lettered companion to M13, added Aug 2026 — the foundational subset of M18/M20A, which remain their full-scale realizations. M13A "AI Sandbox" is unchanged.)* See `MASTER_ROADMAP.md` §8 and §14. |
 | M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
@@ -1314,11 +1314,46 @@ Infrastructure only. **No real providers**, no OAuth, no vendor code.
 - [x] 84 new tests across five files, including a full lifecycle
       against a real stdio peer subprocess with events verified over
       the real WebSocket relay.
-  - **Deferred to Task Group D / M11**: real providers, authentication
-        and OAuth; GitHub/Gmail/Slack/Calendar/Drive and every other
-        vendor integration; create/update/delete provider endpoints;
-        MCP tools surfaced through the agent Tool Registry and Agent
-        Trace; a server-side network listener.
+  - *(Authentication was deferred here and its framework is now
+        shipped -- see Task Group D immediately below.)*
+
+### Task Group D — Authentication & Provider Integration Foundation (✅ shipped)
+
+Infrastructure only. **No real providers**, no vendor code, **no OAuth
+flow** (it needs an authorization server and a callback endpoint).
+
+- [x] `AuthMethod` vocabulary — api_key / bearer_token /
+      personal_access_token / oauth2 / client_credentials / none.
+- [x] `Credential` — tokens, expiry, scopes, provider id, account id,
+      encryption metadata. Frozen; redacts its own `repr`; separate
+      storage and public serializers.
+- [x] `CredentialStore` — encrypted at rest via the existing Fernet
+      helpers and `config/` convention. **Refuses plaintext
+      persistence**; rotation-ready via per-record `key_id`.
+- [x] `AuthStrategyRegistry` + `StaticTokenStrategy`/`NoAuthStrategy`.
+- [x] `ProviderSession` — provider-side auth state. Not M9's
+      `SessionManager`, which owns user sessions.
+- [x] `MCPAuthManager` — authenticate/refresh/revoke/validate/expire/
+      reconnect, the permission bridge, and the health payload.
+- [x] Permission bridge — two independent gates (JARVIS-side scope via
+      `PermissionModel`; provider-side scope carried by the token),
+      naming which one refused. No new scope vocabulary.
+- [x] `mcp.auth_changed` relay event with an `action` field for all
+      eight transitions; carries no token.
+- [x] Health — expiry sweep rides `HealthMonitor.register_collector`
+      rather than a second timer.
+- [x] REST — `GET /api/v1/mcp/auth`, `/auth/methods`,
+      `/auth/{provider}`, `/auth/{provider}/status`. Read-only.
+- [x] DI singletons; `app.py` health wiring.
+- [x] 101 new tests across five files, including on-disk encryption
+      verification and an end-to-end suite with events over the real
+      WebSocket relay.
+  - **Deferred to M11 / later**: the OAuth2 and client-credentials
+        flows (in the vocabulary, reported unsupported rather than
+        half-implemented); login and OAuth callback endpoints; write
+        endpoints; GitHub/Gmail/Slack/Calendar/Drive and every other
+        vendor integration; MCP tools surfaced through the agent Tool
+        Registry and Agent Trace; a server-side network listener.
 
 **Dependencies note:** M10.5's formal dependencies — M5A (agent tool
 exposure), M9 (Permission Model, Service Manager lifecycle), M10

@@ -101,6 +101,8 @@ def test_every_documented_event_type_is_mapped() -> None:
         "mcp.heartbeat",
         # Milestone 10.5 Task Group C
         "mcp.provider_changed",
+        # Milestone 10.5 Task Group D
+        "mcp.auth_changed",
     }
 
 

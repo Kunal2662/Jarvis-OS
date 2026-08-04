@@ -355,6 +355,31 @@ class MCPProviderStateChangedEvent(Event):
 
 
 @dataclass(frozen=True, slots=True)
+class MCPAuthStateChangedEvent(Event):
+    """Every authentication lifecycle transition -- Milestone 10.5 Task
+    Group D.
+
+    One event class carrying an ``action`` field rather than eight
+    classes (authentication_started/completed/failed, token_refreshed,
+    token_expired, credential_revoked, provider_authenticated,
+    provider_disconnected), matching the shape
+    ``MCPProviderStateChangedEvent``/``MCPConnectionChangedEvent``
+    already established.
+
+    **Carries no secret.** ``detail`` is a human-readable reason and
+    ``method``/``session_state`` are metadata -- a token value never
+    reaches the relay, because every subscriber (including remote
+    WebSocket clients) would otherwise receive it.
+    """
+
+    provider_id: str = ""
+    action: str = "authentication_started"  # see AUTH_ACTIONS
+    method: str = "none"
+    session_state: str = "unauthenticated"
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class MCPPermissionDeniedEvent(Event):
     """Published when the MCP server runtime refuses a capability
     invocation. Distinct from
