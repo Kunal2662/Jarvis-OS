@@ -56,9 +56,11 @@ jobs:
         continue-on-error: true
 
       - name: Pytest (full suite + coverage)
-        # Hard gate -- as of the repository stabilization pass the full
-        # suite is 401/401 passing with zero pre-existing failures/errors,
-        # so any red here is a real regression, not legacy noise.
+        # Hard gate -- as of M9 Task Group D (0.11.0) the full suite is
+        # 741/741 passing with zero pre-existing failures/errors, so any
+        # red here is a real regression, not legacy noise. See CHANGELOG.md
+        # for the count at each release; this comment is not re-verified
+        # automatically, only updated when a milestone/task group notices it.
         run: pytest tests/unit tests/integration --cov=src/jarvis --cov-report=term --cov-report=xml -q
 
       - name: pip check (dependency conflicts)

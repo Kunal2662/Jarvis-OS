@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jarvis-os"
-version = "0.10.0"
+version = "0.11.0"
 description = "JARVIS OS — a production-grade, local-first AI assistant for Windows 11, built on PySide6, FastAPI, LangGraph, Ollama and OpenAI."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -202,6 +202,13 @@ ignore = [
 # deliberate and flags every one of these lazy imports as if it were
 # accidental; confirmed false positive for this specific, principled use.
 "src/jarvis/core/di/container.py" = ["PLC0415"]
+# Each of these is a try/except ImportError optional-dependency probe
+# (Milestone 9 Task Group D, Universal Compatibility) -- pynput/pywinauto/
+# torch are all optional at runtime (a plugin's declared capability might
+# not be installed), so the import must happen inside the guarded try
+# block to be probed at all; a top-level import would crash this module
+# on any machine missing one of them, defeating the probe's own purpose.
+"src/jarvis/infrastructure/platform/adapter.py" = ["PLC0415"]
 
 [tool.black]
 line-length = 100

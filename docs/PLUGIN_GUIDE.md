@@ -1,9 +1,22 @@
 # Plugin Guide
 
-Status: **architecture only — no real plugin loader exists yet.** This
-document describes what Milestone 5 prepared, not a shipped feature.
+Status: **superseded by the real backend Plugin Platform (M9 Task
+Group D, Aug 2026) — this document now describes only the legacy M5
+PySide6 Developer Mode view below, not the current plugin
+architecture.** A real Plugin SDK, Loader, Sandbox, Extension API,
+Permission Model, Registration System, Store, and Marketplace
+foundation now exist in `core/plugins/` — see `docs/MASTER_ROADMAP.md`
+§8's Plugin Platform module and `docs/IMPLEMENTATION_ROADMAP.md` §5
+Task Group D for the real, shipped architecture. That backend is
+**not yet wired to the PySide6 view described below** — replacing
+`MockPluginProvider` with a real `IPluginProvider` adapter over
+`core/plugins/registry.py`'s `PluginRegistry`, and building the real
+Marketplace UI, is M8's React frontend's job per the roadmap's own
+design (the PySide6 UI is not the surface future plugin management
+renders through). Everything below this line still accurately
+describes the M5 PySide6 mock, unchanged by Task Group D.
 
-## What exists today
+## What exists today (PySide6 Developer Mode, still mocked)
 
 * **`core/interfaces/providers.py` → `IPluginProvider`** — the port
   every future real plugin backend implements: `list_installed`,
@@ -26,21 +39,34 @@ document describes what Milestone 5 prepared, not a shipped feature.
   `AnnouncementEvent.PLUGIN_ENABLED` / `PLUGIN_DISABLED` through
   `VoiceAnnouncementService.announce_event()`.
 
-## What a real plugin loader would need to add
+## What now exists for real (M9 Task Group D, `core/plugins/`)
 
-1. A real plugin manifest format (name/version/author/dependencies/
-   permissions) read from `<data_dir>/plugins/<id>/manifest.json` or
-   similar — `MockPluginProvider._seed()` shows the exact shape the UI
-   already expects.
-2. A real `PluginProvider(IPluginProvider)` that actually imports and
-   sandboxes plugin code, replacing `MockPluginProvider` in
-   `core/di/container.py` — the view code needs **no changes** since it
-   only depends on the `IPluginProvider` interface.
-3. Real implementations of `install` / `uninstall` / `update`, and
-   flipping their buttons from disabled to enabled in
-   `plugin_manager_view.py`.
-4. A real marketplace backend behind `list_marketplace()` (currently a
-   hard-coded placeholder catalog).
+All four items this section used to describe as future work now exist,
+for real, in the new backend package — just not yet wired to the
+PySide6 view above:
+
+1. A real plugin manifest format — `core/plugins/manifest.py`'s
+   `PluginManifest`, read from `<plugins_dir>/<id>/manifest.json` (real
+   validation, not `MockPluginProvider._seed()`'s illustrative shape).
+2. A real loader/sandbox/registry that actually imports and isolates
+   plugin code — `core/plugins/loader.py` + `sandbox.py` +
+   `registry.py`'s `PluginRegistry`. This is **not** a
+   `PluginProvider(IPluginProvider)` implementation — `PluginRegistry`
+   has its own, richer interface (state tracking, permission
+   declaration, health/status), so wiring it behind
+   `plugin_manager_view.py` still means writing a real adapter that
+   maps `IPluginProvider`'s narrower method set onto it, not a
+   drop-in replacement.
+3. Real `install` / `uninstall` / `update` (with rollback support) —
+   `PluginRegistry.install()`/`.uninstall()`/`.update()`. Wiring the
+   view's buttons to them is still open work.
+4. A real, if v1-scoped, marketplace backend —
+   `core/plugins/marketplace.py`'s `Marketplace` +
+   `LocalPluginRepository`, not `list_marketplace()`'s hard-coded
+   catalog.
+
+See `docs/MASTER_ROADMAP.md` §8's Plugin Platform module and the Aug
+2026 M9 Task Group D changelog addendum for the full design.
 
 ## Anti-patterns
 

@@ -459,15 +459,15 @@ mechanism §17 defines, validated by FastAPI dependency injection
 
 ## 6. WebSocket standards
 
-**Status:** `/api/v1/ws` is real as of Aug 2026 (M9 Task Groups B+C) —
+**Status:** `/api/v1/ws` is real as of Aug 2026 (M9 Task Groups B+C+D) —
 `core/lifecycle/runtime_ws_hub.py`'s `RuntimeWebSocketHub` +
 `infrastructure/api/routes/runtime_ws.py`, implementing this section's
 envelope, heartbeat, and resume/replay-buffer contract exactly as
 documented below, for the `runtime`/`service`/`configuration`/
-`session`/`health`/`task`/`resource` categories (extended into the
-table below by those two task groups). The `voice`/`ai`/`automation`/
-`memory`/`progress`/`notification` categories below remain the
-documented target for their owning milestones (M10+) — not yet
+`session`/`health`/`task`/`resource`/`plugin` categories (extended into
+the table below by those three task groups). The `voice`/`ai`/
+`automation`/`memory`/`progress`/`notification` categories below remain
+the documented target for their owning milestones (M10+) — not yet
 relayed, since nothing publishes them as real `EventBus` events yet.
 
 ### Single connection
@@ -511,6 +511,7 @@ categories map directly to the Event Bus categories in §7:
 | `health` | `health.updated` *(shipped M9 Task Group B — Runtime Health Monitor's poll-tick snapshot, `core/lifecycle/health_monitor.py`)* |
 | `task` | `task.started`/`task.completed`/`task.failed` *(shipped M9 Task Group C — Background Task Manager's per-task lifecycle, `core/lifecycle/background_task_manager.py`)* |
 | `resource` | `resource.budget_exceeded` *(shipped M9 Task Group C — Resource Manager, published only on the transition into violation, `core/lifecycle/resource_manager.py`)* |
+| `plugin` | `plugin.discovered`/`loaded`/`load_failed`/`unloaded`/`enabled`/`disabled`/`installed`/`uninstalled`/`updated`/`permission_granted`/`permission_denied` *(shipped M9 Task Group D — `PluginRegistry`/`PermissionModel` lifecycle, `core/plugins/registry.py` + `permissions.py`; a plugin's own `PluginCustomEvent`/`PluginNotificationEvent`, published through `core/plugins/extension_api.py`'s Extension API, are not relayed here)* |
 
 ### Heartbeat and reconnect
 
@@ -759,12 +760,17 @@ not just third-party plugins.
   "display_name": "Gmail",
   "version": "1.0.0",
   "sdk_range": ">=1.0.0,<2.0.0",
+  "min_jarvis_version": "0.11.0",
+  "entry_point": "plugin:GmailPlugin",
   "dependencies": ["memory"],
   "is_core": false,
   "parent_group": null,
   "permissions": [
     "network", "memory.read", "memory.write"
   ],
+  "supported_os": ["windows", "linux", "macos"],
+  "supported_arch": ["x86_64", "arm64"],
+  "required_capabilities": [],
   "commands": [
     { "id": "gmail.search", "description": "Search email" }
   ],
@@ -794,10 +800,15 @@ not just third-party plugins.
 | `display_name` | Yes | Human-readable label a UI renders (e.g. "Files") — distinct from `name`. Added Aug 2026 (UI Architecture Update); the frontend's `ModuleManifest.displayName` (`core/module-manifest.ts`) already required this — this table previously omitted it. |
 | `version` | Yes | Semver. |
 | `sdk_range` | Yes (plugins) / N/A (first-party) | Same `sdk_range` check M9's Plugin Loader already performs — JARVIS refuses to load a mismatched plugin. |
+| `min_jarvis_version` | No, defaults `"0.0.0"` | Added Aug 2026 (M9 Task Group D, Universal Compatibility) — the app-version floor a plugin requires, distinct from `sdk_range` (the SDK contract version). Checked by `core/plugins/loader.py`'s `check_compatible()`. |
+| `entry_point` | Yes (plugins) / N/A (first-party) | Added Aug 2026 (M9 Task Group D) — `"module:ClassName"`, or `{"windows": "...", "default": "..."}` for a plugin that ships a genuinely different implementation per platform, resolved through `core/interfaces/platform.py`'s `IPlatformAdapter.resolve_entry_point()` rather than the plugin or loader branching on `sys.platform` directly. First-party modules resolve via their DI-container key (`name`) instead. |
 | `dependencies` | Yes (may be empty) | Other module `name`s this one requires present. |
 | `is_core` | No, defaults `false` | True only for the fixed default-enabled set (Dashboard, AI's children, Automation, Files, Settings) — added Aug 2026 (UI Architecture Update). Every other module ships disabled until a user enables it (Settings → Plugins, M8 Phase 5) — see M8 Phase 3's Dynamic Sidebar. |
 | `parent_group` | No | Groups this module under a synthetic parent nav entry (e.g. `"ai"`) — added Aug 2026 (UI Architecture Update). `null`/absent renders as a top-level entry. |
-| `permissions` | Yes (may be empty) | From the fixed vocabulary already defined for M9's Permission Model: `network`, `filesystem`, `hotkey`, `agent_tools`, `voice.stt`, `voice.tts`, `memory.read`, `memory.write`, `smart_home`, `notifications`. |
+| `permissions` | Yes (may be empty) | From the fixed vocabulary already defined for M9's Permission Model: `network`, `filesystem`, `hotkey`, `agent_tools`, `voice.stt`, `voice.tts`, `memory.read`, `memory.write`, `smart_home`, `notifications`. Least-privilege by construction as of M9 Task Group D — a declared scope is `PENDING`, not granted, until an explicit user decision (`core/plugins/permissions.py`). |
+| `supported_os` | No, defaults to all three | Added Aug 2026 (M9 Task Group D, Universal Compatibility) — `["windows", "linux", "macos"]` subset; platform-neutral by default so a pure-Python plugin doesn't have to enumerate every platform by hand. |
+| `supported_arch` | No, defaults to all three | Added Aug 2026 (M9 Task Group D) — `["x86_64", "arm64", "x86"]` subset. |
+| `required_capabilities` | No, defaults empty | Added Aug 2026 (M9 Task Group D) — from the fixed capability vocabulary in `core/interfaces/platform.py` (`global_hotkey`, `windows_automation`, `gpu`); checked via `IPlatformAdapter.has_capability()`, a real, verified probe (e.g. "does the optional dependency this needs actually import"), never inferred from OS family alone. |
 | `commands` | No | Command Palette-indexed actions (M10A Command Search). |
 | `voice_commands` | No | Phrase → command bindings (§15). |
 | `automation_support` | No | Actions this module exposes to the AI Orchestrator/`ActionExecutor` (§16), and which are undo-able. |

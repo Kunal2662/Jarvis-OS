@@ -3,6 +3,99 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.11.0] — M9, Task Group D (Plugin Platform)
+
+Closes out M9's Plugin Platform module in full, preserving the
+original scope unchanged. Architecture unchanged -- Python + FastAPI +
+Tauri, no migration. Only Task Group E (Developer Platform Tools)
+remains open in M9.
+
+### Added
+- `core/plugins/` -- the full Plugin Platform: `sdk.py` (`IPlugin`
+  lifecycle hooks, the fixed 10-scope permission vocabulary, a
+  hand-rolled semver/range comparator), `manifest.py` (`PluginManifest`,
+  extended with the Universal Compatibility fields `supported_os`,
+  `supported_arch`, `required_capabilities`, `min_jarvis_version`),
+  `loader.py` (discovery, Kahn's-algorithm dependency ordering, version/
+  platform compatibility checks, real hot reload), `sandbox.py`
+  (in-process fault-isolated + timeout-bounded execution, plus an
+  opt-in out-of-process `multiprocessing` tier with `psutil`-based
+  resource-budget monitoring), `extension_api.py` (`PluginContext`:
+  permission-gated filesystem/network/hotkeys/notifications,
+  unrestricted events/commands scoped to the plugin's own declared
+  surface, config, platform capability queries), `permissions.py` (the
+  real `IPermissionChecker` -- least-privilege declare -> pending ->
+  grant/deny, persisted and audited), `registry.py` (`PluginRegistry`:
+  enable/disable/install/uninstall/update with real rollback support),
+  `store.py` (directory/`.zip` package staging, SHA-256 integrity
+  checks, real Ed25519 signature verification), `marketplace.py`
+  (`IPluginRepository` abstraction, `LocalPluginRepository`, search/
+  categories, in-memory ratings/reviews).
+- `core/interfaces/platform.py` + `infrastructure/platform/adapter.py`
+  -- a new Platform Abstraction Layer for Universal Compatibility;
+  Windows is the only implemented adapter today, but nothing above
+  `IPlatformAdapter` branches on OS directly.
+- Fourteen new events (`core/events/events.py`): `PluginDiscoveredEvent`,
+  `PluginLoadedEvent`, `PluginLoadFailedEvent`, `PluginUnloadedEvent`,
+  `PluginCrashedEvent`, `PluginEnabledEvent`, `PluginDisabledEvent`,
+  `PluginPermissionGrantedEvent`, `PluginPermissionDeniedEvent`,
+  `PluginInstalledEvent`, `PluginUninstalledEvent`, `PluginUpdatedEvent`,
+  `PluginCustomEvent`, `PluginNotificationEvent` -- eleven of which
+  (excluding the plugin-authored `PluginCustomEvent`/
+  `PluginNotificationEvent`, and `PluginCrashedEvent`, not yet published
+  anywhere) are relayed over the Runtime WebSocket API.
+- `PluginSettings` (`core/config/settings.py`) -- `enabled`,
+  `sandbox_mode`, `hook_timeout_seconds`, `max_cpu_percent`,
+  `max_memory_mb`, `allow_unsigned_packages`, `marketplace_index_path`.
+- `tests/fixtures/plugins/hello_world/` -- a real reference plugin
+  (registers a slash command and a hotkey) used by a new end-to-end
+  integration test, `tests/integration/test_plugin_platform_e2e.py`,
+  proving this module's own acceptance criterion against the real
+  Loader -> Sandbox -> Permission Model -> Registry stack, including
+  the full least-privilege permission workflow.
+- 199 new unit/integration tests across twelve files.
+
+### Changed
+- `app.py` gained `_register_task_group_d_hooks`, wiring `PluginRegistry`
+  into `RuntimeManager` as the outermost layer over an already-running
+  core: plugins start last (priority 12, after Task Group C's 10-11)
+  and stop first (priority -1, before Task Group B's own chain). A
+  no-op when `settings.plugins.enabled` is false.
+- `core/lifecycle/runtime_ws_hub.py`'s `EVENT_TYPE_NAMES` gained eleven
+  `plugin.*` entries.
+- `core/config/constants.py`/`paths.py` gained `PLUGINS_SUBDIR` and a
+  `plugins_dir()` helper, included in `ensure_runtime_dirs()`.
+- `core/di/container.py` gained `platform_adapter`, `plugin_loader`,
+  `plugin_sandbox`, `permission_model`, `plugin_registry`,
+  `plugin_store`, and `marketplace` providers.
+
+### Known limitations (documented, not silently implied otherwise)
+- Process-isolated plugins receive a minimal `MinimalPluginContext` in
+  `on_load`, not the full in-process `PluginContext` -- a live
+  `EventBus` reference cannot cross a process boundary by value. A real
+  IPC-relayed Extension API for that tier is future work.
+- The `network` permission scope is a declaration check only -- this
+  platform does not yet mediate or quota a plugin's actual outbound
+  HTTP calls.
+- No hosted, signed Plugin Store index exists yet (`LocalPluginRepository`
+  is the real, complete v1 implementation of the roadmap's own "no
+  hosted infra for v1" design); a `GitHubPluginRepository`/
+  `CloudPluginRepository` is a second `IPluginRepository`
+  implementation away, not a redesign.
+- Ratings/reviews (`InMemoryReviewStore`) do not persist across a
+  restart and have no real user-identity system beyond a
+  caller-supplied reviewer string.
+- The permission-approval *workflow* (declare/pending/grant/deny,
+  persisted and audited) is real; an interactive approval UI is Task
+  Group E's Developer Platform Tools to build.
+
+Full suite: 741 passed (up from 542 at 0.10.0), zero regressions;
+frontend: 293 passed, unaffected (this release is backend-only).
+mypy/ruff/black diffed against a clean pre-task-group `git stash -u`
+baseline: zero new findings outside the same pre-existing,
+already-accepted `providers.Singleton` annotation and `PLC0415`
+lazy-import patterns `MASTER_ROADMAP.md` §15 documents.
+
 ## [0.10.0] — M9, Task Group C (Background Task Manager, Crash Recovery, Resource Manager)
 
 Closes out M9's Reliability module in full (Health Monitor's

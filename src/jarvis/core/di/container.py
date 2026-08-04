@@ -227,6 +227,83 @@ def _build_resource_manager(*, event_bus: Any, settings: Settings) -> Any:
     return manager
 
 
+def _build_plugin_loader(*, settings: Settings, platform_adapter: Any) -> Any:
+    from jarvis.core.config import paths as _paths
+    from jarvis.core.plugins.loader import PluginLoader
+
+    return PluginLoader(
+        _paths.plugins_dir(settings.resolved_data_dir),
+        platform_adapter=platform_adapter,
+        app_version=settings.app_version,
+    )
+
+
+def _build_plugin_sandbox(*, settings: Settings) -> Any:
+    from jarvis.core.plugins.sandbox import PluginSandbox
+
+    return PluginSandbox(hook_timeout_seconds=settings.plugins.hook_timeout_seconds)
+
+
+def _build_permission_model(*, event_bus: Any, settings: Settings) -> Any:
+    from jarvis.core.config import paths as _paths
+    from jarvis.core.plugins.permissions import PermissionModel
+
+    return PermissionModel(
+        event_bus,
+        store_path=_paths.config_dir(settings.resolved_data_dir) / "plugin_permissions.json",
+    )
+
+
+def _build_plugin_registry(
+    *,
+    plugin_loader: Any,
+    plugin_sandbox: Any,
+    permission_model: Any,
+    event_bus: Any,
+    platform_adapter: Any,
+    settings: Settings,
+    hotkey_service: Any,
+) -> Any:
+    from jarvis.core.plugins.registry import PluginRegistry
+
+    return PluginRegistry(
+        loader=plugin_loader,
+        sandbox=plugin_sandbox,
+        permission_model=permission_model,
+        event_bus=event_bus,
+        platform_adapter=platform_adapter,
+        plugin_data_root=settings.resolved_data_dir / "plugin-data",
+        hotkey_service=hotkey_service,
+    )
+
+
+def _build_plugin_store(*, plugin_registry: Any, settings: Settings) -> Any:
+    from jarvis.core.plugins.store import PluginStore, UnsignedAllowedVerifier
+
+    return PluginStore(
+        plugin_registry,
+        staging_dir=settings.resolved_data_dir / "cache" / "plugin_staging",
+        signature_verifier=UnsignedAllowedVerifier(
+            allow_unsigned=settings.plugins.allow_unsigned_packages
+        ),
+    )
+
+
+def _build_marketplace(*, settings: Settings) -> Any:
+    from pathlib import Path
+
+    from jarvis.core.config import paths as _paths
+    from jarvis.core.plugins.marketplace import LocalPluginRepository, Marketplace
+
+    configured = settings.plugins.marketplace_index_path
+    index_path = (
+        Path(configured)
+        if configured
+        else _paths.config_dir(settings.resolved_data_dir) / "marketplace_index.json"
+    )
+    return Marketplace(LocalPluginRepository(index_path))
+
+
 def _build_agent_orchestrator(
     *,
     settings: Settings,
@@ -399,6 +476,44 @@ class Container(containers.DeclarativeContainer):
     resource_manager = providers.Singleton(
         _build_resource_manager,
         event_bus=event_bus,
+        settings=settings,
+    )
+
+    # ---- Milestone 9 Task Group D -- Plugin Platform --------------------
+    platform_adapter = providers.Singleton(
+        "jarvis.infrastructure.platform.adapter.DefaultPlatformAdapter",
+    )
+    plugin_loader = providers.Singleton(
+        _build_plugin_loader,
+        settings=settings,
+        platform_adapter=platform_adapter,
+    )
+    plugin_sandbox = providers.Singleton(
+        _build_plugin_sandbox,
+        settings=settings,
+    )
+    permission_model = providers.Singleton(
+        _build_permission_model,
+        event_bus=event_bus,
+        settings=settings,
+    )
+    plugin_registry = providers.Singleton(
+        _build_plugin_registry,
+        plugin_loader=plugin_loader,
+        plugin_sandbox=plugin_sandbox,
+        permission_model=permission_model,
+        event_bus=event_bus,
+        platform_adapter=platform_adapter,
+        settings=settings,
+        hotkey_service=hotkey_service,
+    )
+    plugin_store = providers.Singleton(
+        _build_plugin_store,
+        plugin_registry=plugin_registry,
+        settings=settings,
+    )
+    marketplace = providers.Singleton(
+        _build_marketplace,
         settings=settings,
     )
 

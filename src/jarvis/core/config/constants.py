@@ -26,6 +26,7 @@ CACHE_SUBDIR: Final[str] = "cache"
 RECIPES_SUBDIR: Final[str] = "recipes"
 TRASH_SUBDIR: Final[str] = "cache/automation_trash"
 CONFIG_SUBDIR: Final[str] = "config"
+PLUGINS_SUBDIR: Final[str] = "plugins"
 
 DEFAULT_LOG_FILE: Final[str] = "jarvis.log"
 DEFAULT_DB_FILE: Final[str] = "jarvis.db"

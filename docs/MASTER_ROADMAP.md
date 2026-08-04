@@ -105,14 +105,16 @@ future work; see M6's own §3 entry for the full scope note.
   this blocks M9, which has no real dependency on it (see
   `IMPLEMENTATION_ROADMAP.md` §5's own Dependencies note). **M8 is not
   100% complete** — do not treat it as shipped.
-- **M9 — Runtime & Core Services** (see §8) — Runtime Core and
-  Reliability modules fully shipped across Task Group A (Runtime
-  Manager, Application Lifecycle), Task Group B (Service Manager,
-  Session Manager, Configuration Manager, Runtime Health Monitor,
-  Runtime WebSocket API, Runtime Integration), and Task Group C
-  (Background Task Manager, Crash Recovery, Resource Manager). Task
-  Group D (Plugin Platform) and Task Group E (Developer Platform Tools)
-  are 🔴 planned, not yet started — see `IMPLEMENTATION_ROADMAP.md` §5.
+- **M9 — Runtime & Core Services** (see §8) — Runtime Core, Reliability,
+  and Plugin Platform modules fully shipped across Task Group A
+  (Runtime Manager, Application Lifecycle), Task Group B (Service
+  Manager, Session Manager, Configuration Manager, Runtime Health
+  Monitor, Runtime WebSocket API, Runtime Integration), Task Group C
+  (Background Task Manager, Crash Recovery, Resource Manager), and Task
+  Group D (Plugin SDK, Loader, Sandbox, Extension API, Permission
+  Model, Registration System, Store, Marketplace Foundation). Task
+  Group E (Developer Platform Tools) is 🔴 planned, not yet started —
+  see `IMPLEMENTATION_ROADMAP.md` §5.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -1563,8 +1565,9 @@ changelog addendum)*
   (`register_budget()`) even though no collector publishes either
   metric yet.
 
-#### Plugin Platform *(🔴 Task Group D, planned — preserves the
-original M8 scope in full)*
+#### Plugin Platform *(✅ Task Group D, shipped Aug 2026 — preserves the
+original M8 scope in full; see the changelog addendum at the end of
+this document for implementation detail)*
 - Plugin SDK — `IPlugin` protocol, lifecycle hooks (`on_load` /
   `on_start` / `on_stop`), now running under this module's Runtime
   Manager rather than a standalone loader process.
@@ -8939,42 +8942,63 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | *(patch)* | —       | `0.5.1` security patch (cryptography upgrade), `0.5.2` DI container architecture fix — both out-of-band per §6, not milestones | ✅ Shipped |
 | **0.6** | M7        | Workflow Intelligence           | 🟡 Active (Phase 1–2 shipped; Phase 3 deferred; Phases 4–6 paused) |
 | **0.7** | M8        | React Frontend & Desktop Experience | 🟡 Active (Phase 1+4 shipped; Phase 3 partial; Phases 2/5/6/7 + Phase 3 remainder deferred — see Deferred Backlog, §8) |
-| **0.8** | M9        | Runtime & Core Services          | 🟡 Active (Task Groups A+B+C shipped — Runtime Core + Reliability complete; Task Group D Plugin Platform, Task Group E Developer Platform Tools 🔴 planned) |
-| **0.9** | M10       | AI Orchestrator                  | 🔴 Planned |
-| **0.10**| M10A      | Universal Search & Knowledge Platform | 🔴 Planned |
-| **0.11**| M10B      | Intelligence Layer               | 🔴 Planned |
-| **0.12**| M11       | Integrations & Cloud Platform    | 🔴 Planned |
-| **0.13**| M11A      | SEO Intelligence                | 🔴 Planned |
-| **0.14**| M11B      | Productivity Suite               | 🔴 Planned |
-| **0.15**| M12       | Smart Home                      | 🔴 Planned |
-| **0.16**| M13       | Computer Control                | 🔴 Planned |
-| **0.17**| M13A      | AI Sandbox                      | 🔴 Planned |
-| **0.18**| M14       | Security Platform               | 🔴 Planned |
-| **0.19**| M14A      | Backup Platform                 | 🔴 Planned |
-| **0.20**| M15       | Personality Engine              | 🔴 Planned |
-| **0.21**| M16       | Reflection Engine               | 🔴 Planned |
-| **0.22**| M17       | Companion Intelligence          | 🔴 Planned |
-| **0.23**| M17A      | Training Studio                 | 🔴 Planned |
-| **0.24**| M18       | Self-Healing & Diagnostics Platform | 🔴 Planned |
-| **0.25**| M19       | Knowledge Graph & Digital Twin Platform | 🔴 Planned |
-| **0.26**| M20       | Predictive Intelligence Platform | 🔴 Planned |
-| **0.27**| M20A      | Analytics & Observability Platform | 🔴 Planned |
-| **0.28**| M21       | Mobile Platform                 | 🔴 Planned |
-| **0.29**| M22       | Edge AI Platform                | 🔴 Planned |
-| **0.30**| M23       | Distributed JARVIS              | 🔴 Planned |
-| **0.31**| M23A      | Robotics & Hardware Control Platform | 🔴 Planned |
-| **0.32**| M23B      | Autonomous Planning & Decision Engine | 🔴 Planned |
+| **0.8→0.11** | M9   | Runtime & Core Services          | 🟡 Active — see the versioning-granularity note below. Task Groups A–D shipped (Runtime Core, Reliability, Plugin Platform, actual versions `0.9.0`–`0.11.0` per `CHANGELOG.md`); Task Group E (Developer Platform Tools) 🔴 planned. |
+| *(next)* | M10       | AI Orchestrator                  | 🔴 Planned |
+| *(next)* | M10A      | Universal Search & Knowledge Platform | 🔴 Planned |
+| *(next)* | M10B      | Intelligence Layer               | 🔴 Planned |
+| *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
+| *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
+| *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
+| *(next)* | M12       | Smart Home                      | 🔴 Planned |
+| *(next)* | M13       | Computer Control                | 🔴 Planned |
+| *(next)* | M13A      | AI Sandbox                      | 🔴 Planned |
+| *(next)* | M14       | Security Platform               | 🔴 Planned |
+| *(next)* | M14A      | Backup Platform                 | 🔴 Planned |
+| *(next)* | M15       | Personality Engine              | 🔴 Planned |
+| *(next)* | M16       | Reflection Engine               | 🔴 Planned |
+| *(next)* | M17       | Companion Intelligence          | 🔴 Planned |
+| *(next)* | M17A      | Training Studio                 | 🔴 Planned |
+| *(next)* | M18       | Self-Healing & Diagnostics Platform | 🔴 Planned |
+| *(next)* | M19       | Knowledge Graph & Digital Twin Platform | 🔴 Planned |
+| *(next)* | M20       | Predictive Intelligence Platform | 🔴 Planned |
+| *(next)* | M20A      | Analytics & Observability Platform | 🔴 Planned |
+| *(next)* | M21       | Mobile Platform                 | 🔴 Planned |
+| *(next)* | M22       | Edge AI Platform                | 🔴 Planned |
+| *(next)* | M23       | Distributed JARVIS              | 🔴 Planned |
+| *(next)* | M23A      | Robotics & Hardware Control Platform | 🔴 Planned |
+| *(next)* | M23B      | Autonomous Planning & Decision Engine | 🔴 Planned |
 | **1.0** | M24       | Production Release              | 🟡      |
 | **1.1** | M25       | Cognitive Intelligence Platform  | 🟡      |
 | **1.2** | M26       | Self-Learning & Autonomous Evolution Platform | 🟡 |
 | **1.3** | M27       | World Model & Environmental Intelligence Platform | 🟡 |
 | **1.x** | —         | Post-1.0 improvements (🔵 & ⚪ backlog items) | future |
 
-*(Version numbers 0.10 onward shifted by three slots, Aug 2026, to
-accommodate the new lettered companions M10A, M10B, and M11B — these
-are version-string sequence positions, not milestone identities;
-no milestone was renumbered, per the frontend migration's "zero
-renumbering" rule. See §8 for the full retitling rationale.)*
+*(Version numbers 0.10 onward were originally planned to shift by
+three slots, Aug 2026, to accommodate the new lettered companions
+M10A, M10B, and M11B — these were meant as version-string sequence
+positions, not milestone identities; no milestone was renumbered, per
+the frontend migration's "zero renumbering" rule. See §8 for the full
+retitling rationale. **Superseded by the versioning-granularity note
+immediately below**: those specific slot numbers (`0.9`/`0.10`/`0.11`)
+were actually consumed by M9's own Task Groups B/C/D before M10 ever
+started, not reserved for M10A/M10B as originally planned here — the
+milestone-to-slot mapping this note describes never actually played
+out; only the "no milestone was renumbered" principle held.)*
+
+*(Versioning-granularity note, added Aug 2026 during M9 Task Group D:
+in practice, M9's Task Groups have each earned their own minor bump —
+`0.9.0`/`0.10.0`/`0.11.0` for Task Groups B/C/D respectively, per
+`CHANGELOG.md` — rather than saving up one bump for the whole
+milestone as §6's "exactly once per completed top-level milestone"
+rule describes. This is an accepted, real refinement for an unusually
+large milestone (five task groups, each substantial), not a violation
+left uncorrected — M9's own eventual completion does not get a second,
+redundant minor bump on top of the granular ones already shipped. The
+column above is deliberately marked `*(next)*` rather than a specific
+projected number from M10 onward, since M9 already proved the original
+one-slot-per-milestone numbering in this table doesn't hold in
+practice; the next real version number is decided when that milestone
+actually ships, per §6's own "feature-driven, not time-boxed" rule.)*
 
 Version bumps are **feature-driven**, not time-boxed — see §6 for the
 full policy. A version ships when its milestone's acceptance criteria
@@ -9262,7 +9286,7 @@ purpose still holds for M7 onward.)*
 | 1 | **M6** Vision & Multimodal ✅ *(Architecture Layer — shipped)* | M5A explicitly deferred the vision tool here; unblocked immediately, no new dependency to wait on. |
 | 2 | **M7** Workflow Intelligence 🟡 *(Active — Phase 1–2 shipped, Phase 3 deferred, Phases 4–6 pending)* | Turns the M5A agent graph from single-run into a real workflow engine before anything else builds on top of "one prompt, one graph run." |
 | 3 | **M8** React Frontend & Desktop Experience 🟡 *(Active — Phase 1+4 shipped, rest deferred; see §8's Deferred Backlog)* | With a maturing agent + workflow surface, and the Aug 2026 decision to migrate off PySide6 (see `TECH_STACK.md`), the UI is rebuilt before new backend surfaces need a home to render into. |
-| 4 | **M9** Runtime & Core Services 🟡 *(Active — Runtime Core + Reliability shipped, Task Groups A–C; Plugin Platform + Developer Platform Tools pending)* | Third-party extensions (this milestone's own Plugin Platform scope, formerly M8's) need a governed runtime to load into; scheduled right after the new frontend so Developer Mode's ported panels have a real backend from the start. |
+| 4 | **M9** Runtime & Core Services 🟡 *(Active — Runtime Core + Reliability + Plugin Platform shipped, Task Groups A–D; Developer Platform Tools pending)* | Third-party extensions (this milestone's own Plugin Platform scope, formerly M8's) need a governed runtime to load into; scheduled right after the new frontend so Developer Mode's ported panels have a real backend from the start. |
 | 5 | **M10** AI Orchestrator | Formalizes the M5A agent graph into a dedicated orchestration platform, absorbing M7 Phase 3's deferred cross-tool-parallelism scope — scheduled early since M15–M20's "companion intelligence" arc all route through it. |
 | 5A | **M10A** Universal Search & Knowledge Platform | Only needs M3 (already done); scheduled alongside M10 because M15–M20 all depend on it and it's cheaper to build once, early, than to retrofit under six later milestones — unchanged reasoning from the original (pre-migration) M10 Knowledge Engine slot. |
 | 5B | **M10B** Intelligence Layer | The backing engine M15's Proactive Intelligence and M16's Goal/Behaviour Reflection modules both consume; scheduled alongside M10A since both are M15/M16 prerequisites. |
@@ -11298,3 +11322,176 @@ persisting/resuming the Background Task Manager's queue across a
 restart; Task Group D (Plugin Platform) and Task Group E (Developer
 Platform Tools), M9's two remaining modules. Bump this line whenever
 you edit the roadmap.*
+
+*Aug 2026 addendum — M9 Task Group D (Plugin Platform):* closes out M9
+in full except one module -- Task Group E (Developer Platform Tools) is
+now the only work left in this milestone. Architecture unchanged --
+Python + FastAPI + Tauri; this addendum documents implementation only.
+New package `core/plugins/` (`sdk.py`, `manifest.py`, `loader.py`,
+`sandbox.py`, `extension_api.py`, `permissions.py`, `registry.py`,
+`store.py`, `marketplace.py`), plus a new Platform Abstraction Layer
+(`core/interfaces/platform.py` + `infrastructure/platform/adapter.py`)
+added specifically for this task group's Universal Compatibility
+requirement -- Windows is the only implemented target, but nothing
+above the PAL's `IPlatformAdapter` boundary branches on OS directly, so
+a future Linux/macOS adapter is a second implementation of that one
+port, not a redesign.
+
+`sdk.py`/`manifest.py` (Plugin SDK) -- `IPlugin`'s three lifecycle hooks
+(`on_load`/`on_start`/`on_stop`, mirroring `IService`'s own "never a
+seventh method" rule), the fixed 10-scope permission vocabulary
+`docs/ARCHITECTURE.md` §10 already specified, a hand-rolled semver/
+range comparator (no new dependency), and `PluginManifest` (pydantic,
+frozen) extended with the Universal Compatibility fields requirement 5
+asked for: `supported_os`, `supported_arch`, `required_capabilities`,
+`min_jarvis_version` -- all platform-neutral by default (a manifest that
+omits them is loadable everywhere this JARVIS build knows about).
+
+`loader.py` (Plugin Loader) -- discovery, Kahn's-algorithm dependency
+ordering (same technique `ServiceManager._ordered_names` already uses,
+deliberately more fault-tolerant on a cycle than that method: a plugin
+set is third-party, so a cyclic/missing dependency isolates just the
+affected plugin(s), never raises across the whole batch), full
+compatibility checking (`sdk_range`, `min_jarvis_version`,
+`supported_os`/`supported_arch`, `required_capabilities` -- all through
+`IPlatformAdapter`, never a raw `sys.platform` check), and real hot
+reload. A genuine bug its own test suite caught:
+`importlib.util.spec_from_file_location`'s `.pyc` cache validates on
+mtime+size, and two plugin source revisions of identical length
+rewritten within the same filesystem mtime tick are indistinguishable
+to it -- reload now reads source and compiles fresh every call,
+bypassing that cache entirely.
+
+`sandbox.py` (Secure Plugin Sandbox) -- two real tiers, not one
+mechanism pretending to be both. In-process (default): fault-isolated,
+timeout-bounded (`asyncio.wait_for`) hook execution, the same guarantee
+every other M9 lifecycle component makes. Out-of-process (opt-in): a
+real `multiprocessing` (`spawn`) child process reachable only over a
+pipe, so a crash or hang there cannot corrupt the parent; `psutil`-based
+monitor-and-terminate enforces a CPU/memory budget -- a real, working,
+but detect-and-kill control on a polling interval, not a kernel-level
+hard cap, documented as such. Known, documented v1 limit: a
+process-isolated plugin's `on_load` receives a minimal
+`MinimalPluginContext` (identity only), not the full in-process
+`PluginContext` -- a live `EventBus` reference cannot cross a process
+boundary by value; a real IPC-relayed Extension API for that tier is
+Future Work, below.
+
+`extension_api.py` (Extension API) -- `PluginContext`, the one channel a
+plugin gets: permission-gated `filesystem` (confined to the plugin's
+own data dir, real path-traversal check), `network` (declaration only --
+no request mediation yet), `hotkeys` (real, delegates to the existing
+`HotkeyService`, namespaced `plugin.<id>.<semantic>` so two plugins
+can't collide), `notifications` (publishes a real
+`PluginNotificationEvent`); unrestricted `events` (a plugin's own
+namespaced `PluginCustomEvent`, never a raw core event type, so it
+can't impersonate a first-party component) and `commands` (only IDs the
+plugin's own manifest declared); `config` (validated against the
+manifest's `settings_schema`); `platform` (read-only capability
+queries). UI extension points are scoped honestly: the frontend's
+`ApplicationRegistry`/`ContributionRegistry` live in a separate process
+with no in-process bridge, so this module exposes the plugin's
+manifest-declared UI surface for a future FastAPI route to serve, the
+same "declare it, the frontend renders it" pattern first-party modules
+already use -- it does not fake a live call into them.
+
+`permissions.py` (Permission Model) -- the real `IPermissionChecker`.
+Least-privilege by construction: a declared scope starts `PENDING`,
+`is_granted()` returns `False` until an explicit `grant()`. No
+interactive UI exists yet (that's Task Group E's Developer Platform
+Tools), but the workflow itself is real and persisted (`config_dir`
+convention) -- declare -> pending -> grant/deny, each a real state
+transition with an audit trail (bounded `deque`) and a published event
+(`PluginPermissionGrantedEvent`/`PluginPermissionDeniedEvent`);
+`pending()` is the actual queue a future approval surface would read
+from.
+
+`registry.py` (Plugin Registration System) -- `PluginRegistry`,
+composing all of the above the same way `ServiceManager` composes
+`IService`. `discover_and_load_all()` never lets one plugin's failure
+block another's -- every failure mode from every earlier phase
+(incompatibility, a Sandbox-isolated exception, an unresolved
+dependency) lands as that one plugin's own `FAILED` state. Real
+rollback support: `update()` backs up the previous on-disk version
+before staging the new one in; if the new version fails to load, the
+backup is restored and reloaded automatically -- "a failed plugin update
+reverts to the last-known good version without operator intervention,"
+the Plugin Safe Core Architecture requirement, verified under test.
+`disable()` also calls the context's `hotkeys.unregister_all()` so a
+disabled plugin never leaves an orphaned global hotkey bound.
+
+`store.py` (Plugin Store Foundation) -- turns a directory or `.zip`
+(Zip Slip-guarded extraction) into a Registry-installable directory.
+Two independent real checks: integrity (`checksums.json`, SHA-256,
+order-independent) and authenticity (`ISignatureVerifier`;
+`UnsignedAllowedVerifier` does a genuine Ed25519 verify via
+`cryptography` -- already a pinned dependency -- when a
+`manifest.json.sig`/`publisher.pub` pair exists, and otherwise allows
+unsigned only when configured to, matching the roadmap's own "no hosted
+infra for v1" position). Offline by construction -- nothing in this
+module makes a network call.
+
+`marketplace.py` (Marketplace Foundation) -- `IPluginRepository` is the
+seam a future `GitHubPluginRepository`/`CloudPluginRepository` plugs
+into without changing anything above it (search/browse/categories/
+ratings); `LocalPluginRepository` is the real v1 implementation of the
+exact `{name, description, author, versions[], sdk_range, homepage}`
+JSON index shape this section's own Plugin Store bullet already
+specified. `InMemoryReviewStore` genuinely accepts/lists/averages
+ratings for the runtime's own lifetime (not persisted across a restart,
+no real user-identity system beyond a caller-supplied reviewer string --
+both honest, documented v1 limits).
+
+`app.py`'s new `_register_task_group_d_hooks` (mirroring Task Groups
+B/C's own sibling methods) wires `PluginRegistry` into `RuntimeManager`
+as the outermost layer over an already-running core -- Plugin Safe Core
+Architecture's own framing: plugins start *last* (priority 12, after
+Task Group C's 10-11) and stop *first* (priority -1, before Task Group
+B's own priority-0-and-up chain), so no plugin is ever running against
+a service mid-teardown. A no-op when `settings.plugins.enabled` is
+false. `RuntimeWebSocketHub`'s `EVENT_TYPE_NAMES` gained eleven more
+entries (`plugin.discovered/loaded/load_failed/unloaded/enabled/
+disabled/installed/uninstalled/updated/permission_granted/
+permission_denied`), extending `docs/ARCHITECTURE.md` §6's category
+table the same way Task Groups B and C's own additions did.
+
+199 new tests across twelve files (`test_platform_adapter.py`,
+`test_plugin_sdk.py`, `test_plugin_manifest.py`, `test_plugin_loader.py`,
+`test_plugin_sandbox.py`, `test_plugin_extension_api.py`,
+`test_plugin_permissions.py`, `test_plugin_registry.py`,
+`test_plugin_store.py`, `test_plugin_marketplace.py`, plus a real
+end-to-end `tests/integration/test_plugin_platform_e2e.py` loading a
+real `tests/fixtures/plugins/hello_world` plugin through the entire
+Loader -> Sandbox -> Permission Model -> Registry stack -- proving this
+milestone's own acceptance criterion, "a hello-world plugin registers a
+slash command and a hotkey," including the full least-privilege
+workflow: first boot denied while pending, then genuinely running once
+granted). One existing test
+(`test_runtime_ws_hub.py::test_every_documented_event_type_is_mapped`)
+was updated to include the eleven new relayed categories -- an expected
+extension, not a regression. Full suite: 741 passed (up from 542), zero
+regressions; frontend: 293 passed, unaffected (this task group is
+backend-only). mypy/ruff/black diffed against a clean pre-task-group
+`git stash -u` baseline (including untracked files, so the diff is
+genuinely clean, not contaminated by this task group's own new files):
+exactly one new finding each in `container.py` (`platform_adapter`'s
+`Need type annotation`, the same pre-existing, already-accepted §15
+pattern every other string-path `providers.Singleton` in that file
+already has) and `app.py` (one more `PLC0415` lazy-import hit inside
+the new hook method, the same accepted convention Task Groups B and C's
+own hook methods already use) -- zero new findings anywhere else across
+the full 299-file `src/` tree.
+
+**Future Work** (explicitly out of scope for this task group, not
+implemented): a real IPC-relayed Extension API for process-isolated
+plugins (today limited to `MinimalPluginContext`); actual
+outbound-request mediation/quota enforcement for the `network`
+permission scope (today a declaration check only); a hosted, signed
+Plugin Store index and a real `GitHubPluginRepository`/
+`CloudPluginRepository` (today local-file-only, by the roadmap's own
+"no hosted infra for v1" design); persisted, multi-session ratings/
+reviews with real user identity; an interactive permission-approval UI
+(the workflow and its audit trail are real today; only the visual
+surface is Task Group E's Developer Platform Tools to build); Task
+Group E (Developer Platform Tools), M9's one remaining module. Bump
+this line whenever you edit the roadmap.*

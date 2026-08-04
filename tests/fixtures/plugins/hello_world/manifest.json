@@ -1,0 +1,27 @@
+{
+  "name": "hello-world",
+  "display_name": "Hello World",
+  "version": "1.0.0",
+  "sdk_range": ">=1.0.0,<2.0.0",
+  "min_jarvis_version": "0.10.0",
+  "entry_point": "plugin:HelloWorldPlugin",
+  "dependencies": [],
+  "permissions": ["hotkey"],
+  "supported_os": ["windows", "linux", "macos"],
+  "supported_arch": ["x86_64", "arm64", "x86"],
+  "required_capabilities": [],
+  "commands": [
+    { "id": "hello.greet", "description": "Say a friendly hello" }
+  ],
+  "voice_commands": [
+    { "phrase": "say hello", "command": "hello.greet" }
+  ],
+  "settings_schema": {
+    "default_name": { "type": "string", "default": "world" }
+  },
+  "developer_metadata": {
+    "author": "JARVIS core team",
+    "homepage": null,
+    "repository": null
+  }
+}

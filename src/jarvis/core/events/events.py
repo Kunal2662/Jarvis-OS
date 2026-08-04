@@ -240,6 +240,125 @@ class WorkflowStepEvent(Event):
     status: str = ""
 
 
+## --- Plugin Platform (Milestone 9 Task Group D) ------------------------------
+@dataclass(frozen=True, slots=True)
+class PluginDiscoveredEvent(Event):
+    """Published by :class:`~jarvis.core.plugins.registry.PluginRegistry`
+    when :class:`~jarvis.core.plugins.loader.PluginLoader.discover` finds
+    a plugin with a valid manifest, before any attempt to load it."""
+
+    plugin_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginLoadedEvent(Event):
+    """Published once a plugin's ``on_load``+``on_start`` hooks have
+    both run successfully through the Sandbox."""
+
+    plugin_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginLoadFailedEvent(Event):
+    """Published when a plugin fails discovery/compatibility/import/
+    ``on_load``/``on_start`` -- isolated to this one plugin, matching
+    every other M9 fault-isolation guarantee."""
+
+    plugin_id: str = ""
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginUnloadedEvent(Event):
+    """Published once a plugin's ``on_stop`` has run and its module has
+    been un-imported."""
+
+    plugin_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginCrashedEvent(Event):
+    """Published when a loaded, running plugin raises outside of a
+    normal hook call the Sandbox was already isolating (Registry-level
+    detection -- e.g. a health check the Registry itself performs)."""
+
+    plugin_id: str = ""
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginEnabledEvent(Event):
+    plugin_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginDisabledEvent(Event):
+    plugin_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginPermissionGrantedEvent(Event):
+    """Published by :class:`~jarvis.core.plugins.permissions.PermissionModel`
+    when a scope is granted -- part of the Permission Model's audit
+    trail (Phase 5), not only a runtime signal."""
+
+    plugin_id: str = ""
+    scope: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginPermissionDeniedEvent(Event):
+    """Published on every denied permission check -- including a check
+    against a scope that was simply never granted (least-privilege
+    default), not only an explicit revocation."""
+
+    plugin_id: str = ""
+    scope: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginInstalledEvent(Event):
+    plugin_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginUninstalledEvent(Event):
+    plugin_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginUpdatedEvent(Event):
+    plugin_id: str = ""
+    from_version: str = ""
+    to_version: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginCustomEvent(Event):
+    """A plugin's own application-level event, published through
+    :class:`~jarvis.core.plugins.extension_api.PluginContext`'s event
+    channel (Phase 4). Deliberately a single, namespaced wrapper type
+    rather than letting a plugin construct arbitrary core ``Event``
+    subclasses -- a plugin cannot forge e.g. a ``ServiceFailedEvent``
+    for a service it doesn't own."""
+
+    plugin_id: str = ""
+    name: str = ""
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class PluginNotificationEvent(Event):
+    """Published through the Extension API's permission-gated
+    ``notifications`` scope (Phase 4). No frontend surface consumes
+    this yet -- the same "real event, honestly zero consumers today"
+    pattern the Voice String/Live Transcript stores already establish."""
+
+    plugin_id: str = ""
+    title: str = ""
+    message: str = ""
+
+
 @dataclass(frozen=True, slots=True)
 class ScheduledJobFiredEvent(Event):
     """Fired when the Scheduler (Milestone 7, Phase 6) dispatches a due

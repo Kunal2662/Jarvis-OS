@@ -80,6 +80,7 @@ def ensure_runtime_dirs(data_dir: Path) -> None:
         constants.RECIPES_SUBDIR,
         constants.TRASH_SUBDIR,
         constants.CONFIG_SUBDIR,
+        constants.PLUGINS_SUBDIR,
     ):
         (data_dir / sub).mkdir(parents=True, exist_ok=True)
 
@@ -127,3 +128,9 @@ def automation_trash_dir(data_dir: Path) -> Path:
 def config_dir(data_dir: Path) -> Path:
     """Milestone 5 -- JSON config stores (API Center, restore points, ...)."""
     return data_dir / constants.CONFIG_SUBDIR
+
+
+def plugins_dir(data_dir: Path) -> Path:
+    """Milestone 9 Task Group D -- installed plugin directories, one
+    subfolder per plugin (``<plugins_dir>/<plugin_id>/manifest.json``)."""
+    return data_dir / constants.PLUGINS_SUBDIR

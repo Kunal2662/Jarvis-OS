@@ -12,8 +12,9 @@
 > documents. A full Project Completion Audit (Aug 2026, ahead of M9
 > Task Group D) cross-checked this document's own checklists against
 > the repository and found them already current — no changes required
-> here; every new finding from that audit lives in `MASTER_ROADMAP.md`
-> §15 Pending and `docs/ARCHITECTURE.md` §5.
+> here at that time; every new finding from that audit lives in
+> `MASTER_ROADMAP.md` §15 Pending and `docs/ARCHITECTURE.md` §5. M9
+> Task Group D (Plugin Platform) has since shipped — see §5 below.
 
 **Document owner:** project lead
 **Status:** Aug 2026 — tracks M8 (React Frontend & Desktop Experience)
@@ -26,10 +27,12 @@ Runtime Core module is now fully shipped across Task Group A (Runtime
 Manager, Application Lifecycle) and Task Group B (Service Manager,
 Session Manager, Configuration Manager, Runtime Health Monitor,
 Runtime WebSocket API, Runtime Integration) and Task Group C
-(Background Task Manager, Crash Recovery, Resource Manager) — see §5
-below; M9's remaining modules (Plugin Platform, Developer Platform
-Tools) remain 🔴 planned as Task Groups D/E (see §5). This is a
-deliberate, explicit exception to "one active milestone at a time":
+(Background Task Manager, Crash Recovery, Resource Manager); Task
+Group D (Plugin Platform — SDK, Loader, Sandbox, Extension API,
+Permission Model, Registration System, Store, Marketplace Foundation)
+has now shipped too — see §5 below. Only Task Group E (Developer
+Platform Tools) remains 🔴 planned (see §5). This is a deliberate,
+explicit exception to "one active milestone at a time":
 M9's Runtime Core had no real dependency on M8's remaining frontend
 backlog (see §5's own Dependencies note), following an architecture
 review the user requested and then closed with "keep the documented
@@ -51,7 +54,7 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | M0 – M6 | ✅ Completed. See `MASTER_ROADMAP.md` §3. |
 | M7 — Workflow Intelligence | 🟡 Active (Phases 1–2 shipped; Phase 3 🟠 deferred; Phases 4–6 pending). See `MASTER_ROADMAP.md` §8. |
 | **M8 – React Frontend & Desktop Experience** | 🟡 **Active — this document tracks it.** Phase 1 and Phase 4 shipped; Phase 3 partial; Phases 2, 5, 6, 7 and the rest of Phase 3 🟠 **deferred — see §6, Deferred Backlog.** **Not 100% complete.** |
-| **M9 – Runtime & Core Services** | 🟡 **Active — Runtime Core + Reliability complete (Task Groups A+B+C), see §5 below.** Task Group D (Plugin Platform), E (Developer Platform Tools) 🔴 planned. |
+| **M9 – Runtime & Core Services** | 🟡 **Active — Runtime Core, Reliability, and Plugin Platform complete (Task Groups A+B+C+D), see §5 below.** Task Group E (Developer Platform Tools) 🔴 planned. |
 | M10, M10A, M10B, M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
 M7's Phases 4–6 (Workflow Builder, Recorder, Scheduler) were paused
@@ -641,7 +644,7 @@ itself so there is exactly one place they can drift out of sync from.
 
 ---
 
-## 5. M9 — Runtime & Core Services (Active — Runtime Core + Reliability complete)
+## 5. M9 — Runtime & Core Services (Active — Runtime Core + Reliability + Plugin Platform complete)
 
 Placed after §4 rather than renumbered in between M8's own sections,
 matching this project's "zero renumbering" convention applied to
@@ -810,10 +813,79 @@ above.
         supports them once a collector exists); enforcement
         (throttle/kill) on a budget breach; persisting/resuming the
         Background Task Manager's queue across a restart.
-- [ ] **Task Group D — Plugin Platform** *(🔴 planned)*: Plugin SDK,
-      Plugin Loader, Extension API, Permission Model, Plugin Store,
-      Marketplace, Plugin Safe Core Architecture, Plugin Registration
-      System — see `MASTER_ROADMAP.md` §8 M9's Plugin Platform module.
+- [x] **Task Group D — Plugin Platform** *(Aug 2026 — see
+      `MASTER_ROADMAP.md`'s own changelog addendum for the full
+      reasoning and design)*: closes out M9's Plugin Platform module in
+      full, preserving the original scope unchanged.
+  - [x] Plugin SDK (`core/plugins/sdk.py`, `manifest.py`) — `IPlugin`'s
+        three lifecycle hooks, the fixed 10-scope permission
+        vocabulary, a hand-rolled semver/range comparator, and
+        `PluginManifest` (pydantic, frozen) extended with the Universal
+        Compatibility fields (`supported_os`, `supported_arch`,
+        `required_capabilities`, `min_jarvis_version`), all
+        platform-neutral by default.
+  - [x] Platform Abstraction Layer (`core/interfaces/platform.py` +
+        `infrastructure/platform/adapter.py`) — added for Universal
+        Compatibility; Windows is the only implemented adapter, but
+        nothing above `IPlatformAdapter` branches on OS directly, so a
+        future Linux/macOS adapter is a second implementation, not a
+        redesign.
+  - [x] Plugin Loader (`loader.py`) — discovery, Kahn's-algorithm
+        dependency ordering (fault-isolating a cycle/missing dependency
+        to just the affected plugin(s), deliberately more tolerant than
+        `ServiceManager`'s own stricter rule), full compatibility
+        checks, and real hot reload (reads source and compiles fresh
+        every call — a real `.pyc`-cache staleness bug its own tests
+        caught and fixed).
+  - [x] Secure Plugin Sandbox (`sandbox.py`) — in-process (default,
+        fault-isolated + timeout-bounded) and opt-in out-of-process
+        (`multiprocessing`, real `psutil`-based resource-budget
+        monitor-and-terminate) tiers.
+  - [x] Extension API (`extension_api.py`) — `PluginContext`:
+        permission-gated `filesystem`/`network`/`hotkeys`/
+        `notifications`, unrestricted `events`/`commands` (both scoped
+        to the plugin's own declared surface), `config`, `platform`.
+  - [x] Permission Model (`permissions.py`) — the real
+        `IPermissionChecker`: least-privilege by construction (declare
+        -> pending -> grant/deny), persisted, audited, event-published.
+  - [x] Plugin Registration System (`registry.py`) — `PluginRegistry`:
+        enable/disable, install/uninstall, update with real rollback
+        support (Plugin Safe Core Architecture's requirement, verified
+        under test), health/status tracking.
+  - [x] Plugin Store Foundation (`store.py`) — directory/`.zip` package
+        staging (Zip Slip-guarded), real SHA-256 integrity checks, real
+        Ed25519 signature verification (`cryptography`, already a
+        pinned dependency) with an honest unsigned-allowed v1 default.
+  - [x] Marketplace Foundation (`marketplace.py`) — `IPluginRepository`
+        abstraction (a future hosted repository is a second
+        implementation, not a redesign), real `LocalPluginRepository`
+        + search/categories, genuinely functional in-memory
+        ratings/reviews.
+  - [x] `app.py`'s `_register_task_group_d_hooks` wires `PluginRegistry`
+        into `RuntimeManager` as the outermost layer: starts last
+        (priority 12), stops first (priority -1), a no-op when
+        `settings.plugins.enabled` is false. `RuntimeWebSocketHub`
+        gained eleven `plugin.*` relay categories.
+  - [x] 199 new tests across twelve files, including a real end-to-end
+        integration test (`tests/integration/test_plugin_platform_e2e.py`)
+        loading the real `tests/fixtures/plugins/hello_world` plugin
+        through the entire stack — proving the module's own acceptance
+        criterion, "a hello-world plugin registers a slash command and
+        a hotkey." Full suite: 741 passed (up from 542), zero
+        regressions; frontend: 293 passed, unaffected. mypy/ruff/black
+        diffed against a clean pre-task-group `git stash -u` baseline:
+        zero new findings outside the same pre-existing, already-accepted
+        `providers.Singleton` annotation and `PLC0415` patterns §15
+        documents.
+  - **Future Work** (explicitly deferred, not implemented): a real
+        IPC-relayed Extension API for process-isolated plugins (today
+        `MinimalPluginContext` only); outbound-request mediation/quota
+        enforcement for the `network` permission scope; a hosted,
+        signed Plugin Store index and a real `GitHubPluginRepository`/
+        `CloudPluginRepository`; persisted, multi-session ratings/
+        reviews with real user identity; an interactive
+        permission-approval UI (the workflow itself is real; only the
+        visual surface is Task Group E's to build).
 - [ ] **Task Group E — Developer Platform Tools** *(🔴 planned)*: Debug
       Console, Live Logs, Performance Profiler, State Inspector, API
       Inspector, Plugin Marketplace Foundation — see
@@ -823,9 +895,9 @@ above.
 (`MASTER_ROADMAP.md` §8) is narrow — Developer Platform Tools' and
 Marketplace's *consumer* surfaces, which already exist and work today
 (Developer Mode, Task Group F's Dashboard/Command Palette work). Task
-Groups A, B, and C touched neither, so none were blocked by M8's
-remaining Phase 2–3/5–7 backlog. Task Groups D/E remain equally
-unblocked by M8's Deferred Backlog (§6) for the same reason.
+Groups A, B, C, and D touched neither, so none were blocked by M8's
+remaining Phase 2–3/5–7 backlog. Task Group E remains equally unblocked
+by M8's Deferred Backlog (§6) for the same reason.
 
 ---
 

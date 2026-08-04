@@ -467,6 +467,29 @@ class ResourceSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}RESOURCE_", extra="ignore")
 
 
+class PluginSettings(BaseSettings):
+    """Milestone 9 Task Group D -- Plugin Platform.
+
+    ``sandbox_mode`` is this platform's *default* tier (Phase 3); an
+    individual plugin's manifest can still request the other tier --
+    this only sets what a plugin gets when it doesn't ask.
+    ``allow_unsigned_packages`` mirrors the roadmap's own "no hosted
+    infra for v1" position (Phase 7) -- true by default so local/
+    community plugins remain installable before a real signing
+    authority exists, not because signatures don't matter.
+    """
+
+    enabled: bool = True
+    sandbox_mode: str = "in_process"
+    hook_timeout_seconds: float = 10.0
+    max_cpu_percent: float = 50.0
+    max_memory_mb: float = 512.0
+    allow_unsigned_packages: bool = True
+    marketplace_index_path: str = ""
+
+    model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}PLUGINS_", extra="ignore")
+
+
 # ---------------------------------------------------------------------------
 # Root settings
 # ---------------------------------------------------------------------------
@@ -476,7 +499,7 @@ class Settings(BaseSettings):
     env: Environment = Environment.DEVELOPMENT
     debug: bool = True
     app_name: str = "JARVIS OS"
-    app_version: str = "0.10.0"
+    app_version: str = "0.11.0"
     data_dir: Path | None = None
 
     llm_default_provider: LLMProviderName = LLMProviderName.OLLAMA
@@ -515,6 +538,7 @@ class Settings(BaseSettings):
     vision: VisionSettings = Field(default_factory=VisionSettings)
     ocr: OCRSettings = Field(default_factory=OCRSettings)
     resource: ResourceSettings = Field(default_factory=ResourceSettings)
+    plugins: PluginSettings = Field(default_factory=PluginSettings)
 
     model_config = SettingsConfigDict(
         env_prefix=ENV_PREFIX,

@@ -141,6 +141,7 @@ class ApplicationBootstrapper:
         runtime_manager = self._container.runtime_manager()
         health_monitor = self._register_task_group_b_hooks(runtime_manager, settings)
         self._register_task_group_c_hooks(runtime_manager)
+        self._register_task_group_d_hooks(runtime_manager, settings)
 
         # Milestone 3.1 — preload the local Whisper model eagerly instead of
         # paying the load cost on the user's first PTT/toggle-listen call.
@@ -359,6 +360,45 @@ class ApplicationBootstrapper:
             crash_recovery.mark_clean()
 
         runtime_manager.register("crash_recovery", _mark_clean, priority=PRIORITY_FIRST + 7)
+
+    def _register_task_group_d_hooks(
+        self, runtime_manager: RuntimeManager, settings: Settings
+    ) -> None:
+        """Milestone 9 Task Group D -- Plugin Platform. Plugins are the
+        outermost layer over an already-running core (this task
+        group's "Plugin Safe Core Architecture" principle -- see
+        `MASTER_ROADMAP.md`'s changelog addendum) -- they must be the
+        *last* thing to start, once every other Task Group A/B/C
+        manager has already booted, and the *first* thing to stop, so
+        no plugin is still running against a service that has begun
+        tearing down. Startup joins at priority 12 (after Task Group
+        C's 10-11); shutdown claims priority -1 (before Task Group
+        B/C's own priority-0-and-up chain), leaving both existing
+        chains' own numbering untouched.
+
+        A no-op when `settings.plugins.enabled` is false -- the whole
+        Plugin Platform is an opt-out feature, not a hard dependency of
+        the runtime it's layered on top of.
+        """
+        if not settings.plugins.enabled:
+            return
+
+        from jarvis.core.lifecycle.runtime_manager import PRIORITY_FIRST
+
+        assert self._container is not None
+        plugin_registry = self._container.plugin_registry()
+
+        async def _load_plugins() -> None:
+            await plugin_registry.discover_and_load_all()
+
+        runtime_manager.register_startup(
+            "plugin_registry", _load_plugins, priority=PRIORITY_FIRST + 12
+        )
+
+        async def _stop_plugins() -> None:
+            await plugin_registry.stop_all()
+
+        runtime_manager.register("plugin_registry", _stop_plugins, priority=PRIORITY_FIRST - 1)
 
     def _run_headless(self) -> int:
         from loguru import logger

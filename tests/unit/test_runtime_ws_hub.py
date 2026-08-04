@@ -68,6 +68,18 @@ def test_every_documented_event_type_is_mapped() -> None:
         "task.completed",
         "task.failed",
         "resource.budget_exceeded",
+        # Task Group D
+        "plugin.discovered",
+        "plugin.loaded",
+        "plugin.load_failed",
+        "plugin.unloaded",
+        "plugin.enabled",
+        "plugin.disabled",
+        "plugin.installed",
+        "plugin.uninstalled",
+        "plugin.updated",
+        "plugin.permission_granted",
+        "plugin.permission_denied",
     }
 
 
