@@ -1229,9 +1229,9 @@ repeated here.
 | Streaming Runtime | 🟡 Partial | M10 | §6 above (WebSocket standards); real token-level streaming for the tool-composed path via `/api/v1/agent/stream`'s SSE response |
 | Automation Architecture | 🟡 Active | M4 (shipped) / M7 (Phases 1–2 shipped, 3–6 pending) | §16 above |
 | Security Architecture | 🟠 Interim | M14 (not started) | §17 above — today's enforcement (`AgentPermissionGate`, Permission Model) is real but interim, pending M14's Authorization Engine |
-| MCP Architecture | 🔴 Planned | Not yet assigned a milestone | `docs/TECH_STACK.md` §10 (Future technology) — conceptually extends M11 Integrations & Cloud Platform's provider-abstraction pattern; nothing built yet |
-| Self-Healing Architecture | 🔴 Planned | M18 | `MASTER_ROADMAP.md` §8 M18 — Self-Healing & Diagnostics Platform |
-| Observability | 🔴 Planned | M20A | `MASTER_ROADMAP.md` §8 M20A — Analytics & Observability Platform |
+| MCP Architecture | 🔴 Planned | **M10.5** (MCP & Integration Platform) | `MASTER_ROADMAP.md` §8 M10.5 — the protocol/registry layer beneath M11; nothing built yet |
+| Self-Healing Architecture | 🔴 Planned | **M13B** (foundation) → M18 (full platform) | `MASTER_ROADMAP.md` §8 M13B — Self-Healing & Observability; §8 M18 — Self-Healing & Diagnostics Platform |
+| Observability | 🔴 Planned | **M13B** (foundation) → M20A (full platform) | `MASTER_ROADMAP.md` §8 M13B; §8 M20A — Analytics & Observability Platform |
 | Cloud Architecture | 🟠 Partial | M11 | §1 above (Cloud box — Oracle Cloud, optional, outbound-only); `docs/TECH_STACK.md` §5 — MongoDB sync target not yet started |
 | Mobile Architecture | 🔴 Planned | M21 | `MASTER_ROADMAP.md` §8 M21 — Mobile Platform (Mobile Companion, Wearable integration); `docs/TECH_STACK.md` §10 |
 | Enterprise Architecture | 🔴 Planned | No single dedicated milestone — cross-cutting scope distributed across M15/M16/M18/M19/M20/M23 | `MASTER_ROADMAP.md` — "Enterprise collaboration" under M23 Distributed JARVIS is the primary owner; Personality/Plugin-Health/Model marketplaces (M15/M18/M22) are the marketplace-shaped pieces |

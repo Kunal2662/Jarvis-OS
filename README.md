@@ -155,8 +155,8 @@ The short version:
 | Knowledge Graph & Universal Search | ✅ Real | `services/knowledge_service.py`, `services/search_service.py` |
 | AI Orchestrator | 🟡 Partial | `agents/graph.py` — Intent, Planning, parallel tool dispatch, interim Permission Validation |
 | Intelligence Layer | ✅ Real | `services/intelligence_service.py` — Goal Manager, Routine/Preference Learning, Daily Briefing |
-| MCP Architecture | 🔴 Planned | Not yet assigned a milestone — see `docs/TECH_STACK.md` §10 |
-| Self-Healing Architecture | 🔴 Planned | M18 |
+| MCP Architecture | 🔴 Planned | M10.5 — MCP & Integration Platform |
+| Self-Healing Architecture | 🔴 Planned | M13B (foundation) → M18 (full platform) |
 
 ## Project layout
 
@@ -323,12 +323,18 @@ yet.
 
 Beyond M10B, the roadmap continues (all planned, none started;
 milestone identities never renumbered once assigned — see
-`docs/MASTER_ROADMAP.md` §1's charter): **M11 Integrations & Cloud
+`docs/MASTER_ROADMAP.md` §1's charter): **M10.5 MCP & Integration
+Platform** *(added Aug 2026)* — the Model Context Protocol
+registry/adapter layer, scheduled before M11 so M11's providers build
+on it rather than retrofit onto it; **M11 Integrations & Cloud
 Platform** (OAuth-backed integrations, API Gateway, optional Oracle
 Cloud/MongoDB sync) and its companions M11A (SEO Intelligence) and
 M11B (Productivity Suite — Tasks, Documents, File Manager, Command
 Palette); **M12 Smart Home & IoT**; **M13 Desktop Intelligence &
-Computer Control** and **M13A AI Sandbox**; **M14 Security Platform**
+Computer Control**, **M13A AI Sandbox**, and **M13B Self-Healing &
+Observability** *(added Aug 2026 — the foundational subset of
+M18/M20A, which remain their full-scale realizations)*; **M14 Security
+Platform**
 (the Authorization Engine several earlier milestones already defer
 to) and **M14A Backup Platform**; **M15 Personality Engine**, **M16
 Reflection Engine**, and **M17 Companion Intelligence** (+ **M17A

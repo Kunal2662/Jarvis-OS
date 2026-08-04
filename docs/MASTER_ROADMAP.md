@@ -2175,6 +2175,78 @@ Briefing), M10A (knowledge/context substrate).
    delivery layer, remain deferred pending M7's Scheduler (Phase 6) and
    M15 respectively -- neither exists yet.
 
+### M10.5 — MCP & Integration Platform
+
+*(New milestone, Aug 2026 — introduced after M10B completed, as a
+roadmap extension. Not a renumbering: M10.5 is additive, following the
+decimal-companion precedent **M5.5** (Production Stabilization Pass,
+§3) already set, and alters no existing milestone's identity or scope.)*
+
+**Status: 🔴 Planned.** Not started.
+
+**Objective:** the protocol-level foundation for every external tool
+and context provider JARVIS consumes — standardizing on **MCP (Model
+Context Protocol)** so a new integration is a *registered provider*
+rather than a bespoke adapter written from scratch each time.
+Deliberately scoped as the protocol-and-registry layer *beneath* M11
+Integrations & Cloud Platform, not a duplicate of it: this milestone
+defines **how** an external capability is described, discovered,
+permissioned and invoked; M11 supplies the **specific**
+credential-backed providers (Gmail, Calendar, Spotify, Oracle Cloud
+sync) that flow through it. Scheduled before M11 precisely so M11's
+providers are built on this foundation rather than retrofitted onto it
+afterwards.
+
+**Key features:**
+- MCP Client — consume external MCP servers as tool/context providers,
+  surfaced through the existing Tool Registry rather than a parallel
+  one.
+- MCP Server (JARVIS as provider) — expose JARVIS's own tools and
+  resources to other MCP-aware clients over the same protocol.
+- Provider Registry — register/unregister/discover MCP providers at
+  runtime, mirroring `SearchService`'s already-shipped `ISearchSource`
+  registry pattern (M10A) rather than inventing a second registration
+  mechanism.
+- Capability Negotiation — a provider declares what it offers; JARVIS
+  checks that declaration against the existing M9 plugin permission
+  vocabulary before exposing it to the agent.
+- Transport abstraction — stdio/HTTP/WebSocket MCP transports behind
+  one port in `core/interfaces`, per §4's ports-and-adapters rule.
+- Integration lifecycle — connect, health-check, reconnect, disconnect,
+  matching M9's Service Manager per-service lifecycle rather than a
+  bespoke one.
+- Permission Model — every MCP-provided tool passes through M10's
+  Permission Validation node before executing. No MCP tool bypasses
+  the gate an in-process tool already goes through.
+
+**Explicitly not duplicated here:** OAuth flows, credential storage,
+API Gateway, webhooks, queue/retry/caching, cloud sync (Oracle Cloud,
+MongoDB), and the specific Email/Calendar/Spotify/Weather/Finance
+providers are all M11's own already-detailed scope. This milestone
+provides the protocol substrate they register through; it does not
+restate them.
+
+**Dependencies:** M5A (agent tool exposure — MCP tools land in the
+same Tool Registry every other tool does), M9 (Plugin Permission
+Model, Service Manager lifecycle), M10 (the Permission Validation node
+every tool call routes through), M10A (the provider-registry pattern
+this milestone mirrors).
+
+**Complexity:** L.
+
+**Acceptance criteria:**
+1. An external MCP server registered at runtime exposes at least one
+   tool the agent successfully invokes, with the call visible in Agent
+   Trace exactly like an in-process tool.
+2. An MCP-provided tool invocation is blocked by Permission Validation
+   when its declared capability is not granted — through the same gate
+   an in-process tool already passes, not a parallel one.
+3. JARVIS's own tools are consumable by an external MCP client over
+   the same protocol.
+4. A provider that disconnects mid-session is health-checked and
+   either reconnected or cleanly deregistered, without restarting the
+   runtime.
+
 ### M11 — Integrations & Cloud Platform
 
 *(Retitled Aug 2026 from "Productivity Platform" as part of the
@@ -3516,6 +3588,73 @@ it), M4 (`SafetyValidator`/`UndoManager` foundations).
    execution, not after.
 3. Rollback testing catches at least one intentionally-broken undo
    path in the sandbox's own test corpus.
+
+### M13B — Self-Healing & Observability
+
+*(New lettered companion to M13, Aug 2026 — introduced after M10B
+completed, as a roadmap extension. Additive: **M13A (AI Sandbox) keeps
+its identity and scope entirely unchanged**, per this roadmap's
+zero-renumbering rule (§1). Lettered rather than decimal to match the
+existing companion convention — M10A/M10B, M11A/M11B, M13A, M14A,
+M17A, M20A, M23A/M23B.)*
+
+**Status: 🔴 Planned.** Not started.
+
+**Objective:** the foundational self-healing and observability subset,
+pulled forward from **M18** (Self-Healing & Diagnostics Platform) and
+**M20A** (Analytics & Observability Platform), so that every milestone
+between here and those two — M14 Security, M15 Personality, M16
+Reflection, M17 Companion Intelligence — is built on a runtime that
+can already report its own health and recover from routine faults,
+rather than having that visibility retrofitted underneath them
+afterwards. **This milestone does not replace M18 or M20A**, and does
+not restate their scope: they remain the full-scale realizations, the
+same "foundation now, full platform later" relationship M10A already
+holds with M19 (Knowledge Graph & Digital Twin Platform). M18's own
+binding constraint carries here unchanged: self-healing repairs
+*itself* — never the user's data, memories, personality, or security
+policies without explicit authorization.
+
+**Key features:**
+- Health Monitoring — extends M9's already-shipped `HealthMonitor`
+  with per-service health history; not a second monitor.
+- Fault Detection & Recovery — automatic restart/backoff for a failed
+  service, building on M9's Service Manager and Crash Recovery rather
+  than duplicating either.
+- Structured Telemetry — a metrics/trace surface over the existing
+  `EventBus` and Runtime WebSocket relay, so observability is one more
+  event category, never a parallel channel.
+- Diagnostics Snapshot — a single exportable "what is wrong right now"
+  bundle, extending M9's Developer Platform Tools (Debug Console,
+  State Inspector, Performance Profiler) rather than a new viewer set.
+- Degradation Reporting — reduced-capability states (a provider
+  offline, a model unavailable) surfaced as real, explicit state, per
+  §4's no-fake-data rule.
+
+**Explicitly deferred to M18/M20A** (documented, not dropped):
+Predictive Reliability, AI Diagnostics, Security Diagnostics, Recovery
+Management at platform scale, Fleet Management, Enterprise Monitoring,
+Remote Diagnostics, the Plugin Health Marketplace, and the full
+analytics/dashboard platform all remain those milestones' own scope.
+
+**Dependencies:** M9 (Health Monitor, Service Manager, Crash Recovery,
+Developer Platform Tools — all ✅ shipped), M13 (paired with it, the
+same way M13A is), M5.5 (the stabilization-pass findings M18's own
+objective already builds on).
+
+**Complexity:** M.
+
+**Acceptance criteria:**
+1. A service that fails is detected, reported over the existing
+   Runtime WebSocket relay, and automatically recovered without a
+   runtime restart.
+2. A diagnostics snapshot exports real health/state data for every
+   registered service — no placeholder or simulated values.
+3. A degraded capability (e.g. an offline provider) surfaces as an
+   explicit degraded state, never silently masked or faked.
+4. Telemetry flows through the existing `EventBus`/WebSocket relay,
+   verified by an integration test asserting no second, parallel event
+   channel was introduced.
 
 ### M14 — Security Platform
 
@@ -9200,12 +9339,14 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.13** | M10       | AI Orchestrator                  | 🟡 **Partial** — buildable-now scope shipped (Intent Engine, scoped Context Engine, parallel dispatch AC1, interim Permission Validation AC3, real streaming AC2 for the composed path, Decision Engine, `/api/v1/agent`); M10A/M14/M16-dependent remainder deferred, documented. |
 | **0.14** | M10A      | Universal Search & Knowledge Platform | ✅ **Completed** — Knowledge Graph, Universal Search (provider registry), `/api/v1/search` + `/api/v1/knowledge/*`; File Search deferred pending M11B. |
 | **0.15** | M10B      | Intelligence Layer               | ✅ **Completed** — Goal Manager, Routine/Preference Learning, Predictive Suggestions, Daily Briefing, `/api/v1/goals` + `/api/v1/intelligence/*`; automatic scheduled briefing delivery deferred pending M7's Scheduler (Phase 6). |
+| *(next)* | M10.5     | MCP & Integration Platform      | 🔴 Planned — *(new, Aug 2026 roadmap extension; decimal companion, per M5.5's precedent)* |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
 | *(next)* | M12       | Smart Home                      | 🔴 Planned |
 | *(next)* | M13       | Computer Control                | 🔴 Planned |
 | *(next)* | M13A      | AI Sandbox                      | 🔴 Planned |
+| *(next)* | M13B      | Self-Healing & Observability     | 🔴 Planned — *(new, Aug 2026 roadmap extension; foundational subset of M18/M20A, which remain their full-scale realizations)* |
 | *(next)* | M14       | Security Platform               | 🔴 Planned |
 | *(next)* | M14A      | Backup Platform                 | 🔴 Planned |
 | *(next)* | M15       | Personality Engine              | 🔴 Planned |
@@ -9544,9 +9685,10 @@ purpose still holds for M7 onward.)*
 | 5 | **M10** AI Orchestrator | Formalizes the M5A agent graph into a dedicated orchestration platform, absorbing M7 Phase 3's deferred cross-tool-parallelism scope — scheduled early since M15–M20's "companion intelligence" arc all route through it. |
 | 5A | **M10A** Universal Search & Knowledge Platform | Only needs M3 (already done); scheduled alongside M10 because M15–M20 all depend on it and it's cheaper to build once, early, than to retrofit under six later milestones — unchanged reasoning from the original (pre-migration) M10 Knowledge Engine slot. |
 | 5B | **M10B** Intelligence Layer | The backing engine M15's Proactive Intelligence and M16's Goal/Behaviour Reflection modules both consume; scheduled alongside M10A since both are M15/M16 prerequisites. |
+| 5C | **M10.5** MCP & Integration Platform | *(Added Aug 2026, roadmap extension.)* Scheduled immediately before M11 by design: M11's credential-backed providers should be built **on** the MCP protocol/registry substrate rather than retrofitted onto it afterwards. Depends only on already-shipped work (M5A, M9, M10, M10A). |
 | 6 | **M11** Integrations & Cloud Platform (+ **M11A** SEO Intelligence, + **M11B** Productivity Suite alongside it) | Plugins (M9) need somewhere governed to make real external calls — this generalizes M5's mock API Center into that surface, now merged with the original Productivity Platform's integration half; SEO Intelligence and Productivity Suite are independent enough to build in parallel with additional contributors. |
 | 7 | **M12** Smart Home | Best delivered as a group of plugins on top of M9's Plugin Platform, same as before. |
-| 8 | **M13** Computer Control (+ **M13A** AI Sandbox alongside it) | Needs M6 (vision) and M7 (workflow engine) both in place; the sandbox is scheduled *with* it, not after, given the risk profile. |
+| 8 | **M13** Computer Control (+ **M13A** AI Sandbox, + **M13B** Self-Healing & Observability alongside it) | Needs M6 (vision) and M7 (workflow engine) both in place; the sandbox is scheduled *with* it, not after, given the risk profile. **M13B** *(added Aug 2026, roadmap extension)* is scheduled here so M14–M17 are built on a runtime that already reports its own health — it pulls forward the foundational subset of M18/M20A, which remain their full-scale realizations. |
 | 9 | **M14** Security Platform (+ **M14A** Backup Platform alongside it) | Harden everything now that the feature surface (through M13) is stable; backup strategy depends on knowing the final encryption-at-rest scheme. Already absorbs the Aug 2026 migration brief's "Security & Privacy" scope in full — see M14's own Aug 2026 review note. |
 | 10 | **M15** Personality Engine | Needs M10A's knowledge substrate and M10B's intelligence engine; otherwise low-risk, could parallelize with M16. |
 | 11 | **M16** Reflection Engine | Builds on M10A; feeds M17. |
@@ -12283,3 +12425,48 @@ established lazy-import convention, matching `KnowledgeService`'s own
 already-accepted instances of the same pattern line-for-line) -- zero
 new finding categories left unresolved. Version bumped `0.14.0` ->
 `0.15.0`, continuing the one-minor-bump-per-milestone-scope granularity.
+
+*Aug 2026 addendum — roadmap evolution (M10.5, M13B):* two new
+milestones were introduced after M10B completed, extending the roadmap
+forward. **No completed milestone's identity, numbering, scope, or
+implementation history was altered** -- both additions are strictly
+additive, per §1's charter and the zero-renumbering rule this roadmap
+has held to through every prior lettered-companion addition.
+
+**M10.5 -- MCP & Integration Platform** (new, planned) is the
+protocol-and-registry layer beneath M11: standardizing on the Model
+Context Protocol so an external tool/context provider is a *registered
+provider* rather than a bespoke adapter written per integration. It is
+scheduled immediately before M11 (§16, order slot 5C) specifically so
+M11's credential-backed providers are built on that substrate instead
+of retrofitted onto it later. The decimal identifier follows the
+precedent **M5.5** (Production Stabilization Pass) already set in §3 --
+not a new numbering scheme. MCP had previously been recorded in
+`docs/TECH_STACK.md` §10 as "not yet assigned a milestone"; that entry
+now points here. M11's own scope (OAuth, credential storage, API
+Gateway, webhooks, queue/retry/caching, cloud sync, and the specific
+Email/Calendar/Spotify/Weather/Finance providers) is unchanged and
+deliberately not restated in M10.5.
+
+**M13B -- Self-Healing & Observability** (new, planned) pulls forward
+the foundational subset of **M18** (Self-Healing & Diagnostics
+Platform) and **M20A** (Analytics & Observability Platform), so that
+M14 Security, M15 Personality, M16 Reflection and M17 Companion
+Intelligence are each built on a runtime that already reports its own
+health and recovers from routine faults. **M18 and M20A are unchanged
+and remain their full-scale realizations** -- the same "foundation
+now, full platform later" relationship M10A already holds with M19;
+Predictive Reliability, AI/Security Diagnostics, Fleet Management,
+Enterprise Monitoring, Remote Diagnostics, the Plugin Health
+Marketplace and the full analytics platform all stay with their
+original owners.
+
+**On the identifier:** this milestone was originally proposed as
+"M13A". That identifier was already taken -- **M13A is AI Sandbox**, a
+fully specified milestone (objective, key features, dependencies,
+acceptance criteria) paired with M13 to de-risk it. Reusing "M13A"
+would have either overwritten an existing milestone identity or
+created a duplicate ID, both of which the zero-renumbering rule
+forbids. It was therefore recorded as **M13B**, the next free letter,
+matching the existing companion convention (M10A/M10B, M11A/M11B,
+M13A, M14A, M17A, M20A, M23A/M23B). **M13A (AI Sandbox) is untouched.**
