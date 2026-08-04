@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.15.0`
+**Current version:** `0.16.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -2182,7 +2182,16 @@ roadmap extension. Not a renumbering: M10.5 is additive, following the
 decimal-companion precedent **M5.5** (Production Stabilization Pass,
 §3) already set, and alters no existing milestone's identity or scope.)*
 
-**Status: 🔴 Planned.** Not started.
+**Status: 🟡 Active — Task Group A (Core Runtime) shipped.** The MCP
+runtime foundation is real: Capability Registry, transport abstraction,
+client runtime (connection/handshake/discovery/health/reconnect), server
+runtime (capability exposure + permission enforcement), capability
+negotiation, DI wiring, runtime events, and a read-only
+``/api/v1/mcp/*`` REST surface. **Not the whole milestone** — no
+network transport (``stdio``/``websocket``/``http``/``ipc``) and no
+provider integration ships yet; both are later task groups, and
+provider/OAuth/cloud scope remains M11's. See the Aug 2026 M10.5 Task
+Group A changelog addendum for the full design.
 
 **Objective:** the protocol-level foundation for every external tool
 and context provider JARVIS consumes — standardizing on **MCP (Model
@@ -2235,17 +2244,29 @@ this milestone mirrors).
 **Complexity:** L.
 
 **Acceptance criteria:**
-1. An external MCP server registered at runtime exposes at least one
-   tool the agent successfully invokes, with the call visible in Agent
-   Trace exactly like an in-process tool.
-2. An MCP-provided tool invocation is blocked by Permission Validation
-   when its declared capability is not granted — through the same gate
-   an in-process tool already passes, not a parallel one.
-3. JARVIS's own tools are consumable by an external MCP client over
-   the same protocol.
-4. A provider that disconnects mid-session is health-checked and
-   either reconnected or cleanly deregistered, without restarting the
-   runtime.
+1. 🟡 **Partially met (Task Group A).** A registered MCP server's
+   capability is discovered, negotiated and successfully invoked
+   end-to-end over a real transport — verified in
+   `tests/integration/test_mcp_platform_e2e.py`. The *external* half
+   (a real out-of-process peer) needs a network transport, which is a
+   later task group; Agent Trace integration is likewise deferred to
+   the task group that exposes MCP tools through the Tool Registry.
+2. ✅ **Met.** An MCP capability whose declared scope is not granted is
+   refused — by M9's existing `PermissionModel`, namespaced
+   `mcp:<client_id>`, with no second permission system and no new
+   permission vocabulary. Verified both at the negotiation layer
+   (the capability is dropped) and at the invocation layer (the call
+   raises), plus a `mcp.permission_denied` event over the real
+   WebSocket relay.
+3. 🟡 **Partially met (Task Group A).** `MCPServerRuntime` exposes
+   JARVIS capabilities over the protocol and serves `initialize`/
+   `capabilities/list`/`capabilities/call` to a real client. Consumption
+   by an *external* client again awaits a network transport.
+4. ✅ **Met.** Connection loss, bounded retry with backoff, reconnect,
+   and clean deregistration are all real and unit-tested; health is
+   reported through M9's existing `HealthMonitor.register_collector`
+   extension point, not a second health channel. No runtime restart is
+   involved in any path.
 
 ### M11 — Integrations & Cloud Platform
 
@@ -9339,7 +9360,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.13** | M10       | AI Orchestrator                  | 🟡 **Partial** — buildable-now scope shipped (Intent Engine, scoped Context Engine, parallel dispatch AC1, interim Permission Validation AC3, real streaming AC2 for the composed path, Decision Engine, `/api/v1/agent`); M10A/M14/M16-dependent remainder deferred, documented. |
 | **0.14** | M10A      | Universal Search & Knowledge Platform | ✅ **Completed** — Knowledge Graph, Universal Search (provider registry), `/api/v1/search` + `/api/v1/knowledge/*`; File Search deferred pending M11B. |
 | **0.15** | M10B      | Intelligence Layer               | ✅ **Completed** — Goal Manager, Routine/Preference Learning, Predictive Suggestions, Daily Briefing, `/api/v1/goals` + `/api/v1/intelligence/*`; automatic scheduled briefing delivery deferred pending M7's Scheduler (Phase 6). |
-| *(next)* | M10.5     | MCP & Integration Platform      | 🔴 Planned — *(new, Aug 2026 roadmap extension; decimal companion, per M5.5's precedent)* |
+| **0.16** | M10.5     | MCP & Integration Platform      | 🟡 **Active** — Task Group A (Core Runtime) shipped: Capability Registry, transport abstraction, client/server runtimes, negotiation, `/api/v1/mcp/*`. Network transports and provider integrations are later task groups. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -12470,3 +12491,86 @@ created a duplicate ID, both of which the zero-renumbering rule
 forbids. It was therefore recorded as **M13B**, the next free letter,
 matching the existing companion convention (M10A/M10B, M11A/M11B,
 M13A, M14A, M17A, M20A, M23A/M23B). **M13A (AI Sandbox) is untouched.**
+
+*Aug 2026 addendum -- M10.5 Task Group A (MCP & Integration Platform,
+Core Runtime):* the first implementation pass on M10.5. Ships the MCP
+runtime foundation only -- **no network transport and no provider
+integration** -- so the milestone is 🟡 Active, not complete.
+
+**Everything reused, nothing duplicated.** The whole point of this
+task group was to add a protocol layer without adding a parallel
+runtime, and each piece plugs into something that already exists:
+
+- **Permissions** reuse M9's `PermissionModel` outright -- same store,
+  same persisted grants, same audit log, same events, same
+  `PENDING`-until-granted default. MCP principals are namespaced
+  `mcp:<client_id>` so an MCP peer and a plugin cannot collide on one
+  identity while both stay visible in the single `pending()` queue a
+  future approval surface reads. **No new permission vocabulary**: an
+  MCP capability declares scopes from `core/plugins/sdk.py`'s existing
+  `PERMISSION_SCOPES`, validated at registration.
+- **Capability Registry** mirrors `SearchService`'s M10A provider
+  registry shape (`register`/`unregister`/`get`/`list_capabilities`),
+  with one deliberate divergence: a duplicate name is an *error* unless
+  `replace=True` is passed, because a search source silently replacing
+  itself is benign whereas a capability shadowing another's name would
+  silently change what an existing permission grant authorizes.
+- **Health** joins through `HealthMonitor.register_collector` -- the
+  extension point M9 Task Group B built for exactly this and that
+  nothing had used until now. MCP health rides the existing
+  `health.updated` snapshot; there is no second health channel.
+- **Events** ride the existing `EventBus` and Runtime WebSocket relay:
+  `mcp.connection_changed` (one relay name, a `state` payload field,
+  the shape `memory.updated`/`goal.updated` established),
+  `mcp.capabilities_changed`, `mcp.permission_denied`.
+- **Lifecycle**: the client and server runtimes are plain DI singletons
+  with their own `start`/`stop`, the same lifecycle class
+  `MemoryService`/`KnowledgeService` already occupy. No new lifecycle
+  manager, no background supervisor loop (M9's
+  `BackgroundTaskManager` already owns "run this repeatedly"), and no
+  `RuntimeManager` change beyond registering hooks the way every other
+  subsystem does.
+
+**Transports are ports, deliberately.** `IMCPTransport` lives in
+`core/interfaces/mcp.py`; `TransportFactoryRegistry` is where `stdio`/
+`websocket`/`http`/`ipc` each register in their own later pass. All
+four are *named* in `TRANSPORT_TYPES` so a future milestone uses the
+identifier already documented rather than inventing a near-miss
+spelling, and `GET /api/v1/mcp/transports` reports the `known`-versus-
+`registered` gap honestly instead of implying transports exist that do
+not. One transport does ship -- `InProcessTransport`, which connects
+the client runtime straight to the in-process server runtime. It is
+not a provider integration and not a test double: it is how JARVIS
+consumes its own MCP server, and it means the handshake, discovery,
+negotiation and permission-enforcement paths are exercised against
+something real rather than only against mocks.
+
+**Negotiation** is pure functions over plain data -- no I/O, no
+transport, no permission-store access (the caller passes the resolved
+grant set in), so every branch is unit-testable without a connection.
+Version mismatch fails the whole negotiation (there is no shared
+language to continue in); an unsupported capability kind or an
+ungranted scope is rejected *per capability* and never fails the
+connection. Graceful fallback is real: a peer that speaks only the
+older shared revision connects on that revision.
+
+**REST is read-only by design.** `/api/v1/mcp/status|capabilities|
+connections|transports` observe the runtime; registering, connecting
+and granting are Task Group B's surface and M11's provider scope. Every
+route is a `GET`, so the write endpoints land beside them additively
+without breaking anything.
+
+Testing -- 89 new tests across six files
+(`test_mcp_capabilities.py`, `test_mcp_negotiation.py`,
+`test_mcp_transport.py`, `test_mcp_server.py`, `test_mcp_client.py`,
+`test_mcp_route.py`, plus
+`tests/integration/test_mcp_platform_e2e.py`), covering the registry,
+negotiation, transports, both lifecycles, permission enforcement
+against the *real* `PermissionModel` on a real temp-file store, DI
+construction, and the real WebSocket relay. Ruff/mypy diffed against
+the repository baseline: mypy 266 -> 266, unchanged, zero errors in any
+MCP file; ruff's category list is byte-identical to the baseline's 22
+categories (the growth is entirely `PLC0415`, the established
+lazy-import convention) after fixing the three genuinely-new findings
+this pass introduced (`SIM300`, `RUF059`, `I001`). Version bumped
+`0.15.0` -> `0.16.0`.

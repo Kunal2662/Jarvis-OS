@@ -363,7 +363,10 @@ already is one. `routes/knowledge.py` (M10A, complete) follows the
 contract in full for every one of its routes (`/search`,
 `/knowledge/*`) — no further exceptions. `routes/intelligence.py`
 (M10B, complete) follows suit for every one of its routes (`/goals`,
-`/intelligence/*`) — no further exceptions. Cursor pagination remains
+`/intelligence/*`) — no further exceptions. `routes/mcp.py` (M10.5
+Task Group A) likewise, for `/mcp/*`; it is deliberately read-only
+(every route a `GET`) since provider management belongs to a later
+task group, so its write endpoints land additively later. Cursor pagination remains
 unproven — no shipped route yet returns a list large enough to need
 it.
 
@@ -546,6 +549,7 @@ categories map directly to the Event Bus categories in §7:
 | `memory` | `memory.updated`, `memory.recalled` *(shipped M10A — `services/memory_service.py`'s `remember`/`forget`/`forget_all`/`recall`, via an optional `event_bus` constructor parameter)* |
 | `knowledge` | `knowledge.entity_updated`, `knowledge.correction_applied` *(shipped M10A — `services/knowledge_service.py`, `core/lifecycle/runtime_ws_hub.py`)* |
 | `goal` | `goal.updated` *(shipped M10B — `services/intelligence_service.py`'s Goal Manager, `action` payload field distinguishes created/progress_updated/completed/deleted)* |
+| `mcp` | `mcp.connection_changed`, `mcp.capabilities_changed`, `mcp.permission_denied` *(shipped M10.5 Task Group A — `core/mcp/`; `connection_changed` carries a `state` payload field rather than one event class per transition)* |
 | `briefing` | `briefing.generated` *(shipped M10B — `services/intelligence_service.py`'s `generate_daily_briefing()`, on-demand only; §16's Scheduling standard — M7 Phase 6's Scheduler is the only path a feature runs unattended — is why this doesn't build its own timer)* |
 | `progress` | `progress.update` (long-running non-AI operations — backups, sync) |
 | `notification` | `notification.created` (user-facing toast-equivalent) |
@@ -1229,7 +1233,7 @@ repeated here.
 | Streaming Runtime | 🟡 Partial | M10 | §6 above (WebSocket standards); real token-level streaming for the tool-composed path via `/api/v1/agent/stream`'s SSE response |
 | Automation Architecture | 🟡 Active | M4 (shipped) / M7 (Phases 1–2 shipped, 3–6 pending) | §16 above |
 | Security Architecture | 🟠 Interim | M14 (not started) | §17 above — today's enforcement (`AgentPermissionGate`, Permission Model) is real but interim, pending M14's Authorization Engine |
-| MCP Architecture | 🔴 Planned | **M10.5** (MCP & Integration Platform) | `MASTER_ROADMAP.md` §8 M10.5 — the protocol/registry layer beneath M11; nothing built yet |
+| MCP Architecture | 🟡 Partial | **M10.5** (MCP & Integration Platform) | `core/mcp/` — Capability Registry, transport abstraction, client/server runtimes, negotiation; `core/interfaces/mcp.py` (ports). Task Group A shipped; no network transport or provider integration yet |
 | Self-Healing Architecture | 🔴 Planned | **M13B** (foundation) → M18 (full platform) | `MASTER_ROADMAP.md` §8 M13B — Self-Healing & Observability; §8 M18 — Self-Healing & Diagnostics Platform |
 | Observability | 🔴 Planned | **M13B** (foundation) → M20A (full platform) | `MASTER_ROADMAP.md` §8 M13B; §8 M20A — Analytics & Observability Platform |
 | Cloud Architecture | 🟠 Partial | M11 | §1 above (Cloud box — Oracle Cloud, optional, outbound-only); `docs/TECH_STACK.md` §5 — MongoDB sync target not yet started |

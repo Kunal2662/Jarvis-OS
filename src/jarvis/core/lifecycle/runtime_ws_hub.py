@@ -38,7 +38,10 @@ new ``knowledge`` category (``knowledge.entity_updated``,
 adds ``goal`` (``goal.updated`` -- one relay name, an ``action`` payload
 field distinguishes created/progress_updated/completed/deleted, the
 same shape ``memory.updated`` already established) and ``briefing``
-(``briefing.generated``).
+(``briefing.generated``). Milestone 10.5 Task Group A (MCP &
+Integration Platform) adds ``mcp``
+(``mcp.connection_changed`` -- again one relay name with a ``state``
+payload field, ``mcp.capabilities_changed``, ``mcp.permission_denied``).
 """
 
 from __future__ import annotations
@@ -60,6 +63,9 @@ from jarvis.core.events.events import (
     HealthUpdatedEvent,
     KnowledgeCorrectionAppliedEvent,
     KnowledgeEntityUpdatedEvent,
+    MCPCapabilitiesChangedEvent,
+    MCPConnectionChangedEvent,
+    MCPPermissionDeniedEvent,
     MemoryRecalledEvent,
     MemoryUpdatedEvent,
     PluginDisabledEvent,
@@ -125,6 +131,10 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     AgentStepEvent: "agent.step",
     GoalUpdatedEvent: "goal.updated",
     DailyBriefingGeneratedEvent: "briefing.generated",
+    # Milestone 10.5 Task Group A
+    MCPConnectionChangedEvent: "mcp.connection_changed",
+    MCPCapabilitiesChangedEvent: "mcp.capabilities_changed",
+    MCPPermissionDeniedEvent: "mcp.permission_denied",
     MemoryUpdatedEvent: "memory.updated",
     MemoryRecalledEvent: "memory.recalled",
     KnowledgeEntityUpdatedEvent: "knowledge.entity_updated",

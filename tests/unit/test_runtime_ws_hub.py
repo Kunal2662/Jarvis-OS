@@ -90,6 +90,10 @@ def test_every_documented_event_type_is_mapped() -> None:
         # Milestone 10B
         "goal.updated",
         "briefing.generated",
+        # Milestone 10.5 Task Group A
+        "mcp.connection_changed",
+        "mcp.capabilities_changed",
+        "mcp.permission_denied",
     }
 
 

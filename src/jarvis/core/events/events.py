@@ -267,6 +267,41 @@ class DailyBriefingGeneratedEvent(Event):
     scheduling via M7 is deferred, not built here."""
 
 
+# --- MCP platform (Milestone 10.5 Task Group A) -------------------------------
+@dataclass(frozen=True, slots=True)
+class MCPConnectionChangedEvent(Event):
+    """Published by :class:`~jarvis.core.mcp.client.MCPClientRuntime` on
+    every connection state transition. One event class with a ``state``
+    field rather than one class per transition -- the same shape
+    ``MemoryUpdatedEvent``/``GoalUpdatedEvent`` already established."""
+
+    server_id: str = ""
+    state: str = "disconnected"  # see MCPConnectionState
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class MCPCapabilitiesChangedEvent(Event):
+    """Published when a capability registry's contents change -- JARVIS
+    exposing a new capability, or a peer's discovered set being replaced
+    on (re)connect."""
+
+    owner: str = ""
+    count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class MCPPermissionDeniedEvent(Event):
+    """Published when the MCP server runtime refuses a capability
+    invocation. Distinct from
+    :class:`PluginPermissionDeniedEvent` (a *decision* on a plugin's
+    request) -- this reports an *enforcement* at call time."""
+
+    principal: str = ""
+    capability: str = ""
+    scope: str = ""
+
+
 @dataclass(frozen=True, slots=True)
 class VisionProviderStatusEvent(Event):
     """Reports a vision/OCR provider's health (Milestone 6, Phase 4). Not

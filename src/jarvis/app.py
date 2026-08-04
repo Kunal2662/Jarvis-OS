@@ -17,7 +17,7 @@ import signal
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from jarvis.core.config.settings import Settings
@@ -143,6 +143,7 @@ class ApplicationBootstrapper:
         self._register_task_group_c_hooks(runtime_manager)
         self._register_task_group_d_hooks(runtime_manager, settings)
         self._register_task_group_e_hooks(runtime_manager, settings)
+        self._register_mcp_hooks(runtime_manager, settings, health_monitor)
 
         # Milestone 3.1 — preload the local Whisper model eagerly instead of
         # paying the load cost on the user's first PTT/toggle-listen call.
@@ -400,6 +401,71 @@ class ApplicationBootstrapper:
             await plugin_registry.stop_all()
 
         runtime_manager.register("plugin_registry", _stop_plugins, priority=PRIORITY_FIRST - 1)
+
+    def _register_mcp_hooks(
+        self,
+        runtime_manager: RuntimeManager,
+        settings: Settings,
+        health_monitor: HealthMonitor,
+    ) -> None:
+        """Milestone 10.5 Task Group A -- MCP & Integration Platform.
+
+        The MCP runtimes are plain DI singletons with their own
+        start/stop, the same lifecycle class `MemoryService`/
+        `KnowledgeService` already occupy -- no new lifecycle manager,
+        no background supervisor, no `RuntimeManager` change beyond
+        registering hooks the way every other subsystem already does.
+
+        Health joins through `HealthMonitor.register_collector`, the
+        extension point Task Group B built for exactly this and that
+        nothing had used until now -- so MCP health rides the existing
+        `health.updated` snapshot rather than a second health channel.
+
+        A no-op when both halves are disabled -- opt-out, like the
+        Plugin Platform above.
+        """
+        if not (settings.mcp.server_enabled or settings.mcp.client_enabled):
+            return
+
+        from jarvis.core.lifecycle.runtime_manager import PRIORITY_FIRST
+
+        assert self._container is not None
+        server_runtime = self._container.mcp_server_runtime()
+        client_runtime = self._container.mcp_client_runtime()
+
+        if settings.mcp.server_enabled:
+
+            async def _start_mcp_server() -> None:
+                await server_runtime.start()
+
+            runtime_manager.register_startup(
+                "mcp_server", _start_mcp_server, priority=PRIORITY_FIRST + 11
+            )
+
+            async def _stop_mcp_server() -> None:
+                await server_runtime.stop()
+
+            runtime_manager.register("mcp_server", _stop_mcp_server, priority=PRIORITY_FIRST - 1)
+
+        if settings.mcp.client_enabled:
+
+            async def _stop_mcp_client() -> None:
+                await client_runtime.disconnect_all()
+
+            runtime_manager.register("mcp_client", _stop_mcp_client, priority=PRIORITY_FIRST - 1)
+
+        async def _collect_mcp_health() -> dict[str, Any]:
+            server_health = await server_runtime.health()
+            client_health = await client_runtime.health()
+            return {
+                "server_running": server_runtime.is_running,
+                "server_healthy": server_health.healthy,
+                "client_healthy": client_health.healthy,
+                "capability_count": len(server_runtime.capabilities),
+                "connection_count": len(client_runtime.server_ids),
+            }
+
+        health_monitor.register_collector("mcp", _collect_mcp_health)
 
     def _register_task_group_e_hooks(
         self, runtime_manager: RuntimeManager, settings: Settings

@@ -78,7 +78,7 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M14/M16-dependent remainder deferred. Context Engine's knowledge-graph half closed by M10A. See §5A below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10A – Universal Search & Knowledge Platform** | ✅ **Completed — File Search deferred pending M11B. See §5B below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10B – Intelligence Layer** | ✅ **Completed — automatic scheduled Daily Briefing delivery deferred pending M7's Scheduler (Phase 6). See §5C below and `MASTER_ROADMAP.md` §8/§14.** |
-| **M10.5 – MCP & Integration Platform** | 🔴 Planned, not started. *(New milestone, added Aug 2026 as a roadmap extension — the MCP protocol/registry layer beneath M11, scheduled before it.)* See `MASTER_ROADMAP.md` §8 and §14. |
+| **M10.5 – MCP & Integration Platform** | 🟡 **Active — Task Group A (Core Runtime) shipped.** Capability Registry, transport abstraction, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*`. Network transports and provider integrations are later task groups. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
 | **M13B – Self-Healing & Observability** | 🔴 Planned, not started. *(New lettered companion to M13, added Aug 2026 — the foundational subset of M18/M20A, which remain their full-scale realizations. M13A "AI Sandbox" is unchanged.)* See `MASTER_ROADMAP.md` §8 and §14. |
 | M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
@@ -1214,6 +1214,55 @@ Platform), M7 (Scheduler, for automatic Daily Briefing delivery — not
 started, hence that one deferral), and M10A (knowledge/context
 substrate, already shipped). Only the M7 dependency blocked anything,
 and only the automatic-scheduling half of one feature.
+
+---
+
+## 5D. M10.5 — MCP & Integration Platform (🟡 Active — Task Group A shipped)
+
+The protocol-and-registry layer beneath M11. **Task Group A (Core
+Runtime) is complete; the milestone is not.** No network transport and
+no provider integration ships yet — see `MASTER_ROADMAP.md`'s own Aug
+2026 M10.5 Task Group A changelog addendum for the full design.
+
+- [x] MCP Capability Registry — `core/mcp/capabilities.py`;
+      register/unregister/discovery/metadata/version/permissions,
+      mirroring `SearchService`'s M10A provider-registry shape.
+- [x] Transport abstraction — `IMCPTransport` port +
+      `TransportFactoryRegistry`. `stdio`/`websocket`/`http`/`ipc` are
+      named in `TRANSPORT_TYPES` but **not implemented**; one reference
+      `InProcessTransport` ships so the runtime paths are exercised
+      against something real.
+- [x] MCP Client Runtime — connection management, handshake, capability
+      discovery, health, bounded-retry reconnect. Lifecycle only.
+- [x] MCP Server Runtime — capability exposure, permission enforcement,
+      extensible protocol dispatch, `IService`-shaped lifecycle.
+- [x] Capability negotiation — version compatibility, capability
+      compatibility, graceful fallback to an older shared revision.
+      Pure functions, no I/O.
+- [x] Permission model — **reuses M9's `PermissionModel`**, namespaced
+      `mcp:<client_id>`. No second permission system, no new scope
+      vocabulary.
+- [x] Dependency Injection — `mcp_server_runtime`,
+      `mcp_client_runtime`, `mcp_transport_registry` singletons.
+- [x] Runtime events — `mcp.connection_changed`,
+      `mcp.capabilities_changed`, `mcp.permission_denied` over the
+      existing `EventBus` + Runtime WebSocket relay; health via
+      `HealthMonitor.register_collector`.
+- [x] REST API — `GET /api/v1/mcp/status|capabilities|connections|
+      transports`. Read-only by design; provider management is Task
+      Group B.
+- [x] 89 new tests across seven files — unit, lifecycle, DI,
+      permission, negotiation, registry, route, and a real-WebSocket
+      integration suite.
+  - **Deferred to later task groups / M11**: network transports;
+        provider integrations, OAuth and cloud sync (M11 throughout);
+        MCP tools surfaced through the agent Tool Registry and Agent
+        Trace; write endpoints for provider management.
+
+**Dependencies note:** M10.5's formal dependencies — M5A (agent tool
+exposure), M9 (Permission Model, Service Manager lifecycle), M10
+(Permission Validation), M10A (the provider-registry pattern) — were
+all already shipped, so this task group was never blocked.
 
 ---
 

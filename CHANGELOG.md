@@ -3,6 +3,80 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.16.0] — M10.5 Task Group A, MCP & Integration Platform (core runtime)
+
+The first implementation pass on M10.5. Ships the **MCP runtime
+foundation only** — no network transport and no provider integration —
+so the milestone stays 🟡 Active, not complete. Every piece plugs into
+something that already exists rather than adding a parallel runtime.
+
+### Added
+- MCP Capability Registry -- `core/mcp/capabilities.py`, mirroring
+  `SearchService`'s M10A provider-registry shape
+  (`register`/`unregister`/`get`/`list_capabilities`), with one
+  deliberate divergence: a duplicate capability name is an error unless
+  `replace=True`, because a capability shadowing another's name would
+  silently change what an existing permission grant authorizes.
+- Transport abstraction -- `IMCPTransport` in `core/interfaces/mcp.py`
+  plus `TransportFactoryRegistry` in `core/mcp/transport.py`.
+  `stdio`/`websocket`/`http`/`ipc` are *named* in `TRANSPORT_TYPES` but
+  deliberately **not implemented**; `GET /api/v1/mcp/transports`
+  reports the known-versus-registered gap honestly. One reference
+  transport ships: `InProcessTransport`, how JARVIS consumes its own
+  MCP server.
+- MCP Client Runtime -- `core/mcp/client.py`: connection management,
+  handshake, capability discovery, health, and bounded-retry reconnect.
+  Lifecycle only; no provider implementations.
+- MCP Server Runtime -- `core/mcp/server.py`: capability exposure,
+  permission enforcement, protocol dispatch
+  (`initialize`/`capabilities/list`/`capabilities/call`, extensible via
+  `register_method`), and an `IService`-shaped lifecycle.
+- Capability negotiation -- `core/mcp/negotiation.py`: pure functions,
+  no I/O. Version mismatch fails the negotiation; an unsupported kind
+  or ungranted scope is rejected per-capability and never fails the
+  connection. Graceful fallback to an older shared protocol revision.
+- `mcp` WebSocket category on the existing Runtime relay --
+  `mcp.connection_changed` (one relay name, `state` payload field),
+  `mcp.capabilities_changed`, `mcp.permission_denied`.
+- `infrastructure/api/routes/mcp.py` -- `GET /api/v1/mcp/status`,
+  `/capabilities`, `/connections`, `/transports`. Read-only by design:
+  registering/connecting/granting is a later task group's surface, so
+  every route is a `GET` and the write endpoints land additively.
+- `MCPSettings` (`JARVIS_MCP_*`) and DI wiring for all three runtimes.
+
+### Reused, not duplicated
+- **Permissions**: M9's `PermissionModel` outright — same store, same
+  persisted grants, same audit log, same `PENDING`-until-granted
+  default. MCP principals are namespaced `mcp:<client_id>` so an MCP
+  peer and a plugin cannot collide while both stay in the one
+  `pending()` queue. **No new permission vocabulary** — capabilities
+  declare scopes from the existing `PERMISSION_SCOPES`.
+- **Health**: `HealthMonitor.register_collector`, the extension point
+  M9 built for exactly this and that nothing had used until now. One
+  health channel, not a second.
+- **Lifecycle**: plain DI singletons with their own `start`/`stop`, the
+  same class `MemoryService`/`KnowledgeService` occupy. No new
+  lifecycle manager, no background supervisor, no `RuntimeManager`
+  change beyond registering hooks.
+
+### Deferred (documented, not silently dropped)
+- Network transports (`stdio`, `websocket`, `http`, `ipc`) -- later
+  task groups; the registry seam is ready for each.
+- Provider integrations, OAuth, cloud sync -- M11's scope throughout.
+- MCP tools surfaced through the agent Tool Registry / Agent Trace --
+  a later task group.
+- Write endpoints for provider management -- Task Group B.
+
+### Testing
+89 new tests across seven files, covering the registry, negotiation,
+transports, both lifecycles, permission enforcement against the *real*
+`PermissionModel` on a real temp-file store, DI construction, the REST
+surface, and the real WebSocket relay. mypy 266 -> 266, unchanged,
+zero errors in any MCP file. Ruff's category list is identical to the
+baseline's 22 categories (growth is entirely `PLC0415`, the established
+lazy-import convention) after fixing the three genuinely-new findings
+this pass introduced.
+
 ## [0.15.0] — M10B, Intelligence Layer (complete)
 
 M10B extends the M10A Universal Search & Knowledge Platform rather than

@@ -347,6 +347,36 @@ def _build_plugin_registry(
     )
 
 
+def _build_mcp_server_runtime(*, permission_model: Any, event_bus: Any, settings: Settings) -> Any:
+    from jarvis.core.mcp.server import MCPServerRuntime
+
+    return MCPServerRuntime(
+        permission_model=permission_model,
+        event_bus=event_bus,
+        server_id=settings.mcp.server_id,
+    )
+
+
+def _build_mcp_client_runtime(*, event_bus: Any, settings: Settings) -> Any:
+    from jarvis.core.mcp.client import MCPClientRuntime
+
+    return MCPClientRuntime(
+        event_bus=event_bus,
+        client_id=settings.mcp.server_id,
+        reconnect_attempts=settings.mcp.reconnect_attempts,
+        reconnect_backoff_seconds=settings.mcp.reconnect_backoff_seconds,
+    )
+
+
+def _build_mcp_transport_registry() -> Any:
+    """Empty of network transports by design -- ``stdio``/``websocket``/
+    ``http``/``ipc`` each register here in their own later task group
+    (M10.5 Task Group A ships the abstraction, not the transports)."""
+    from jarvis.core.mcp.transport import TransportFactoryRegistry
+
+    return TransportFactoryRegistry()
+
+
 def _build_plugin_store(*, plugin_registry: Any, settings: Settings) -> Any:
     from jarvis.core.plugins.store import PluginStore, UnsignedAllowedVerifier
 
@@ -633,6 +663,20 @@ class Container(containers.DeclarativeContainer):
     )
     marketplace = providers.Singleton(
         _build_marketplace,
+        settings=settings,
+    )
+
+    # ---- Milestone 10.5 Task Group A -- MCP & Integration Platform --------
+    mcp_transport_registry = providers.Singleton(_build_mcp_transport_registry)
+    mcp_server_runtime = providers.Singleton(
+        _build_mcp_server_runtime,
+        permission_model=permission_model,
+        event_bus=event_bus,
+        settings=settings,
+    )
+    mcp_client_runtime = providers.Singleton(
+        _build_mcp_client_runtime,
+        event_bus=event_bus,
         settings=settings,
     )
 
