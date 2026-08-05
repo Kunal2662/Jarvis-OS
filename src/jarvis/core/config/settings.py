@@ -139,6 +139,32 @@ class KnowledgeSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}KNOWLEDGE_", extra="ignore")
 
 
+class FileSettings(BaseSettings):
+    """Milestone 11 Task Group C -- local File Platform tunables.
+
+    The storage root is the **only** directory the platform reads or
+    writes, and every path is resolved under it by
+    ``domain.files.safe_join``. ``storage_dir`` is ``None`` by default,
+    which puts it at ``<data_dir>/files`` -- the same ``None`` +
+    ``resolved_*`` shape ``Settings.data_dir`` uses, so the root follows
+    a relocated data directory instead of silently staying behind. Set
+    it to an absolute path to put files on another drive; the
+    containment check is against whatever it resolves to, so a wider
+    root is a deliberate choice rather than an accident.
+
+    ``index_max_bytes`` bounds extracted text per file. It exists
+    because one large log file would otherwise become one large database
+    row; see ``MAX_EXTRACT_BYTES``.
+    """
+
+    storage_dir: Path | None = None
+    index_enabled: bool = True
+    index_max_bytes: int = 1_048_576
+    max_upload_bytes: int = 104_857_600  # 100 MiB
+
+    model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}FILES_", extra="ignore")
+
+
 class MCPSettings(BaseSettings):
     """Milestone 10.5 -- MCP & Integration Platform.
 
@@ -568,7 +594,7 @@ class Settings(BaseSettings):
     env: Environment = Environment.DEVELOPMENT
     debug: bool = True
     app_name: str = "JARVIS OS"
-    app_version: str = "0.24.1"
+    app_version: str = "0.25.0"
     data_dir: Path | None = None
 
     llm_default_provider: LLMProviderName = LLMProviderName.OLLAMA
@@ -611,6 +637,7 @@ class Settings(BaseSettings):
     devtools: DevToolsSettings = Field(default_factory=DevToolsSettings)
     knowledge: KnowledgeSettings = Field(default_factory=KnowledgeSettings)
     mcp: MCPSettings = Field(default_factory=MCPSettings)
+    files: FileSettings = Field(default_factory=FileSettings)
 
     model_config = SettingsConfigDict(
         env_prefix=ENV_PREFIX,
@@ -651,6 +678,17 @@ class Settings(BaseSettings):
     @property
     def resolved_data_dir(self) -> Path:
         return _paths.resolve_data_dir(self.data_dir)
+
+    @property
+    def resolved_files_dir(self) -> Path:
+        """The File Platform's storage root (M11 Task Group C).
+
+        Derived rather than stored so that moving ``data_dir`` moves the
+        file root with it unless the user has explicitly pinned one.
+        """
+        if self.files.storage_dir is not None:
+            return self.files.storage_dir.expanduser().resolve()
+        return self.resolved_data_dir / "files"
 
 
 # ---------------------------------------------------------------------------

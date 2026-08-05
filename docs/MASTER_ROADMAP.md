@@ -71,7 +71,7 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.24.1`
+**Current version:** `0.25.0`
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -2308,8 +2308,9 @@ deferral blocks M11: the substrate M11 registers against is complete.
 
 ### M11 — Intelligent Workspace & Productivity
 
-**Status: 🟡 Active — Task Groups A (Workspace Foundation) and B
-(Productivity Core) shipped (Aug 2026, `0.23.0` and `0.24.0`).**
+**Status: 🟡 Active — Task Groups A (Workspace Foundation), B
+(Productivity Core) and C (File Platform) shipped (Aug 2026, `0.23.0`,
+`0.24.0` and `0.25.0`).**
 
 *(Scope refined Aug 2026, at the start of implementation: the milestone
 now opens with a **Workspace Foundation** and is organised into six
@@ -2330,7 +2331,7 @@ what is now one of six task groups.)*
 |---|---|---|
 | **A — Workspace Foundation** | Workspace domain, Project and Note models, repositories, `WorkspaceService`, `WorkspaceManager`, settings/metadata, events, search sources, DI, REST | ✅ **Shipped** (`0.23.0`) |
 | **B — Productivity Core** | Tasks, local Calendar, Reminders, productivity APIs | ✅ **Shipped** (`0.24.0`) |
-| **C — File Platform** | File Manager, File Browser, File Search, document indexing, file metadata | 🔴 Not started |
+| **C — File Platform** | Folder tree, file storage under a contained root, tags, extensible metadata, plain-text indexing, attachments to five workspace entities, file/folder/attachment APIs | ✅ **Shipped** (`0.25.0`) |
 | **D — AI Workspace** | Workspace AI context, Knowledge integration, context retrieval, AI assistance | 🔴 Not started |
 | **E — External Integrations** | GitHub, Gmail, Google Drive, Outlook, Slack, Discord, Notion, calendar providers | 🔴 Not started |
 | **F — UI Integration & Closure** | React/Tauri Workspace UI, final validation, docs, performance review, M11 closure | 🔴 Not started |
@@ -9443,7 +9444,9 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.21** | *(none)* | Backlog Completion & Stabilization Pass | ✅ **Completed** — not a milestone. Closes documented §15 backlog belonging to already-complete milestones: five published-but-unrelayed WebSocket categories, the `HealthMonitor` disk collector, `/api/v1/health`, and `/api/v1/sessions`'s envelope (one intentional breaking change). Also fixes two UI surfaces found rendering invented data over working backends — the Plugin Manager's mock provider and the Module Manager's randomised update flag. M8's deferred frontend backlog is deliberately untouched: it is the M8 milestone itself, in a UI stack being replaced. |
 | **0.22** | *(none)* | Final Backlog Completion Pass | ✅ **Completed** — not a milestone. Closes what the roadmap had *not* written down: the startup greeting fed the LLM invented tasks, calendar events, weather and now-playing data and spoke them as fact (now real Goal Manager data, or nothing); three Settings pages still advertised milestones that had already shipped (M4 Automation ×2, M9 Plugins); and the Home dashboard's five service cards showed a green "connected" light over illustrative data (now an explicit preview state). Sweep found zero TODO/FIXME/HACK/XXX in `src/`, zero dead routes, zero unwired DI services. **All backlog for completed milestones is finished.** |
 | **0.23** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group A (Workspace Foundation) shipped: `Workspace`/`Project`/`Note` models, three repositories, `WorkspaceService`, `WorkspaceManager`, per-workspace settings and derived metadata, three relay events, three search sources, DI, and `/api/v1/workspaces` + `/api/v1/projects` + `/api/v1/notes`. CRUD only — no collaboration, sharing or sync. Task Groups B–F not started. |
-| **0.24** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group B (Productivity Core) shipped: `Task`, `Calendar`, `CalendarEvent` and `Reminder` models, three repositories, three services, three managers, recurrence rules with bounded expansion, four relay events, three search sources, DI, and `/api/v1/tasks` + `/api/v1/calendar` + `/api/v1/reminders`. Local calendar engine only — no external provider, no sync. **Reminders record scheduling metadata and fire nothing**: delivery is M7's Scheduler (Phase 6). Task Groups C–F not started. |
+| **0.24** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group B (Productivity Core) shipped: `Task`, `Calendar`, `CalendarEvent` and `Reminder` models, three repositories, three services, three managers, recurrence rules with bounded expansion, four relay events, three search sources, DI, and `/api/v1/tasks` + `/api/v1/calendar` + `/api/v1/reminders`. Local calendar engine only — no external provider, no sync. **Reminders record scheduling metadata and fire nothing**: delivery is M7's Scheduler (Phase 6). |
+| **0.24.1** | *(none)* | Database Integrity Pass | ✅ **Completed** — not a milestone. Enables `PRAGMA foreign_keys=ON` globally through SQLAlchemy's `connect` event, so every declared `ondelete=` is finally enforced rather than silently ignored by SQLite's default. |
+| **0.25** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group C (File Platform) shipped: `Folder`, `File`, `FileTag`, `FileMetadata`, `IndexRecord` and `WorkspaceAttachment` models, four repositories, three services, three managers, a contained storage root enforced by a pure `safe_join`, plain-text indexing over seven extensions, three relay events, three search sources, DI, and `/api/v1/files` + `/api/v1/folders` + `/api/v1/attachments`. **Local files only** — no Drive, Dropbox or OneDrive, no cloud sync. **No OCR, no PDF parsing, no embeddings and no semantic indexing**: those need Vision, Document Intelligence and the vector store, and belong to later task groups. Task Groups D–F not started. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -13361,3 +13364,84 @@ subscriber and the three sources joined the shared `SearchService`.
 Suite 1516 -> 1613, all passing. mypy 263 -> 263 (one `scalar()`
 returning `Any` narrowed rather than suppressed). Ruff 21 categories,
 unchanged. Version bumped `0.23.0` -> `0.24.0`.
+
+
+*Aug 2026 addendum -- Database Integrity Pass (`0.24.1`):* enables
+`PRAGMA foreign_keys=ON` for every SQLite connection through SQLAlchemy's
+`connect` event on `engine.sync_engine`, in one place in
+`sqlite_client.py`. The pragma is per-connection and off by default, so
+every `ondelete=` in `models.py` had been a statement of intent that the
+database ignored. With it on, the declared cascades actually run. One
+legitimate bug surfaced and was fixed rather than worked around:
+`SessionManager.create()` accepted a `conversation_id` that need not
+exist, which had been writing a dangling row and now raises
+`ServiceError` mapped to a 400 by `/api/v1/sessions`.
+
+*Aug 2026 addendum -- M11 Task Group C (File Platform):* a local file
+subsystem hanging off the Workspace substrate. Six tables (`Folder`,
+`File`, `FileTag`, `FileMetadata`, `IndexRecord`, `WorkspaceAttachment`),
+four repositories, three services (`FolderService`, `FileService`,
+`AttachmentService`), three read-side managers, three relay events
+(`file.updated`, `folder.updated`, `attachment.updated`), three search
+sources registered through M10A's provider registry with **no change to
+`SearchService`**, DI wiring, and `/api/v1/files` + `/api/v1/folders` +
+`/api/v1/attachments`.
+
+**The storage root is a hard boundary, enforced by one pure function.**
+This is the first task group that reads and writes real files, so a path
+escaping its root -- via `..`, an absolute path, or a symlink -- would
+turn a file catalogue into arbitrary filesystem access. `safe_join` in
+`domain/files/models.py` is the single place containment is decided; it
+is total (every input either returns a contained path or raises), it
+refuses rather than clamping, and it is called at construction *and*
+again on every read. The REST surface never accepts a path at all -- a
+request names a folder by id and the service derives the path -- so the
+class of input that could escape is not part of the API.
+
+**Indexing is deliberately shallow and says so.** Seven extensions
+(`.txt`, `.md`, `.json`, `.yaml`, `.yml`, `.csv`, `.xml`) are read as
+plain text, bounded at 1 MiB per file. `IndexRecord.status` distinguishes
+four outcomes -- `indexed`, `skipped`, `truncated`, `failed` -- because
+collapsing them would make an unreadable file indistinguishable from an
+empty one, and `skipped` is a successful catalogue entry rather than a
+failure. No OCR, no PDF parsing, no embeddings, no summarisation: those
+need Vision, Document Intelligence and the vector store.
+
+**Two schema decisions worth recording.** `FileTag` is a real join table
+rather than the `tags_json` blob `Task` uses, because file tags are a
+listing filter and part of the search index, and a `LIKE` over
+serialized JSON matches `work` inside `homework` -- Task Group B had to
+filter its tags in Python for exactly that reason. `WorkspaceAttachment`
+carries five nullable foreign keys rather than a polymorphic
+`target_type`/`target_id` pair: the pair would scale to a sixth target
+for free, but it buys that by giving up what the integrity pass had just
+earned, since a string id with no constraint behind it can point at a
+deleted row forever. Five columns are the cost of five real constraints.
+
+**A real gap found and closed on the way.** Attaching a file to a
+fabricated task id was correctly refused by the database -- but as an
+`IntegrityError` five layers down, which reached the caller as a 500.
+`AttachmentService` now validates the target up front, the posture
+`WorkspaceService.create_project` already took, and additionally
+enforces the one rule a foreign key cannot express: a valid `task_id`
+says nothing about the task being in *this* file's workspace.
+
+**Deliberately not built:** Google Drive, Dropbox, OneDrive, cloud sync
+(Task Group E); semantic/vector indexing and workspace AI context (D);
+file version history; the React/Tauri file browser (F). No scheduler
+execution anywhere.
+
+Testing -- 116 new tests across five files: the domain helpers as pure
+functions (every traversal vector, Windows device names, symlink
+escape, four extraction outcomes), the three services and four
+repositories against real temp-file SQLite *and* a real temporary
+storage root, the managers' collect-never-compute and
+degrade-gracefully contracts, the REST surface including
+auth/envelope/400-vs-404/413 and the literal-path route-ordering traps
+(`/folders/tree`, `/files/stats`, `/attachments/for-target`), and an
+end-to-end suite asserting bytes land inside the root and nowhere else,
+REST writes reach a real WebSocket subscriber, and the three sources
+joined the shared `SearchService`. Suite 1621 -> 1737, all passing (one
+skip: creating a symlink needs a privilege Windows does not grant by
+default). mypy 263 -> 263. Ruff 21 categories, unchanged. Version bumped
+`0.24.1` -> `0.25.0`.

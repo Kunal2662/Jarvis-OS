@@ -122,6 +122,13 @@ def test_every_documented_event_type_is_mapped() -> None:
         "calendar.updated",
         "calendar.event_updated",
         "reminder.updated",
+        # Milestone 11 Task Group C. `folder` and `attachment` are
+        # siblings of `file` rather than sub-names of it: a subscriber
+        # watching a tree view cares about folders and not file
+        # contents.
+        "file.updated",
+        "folder.updated",
+        "attachment.updated",
     }
 
 

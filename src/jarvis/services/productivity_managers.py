@@ -27,7 +27,7 @@ read together; splitting three ~60-line coordinators across three files
 would be filing for its own sake.
 
 All three are shared with a single, deliberately narrow module-level
-helper (:func:`_related`) rather than a base class -- composition over
+helper (:func:`related_items`) rather than a base class -- composition over
 inheritance, the rule this repository states in `ARCHITECTURE.md` §1.
 """
 
@@ -132,8 +132,8 @@ class TaskManager:
         return {
             "task": _task_row(task),
             "workspace": workspace,
-            "related_knowledge": await _related(self._knowledge, query, kind="knowledge"),
-            "related_memories": await _related(self._memory, query, kind="memory"),
+            "related_knowledge": await related_items(self._knowledge, query, kind="knowledge"),
+            "related_memories": await related_items(self._memory, query, kind="memory"),
         }
 
     async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
@@ -255,8 +255,8 @@ class CalendarManager:
                 "all_day": event.all_day,
             },
             "recurrence": rule.as_dict(),
-            "related_knowledge": await _related(self._knowledge, query, kind="knowledge"),
-            "related_memories": await _related(self._memory, query, kind="memory"),
+            "related_knowledge": await related_items(self._knowledge, query, kind="knowledge"),
+            "related_memories": await related_items(self._memory, query, kind="memory"),
         }
 
     async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
@@ -346,12 +346,17 @@ class ReminderManager:
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
-async def _related(collaborator: Any, query: str, *, kind: str) -> list[dict[str, Any]]:
+async def related_items(collaborator: Any, query: str, *, kind: str) -> list[dict[str, Any]]:
     """Best-effort lookup against Knowledge or Memory.
 
-    One function rather than a base-class method: the three managers
-    need the same two lines of defensive plumbing, and sharing it
-    through a helper keeps them siblings instead of a hierarchy.
+    One function rather than a base-class method: the managers need the
+    same two lines of defensive plumbing, and sharing it through a
+    helper keeps them siblings instead of a hierarchy.
+
+    Public rather than module-private because Task Group C's managers
+    need exactly this and importing a underscore-prefixed name across
+    modules would be reaching into another module's internals; copying
+    it would be worse still.
     """
     if collaborator is None or not query:
         return []

@@ -206,6 +206,9 @@ def _build_search_service(
     task_service: Any,
     calendar_service: Any,
     reminder_service: Any,
+    file_service: Any,
+    folder_service: Any,
+    attachment_service: Any,
 ) -> Any:
     """Wires the Search Provider Registry (Milestone 10A, Additional
     Requirement #1): resolves the *existing* Tool Registry and Plugin
@@ -216,8 +219,11 @@ def _build_search_service(
     from jarvis.agents.tools import build_tool_registry
     from jarvis.services.search_service import SearchService
     from jarvis.services.search_sources import (
+        AttachmentSearchSource,
         CalendarSearchSource,
         CommandSearchSource,
+        FileSearchSource,
+        FolderSearchSource,
         GoalSearchSource,
         KnowledgeSearchSource,
         MemorySearchSource,
@@ -255,6 +261,12 @@ def _build_search_service(
     service.register_source(TaskSearchSource(task_service))
     service.register_source(CalendarSearchSource(calendar_service))
     service.register_source(ReminderSearchSource(reminder_service))
+    # Milestone 11 Task Group C -- three more, same registry, still no
+    # change to SearchService. `files` is the first source whose corpus
+    # includes extracted document text rather than only stored fields.
+    service.register_source(FileSearchSource(file_service))
+    service.register_source(FolderSearchSource(folder_service))
+    service.register_source(AttachmentSearchSource(attachment_service))
     return service
 
 
@@ -546,6 +558,98 @@ def _build_reminder_manager(
     )
 
 
+def _build_folder_service(*, database: Any, settings: Settings, event_bus: Any) -> Any:
+    """Milestone 11 Task Group C. The storage root is resolved here, at
+    the composition root, and handed to the service as a plain ``Path``
+    -- so the service depends on a directory rather than on the whole
+    settings object, and a test can point it at a temporary one without
+    constructing a ``Settings``."""
+    from jarvis.services.file_service import FolderService
+
+    return FolderService(
+        database=database,
+        storage_root=settings.resolved_files_dir,
+        event_bus=event_bus,
+    )
+
+
+def _build_file_service(*, database: Any, settings: Settings, event_bus: Any) -> Any:
+    from jarvis.services.file_service import FileService
+
+    return FileService(
+        database=database,
+        storage_root=settings.resolved_files_dir,
+        event_bus=event_bus,
+        index_enabled=settings.files.index_enabled,
+        index_max_bytes=settings.files.index_max_bytes,
+    )
+
+
+def _build_attachment_service(*, database: Any, event_bus: Any) -> Any:
+    """No storage root: an attachment links two rows that already
+    exist, so this service never touches disk."""
+    from jarvis.services.file_service import AttachmentService
+
+    return AttachmentService(database=database, event_bus=event_bus)
+
+
+def _build_folder_manager(
+    *,
+    folder_service: Any,
+    file_service: Any,
+    workspace_service: Any,
+    search_service: Any,
+) -> Any:
+    from jarvis.services.file_managers import FolderManager
+
+    return FolderManager(
+        folder_service,
+        file_service=file_service,
+        workspace_service=workspace_service,
+        search_service=search_service,
+    )
+
+
+def _build_file_manager(
+    *,
+    file_service: Any,
+    folder_service: Any,
+    attachment_service: Any,
+    workspace_service: Any,
+    knowledge_service: Any,
+    search_service: Any,
+    memory_service: Any,
+) -> Any:
+    from jarvis.services.file_managers import FileManager
+
+    return FileManager(
+        file_service,
+        folder_service=folder_service,
+        attachment_service=attachment_service,
+        workspace_service=workspace_service,
+        knowledge_service=knowledge_service,
+        search_service=search_service,
+        memory_service=memory_service,
+    )
+
+
+def _build_attachment_manager(
+    *,
+    attachment_service: Any,
+    file_service: Any,
+    workspace_service: Any,
+    search_service: Any,
+) -> Any:
+    from jarvis.services.file_managers import AttachmentManager
+
+    return AttachmentManager(
+        attachment_service,
+        file_service=file_service,
+        workspace_service=workspace_service,
+        search_service=search_service,
+    )
+
+
 def _build_health_monitor(*, service_manager: Any, event_bus: Any, settings: Settings) -> Any:
     """Points the disk metrics at the data directory -- the volume
     JARVIS can actually fill, and therefore the one worth budgeting."""
@@ -821,6 +925,25 @@ class Container(containers.DeclarativeContainer):
         event_bus=event_bus,
     )
 
+    # ---- Milestone 11 Task Group C -- File Platform -----------------------
+    folder_service = providers.Singleton(
+        _build_folder_service,
+        database=database,
+        settings=settings,
+        event_bus=event_bus,
+    )
+    file_service = providers.Singleton(
+        _build_file_service,
+        database=database,
+        settings=settings,
+        event_bus=event_bus,
+    )
+    attachment_service = providers.Singleton(
+        _build_attachment_service,
+        database=database,
+        event_bus=event_bus,
+    )
+
     memory_recall_hook = providers.Singleton(
         "jarvis.services.semantic_memory_recall_hook.SemanticMemoryRecallHook",
         memory_service=memory_service,
@@ -1015,6 +1138,9 @@ class Container(containers.DeclarativeContainer):
         task_service=task_service,
         calendar_service=calendar_service,
         reminder_service=reminder_service,
+        file_service=file_service,
+        folder_service=folder_service,
+        attachment_service=attachment_service,
     )
 
     # Declared after `search_service` because it composes it -- the
@@ -1051,6 +1177,32 @@ class Container(containers.DeclarativeContainer):
         reminder_service=reminder_service,
         task_service=task_service,
         calendar_service=calendar_service,
+        workspace_service=workspace_service,
+        search_service=search_service,
+    )
+
+    # Milestone 11 Task Group C, declared here for the same reason.
+    folder_manager = providers.Singleton(
+        _build_folder_manager,
+        folder_service=folder_service,
+        file_service=file_service,
+        workspace_service=workspace_service,
+        search_service=search_service,
+    )
+    file_manager = providers.Singleton(
+        _build_file_manager,
+        file_service=file_service,
+        folder_service=folder_service,
+        attachment_service=attachment_service,
+        workspace_service=workspace_service,
+        knowledge_service=knowledge_service,
+        search_service=search_service,
+        memory_service=memory_service,
+    )
+    attachment_manager = providers.Singleton(
+        _build_attachment_manager,
+        attachment_service=attachment_service,
+        file_service=file_service,
         workspace_service=workspace_service,
         search_service=search_service,
     )

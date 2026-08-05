@@ -3,6 +3,76 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.25.0] — M11 Task Group C: File Platform
+
+A local file subsystem hanging off the Workspace substrate Task Group A
+shipped: folders, files, tags, extensible metadata, plain-text indexing,
+and attachments to five workspace entities. Local files only — no
+Drive, no Dropbox, no OneDrive, no cloud sync.
+
+### Added
+- **Domain** — `domain/files/models.py`: `safe_join` (the single place
+  path containment is decided), `validate_name`, `extract_text`, the MIME
+  and extension helpers, and the closed vocabularies
+  (`TEXT_EXTRACTABLE_EXTENSIONS`, `INDEX_STATUSES`, `ATTACHMENT_TARGETS`).
+- **Schema** — six tables: `folders` (self-referential, with a
+  denormalized `relative_path` cache), `files`, `file_tags` (a real join
+  table), `file_metadata` (key/value rows), `file_index_records` (1:1
+  with a file, four-way status), `workspace_attachments` (five nullable
+  foreign keys, one per target kind).
+- **Repositories** — `FolderRepository`, `FileRepository`,
+  `MetadataRepository`, `AttachmentRepository`.
+- **Services** — `FolderService` (create/rename/move/delete with cycle
+  prevention and subtree path rewriting), `FileService` (CRUD, move,
+  rename, tags, metadata, indexing, stats, search), `AttachmentService`.
+- **Managers** — `FolderManager` (tree with depths, file counts and
+  unfiled files), `FileManager` (context and workspace overview),
+  `AttachmentManager` (both directions of the link).
+- **Events** — `FileUpdatedEvent`, `FolderUpdatedEvent`,
+  `AttachmentUpdatedEvent`, relayed as `file.updated`, `folder.updated`,
+  `attachment.updated`.
+- **Search** — `FileSearchSource`, `FolderSearchSource`,
+  `AttachmentSearchSource`, registered through M10A's provider registry.
+  `files` is the first source whose corpus includes extracted document
+  text rather than only stored fields.
+- **REST** — `/api/v1/files`, `/api/v1/folders`, `/api/v1/attachments`,
+  same Bearer auth and `{data, meta}` envelope as every resource router.
+- **Settings** — `JARVIS_FILES_*`: `storage_dir` (defaults to
+  `<data_dir>/files`), `index_enabled`, `index_max_bytes`,
+  `max_upload_bytes`.
+
+### Security
+- **The storage root is a hard boundary.** Every path resolves through
+  `safe_join`, which resolves both sides before comparing so a symlink
+  out of the root is caught as well as a literal `..`, and which raises
+  rather than clamping. It runs at construction *and* again on every
+  read. The REST API accepts no path fragment at all — callers name a
+  folder by id — so the input class that could escape is not part of the
+  surface.
+- **Attachment targets are validated before the insert.** Foreign keys
+  already refuse a fabricated parent, but as an `IntegrityError` that
+  reaches the caller as a 500. `AttachmentService` now returns a 400
+  naming what is missing, and additionally rejects an attachment
+  spanning two workspaces — the one rule a foreign key cannot express.
+
+### Notes
+- **Indexing reads seven extensions and nothing else** (`.txt`, `.md`,
+  `.json`, `.yaml`, `.yml`, `.csv`, `.xml`), bounded at 1 MiB per file.
+  No OCR, no PDF parsing, no embeddings, no summarisation. `skipped` is
+  a successful catalogue entry, not a failure — which is why
+  `IndexRecord.status` has four values rather than a boolean.
+- **Deleting a non-empty folder requires `recursive=true`.** The
+  database cascade would take the subtree happily; that is the wrong
+  default for a destructive operation on real bytes.
+- **Detaching is not deleting.** Removing an attachment leaves the file
+  untouched; deleting the *target* removes only the link.
+- File bytes travel as base64 inside the envelope rather than as
+  multipart, because `python-multipart` is not a declared dependency of
+  this project and building a shipped endpoint on a transitive package
+  is a break waiting for someone else's lockfile.
+- 116 new tests (1621 → 1737). mypy 263 → 263, ruff 21 categories,
+  both unchanged.
+
 ## [0.24.1] — Database integrity: SQLite foreign-key enforcement
 
 A stabilization patch, ahead of M11 Task Group C introducing more

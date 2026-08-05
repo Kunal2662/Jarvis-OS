@@ -64,6 +64,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from jarvis.core.events.events import (
     AgentStepEvent,
     AppReadyEvent,
+    AttachmentUpdatedEvent,
     AutomationStepEvent,
     CalendarEventUpdatedEvent,
     CalendarUpdatedEvent,
@@ -71,6 +72,8 @@ from jarvis.core.events.events import (
     CrashRecoveredEvent,
     DailyBriefingGeneratedEvent,
     Event,
+    FileUpdatedEvent,
+    FolderUpdatedEvent,
     GoalUpdatedEvent,
     HealthUpdatedEvent,
     KnowledgeCorrectionAppliedEvent,
@@ -201,6 +204,13 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     CalendarUpdatedEvent: "calendar.updated",
     CalendarEventUpdatedEvent: "calendar.event_updated",
     ReminderUpdatedEvent: "reminder.updated",
+    # Milestone 11 Task Group C -- File Platform. Same shape again. The
+    # `file.*` category is new to the relay; `folder` and `attachment`
+    # are its siblings rather than sub-names of it, because a subscriber
+    # watching a tree view cares about folders and not file contents.
+    FileUpdatedEvent: "file.updated",
+    FolderUpdatedEvent: "folder.updated",
+    AttachmentUpdatedEvent: "attachment.updated",
 }
 
 #: Declared but never published, so deliberately absent from the relay

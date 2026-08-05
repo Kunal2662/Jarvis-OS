@@ -1,6 +1,6 @@
 """Concrete :class:`~jarvis.core.interfaces.search.ISearchSource` adapters
-(Milestone 10A, extended Milestone 10B and Milestone 11 Task Group A) --
-one per searchable subsystem,
+(Milestone 10A, extended Milestone 10B and Milestone 11 Task Groups A, B
+and C) -- one per searchable subsystem,
 each a thin wrapper over an already-real component (``MemoryService``,
 ``KnowledgeService``, ``IntelligenceService``, ``PluginRegistry``), never
 a second implementation of the thing it wraps.
@@ -28,6 +28,11 @@ from jarvis.core.interfaces.search import SearchResult
 if TYPE_CHECKING:
     from jarvis.core.plugins.registry import PluginRegistry
     from jarvis.services.calendar_service import CalendarService
+    from jarvis.services.file_service import (
+        AttachmentService,
+        FileService,
+        FolderService,
+    )
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
@@ -241,3 +246,59 @@ class ReminderSearchSource:
 
     async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
         return await self._reminders.search(query, top_k=top_k)
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group C — File Platform
+# ---------------------------------------------------------------------------
+class FileSearchSource:
+    """Wraps :meth:`FileService.search_files`.
+
+    The only source in this module whose corpus includes extracted file
+    *contents* -- ``FileService`` joins the index record into its query,
+    so a search for a phrase inside a Markdown note finds the file. That
+    is still keyword matching over stored text, not semantic search:
+    there is no embedding, no vector store and no summarisation behind
+    this source, and claiming otherwise by naming it "semantic" would be
+    the kind of overstatement Task Group C set out to avoid.
+    """
+
+    source_type = "files"
+
+    def __init__(self, files: FileService) -> None:
+        self._files = files
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._files.search_files(query, top_k=top_k)
+
+
+class FolderSearchSource:
+    """Wraps :meth:`FolderService.search_folders` -- name and path
+    lookup, so "where did I put the invoices folder" is answerable
+    without walking the tree."""
+
+    source_type = "folders"
+
+    def __init__(self, folders: FolderService) -> None:
+        self._folders = folders
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._folders.search_folders(query, top_k=top_k)
+
+
+class AttachmentSearchSource:
+    """Wraps :meth:`AttachmentService.search_attachments`.
+
+    Separate from ``FileSearchSource`` even though both can surface the
+    same file, because they answer different questions: one is "find
+    this file", the other is "find where this file was used". A single
+    combined source would return the file twice with no way to tell the
+    two hits apart."""
+
+    source_type = "attachments"
+
+    def __init__(self, attachments: AttachmentService) -> None:
+        self._attachments = attachments
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._attachments.search_attachments(query, top_k=top_k)

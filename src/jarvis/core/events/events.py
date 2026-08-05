@@ -664,3 +664,68 @@ class ReminderUpdatedEvent(Event):
     reminder_id: str = ""
     workspace_id: str = ""
     action: str = "created"  # created|updated|dismissed|cancelled|deleted
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group C — File Platform
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class FileUpdatedEvent(Event):
+    """Published by :class:`~jarvis.services.file_service.FileService` on
+    file create/update/move/rename/index/delete.
+
+    Six transitions, one class with an ``action`` field -- the shape
+    every domain from ``memory.updated`` onward uses. ``indexed`` is one
+    of them rather than its own event because a subscriber watching a
+    file almost always wants all six, and the one that only wants
+    indexing branches on a string instead of subscribing twice.
+
+    ``relative_path`` travels with the event because the commonest
+    reaction to a move or rename is to update a displayed path, and
+    re-reading the row to learn where it went would make every listener
+    do a query the publisher had the answer to.
+    """
+
+    file_id: str = ""
+    workspace_id: str = ""
+    folder_id: str = ""
+    relative_path: str = ""
+    action: str = "created"  # created|updated|moved|renamed|indexed|deleted
+
+
+@dataclass(frozen=True, slots=True)
+class FolderUpdatedEvent(Event):
+    """Published on folder create/rename/move/delete.
+
+    A move or a delete can rewrite or remove a whole subtree, so
+    ``affected_files`` reports how many file rows the operation touched.
+    A listener refreshing a tree view needs to know the difference
+    between "one folder changed" and "four hundred paths just moved".
+    """
+
+    folder_id: str = ""
+    workspace_id: str = ""
+    parent_folder_id: str = ""
+    relative_path: str = ""
+    affected_files: int = 0
+    action: str = "created"  # created|renamed|moved|deleted
+
+
+@dataclass(frozen=True, slots=True)
+class AttachmentUpdatedEvent(Event):
+    """Published on attach/detach.
+
+    ``target`` and ``target_id`` are the flattened view of the five
+    nullable foreign keys on ``WorkspaceAttachment``: the row needs real
+    constraints, but a subscriber only needs to know what the file was
+    attached to. ``target`` is ``"workspace"`` when the file is filed
+    against the workspace itself, which is the default rather than a
+    missing value.
+    """
+
+    attachment_id: str = ""
+    workspace_id: str = ""
+    file_id: str = ""
+    target: str = "workspace"  # workspace|project|note|task|event|reminder
+    target_id: str = ""
+    action: str = "attached"  # attached|detached

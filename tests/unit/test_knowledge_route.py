@@ -69,9 +69,10 @@ def test_search_returns_envelope(client, auth_headers) -> None:
     assert "data" in body
     assert "sources" in body["meta"]
     # Grows as new searchable subsystems register: M10A shipped memory/
-    # knowledge/commands, M10B added goals, and M11 Task Group A added
-    # the three workspace sources. A registry that accepts a new source
-    # without SearchService changing is exactly what M10A built.
+    # knowledge/commands, M10B added goals, and M11 Task Groups A, B and
+    # C added the workspace, productivity and file sources. A registry
+    # that accepts a new source without SearchService changing is
+    # exactly what M10A built.
     assert set(body["meta"]["sources"]) == {
         "memory",
         "knowledge",
@@ -84,6 +85,12 @@ def test_search_returns_envelope(client, auth_headers) -> None:
         "tasks",
         "calendar",
         "reminders",
+        # Milestone 11 Task Group C -- `files` is the first source whose
+        # corpus includes extracted document text, not only stored
+        # fields.
+        "files",
+        "folders",
+        "attachments",
     }
 
 

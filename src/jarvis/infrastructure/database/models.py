@@ -400,6 +400,16 @@ class Workspace(Base):
     reminders: Mapped[list[Reminder]] = relationship(
         back_populates="workspace", cascade="all, delete-orphan"
     )
+    # Milestone 11 Task Group C -- same reason as the three above.
+    folders: Mapped[list[Folder]] = relationship(
+        back_populates="workspace", cascade="all, delete-orphan"
+    )
+    files: Mapped[list[File]] = relationship(
+        back_populates="workspace", cascade="all, delete-orphan"
+    )
+    attachments: Mapped[list[WorkspaceAttachment]] = relationship(
+        back_populates="workspace", cascade="all, delete-orphan"
+    )
 
 
 class Project(Base):
@@ -660,3 +670,245 @@ class Reminder(Base):
     workspace: Mapped[Workspace] = relationship(back_populates="reminders")
     task: Mapped[Task | None] = relationship(back_populates="reminders")
     event: Mapped[CalendarEvent | None] = relationship(back_populates="reminders")
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group C — File Platform
+# ---------------------------------------------------------------------------
+class Folder(Base):
+    """A folder inside a workspace's file tree.
+
+    Self-referential, unlike ``Project`` which is deliberately flat: a
+    folder tree is the whole point of a folder, whereas a project tree
+    was a feature nobody asked for. Cycle prevention lives in
+    ``FolderService.move`` -- a foreign key cannot express "not one of
+    my own descendants".
+
+    ``relative_path`` is maintained by the service as a denormalized
+    cache of the ancestor chain, so listing a subtree is one ``LIKE``
+    rather than a recursive walk. It is derived, never authoritative:
+    ``parent_folder_id`` is the truth, and a move rewrites the cache for
+    the whole subtree.
+    """
+
+    __tablename__ = "folders"
+    __table_args__ = (
+        Index("ix_folders_workspace", "workspace_id"),
+        Index("ix_folders_parent", "parent_folder_id"),
+        Index("ix_folders_relative_path", "relative_path"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    parent_folder_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("folders.id", ondelete="CASCADE"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    relative_path: Mapped[str] = mapped_column(String(1024), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    workspace: Mapped[Workspace] = relationship(back_populates="folders")
+    children: Mapped[list[Folder]] = relationship(
+        back_populates="parent", cascade="all, delete-orphan"
+    )
+    parent: Mapped[Folder | None] = relationship(back_populates="children", remote_side="Folder.id")
+    files: Mapped[list[File]] = relationship(back_populates="folder", cascade="all, delete-orphan")
+
+
+class File(Base):
+    """A catalogued file living inside the platform's storage root.
+
+    Every file belongs to a workspace; ``folder_id`` and ``project_id``
+    are optional, the same "filed later, not never" shape ``Note`` and
+    ``Task`` already use.
+
+    ``relative_path`` is the file's location *within the storage root*,
+    never an absolute path. Storing it relative means the whole root can
+    be moved or restored to a different machine without rewriting every
+    row, and it means a row can never name a location outside the root
+    even if one were somehow written -- resolution goes through
+    ``safe_join`` on every read (see ``domain/files/models.py``).
+
+    Size and MIME type are columns rather than derived on read because
+    they are filtered and sorted on, and stat-ing every row to build a
+    listing would make a folder view O(files) syscalls.
+    """
+
+    __tablename__ = "files"
+    __table_args__ = (
+        Index("ix_files_workspace", "workspace_id"),
+        Index("ix_files_folder", "folder_id"),
+        Index("ix_files_project", "project_id"),
+        Index("ix_files_extension", "extension"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    folder_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("folders.id", ondelete="CASCADE"), nullable=True
+    )
+    project_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+    filename: Mapped[str] = mapped_column(String(256), nullable=False)
+    relative_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    extension: Mapped[str] = mapped_column(String(32), default="")
+    mime_type: Mapped[str] = mapped_column(String(128), default="application/octet-stream")
+    size_bytes: Mapped[int] = mapped_column(default=0)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    workspace: Mapped[Workspace] = relationship(back_populates="files")
+    folder: Mapped[Folder | None] = relationship(back_populates="files")
+    tags: Mapped[list[FileTag]] = relationship(back_populates="file", cascade="all, delete-orphan")
+    file_metadata: Mapped[list[FileMetadata]] = relationship(
+        back_populates="file", cascade="all, delete-orphan"
+    )
+    index_record: Mapped[IndexRecord | None] = relationship(
+        back_populates="file", cascade="all, delete-orphan", uselist=False
+    )
+    attachments: Mapped[list[WorkspaceAttachment]] = relationship(
+        back_populates="file", cascade="all, delete-orphan"
+    )
+
+
+class FileTag(Base):
+    """A tag on a file.
+
+    A real table, unlike ``Task.tags_json``. The difference is what each
+    is asked to do: a task's tags are read back with the task and never
+    queried across the corpus, whereas file tags are a listing filter
+    (``GET /files?tag=invoice``) and part of the search index. A ``LIKE``
+    against serialized JSON would match ``work`` inside ``homework``, and
+    Task Group B had to filter its tags in Python for exactly that
+    reason. Migrating ``Task`` to this shape is a reasonable later
+    change; inventing a second JSON blob here was not.
+    """
+
+    __tablename__ = "file_tags"
+    __table_args__ = (Index("ix_file_tags_tag", "tag"),)
+
+    file_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("files.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    file: Mapped[File] = relationship(back_populates="tags")
+
+
+class FileMetadata(Base):
+    """One extensible key/value fact about a file.
+
+    Separate from the columns on ``File`` because those are the fixed,
+    queried set (name, size, MIME, extension) while this is the open one
+    -- an importer's source path, a checksum, whatever Task Group D
+    decides an AI pass wants to record. Rows rather than a JSON column so
+    a future ``WHERE key = 'checksum'`` is an index lookup, and so each
+    fact has its own lifetime.
+    """
+
+    __tablename__ = "file_metadata"
+    __table_args__ = (Index("ix_file_metadata_key", "key"),)
+
+    file_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("files.id", ondelete="CASCADE"), primary_key=True
+    )
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    file: Mapped[File] = relationship(back_populates="file_metadata")
+
+
+class IndexRecord(Base):
+    """The result of indexing one file -- at most one per file.
+
+    ``status`` distinguishes four genuinely different outcomes, and the
+    distinction is the point: ``skipped`` (a real success -- the file was
+    catalogued, its type is simply not one this build reads),
+    ``truncated`` (indexed, but only the first slice), ``failed`` (the
+    read itself broke) and ``indexed``. Collapsing them into "has text /
+    has no text" would make an unreadable file indistinguishable from an
+    empty one.
+
+    Deliberately **not** an embedding, a summary, or a vector reference:
+    Task Group C indexes plain text from seven extensions. Semantic
+    indexing needs the vector store and belongs to a later task group.
+    """
+
+    __tablename__ = "file_index_records"
+    __table_args__ = (Index("ix_file_index_status", "status"),)
+
+    file_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("files.id", ondelete="CASCADE"), primary_key=True
+    )
+    content_text: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="skipped")
+    detail: Mapped[str] = mapped_column(Text, default="")
+    indexed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    file: Mapped[File] = relationship(back_populates="index_record")
+
+
+class WorkspaceAttachment(Base):
+    """A file attached to something in the workspace.
+
+    Five nullable foreign keys rather than a polymorphic
+    ``target_type``/``target_id`` pair. The pair is tempting and would
+    scale to a sixth target for free, but it buys that by giving up the
+    one thing this schema just spent a whole pass earning: a string id
+    with no constraint behind it can point at a deleted row forever,
+    which is precisely the class of bug foreign-key enforcement now
+    prevents everywhere else. Five columns are the cost of five real
+    constraints, and the service enforces that at most one is set.
+
+    ``target = "workspace"`` -- all five null -- is the default, not a
+    degenerate case: a file attached to the workspace itself is the
+    normal way to say "this belongs here, not to any one thing in here".
+    """
+
+    __tablename__ = "workspace_attachments"
+    __table_args__ = (
+        Index("ix_attachments_workspace", "workspace_id"),
+        Index("ix_attachments_file", "file_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    file_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("files.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+    )
+    note_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("notes.id", ondelete="CASCADE"), nullable=True
+    )
+    task_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True
+    )
+    event_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("calendar_events.id", ondelete="CASCADE"), nullable=True
+    )
+    reminder_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("reminders.id", ondelete="CASCADE"), nullable=True
+    )
+    caption: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    workspace: Mapped[Workspace] = relationship(back_populates="attachments")
+    file: Mapped[File] = relationship(back_populates="attachments")

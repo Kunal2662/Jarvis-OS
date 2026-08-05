@@ -1497,7 +1497,7 @@ is blocked on a milestone that has not started.
 
 ---
 
-## 5G. M11 — Intelligent Workspace & Productivity (🟡 Active — Task Group A shipped)
+## 5G. M11 — Intelligent Workspace & Productivity (🟡 Active — Task Groups A, B and C shipped)
 
 Six task groups, A–F. The milestone was restructured before
 implementation so that a shared Workspace substrate comes first and the
@@ -1554,11 +1554,50 @@ Phase 6.
 synchronization are Task Group E; this is the local engine they will
 map onto.
 
-### Task Groups C–F (🔴 not started)
+### Task Group C — File Platform (✅ shipped, `0.25.0`)
+
+- [x] File domain — `domain/files/models.py`: `safe_join`,
+      `validate_name`, `extract_text`, MIME/extension helpers, and the
+      closed vocabularies. Pure: no database, no service, no container.
+- [x] Six tables — `Folder` (self-referential, denormalized
+      `relative_path` cache), `File`, `FileTag` (a real join table),
+      `FileMetadata`, `IndexRecord`, `WorkspaceAttachment` (five
+      nullable foreign keys, one per target kind).
+- [x] `FolderRepository` / `FileRepository` / `MetadataRepository` /
+      `AttachmentRepository`.
+- [x] `FolderService` — create, rename, move, delete; cycle prevention
+      and subtree path rewriting; a non-empty delete needs an explicit
+      `recursive`.
+- [x] `FileService` — CRUD, move, rename, tags, extensible metadata,
+      indexing, per-workspace stats, search.
+- [x] `AttachmentService` — attach/detach across five workspace
+      entities, with target existence and workspace ownership validated
+      before the insert.
+- [x] `FolderManager` / `FileManager` / `AttachmentManager` — collect,
+      never compute; collaborators optional.
+- [x] Three relay events; three search sources through M10A's registry;
+      DI singletons for all six components.
+- [x] REST — `/api/v1/files`, `/api/v1/folders`, `/api/v1/attachments`,
+      plus `/tree`, `/contents`, `/content`, `/context`, `/stats`,
+      `/index`, `/for-target`, `/for-file`.
+- [x] 116 tests across domain / service / manager / REST / integration.
+
+**Scope boundary — the storage root is a hard boundary.** Every path
+resolves through one pure `safe_join`, which refuses rather than clamps
+and runs at construction *and* on every read. The REST surface accepts
+no path fragment at all.
+
+**Indexing reads seven extensions as plain text**, bounded at 1 MiB per
+file. No OCR, no PDF parsing, no embeddings, no summarisation — those
+need Vision, Document Intelligence and the vector store.
+
+**Cloud storage is not here.** Drive, Dropbox, OneDrive and sync are
+Task Group E; this is the local subsystem they will map onto.
+
+### Task Groups D–F (🔴 not started)
 
 | Task Group | Scope |
 |---|---|
-| **C — File Platform** | File Manager, File Browser, File Search, document indexing, file metadata |
 | **D — AI Workspace** | Workspace AI context, Knowledge integration, context retrieval, AI assistance |
 | **E — External Integrations** | GitHub, Gmail, Google Drive, Outlook, Slack, Discord, Notion, calendar providers |
 | **F — UI Integration & Closure** | React/Tauri Workspace UI, final validation, docs, performance review, M11 closure |
