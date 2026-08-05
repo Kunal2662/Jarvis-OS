@@ -1497,7 +1497,7 @@ is blocked on a milestone that has not started.
 
 ---
 
-## 5G. M11 — Intelligent Workspace & Productivity (🟡 Active — Task Groups A, B, C and D shipped)
+## 5G. M11 — Intelligent Workspace & Productivity (🟡 Active — Task Groups A, B, C, D and E shipped)
 
 Six task groups, A–F. The milestone was restructured before
 implementation so that a shared Workspace substrate comes first and the
@@ -1657,11 +1657,72 @@ needs the vector store work Task Group C deferred.
 graph already knows creates nothing. Defaulted and last, so every
 existing construction site and assertion is unchanged.
 
-### Task Groups E–F (🔴 not started)
+### Task Group E — Integration Platform (🟡 platform + Phase 1 shipped, `0.27.0`)
+
+- [x] **OAuth2, closing M10.5's explicit deferral** —
+      `core/mcp/auth/oauth2.py`: the authorization-code grant with
+      mandatory PKCE (S256), the client-credentials grant, an
+      `OAuthFlowStore` whose `state` is single-use and expiring, and
+      `BoundOAuth2Strategy` for per-provider refresh and remote revoke.
+      Registered into the **existing** `AuthStrategyRegistry` — the one
+      call Task Group D's docstring predicted, and nothing else changed.
+- [x] **API Gateway** — `core/integrations/gateway.py`: one `httpx`
+      pool, retry for idempotent methods **only**, `Retry-After`
+      honoured and bounded, a short account-keyed response cache
+      invalidated by any mutation, and an audit payload carrying no
+      headers and no bodies.
+- [x] **Connectors as data** — `core/integrations/models.py`:
+      `IntegrationSpec`/`OperationSpec`/`AuthSpec`, validated at
+      registration. Path rendering is the security boundary: a caller
+      supplies parameters, never a path, and an undeclared parameter is
+      refused rather than forwarded.
+- [x] **`RestIntegrationProvider`** — an `IMCPProvider` for vendor REST
+      APIs, registered in the *same* `MCPProviderRegistry`, driven by
+      the *same* `MCPProviderManager`, publishing the *same* events,
+      with each operation registered as an `MCPCapability`. Both
+      permission gates run per call through
+      `MCPAuthManager.authorize_capability`.
+- [x] **Google Workspace, Phase 1** — 11 integrations, 65 operations:
+      Gmail, Calendar, Meet, Drive, Docs, Sheets, Slides, Contacts,
+      Tasks, Keep, Photos.
+- [x] **`IntegrationService`**, one relay event
+      (`integration.call_completed`), per-integration search sources on
+      M10A's existing registry, four agent tools on the existing tool
+      registry, `IntegrationSettings`, DI, and
+      `/api/v1/integrations/*` including the OAuth callback.
+- [x] 200 tests across spec / gateway / OAuth / provider / catalogue /
+      REST / end-to-end.
+
+**One route in this application is session-free, and only one.** The
+OAuth callback is reached by a browser redirect, which carries no
+`Authorization` header and cannot be made to. `state` — generated with
+`secrets`, single-use, expiring, held server-side beside the PKCE
+verifier — is what proves the response belongs to a flow this process
+started (RFC 6749 §10.12).
+
+**Scope boundary — Phases 2–6 are catalogue entries, not architecture.**
+Microsoft 365, GitHub/GitLab, Slack/Discord/Teams, Notion/Jira/Trello/
+ClickUp/Linear/Asana and Dropbox/Box run on this engine as spec data.
+They are deliberately **not** written from memory: an endpoint path or a
+scope name that is subtly wrong ships an integration that fails at the
+first real call, and a wrong catalogue entry is worse than an absent one
+because it claims to work. Each needs its vendor's published API
+reference open beside it.
+
+**Two-way sync is not implemented** for Google Tasks or Keep. Pull and
+push operations ship; a *sync* needs a conflict-resolution policy and
+something to run it on a cadence, and M7's Scheduler (Phase 6) does not
+exist. One-directional import that works beats a bidirectional mirror
+that silently loses an edit.
+
+**Also not built:** resumable/multipart upload (Drive's simple upload
+ships, correct to 5 MB), webhooks and inbound delivery, a durable
+outbound queue, and Oracle Cloud sync.
+
+### Task Group F (🔴 not started)
 
 | Task Group | Scope |
 |---|---|
-| **E — External Integrations** | GitHub, Gmail, Google Drive, Outlook, Slack, Discord, Notion, calendar providers |
 | **F — UI Integration & Closure** | React/Tauri Workspace UI, final validation, docs, performance review, M11 closure |
 
 ---

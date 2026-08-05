@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
+    from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
@@ -40,6 +41,7 @@ def build_tool_registry(
     knowledge: KnowledgeService | None = None,
     intelligence: IntelligenceService | None = None,
     workspace_assistant: WorkspaceAssistantService | None = None,
+    integrations: IntegrationService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -64,6 +66,14 @@ def build_tool_registry(
         from jarvis.agents.tools.workspace_tools import build_workspace_tools
 
         tools += build_workspace_tools(workspace_assistant)
+    if integrations is not None:
+        # Milestone 11 Task Group E. Four discovery-and-invoke tools
+        # rather than one per vendor operation -- see
+        # `agents/tools/integration_tools.py` for why the catalogue does
+        # not belong on the tool-selection prompt.
+        from jarvis.agents.tools.integration_tools import build_integration_tools
+
+        tools += build_integration_tools(integrations)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

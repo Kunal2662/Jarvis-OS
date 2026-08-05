@@ -76,6 +76,7 @@ from jarvis.core.events.events import (
     FolderUpdatedEvent,
     GoalUpdatedEvent,
     HealthUpdatedEvent,
+    IntegrationCallCompletedEvent,
     KnowledgeCorrectionAppliedEvent,
     KnowledgeEntityUpdatedEvent,
     MCPAuthStateChangedEvent,
@@ -220,6 +221,13 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     # category would make that two subscriptions to the same board.
     WorkspaceKnowledgeLinkedEvent: "workspace.knowledge_linked",
     WorkspaceAssistCompletedEvent: "workspace.assisted",
+    # Milestone 11 Task Group E -- Integration Platform. One name, for
+    # the audit trail of outbound vendor calls. Integration *lifecycle*
+    # is deliberately absent from this block: an integration is an MCP
+    # provider, so it already relays through `mcp.provider_changed` and
+    # `mcp.auth_changed` rather than through a second set of names for
+    # the same transitions.
+    IntegrationCallCompletedEvent: "integration.call_completed",
 }
 
 #: Declared but never published, so deliberately absent from the relay

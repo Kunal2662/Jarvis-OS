@@ -61,6 +61,7 @@ if TYPE_CHECKING:
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
+    from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
@@ -88,6 +89,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         knowledge: KnowledgeService | None = None,
         intelligence: IntelligenceService | None = None,
         workspace_assistant: WorkspaceAssistantService | None = None,
+        integrations: IntegrationService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -109,6 +111,9 @@ class AgentOrchestrator(IAgentOrchestrator):
         # that only some prompts benefit from, and it would need a
         # workspace id the request has no way to carry today.
         self._workspace_assistant = workspace_assistant
+        # Milestone 11 Task Group E: external vendors reach the agent
+        # as four discovery-and-invoke tools, on the same registry.
+        self._integrations = integrations
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -146,6 +151,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 knowledge=self._knowledge,
                 intelligence=self._intelligence,
                 workspace_assistant=self._workspace_assistant,
+                integrations=self._integrations,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

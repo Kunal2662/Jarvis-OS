@@ -165,6 +165,52 @@ class FileSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}FILES_", extra="ignore")
 
 
+class IntegrationSettings(BaseSettings):
+    """Milestone 11 Task Group E -- Integration Platform tunables.
+
+    ``clients`` holds one OAuth client per **vendor**, not per
+    integration: Google issues one client per project and every Google
+    product authorizes against it, so keying by integration would make
+    an operator configure eleven identical pairs. Set them through the
+    nested-delimiter form pydantic-settings already uses elsewhere::
+
+        JARVIS_INTEGRATIONS_CLIENTS__GOOGLE__CLIENT_ID=...
+        JARVIS_INTEGRATIONS_CLIENTS__GOOGLE__CLIENT_SECRET=...
+
+    Client secrets live here rather than in a spec because a spec is
+    source code. They are **not** put through the encrypted credential
+    store: that store holds tokens JARVIS obtains at runtime, whereas a
+    client id and secret are deployment configuration an operator
+    supplies the same way they supply an API key today.
+
+    ``redirect_uri`` must match what the vendor's console has
+    registered, exactly -- a mismatch is the single most common reason
+    an authorization-code flow fails, and it fails at the vendor with a
+    message the caller never sees.
+
+    ``auto_connect_installed`` is off by default. Reaching out to a
+    vendor at startup is an outbound network call an operator did not
+    ask for on that boot, and local-first means that is opt-in.
+    """
+
+    enabled: bool = True
+    #: Per-vendor OAuth client credentials.
+    clients: dict[str, dict[str, str]] = Field(default_factory=dict)
+    redirect_uri: str = "http://127.0.0.1:8765/api/v1/integrations/oauth/callback"
+    auto_connect_installed: bool = False
+
+    # Gateway tunables -- see core/integrations/gateway.py.
+    request_timeout_seconds: float = 30.0
+    max_attempts: int = 3
+    backoff_seconds: float = 0.5
+    cache_ttl_seconds: float = 30.0
+    cache_entries: int = 256
+    #: How long an unfinished OAuth flow stays valid.
+    oauth_flow_ttl_seconds: float = 600.0
+
+    model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}INTEGRATIONS_", extra="ignore")
+
+
 class AIWorkspaceSettings(BaseSettings):
     """Milestone 11 Task Group D -- AI Workspace tunables.
 
@@ -673,6 +719,7 @@ class Settings(BaseSettings):
     mcp: MCPSettings = Field(default_factory=MCPSettings)
     files: FileSettings = Field(default_factory=FileSettings)
     ai_workspace: AIWorkspaceSettings = Field(default_factory=AIWorkspaceSettings)
+    integrations: IntegrationSettings = Field(default_factory=IntegrationSettings)
 
     model_config = SettingsConfigDict(
         env_prefix=ENV_PREFIX,

@@ -2309,8 +2309,9 @@ deferral blocks M11: the substrate M11 registers against is complete.
 ### M11 — Intelligent Workspace & Productivity
 
 **Status: 🟡 Active — Task Groups A (Workspace Foundation), B
-(Productivity Core), C (File Platform) and D (AI Workspace) shipped
-(Aug 2026, `0.23.0`, `0.24.0`, `0.25.0` and `0.26.0`).**
+(Productivity Core), C (File Platform), D (AI Workspace) and E
+(Integration Platform) shipped (Aug 2026, `0.23.0`, `0.24.0`, `0.25.0`,
+`0.26.0` and `0.27.0`).**
 
 *(Scope refined Aug 2026, at the start of implementation: the milestone
 now opens with a **Workspace Foundation** and is organised into six
@@ -2333,7 +2334,7 @@ what is now one of six task groups.)*
 | **B — Productivity Core** | Tasks, local Calendar, Reminders, productivity APIs | ✅ **Shipped** (`0.24.0`) |
 | **C — File Platform** | Folder tree, file storage under a contained root, tags, extensible metadata, plain-text indexing, attachments to five workspace entities, file/folder/attachment APIs | ✅ **Shipped** (`0.25.0`) |
 | **D — AI Workspace** | Workspace AI context (budgeted, prompt-ready), Knowledge integration (a real workspace↔entity association table plus ingestion), workspace-scoped context retrieval over the shared search index, and grounded AI assistance reachable from REST and from the existing agent's tool registry | ✅ **Shipped** (`0.26.0`) |
-| **E — External Integrations** | GitHub, Gmail, Google Drive, Outlook, Slack, Discord, Notion, calendar providers | 🔴 Not started |
+| **E — Integration Platform** | OAuth2 (authorization-code + PKCE, client-credentials), the audited API Gateway, and connectors as declarative specs running as MCP providers. Google Workspace ships; the other vendors are catalogue entries against the same engine | 🟡 **Platform + Phase 1 shipped** (`0.27.0`) |
 | **F — UI Integration & Closure** | React/Tauri Workspace UI, final validation, docs, performance review, M11 closure | 🔴 Not started |
 
 *(Originally retitled Aug 2026 from "Productivity Platform" as part of
@@ -9448,6 +9449,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.24.1** | *(none)* | Database Integrity Pass | ✅ **Completed** — not a milestone. Enables `PRAGMA foreign_keys=ON` globally through SQLAlchemy's `connect` event, so every declared `ondelete=` is finally enforced rather than silently ignored by SQLite's default. |
 | **0.25** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group C (File Platform) shipped: `Folder`, `File`, `FileTag`, `FileMetadata`, `IndexRecord` and `WorkspaceAttachment` models, four repositories, three services, three managers, a contained storage root enforced by a pure `safe_join`, plain-text indexing over seven extensions, three relay events, three search sources, DI, and `/api/v1/files` + `/api/v1/folders` + `/api/v1/attachments`. **Local files only** — no Drive, Dropbox or OneDrive, no cloud sync. **No OCR, no PDF parsing, no embeddings and no semantic indexing**: those need Vision, Document Intelligence and the vector store, and belong to later task groups. Task Groups D–F not started. |
 | **0.26** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group D (AI Workspace) shipped: a pure `domain/ai_workspace/` (context value objects, character-budget packing, prompt construction), one table (`WorkspaceKnowledgeLink`), one repository, `WorkspaceKnowledgeService` (links + on-demand ingestion) and `WorkspaceAssistantService` (grounded summarize/ask/next-actions), `WorkspaceContextManager` and `WorkspaceRetriever`, five agent tools on the existing registry, two relay events, DI, and `/api/v1/workspace-ai/*` + `/api/v1/knowledge-links`. **No second anything**: retrieval narrows M10A's `SearchService`, extraction is `KnowledgeService.learn_from_text`, and the agent is M10's `AgentOrchestrator` reached as tools. **Nothing is scheduled** (ingestion is on demand — M7 Phase 6 owns scheduling) and **no assist call is persisted** (`ConversationService` owns transcripts). **No embeddings over workspace content.** Task Groups E–F not started. |
+| **0.27** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group E (Integration Platform) shipped: OAuth2 authorization-code with mandatory PKCE and the client-credentials grant (closing M10.5 Task Group D's explicit deferral, registered into the *existing* `AuthStrategyRegistry`); one audited API gateway (single pool, retry for idempotent methods only, `Retry-After`, account-keyed response cache); connectors as declarative `IntegrationSpec` data executed by `RestIntegrationProvider`, an `IMCPProvider` in the *same* `MCPProviderRegistry` with the same lifecycle, events, capability registry and permission gates; Google Workspace Phase 1 (11 integrations, 65 operations); per-integration search sources on M10A's registry; four agent tools; and `/api/v1/integrations/*` including the one deliberately session-free route in the application, the OAuth callback, protected by a single-use `state`. **Phases 2–6 (Microsoft 365, GitHub/GitLab, Slack/Discord/Teams, Notion/Jira/Trello/ClickUp/Linear/Asana, Dropbox/Box) are catalogue entries against this engine and are not built** — deliberately not written from memory, because a subtly wrong endpoint ships a connector that fails at the first real call. **No two-way sync** (needs a conflict policy and M7's Scheduler), no webhooks, no durable outbound queue, no resumable upload. Task Group F not started. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -13583,3 +13585,153 @@ EventBus, WebSocket hub, `SearchService` and `KnowledgeService` with
 only the LLM faked. Suite 1737 -> 1936, all passing (one skip: the
 pre-existing symlink case Windows will not grant). mypy 263 -> 263.
 Ruff 21 categories, unchanged. Version bumped `0.25.0` -> `0.26.0`.
+
+---
+
+*Aug 2026 addendum -- M11 Task Group E (Integration Platform):* the
+outbound half of this milestone. OAuth2, one audited egress point, and
+connectors that are data rather than code -- built entirely on M10.5's
+MCP platform, which is the constraint that shaped every decision here.
+
+**Every connector is an MCP provider, and that is literal rather than
+decorative.** `RestIntegrationProvider` implements
+`core/interfaces/mcp.py`'s `IMCPProvider` for a vendor REST API. It is
+registered in the *same* `MCPProviderRegistry`, driven through the
+*same* six lifecycle methods by the *same* `MCPProviderManager`,
+publishes the *same* `MCPProviderStateChangedEvent`, registers each of
+its operations as an `MCPCapability` in the *same* `MCPCapabilityRegistry`
+class, resolves permissions through the *same* `PermissionModel`, and
+reports health through the *same* collector M9's `HealthMonitor` already
+polls. `/api/v1/mcp/providers` lists Gmail beside a stdio peer, and
+`/api/v1/mcp/diagnostics` inspects it the same way.
+
+The framework needed exactly **one** additive seam to allow that:
+`MCPProviderManager.install` gained an optional `provider=` argument, so
+a caller can supply its own `IMCPProvider` instead of the default
+transport-backed one. That is the seam `core/interfaces/mcp.py` had
+already promised in prose -- *"this Protocol exists so a future
+integration with genuinely different needs (a token refresh loop, say)
+can supply its own implementation without the framework changing"* --
+and a Gmail connector is precisely that integration, down to the token
+refresh loop.
+
+**Connectors are data because thirty of them are one pattern.** Gmail,
+Drive, GitHub, Slack and Jira are all OAuth2-authenticated REST APIs
+with resources and operations. A class per vendor would be thirty
+implementations of one thing, thirty places for a retry bug to hide, and
+thirty things to update when the gateway changes. An `IntegrationSpec`
+names endpoints, scopes and parameters; one tested engine executes them.
+Adding a vendor is a reviewed spec, not a new subsystem.
+
+**Path rendering is the security boundary.** An operation declares
+`/gmail/v1/users/{user_id}/messages` and the caller supplies `user_id`;
+callers never supply a path. Every value is percent-encoded with
+`safe=""`, so a parameter containing `/` or `..` becomes one literal
+segment rather than changing which endpoint is called -- the same
+posture `domain/files/safe_join` takes toward the filesystem, applied to
+a URL. A parameter the spec does not declare is **refused**, not
+forwarded: a vendor would usually ignore it, but "usually" is not a
+security property, and forwarding one is a caller reaching behaviour the
+review that approved the spec never saw.
+
+**Retry is refused for mutating calls, deliberately.** A retried `GET`
+costs a round trip. A retried `POST /messages/send` sends the email
+twice, and no amount of backoff makes that acceptable -- these vendor
+APIs are not idempotent and do not all accept an idempotency key. So the
+gateway retries idempotent methods only, and a mutating call that fails
+fails once, visibly. Overriding that is not a parameter.
+
+**PKCE is mandatory rather than optional.** RFC 7636 was written for
+public clients, but it costs one hash for a confidential one and it
+closes authorization-code interception outright -- and a desktop
+application distributing a client secret is not meaningfully
+confidential anyway.
+
+**One route in this application is session-free, and only one.** The
+OAuth callback is reached by the user's *browser* following a redirect
+from the vendor, which carries no `Authorization` header and cannot be
+made to; requiring a Bearer token there would mean the flow could never
+complete. What protects it is the `state` parameter: generated with
+`secrets`, held server-side beside the PKCE verifier, single-use, and
+expiring. Consuming it is atomic, so a replayed value finds nothing.
+That is the standard defence for this exact problem (RFC 6749 §10.12),
+and it is stronger here than a Bearer token would be, because the
+attacker a Bearer token stops is not the attacker this endpoint faces.
+It lives on its own router rather than as a per-route dependency
+override, so the exception is visible in review rather than buried in a
+decorator.
+
+**Two vocabularies, kept apart.** `OperationSpec.permissions` are
+JARVIS's own `PERMISSION_SCOPES` -- what the operator allowed. `scopes`
+are the *vendor's* OAuth scopes -- what the token carries. Both gates
+must pass, which is the distinction `MCPAuthManager.authorize_capability`
+already drew in Task Group D; this milestone supplies its two inputs and
+adds no third vocabulary. The refusal names which gate said no, because
+"not granted" and "the token lacks that scope" call for completely
+different fixes. Scopes are checked per call rather than cached at
+connect, so revoking a grant bites on the next call rather than the next
+reconnect.
+
+**Two small additive extensions to shipped milestones, both because an
+outbound call needs something a stored credential deliberately does not
+carry.** `MCPAuthManager.auth_header` is the single sanctioned route a
+token takes out of the auth subsystem -- a formatted header, not a
+`credential_for()` accessor, so a token has exactly one greppable exit
+and no caller ends up holding a bare one. `MCPAuthManager.bind_strategy`
+attaches a provider-specific strategy, because the shared registry keys
+on *method* (right for a static token, which needs nothing but the
+token) while OAuth2 refresh needs a token endpoint and a client id --
+configuration, not secret material, and therefore absent from
+`Credential` on purpose.
+
+**A real gap found and closed by the tests.** `IntegrationError` and
+`MCPProviderError` were reaching the REST layer uncaught, so an
+undeclared parameter arrived as a 500 -- the refusal was right, the
+status code said "we broke" instead of "you asked for something
+invalid". `IntegrationService` is the boundary between the `MCPError`
+family below and the `ServiceError` family above, and it now translates
+at that boundary through one context manager rather than a try/except
+per method, so a method added later cannot forget. This is the same
+class of gap Task Group C found with attachments, in a new place.
+
+**Deliberately not built, and named rather than implied.** Phases 2--6
+of the brief -- Microsoft 365, GitHub/GitLab, Slack/Discord/Teams,
+Notion/Jira/Trello/ClickUp/Linear/Asana, Dropbox/Box -- run on this
+engine as catalogue entries and are **not** written. Writing ~250 vendor
+operations from memory would mean asserting endpoint paths and parameter
+names that cannot be verified offline, and a subtly wrong catalogue
+entry is worse than an absent one: it claims to work and fails at the
+first real call, in a user's hands. Each needs its vendor's published
+API reference open beside it, which is catalogue work rather than
+architecture. Also absent: two-way sync for Tasks and Keep (needs a
+conflict policy and M7's Scheduler, Phase 6); webhooks and inbound
+delivery; a durable outbound queue; resumable/multipart upload (Drive's
+simple upload ships, correct to 5 MB); and Oracle Cloud sync.
+
+**Google Keep and Google Meet are described by what they actually do.**
+Keep's API serves Workspace accounts with an administrator-enabled API
+and not consumer accounts, which the spec carries as an
+`availability_note` so the REST surface says so *before* a caller spends
+an OAuth round trip finding out. Meet has no scheduling API: a Meet link
+is `conferenceData` on a Calendar event, so that operation lives on the
+Calendar spec, and the `google_meet` integration exposes the conference
+*records* the Meet REST API actually offers.
+
+Testing -- 200 new tests across seven files: the spec layer as pure
+functions (traversal, smuggled query strings, undeclared parameters,
+every validation refusal), the gateway against a real `aiohttp` server
+(retry, the mutating-call no-retry property proved by the server's own
+call counter, `Retry-After`, per-account cache isolation, invalidation
+after a mutation), the OAuth strategies including PKCE correctness
+against an independently computed S256 challenge and the flow store's
+replay refusal, the provider's lifecycle/permission/health contracts
+against a real `MCPAuthManager` and a real `PermissionModel`, the whole
+shipped catalogue validated in one pass, the REST surface including both
+halves of the session-free callback, and an end-to-end suite that runs
+the *entire* OAuth flow -- `/authorize`, a browser-style callback with
+no Bearer token, token exchange, connect, an authenticated vendor call,
+search-source registration, the audit event over a real WebSocket, and
+revocation -- against a threaded fake vendor, with only the vendor
+faked. Suite 1936 -> 2136, all passing (one skip: the pre-existing
+symlink case Windows will not grant). mypy 263 -> 263. Ruff 21
+categories, unchanged. Version bumped `0.26.0` -> `0.27.0`.

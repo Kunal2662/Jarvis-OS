@@ -788,3 +788,37 @@ class WorkspaceAssistCompletedEvent(Event):
     mode: str = "summarize"  # summarize|ask|next_actions
     synthesized: bool = True
     citation_count: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group E — Integration Platform
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class IntegrationCallCompletedEvent(Event):
+    """Published by
+    :class:`~jarvis.services.integration_service.IntegrationService` after
+    every outbound vendor call -- the audit trail the roadmap's "single,
+    audited egress point" requires.
+
+    **Carries no request body and no response body.** A Gmail request
+    body is the text of an email and a response body is someone's
+    inbox; relaying either would put it in every connected client's
+    replay buffer for a call one of them made. What travels is what an
+    audit needs: which integration, which operation, what the vendor
+    said, and whether the answer came from the gateway's cache rather
+    than the network.
+
+    Provider lifecycle transitions are **not** here: an integration is
+    an MCP provider, so connecting one publishes the
+    ``MCPProviderStateChangedEvent`` every provider publishes, and
+    authorizing one publishes ``MCPAuthStateChangedEvent``. A third
+    event for the same transitions would be a second notification path
+    for one thing happening.
+    """
+
+    integration_id: str = ""
+    operation: str = ""
+    status_code: int = 0
+    ok: bool = True
+    from_cache: bool = False
+    detail: str = ""

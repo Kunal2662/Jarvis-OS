@@ -105,14 +105,25 @@ def test_auth_list_reports_an_authenticated_provider(client, auth_headers) -> No
 
 
 def test_methods_endpoint_reports_supported_versus_known(client, auth_headers) -> None:
-    """``oauth2`` is in the vocabulary and unsupported -- both need an
-    authorization server and a callback this task group does not ship."""
+    """Every method in the vocabulary is now supported.
+
+    This test previously pinned the *opposite* for ``oauth2`` and
+    ``client_credentials``: M10.5 Task Group D shipped the vocabulary
+    with both unimplemented, because each needs an authorization server,
+    a redirect URI and a callback endpoint that task group did not
+    build. M11 Task Group E built all three
+    (``core/mcp/auth/oauth2.py``), so the assertion flips -- which is
+    the deferral closing, not a regression.
+    """
     body = client.get("/api/v1/mcp/auth/methods", headers=auth_headers).json()
     described = {d["method"]: d for d in body["data"]}
 
     assert described["api_key"]["supported"] is True
-    assert described["oauth2"]["supported"] is False
-    assert described["client_credentials"]["supported"] is False
+    assert described["oauth2"]["supported"] is True
+    assert described["client_credentials"]["supported"] is True
+    # Refreshability is a property of the method, not of whether this
+    # build implements it, so it was already true before Task Group E.
+    assert described["oauth2"]["refreshable"] is True
     assert body["meta"]["count"] == 6
 
 

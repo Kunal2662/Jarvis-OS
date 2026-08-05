@@ -21,7 +21,7 @@ was first wired still shows up in Command Search without a stale index.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from jarvis.core.interfaces.search import SearchResult
 
@@ -284,6 +284,96 @@ class FolderSearchSource:
 
     async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
         return await self._folders.search_folders(query, top_k=top_k)
+
+
+class IntegrationSearchSource:
+    """Milestone 11 Task Group E -- one connected vendor's own search.
+
+    Registered when an integration connects and unregistered when it
+    disconnects, which is the first source in this module with a
+    *runtime* lifetime. That is M10A's provider registry working exactly
+    as its docstring promised -- *"a future module or plugin can add a
+    new ISearchSource without this class ever changing"* -- and it is
+    why ``source_type`` is namespaced per integration rather than a
+    single shared ``"integrations"``: two connected vendors are two
+    sources a caller can filter between, and one source that silently
+    changed meaning when a second vendor connected would be worse than
+    either.
+
+    **The vendor does the searching.** This queries the endpoint the
+    spec names (Gmail's ``q``, Drive's ``q``, People's ``query``) rather
+    than listing everything and filtering locally -- which would be
+    slower, spend quota, and give worse answers than the vendor's own
+    index.
+
+    **A disconnected or unauthorized integration returns nothing rather
+    than raising.** ``SearchService`` already treats a failing source as
+    excluded, but an integration that is merely not connected is not a
+    failure worth logging on every keystroke.
+    """
+
+    def __init__(self, service: Any, spec: Any) -> None:
+        self.source_type = f"integration:{spec.integration_id}"
+        self._service = service
+        self._spec = spec
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        query = (query or "").strip()
+        if not query or not self._spec.search_operation:
+            return []
+        try:
+            rows = await self._service.search(self._spec.integration_id, query, top_k=top_k)
+        except Exception:
+            # Not connected, not authorized, or the vendor is down. The
+            # shared SearchService excludes a failing source already;
+            # returning empty keeps that quiet for the common case.
+            return []
+
+        results: list[SearchResult] = []
+        for row in rows[:top_k]:
+            identifier = str(row.get("id") or row.get("name") or row.get("resourceName") or "")
+            results.append(
+                SearchResult(
+                    id=identifier,
+                    title=_vendor_title(row) or identifier,
+                    content=_vendor_snippet(row),
+                    source=self.source_type,
+                    score=1.0,
+                    uri=f"integration://{self._spec.integration_id}/{identifier}",
+                    metadata={
+                        "integration_id": self._spec.integration_id,
+                        "vendor": self._spec.vendor,
+                    },
+                )
+            )
+        return results
+
+
+def _vendor_title(row: dict[str, Any]) -> str:
+    """A human label from a vendor row.
+
+    Vendors disagree about which key holds "the name of this thing", and
+    there is no standard to defer to. Trying the documented ones in
+    order and falling back to the id keeps a result readable without a
+    per-vendor extractor -- the failure mode is a duller title, never a
+    wrong one.
+    """
+    for key in ("subject", "title", "name", "summary", "displayName", "filename"):
+        value = row.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    names = row.get("names")
+    if isinstance(names, list) and names and isinstance(names[0], dict):
+        return str(names[0].get("displayName") or "")
+    return ""
+
+
+def _vendor_snippet(row: dict[str, Any]) -> str:
+    for key in ("snippet", "description", "body", "notes", "mimeType"):
+        value = row.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
 
 
 class AttachmentSearchSource:

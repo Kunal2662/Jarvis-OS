@@ -3,6 +3,121 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.27.0] — M11 Task Group E: Integration Platform
+
+The outbound half of M11: OAuth2, one audited egress point, and vendor
+connectors that run as MCP providers. Built entirely on M10.5's MCP
+platform — every connector is registered in the same provider registry,
+driven by the same lifecycle, gated by the same permission model and
+reported by the same health collector.
+
+Google Workspace ships (11 integrations, 65 operations). Phases 2–6 of
+the brief are catalogue entries against the same engine and are **not**
+built — see Notes.
+
+### Added
+- **OAuth2, closing M10.5's deferral** — `core/mcp/auth/oauth2.py`: the
+  authorization-code grant with **mandatory PKCE** (S256), the
+  client-credentials grant, `OAuthFlowStore` (single-use, expiring
+  `state`; the PKCE verifier never leaves the server), and
+  `BoundOAuth2Strategy` for per-provider refresh and remote revoke. Both
+  register into the **existing** `AuthStrategyRegistry` — the one call
+  Task Group D's docstring predicted.
+- **API Gateway** — `core/integrations/gateway.py`: the single audited
+  egress point. One `httpx` pool, retry for idempotent methods only,
+  bounded `Retry-After` handling, and a short account-keyed response
+  cache that any mutation invalidates.
+- **Connectors as data** — `core/integrations/models.py`:
+  `IntegrationSpec` / `OperationSpec` / `AuthSpec`, validated at
+  registration, with path rendering and parameter splitting as the
+  security boundary.
+- **`RestIntegrationProvider`** — an `IMCPProvider` for vendor REST
+  APIs. Same `MCPProviderRegistry`, same `MCPProviderManager`, same
+  events, same `MCPCapabilityRegistry`, same `PermissionModel`, same
+  health collector.
+- **Google Workspace (Phase 1)** — Gmail, Calendar, Meet, Drive, Docs,
+  Sheets, Slides, Contacts, Tasks, Keep, Photos.
+- **`IntegrationService`** — catalogue, install, the two-step OAuth
+  flow, invoke, preview, per-vendor search, gateway stats.
+- **REST** — `/api/v1/integrations/*`: catalogue, install/uninstall,
+  connect/disconnect, `oauth/authorize`, `oauth/callback`,
+  `invoke`, `preview`, `search`, `gateway/stats`.
+- **Search** — one `ISearchSource` per connected integration, added to
+  M10A's registry on connect and removed on disconnect. No change to
+  `SearchService`.
+- **Agent tools** — `list_integrations`, `describe_integration`,
+  `search_integration`, `invoke_integration`, on the existing registry.
+- **Event** — `IntegrationCallCompletedEvent`, relayed as
+  `integration.call_completed`.
+- **Settings** — `JARVIS_INTEGRATIONS_*`, including per-vendor OAuth
+  clients (`CLIENTS__GOOGLE__CLIENT_ID`) and the redirect URI.
+
+### Changed
+- **`MCPProviderManager.install` gained an optional `provider=`** — the
+  seam `core/interfaces/mcp.py` promised in prose, made real by the
+  first integration that needed it. Defaulted, so every existing call
+  site is unchanged.
+- **`MCPAuthManager` gained `auth_header`, `needs_refresh` and
+  `bind_strategy`.** The first is the single sanctioned route a token
+  takes out of the auth subsystem (a formatted header, never a bare
+  token). The last exists because the shared registry keys on *method*
+  while OAuth2 refresh needs a token endpoint and client id —
+  configuration, which a `Credential` deliberately does not carry.
+
+### Fixed
+- **`IntegrationError` reached the REST layer as a 500.** An undeclared
+  parameter or a duplicate install was refused correctly but reported
+  as a server fault. `IntegrationService` now translates the `MCPError`
+  family into `ServiceError` at the boundary, through one context
+  manager rather than a try/except per method — the same class of gap
+  Task Group C found with attachments.
+
+### Security
+- **A caller supplies parameters, never a path.** Every path
+  placeholder is percent-encoded with `safe=""`, so `..` or `/` in a
+  value becomes one literal segment instead of changing the endpoint. A
+  parameter the spec does not declare is refused rather than forwarded.
+- **Mutating calls are never retried.** A retried send sends twice.
+- **Exactly one route is session-free** — the OAuth callback, because a
+  browser redirect carries no `Authorization` header. Its `state` is
+  generated with `secrets`, single-use and expiring; unknown, replayed
+  and stale values are all refused (RFC 6749 §10.12). It lives on its
+  own router so the exception is visible in review.
+- **Two permission gates per call**, and the refusal names which one
+  said no: the operator's grant in the shared `PermissionModel`, and the
+  vendor scopes the token actually carries. Checked per call, so
+  revoking a grant bites on the next call.
+- **No token appears in a response, an event, a log line or a preview.**
+  The audit payload carries query *keys*, never values, and never a body.
+- **Vendor scopes are the narrow ones** where a narrow one exists —
+  `drive.file` over `drive`, `gmail.readonly` over `mail.google.com`.
+- **HTTPS is required** for every endpoint; loopback is allowed so the
+  engine can be tested against a local server.
+
+### Notes
+- **Phases 2–6 are not built.** Microsoft 365, GitHub/GitLab,
+  Slack/Discord/Teams, Notion/Jira/Trello/ClickUp/Linear/Asana and
+  Dropbox/Box run on this engine as spec data. They were deliberately
+  not written from memory: a subtly wrong endpoint path or scope name
+  ships a connector that fails at the first real call, and a wrong
+  catalogue entry is worse than an absent one because it claims to work.
+- **No two-way sync** for Google Tasks or Keep. Pull and push
+  operations ship; a *sync* needs a conflict policy and a scheduler
+  (M7 Phase 6). One-directional import that works beats a mirror that
+  silently loses an edit.
+- **Google Keep is Workspace-only** and says so in its
+  `availability_note`, so the REST surface reports it before a caller
+  spends an OAuth round trip.
+- **Google Meet has no scheduling API** — a Meet link is
+  `conferenceData` on a Calendar event, so that lives on the Calendar
+  spec; `google_meet` exposes the conference *records* the Meet API
+  actually offers.
+- **Also absent:** webhooks and inbound delivery, a durable outbound
+  queue, resumable/multipart upload (simple upload ships, correct to
+  5 MB), and Oracle Cloud sync.
+- 200 new tests (1936 → 2136). mypy 263 → 263, ruff 21 categories, both
+  unchanged.
+
 ## [0.26.0] — M11 Task Group D: AI Workspace
 
 The AI layer over the substrate Task Groups A–C shipped: a real

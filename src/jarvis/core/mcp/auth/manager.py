@@ -98,6 +98,40 @@ class MCPAuthManager:
         self._event_bus = event_bus
         self._warning_seconds = expiry_warning_seconds
         self._sessions: dict[str, ProviderSession] = {}
+        #: Per-provider strategy overrides (Milestone 11 Task Group E).
+        #: See :meth:`bind_strategy`.
+        self._bound: dict[str, Any] = {}
+
+    # ------------------------------------------------------------------
+    # Strategy binding (Milestone 11 Task Group E)
+    # ------------------------------------------------------------------
+    def bind_strategy(self, provider_id: str, strategy: Any) -> None:
+        """Override the registry's strategy for one provider.
+
+        The shared ``AuthStrategyRegistry`` maps *method* to strategy,
+        which is the right key for every method that has no
+        configuration: a static token needs nothing but the token. OAuth2
+        refresh does -- it needs a token endpoint and a client id, and a
+        ``Credential`` deliberately carries neither, because those are
+        deployment configuration rather than secret material.
+
+        Binding per provider is how that gap closes without widening the
+        credential model or giving the registry a second key. The
+        registry keeps serving every unbound provider; :meth:`refresh`
+        and :meth:`revoke` prefer a binding when one exists.
+        """
+        self._bound[provider_id] = strategy
+        _logger.info("Bound a provider-specific auth strategy for {!r}.", provider_id)
+
+    def unbind_strategy(self, provider_id: str) -> bool:
+        return self._bound.pop(provider_id, None) is not None
+
+    def _strategy_for(self, provider_id: str, method: AuthMethod) -> Any:
+        """A provider's binding when it has one, the registry otherwise."""
+        bound = self._bound.get(provider_id)
+        if bound is not None and getattr(bound, "method", None) == method:
+            return bound
+        return self._strategies.get(method)
 
     # ------------------------------------------------------------------
     # Sessions
@@ -175,7 +209,7 @@ class MCPAuthManager:
             )
 
         try:
-            strategy = self._strategies.get(credential.method)
+            strategy = self._strategy_for(provider_id, credential.method)
             refreshed = await strategy.refresh(credential)
         except Exception as err:
             session.mark_failed(str(err))
@@ -206,7 +240,7 @@ class MCPAuthManager:
 
         session = self.session(provider_id)
         try:
-            strategy = self._strategies.get(credential.method)
+            strategy = self._strategy_for(provider_id, credential.method)
             revoked = await strategy.revoke(credential)
         except Exception as err:
             # A remote revoke failing must not leave the local token
@@ -306,6 +340,45 @@ class MCPAuthManager:
         distinct from JARVIS's own permission vocabulary."""
         credential = self._store.get(provider_id)
         return frozenset(credential.scopes) if credential else frozenset()
+
+    def auth_header(
+        self, provider_id: str, *, header: str = "Authorization", prefix: str = "Bearer"
+    ) -> dict[str, str]:
+        """The ready-made authentication header for an outbound call, or
+        ``{}`` when there is no usable token (Milestone 11 Task Group E).
+
+        The **one** sanctioned way for a caller to present a credential,
+        added when the integration platform needed outbound calls to
+        carry one. Deliberately not a ``credential_for()`` accessor
+        handing back the whole object: this returns a formatted header
+        and nothing else, so a token has exactly one route out of this
+        subsystem, that route is greppable, and no caller ends up
+        holding a bare token it might log.
+
+        Returns ``{}`` rather than raising for an unauthenticated
+        provider -- the caller's next step is the permission gate in
+        :meth:`authorize_capability`, which refuses with a reason naming
+        the actual problem. Raising here would report "no header" for
+        what is really "not authorized yet".
+        """
+        credential = self._store.get(provider_id)
+        if credential is None or not credential.has_access_token or credential.revoked:
+            return {}
+        value = f"{prefix} {credential.access_token}".strip() if prefix else credential.access_token
+        return {header: value}
+
+    def needs_refresh(self, provider_id: str, *, leeway_seconds: float) -> bool:
+        """Whether a refreshable credential is close enough to expiry to
+        renew before the next call (Milestone 11 Task Group E).
+
+        Here rather than in the caller because it is a question about
+        credential state, and answering it elsewhere would mean reading
+        the credential elsewhere.
+        """
+        credential = self._store.get(provider_id)
+        if credential is None or not credential.is_refreshable:
+            return False
+        return credential.expires_within(leeway_seconds)
 
     def authorize_capability(
         self,

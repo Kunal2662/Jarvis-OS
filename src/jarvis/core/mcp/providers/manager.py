@@ -83,6 +83,7 @@ class MCPProviderManager:
         config: ProviderConfig | None = None,
         *,
         replace: bool = False,
+        provider: Any = None,
     ) -> ProviderRecord:
         """Register a provider and declare its permission requests.
 
@@ -91,11 +92,21 @@ class MCPProviderManager:
         ``PluginRegistry.load_one``'s own ``declare`` call, and to Task
         Group A's ``MCPServerRuntime.declare_for``. Installing never
         grants anything.
+
+        *provider* supplies an ``IMCPProvider`` implementation instead of
+        the default transport-backed one (Milestone 11 Task Group E).
+        The seam ``core/interfaces/mcp.py`` promised -- *"this Protocol
+        exists so a future integration with genuinely different needs (a
+        token refresh loop, say) can supply its own implementation
+        without the framework changing"* -- made real by the first
+        integration that has that need. Everything after this line is
+        identical for both kinds: same registry, same lifecycle, same
+        events, same permission resolution, same health collection.
         """
         record = self._registry.register(
             provider_id, metadata, config, provider=None, replace=replace
         )
-        record.provider = TransportBackedProvider(
+        record.provider = provider or TransportBackedProvider(
             provider_id,
             record.metadata,
             record.config,

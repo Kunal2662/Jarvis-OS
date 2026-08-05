@@ -70,6 +70,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         from jarvis.infrastructure.api.routes import ai_workspace as ai_workspace_routes
         from jarvis.infrastructure.api.routes import devtools as devtools_routes
         from jarvis.infrastructure.api.routes import files as file_routes
+        from jarvis.infrastructure.api.routes import integrations as integration_routes
         from jarvis.infrastructure.api.routes import intelligence as intelligence_routes
         from jarvis.infrastructure.api.routes import knowledge as knowledge_routes
         from jarvis.infrastructure.api.routes import mcp as mcp_routes
@@ -92,6 +93,12 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(productivity_routes.router, prefix="/api/v1")
         app.include_router(file_routes.router, prefix="/api/v1")
         app.include_router(ai_workspace_routes.router, prefix="/api/v1")
+        app.include_router(integration_routes.router, prefix="/api/v1")
+        # The OAuth callback carries no Bearer token -- a browser
+        # redirect cannot -- so it is a separate, session-free router.
+        # Its `state` parameter is what authenticates the response; see
+        # `routes/integrations.py`.
+        app.include_router(integration_routes.callback_router, prefix="/api/v1")
 
         # Milestone 9 Task Group E -- API Inspector. A real
         # Starlette BaseHTTPMiddleware, not a decorator-based

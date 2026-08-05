@@ -136,6 +136,13 @@ def test_every_documented_event_type_is_mapped() -> None:
         # same board.
         "workspace.knowledge_linked",
         "workspace.assisted",
+        # Milestone 11 Task Group E. One name, for the audit trail of
+        # outbound vendor calls. Integration *lifecycle* is deliberately
+        # absent: an integration is an MCP provider, so it already
+        # relays through `mcp.provider_changed` and `mcp.auth_changed`
+        # rather than through a second set of names for the same
+        # transitions.
+        "integration.call_completed",
     }
 
 

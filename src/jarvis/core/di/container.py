@@ -428,9 +428,20 @@ def _build_mcp_credential_store(*, settings: Settings) -> Any:
 
 
 def _build_mcp_auth_strategies() -> Any:
+    """Milestone 10.5 Task Group D's static strategies, plus Milestone 11
+    Task Group E's two OAuth grants.
+
+    ``register_oauth_strategies`` is the single call Task Group D's own
+    docstring predicted for the milestone that built them: *"the
+    milestone that adds them calls ``register(...)`` here and nothing
+    else changes."* Nothing else changed.
+    """
+    from jarvis.core.mcp.auth.oauth2 import register_oauth_strategies
     from jarvis.core.mcp.auth.strategies import build_default_strategy_registry
 
-    return build_default_strategy_registry()
+    registry = build_default_strategy_registry()
+    register_oauth_strategies(registry)
+    return registry
 
 
 def _build_mcp_auth_manager(
@@ -651,6 +662,53 @@ def _build_attachment_manager(
         file_service=file_service,
         workspace_service=workspace_service,
         search_service=search_service,
+    )
+
+
+def _build_api_gateway(*, settings: Settings) -> Any:
+    """Milestone 11 Task Group E. One pool, one retry policy, one cache
+    -- shared by every integration, which is what makes it the single
+    audited egress point rather than one client per connector."""
+    from jarvis.core.integrations.gateway import ApiGateway
+
+    return ApiGateway(
+        timeout_seconds=settings.integrations.request_timeout_seconds,
+        max_attempts=settings.integrations.max_attempts,
+        backoff_seconds=settings.integrations.backoff_seconds,
+        cache_ttl_seconds=settings.integrations.cache_ttl_seconds,
+        cache_entries=settings.integrations.cache_entries,
+    )
+
+
+def _build_oauth_flow_store(*, settings: Settings) -> Any:
+    from jarvis.core.mcp.auth.oauth2 import OAuthFlowStore
+
+    return OAuthFlowStore(ttl_seconds=settings.integrations.oauth_flow_ttl_seconds)
+
+
+def _build_integration_service(
+    *,
+    settings: Settings,
+    mcp_provider_manager: Any,
+    mcp_auth_manager: Any,
+    api_gateway: Any,
+    oauth_flow_store: Any,
+    search_service: Any,
+    event_bus: Any,
+) -> Any:
+    """Milestone 11 Task Group E. Composed at the composition root out of
+    M10.5's provider manager and auth manager -- the service adds the
+    OAuth *flow* and the catalogue, and owns no registry of its own."""
+    from jarvis.services.integration_service import IntegrationService
+
+    return IntegrationService(
+        provider_manager=mcp_provider_manager,
+        auth_manager=mcp_auth_manager,
+        gateway=api_gateway,
+        settings=settings,
+        flow_store=oauth_flow_store,
+        search_service=search_service,
+        event_bus=event_bus,
     )
 
 
@@ -903,6 +961,7 @@ def _build_agent_orchestrator(
     knowledge: Any,
     intelligence: Any,
     workspace_assistant: Any,
+    integrations: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -920,6 +979,7 @@ def _build_agent_orchestrator(
         knowledge=knowledge,
         intelligence=intelligence,
         workspace_assistant=workspace_assistant,
+        integrations=integrations,
         event_bus=event_bus,
     )
 
@@ -1369,6 +1429,23 @@ class Container(containers.DeclarativeContainer):
         event_bus=event_bus,
     )
 
+    # ---- Milestone 11 Task Group E -- Integration Platform ----------------
+    # Declared after `search_service` because a connected integration
+    # registers a source into it, and after the MCP block because every
+    # integration is one of its providers.
+    api_gateway = providers.Singleton(_build_api_gateway, settings=settings)
+    oauth_flow_store = providers.Singleton(_build_oauth_flow_store, settings=settings)
+    integration_service = providers.Singleton(
+        _build_integration_service,
+        settings=settings,
+        mcp_provider_manager=mcp_provider_manager,
+        mcp_auth_manager=mcp_auth_manager,
+        api_gateway=api_gateway,
+        oauth_flow_store=oauth_flow_store,
+        search_service=search_service,
+        event_bus=event_bus,
+    )
+
     # ---- Milestone 9 Task Group E -- Developer Platform Tools --------------
     debug_console = providers.Singleton(
         _build_debug_console,
@@ -1438,5 +1515,6 @@ class Container(containers.DeclarativeContainer):
         knowledge=knowledge_service,
         intelligence=intelligence_service,
         workspace_assistant=workspace_assistant_service,
+        integrations=integration_service,
         event_bus=event_bus,
     )
