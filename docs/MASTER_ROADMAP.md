@@ -122,12 +122,16 @@ future work; see M6's own §3 entry for the full scope note.
   Sidebar, Dock, Status Bar, Command Palette shell, Dashboard Widget
   Grid, and as of v0.30.0 the **Universal Workspace Framework**
   (dockable/resizable panels, multi-workspace layouts, Notification
-  Center, Activity Center, Global Search, responsive layout); Phases 5,
-  6, 7 and the remainder of Phase 3 (Context Menu system, Background
-  Task Manager, Workspace views, Window management, Developer Mode's 9
-  read-only viewers, DPI/Multi-monitor) are 🟠 **deferred to the
-  Deferred Backlog** (see the new subsection under M8's §8 entry) — none
-  of this blocks M9, which has no real dependency on it (see
+  Center, Activity Center, Global Search, responsive layout); **Phase 5
+  (AI Workspace & Module Integration) and Phase 6's production-UX half
+  shipped at v0.31.0** — the AI, Developer and Administrator dashboards,
+  the §22.12 audience gate, skeletons, per-widget state handling and
+  connection recovery. Phase 7, Phase 6's visual-design pass, Settings &
+  User Profiles, and the remainder of Phase 3 (Context Menu system,
+  Background Task Manager, Workspace views, Window management, Developer
+  Mode's 9 read-only viewers, DPI/Multi-monitor) are 🟠 **deferred to
+  the Deferred Backlog** (see the new subsection under M8's §8 entry) —
+  none of this blocks M9, which has no real dependency on it (see
   `IMPLEMENTATION_ROADMAP.md` §5's own Dependencies note). **M8 is not
   100% complete** — do not treat it as shipped.
 - **M9 — Runtime & Core Services** (see §8) — ✅ **100% complete, all
@@ -1439,10 +1443,49 @@ Premium UI & Voice Experience initiative's five task groups (H–L).
 Conversation Timeline and the broader motion pass (hover, Sidebar,
 Dock, Cards, Notifications) remain pending.
 
-#### Phase 5 — Settings & User Profiles
+#### Phase 5 — AI Workspace & Module Integration ✅ *(v0.31.0)*
+*(Aug 2026 — this slot was "Settings & User Profiles"; that scope moved
+below to keep phase numbers aligned with the delivered work.)*
+
+Every backend module with real content reaches the user, through the
+**existing** `panelRegistry` and `dashboardWidgetRegistry` — no
+duplicate registries. Three audience-specific dashboards:
+
+- **AI Dashboard** — 11 widgets, every one on real backend data.
+- **Developer Dashboard** — providers & routing, outbound API counters,
+  API inspector, performance metrics, agent trace, the 61-event relay
+  vocabulary, runtime state.
+- **Administrator Dashboard** — AI health, API usage, provider health,
+  voice providers, secrets status, audit log.
+
+**The phase began with an API audit of all 172 REST operations, and the
+audit changed the plan.** Three findings are worth carrying forward:
+
+1. `GET /health` is a bare liveness probe; the rich subsystem data lives
+   in the `health.updated` **WebSocket** event, which nothing on the
+   frontend was reading. The dashboards subscribe rather than poll.
+2. **Seven Administrator panels have no backend** — users, budgets,
+   provider priority, calibration status, analytics, synchronization.
+   All are §22, approved and not built. They are **named on screen, not
+   mocked**: an administrator seeing "Budget: $0.00" would reasonably
+   conclude nothing had been spent.
+3. Two AI Dashboard widgets have no data source — Recent Conversations
+   (no conversation-history route) and Pinned Projects (`Project` has no
+   `pinned` column; **Pinned Notes** ships instead).
+
+**Personal Mode (§22.12) is enforced by `core/user-mode.ts`**, one gate
+for three modes and seven restricted classes of information, checked in
+two independent places — the panel menu filters, and each dashboard
+component refuses — because a workspace layout can be exported from a
+developer's machine and imported on a personal one.
+
+#### Phase 5A — Settings & User Profiles *(deferred)*
 Dynamic Settings (schema-driven, preserving M5's self-registering
 Settings-page pattern), Developer Mode (ports M5's full gated panel
 set), Profile Service, Guest Mode, Profile Switching, Profile Storage.
+
+Profiles depend on the account model in §22.11, which is approved and
+not built.
 
 **Settings page structure** *(added Aug 2026 per the UI Architecture
 Update review — see the changelog addendum)*: General, Appearance,
@@ -1459,10 +1502,23 @@ install/uninstall experience over M9's Marketplace. A module can be
 states Phase 3's "installed and enabled" sidebar/dashboard rule
 depends on.
 
-#### Phase 6 — Premium UI Polish
-Spacing, Typography, Cards, Animations, and Icons audited against the
-design-token scale; a production-quality pass across every view built
-in Phases 1–5.
+#### Phase 6 — UI Polish, Performance & Production UX 🟡 *(production-UX half shipped v0.31.0)*
+
+**Shipped:** skeleton loaders shaped like the content they replace;
+loading, empty, error and offline states per widget through one shared
+`ResourceView`; **connection recovery** that re-runs ping → session →
+socket (the socket's own retry reuses a token a *restarted* backend will
+refuse forever, which is the most common real outage); responsive
+layout; keyboard navigation, ARIA labels and focus management; lazy
+loading, code splitting, memoization, virtual lists, Suspense.
+
+**Remaining:** the visual-design pass — Spacing, Typography, Cards,
+Animations and Icons audited against the design-token scale across every
+view built in Phases 1–5; Conversation Timeline (blocked — no
+conversation-history API); image optimization (nothing to optimise yet);
+window state persistence beyond `@tauri-apps/plugin-window-state`; DPI
+scaling and multi-monitor, both blocked on the same Tauri window APIs as
+Phase 3's Window Management item.
 
 #### Phase 7 — Optimization & QA
 Accessibility, performance, lazy loading, bundle optimization,

@@ -1584,6 +1584,23 @@ the standard installation, not an optional extra — that is what makes
 
 **Exactly two account types: Personal and Administrator.**
 
+> **Frontend status (v0.31.0):** the *modes* are modelled and enforced
+> (`core/user-mode.ts`), and the Administrator Dashboard exists. The
+> **account model itself is not built** — the frozen backend has no user
+> table, no roles and no `/api/v1/users`, so `administrator` is reachable
+> only through the same session-only Developer Mode unlock. When a real
+> account model ships, `resolveUserMode()` is the single function that
+> changes; every gate in the UI reads through it.
+>
+> The Administrator Dashboard therefore ships **six panels with a real
+> API** (AI health, API usage, provider health, voice providers, secrets
+> status, audit log) and **names the seven that have none** — users,
+> daily/monthly budgets, provider priority, calibration status,
+> analytics, synchronization. Each of those belongs to §22.2/§22.3/
+> §22.5/§22.8/§22.11, all approved and not built. Showing an estimated
+> budget would be a fabrication; naming the gap is the honest answer and
+> the more useful one.
+
 **No feature differences — only management differences.** An
 Administrator does not get a better JARVIS; they get control over how a
 fleet of them is configured.
@@ -1606,14 +1623,34 @@ backend execution, API switching, or failover. They see progress:
 > Almost ready…
 
 A product decision with an architectural consequence: **status surfaces
-must not leak routing detail.** This constrains something that exists
-today — the Status Bar's "AI Provider" item
-(`components/layout/status-bar-contributions.tsx`) names a provider, and
-M8 Phase 3's Activity Center shows agent node names. Both are acceptable
-now because Developer Mode is the audience; both must be gated behind
-Administrator/Developer Mode before a personal-user build ships.
-Recorded here so that gating is a tracked requirement rather than a late
-discovery.
+must not leak routing detail.**
+
+**Implemented in M8 Phase 5 (v0.31.0).** `core/user-mode.ts` is the
+single gate: three modes (`personal` / `developer` / `administrator`)
+and the seven restricted classes above, each surface asking one function
+rather than re-deciding what "advanced" means. It is enforced in two
+independent places — the workspace panel *menu* filters restricted
+panels out, and each restricted component refuses to render — because a
+workspace layout can be exported from a developer's machine and imported
+on a personal one.
+
+It is a **render** gate, not a security boundary: the routes behind it
+are session-authenticated like every other route, and §22.12 is a
+product rule about what a personal user's JARVIS *contains*, not a claim
+that these endpoints are secret. The backend authenticates; the frontend
+decides what to show.
+
+Two findings from implementing it, recorded because both were previously
+asserted the other way round in this document:
+
+- **M8 Phase 3's Activity Center did leak**, rendering `agent.step`'s
+  raw `node` field (`planner`, `tool_executor`, `critic`) to every
+  audience. Fixed in Phase 5: personal users see the progress vocabulary
+  above, with step count, ordering and status identical in both modes.
+- **The Status Bar's "AI Provider" item never leaked.** An earlier
+  revision of this section said it names a provider; it renders "Not
+  configured" (`NotConfiguredItem`) because no provider-state API
+  exists.
 
 ---
 

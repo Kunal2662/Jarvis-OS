@@ -1937,7 +1937,50 @@ handling are all complete; see §2 above for the itemized list and
       Runtime Provider Switching). Backend work belonging to M11's API
       Center Architecture module; see the note in §2.
 
-### M8 Phase 5 — Settings & User Profiles (in full)
+### M8 Phase 5 — AI Workspace & Module Integration ✅ *(v0.31.0)*
+- [x] Every backend module with real content reaches the user, through
+      the **existing** `panelRegistry` and `dashboardWidgetRegistry` —
+      no duplicate registries.
+- [x] **AI Dashboard** — 11 widgets, every one on real backend data.
+- [x] **Developer Dashboard** (Developer Mode only) — providers &
+      routing, outbound API counters, API inspector, performance
+      metrics, agent trace, the 61-event relay vocabulary, runtime state.
+- [x] **Administrator Dashboard** (Administrator only) — AI health, API
+      usage, provider health, voice providers, secrets status, audit
+      log; plus a panel naming the seven capabilities that have no
+      backend.
+- [x] **Personal Mode** (`ARCHITECTURE.md` §22.12) — `core/user-mode.ts`
+      is the single audience gate; restricted panels are filtered from
+      the panel menu *and* refused by their own components.
+- [x] Global Search continues to use `POST /api/v1/search`. No
+      client-side search.
+- [x] Every panel docks, undocks, floats, collapses, restores, persists,
+      notifies, searches and themes — inherited from Phase 3's framework
+      with no change needed.
+
+**Not built — no API exists in the frozen backend.** Users & roles
+(§22.11), daily/monthly budgets (§22.3), provider priority (§22.2),
+calibration status (§22.8), analytics and synchronization (§22.5);
+Recent Conversations (no conversation-history route); Vision status (no
+vision service reports to the health monitor). *Pinned Projects* shipped
+as **Pinned Notes** — `Project` has no `pinned` column, `Note` does.
+
+### M8 Phase 6 — UI Polish, Performance & Production UX ✅ *(v0.31.0)*
+- [x] Skeleton loaders shaped like the content they replace; loading,
+      empty, error and offline states per widget via `ResourceView`.
+- [x] **Connection recovery** — re-runs ping → session → socket, because
+      the socket's own retry reuses a token a restarted backend refuses.
+- [x] Responsive layout, keyboard navigation, ARIA labels, focus
+      management, dark/light polish.
+- [x] Lazy loading, code splitting, memoization, virtual lists,
+      Suspense, startup optimization.
+
+**Still open:** image optimization (no images to optimise), window state
+persistence beyond `@tauri-apps/plugin-window-state`, DPI scaling and
+multi-monitor — all blocked on the same Tauri window APIs as Phase 3's
+Window Management item.
+
+### M8 Phase 5A — Settings & User Profiles (in full, still deferred)
 - [ ] Dynamic Settings, Settings page structure (General/Appearance/
       Voice/AI Models/Memory/Automation/Devices/Accounts/Plugins/
       Security/Developer Mode/Backup & Restore/About).
@@ -1950,11 +1993,15 @@ handling are all complete; see §2 above for the itemized list and
 - [ ] API Center UI + Developer API Analytics (full module — see §2).
 - [ ] Profile Service, Guest Mode, Profile Switching, Profile Storage.
 
-### M8 Phase 6 — Premium UI Polish (in full)
+### M8 Phase 6 — Premium UI Polish (remainder)
+*(The production-UX half of Phase 6 — skeletons, state handling,
+connection recovery, performance, accessibility — shipped in v0.31.0;
+see §2 above. What remains is the visual-design pass.)*
 - [ ] Spacing, Typography, Cards, Animations, Icons audited against
       the design-token scale; production-quality pass across every
       view built in Phases 1–5.
-- [ ] Conversation Timeline.
+- [ ] Conversation Timeline. *(Blocked: no conversation-history API
+      exists in the frozen backend.)*
 - [ ] The broader motion pass (hover, Sidebar, Dock, Cards,
       Notifications) — beyond what Task Group H–L already shipped.
 

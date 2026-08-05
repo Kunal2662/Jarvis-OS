@@ -3,6 +3,90 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.31.0] — M8 Phase 5 + Phase 6: Module Integration & Production UX
+
+Phase 5 turned the workspace into the JARVIS operating environment;
+Phase 6 hardened it. Delivered as one milestone.
+
+**Backend untouched** — no route, model, schema, event or contract
+changed. pytest, black, ruff and mypy are byte-identical to v0.30.0,
+which is the evidence rather than the assertion that the freeze held.
+
+**The milestone began with an API audit, and the audit changed the
+plan.** All 172 REST operations the frozen backend exposes were
+enumerated before any UI was written. Three findings shaped everything
+after.
+
+### Added
+- **AI Dashboard — 11 widgets, every one on real backend data**, joining
+  the *existing* `dashboardWidgetRegistry`: System Overview, Subsystem
+  Status, Performance, Knowledge Graph, Suggestions (M10B's real
+  engine), Recent Tasks, Projects, Pinned Notes, Recent Files, Upcoming
+  Calendar, Notification Summary.
+- **Developer Dashboard** (Developer Mode only) — providers & routing,
+  outbound API counters, API inspector, performance metrics, agent
+  trace, the relay's 61-event vocabulary, runtime state.
+- **Administrator Dashboard** (Administrator only) — six panels with a
+  real API, plus one naming the seven that have none.
+- **Plugins** and **Diagnostics** panels, joining the existing
+  `panelRegistry`.
+- **`core/user-mode.ts` + `stores/user-mode.store.ts`** — one audience
+  gate for §22.11/§22.12: three modes, seven restricted classes of
+  information. Derived from Developer Mode's existing session unlock
+  rather than a second flag; two flags that can disagree about whether
+  provider names may be shown will eventually disagree permissively.
+- **`useBackendResource` + `ResourceView`** — one fetch hook and one set
+  of honest loading / empty / offline / error states, replacing what
+  would have been fifteen hand-rolled `useEffect` triples. Connection
+  recovery is free at the widget level because `isLive` is a dependency.
+- **Skeleton loaders** shaped like the content they replace, not a
+  generic grey box that makes the layout jump.
+- **`installConnectionRecovery()`** — re-runs ping → session → socket.
+  The socket's own retry reuses a token that a *restarted* backend will
+  refuse forever, which is the most common real outage.
+
+### Fixed
+- **A §22.12 leak shipped in M8 Phase 3.** The Activity Center rendered
+  `agent.step`'s raw `node` field — `planner`, `tool_executor`,
+  `critic` — to every audience. The Phase 3 milestone report flagged it
+  as a gating requirement before a personal-user build ships; this is
+  that gate. Personal users now see §22.12's mandated progress
+  vocabulary, with step count, ordering and status identical in both
+  modes — fewer *words*, not less truth.
+
+### Notes
+- **`GET /health` is a bare liveness probe** (`{status, version}`). The
+  rich subsystem data every "… Status" widget needs is published as the
+  `health.updated` **WebSocket** event, which nothing on the frontend
+  was reading. The dashboards subscribe rather than poll — no new
+  endpoint, and the numbers move on their own.
+- **Seven Administrator panels have no backend and are named, not
+  mocked**: users, daily/monthly budgets, provider priority, calibration
+  status, analytics, synchronization. All are `ARCHITECTURE.md` §22 —
+  approved and not built. An administrator seeing "Budget: $0.00" would
+  reasonably conclude nothing had been spent.
+- **Two AI Dashboard widgets from the brief have no data source.**
+  *Recent Conversations* — no conversation-history route exists.
+  *Pinned Projects* — `Project` has no `pinned` column; `Note` and
+  `Workspace` do, so **Pinned Notes** ships in its place and projects
+  surface by their real `status` field.
+- **Provider Status moved to the Developer Dashboard.** Real data, but
+  §22.12 puts provider names off-limits to personal users. That is the
+  architecture decision winning over the brief's widget list,
+  deliberately.
+- **Six separate "… Status" widgets ship as one.** They share a data
+  source and a presentation; six cards showing one light each would be
+  six copies of four lines, and worse for the question a user actually
+  asks.
+- **Two gates, not one.** Restricted panels are filtered from the panel
+  menu *and* refused by the dashboard components — a workspace layout
+  can be exported from a developer's machine and imported on a personal
+  one. This is a render gate, not a security boundary: the backend
+  authenticates, the frontend decides what to show.
+- **A correction to the Phase 3 report**, which claimed the Status Bar's
+  "AI Provider" item names a provider. It does not — it renders "Not
+  configured" and never leaked.
+
 ## [Unreleased] — Documentation: approved architecture decisions
 
 Documentation only. **No application code changed** — no backend, no

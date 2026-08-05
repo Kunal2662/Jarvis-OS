@@ -277,10 +277,12 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.30.0` · **Current milestone:** M8 — React
+**Current version:** `0.31.0` · **Current milestone:** M8 — React
 Frontend & Desktop Experience (🟡 active; Phase 1 React Foundation,
 Phase 2 Universal Application Framework & Logic, Phase 3's Universal
-Workspace Framework, and Phase 4 Voice Experience & Motion shipped).
+Workspace Framework, Phase 4 Voice Experience & Motion, Phase 5 AI
+Workspace & Module Integration, and Phase 6's production-UX half
+shipped).
 
 M11 — Intelligent Workspace & Productivity completed across six task
 groups (A Workspace Foundation, B Productivity Core, C File Platform,
@@ -294,7 +296,10 @@ foreign-key enforcement.
 that the client's REST and WebSocket layers, written in Phase 1 against
 `ARCHITECTURE.md`'s *illustrative* examples before the routes existed,
 had drifted from the running server in three places. `0.30.0` built the
-workspace framework the UI arranges itself in.
+workspace framework the UI arranges itself in. `0.31.0` filled it: three
+audience-specific dashboards (AI, Developer, Administrator) on real
+backend data, and the §22.12 gate that keeps provider names, routing and
+internal agent names out of a personal user's JARVIS.
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source
