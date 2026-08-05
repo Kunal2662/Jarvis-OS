@@ -1,11 +1,15 @@
 """Repositories for ``conversations``, ``messages``, ``memories``,
 the knowledge graph, the intelligence layer (goals/routines/
 preferences), the workspace domain (workspaces/projects/notes), and
-the productivity core (tasks/calendars/events/reminders), and the file
-platform (folders/files/metadata/attachments)."""
+the productivity core (tasks/calendars/events/reminders), the file
+platform (folders/files/metadata/attachments), and the AI workspace
+(workspace/knowledge links)."""
 
 from __future__ import annotations
 
+from jarvis.infrastructure.database.repositories.ai_workspace_repository import (
+    WorkspaceLinkRepository,
+)
 from jarvis.infrastructure.database.repositories.conversation_repository import (
     ConversationRepository,
 )
@@ -61,5 +65,6 @@ __all__ = [
     "RuntimeSessionRepository",
     "TaskHistoryRepository",
     "TaskRepository",
+    "WorkspaceLinkRepository",
     "WorkspaceRepository",
 ]

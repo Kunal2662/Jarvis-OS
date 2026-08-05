@@ -3,6 +3,109 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.26.0] — M11 Task Group D: AI Workspace
+
+The AI layer over the substrate Task Groups A–C shipped: a real
+workspace↔knowledge association, a budgeted context a model can be given
+whole, retrieval scoped to one workspace, and grounded assistance
+reachable from REST and from the existing agent. On-demand only — nothing
+here schedules anything, and no assist call is persisted.
+
+### Added
+- **Domain** — `domain/ai_workspace/models.py`: `ContextItem`,
+  `ContextSection`, `WorkspaceContext`, the greedy `pack()` and its
+  character budget, `clip()`, `order_sections()`, `render_results()` and
+  `build_assist_prompt()`, plus the four closed vocabularies
+  (`SECTION_ORDER`, `LINK_TARGETS`, `LINK_SOURCES`, `ASSIST_MODES`).
+  Pure: no database, no service, no provider.
+- **Schema** — one table, `workspace_knowledge_links`: workspace +
+  entity, four nullable narrow foreign keys (project/note/task/file),
+  `source` (`extracted` | `manual`) and `confidence`. The association
+  table Task Group A's `WorkspaceManager.context` explicitly declined to
+  invent until this task group had said what it needed.
+- **Repository** — `WorkspaceLinkRepository`, with an exact-match `find`
+  (nulls compared, so "this note is about Ada" and "this workspace is
+  about Ada" stay distinct rows), `delete_extracted_for_target`, and an
+  aggregate `entities_for_workspace` join.
+- **Services** — `WorkspaceKnowledgeService` (link/unlink, idempotent
+  linking with extracted→manual promotion, and ingestion over a
+  workspace's own text, its notes and its files' index records) and
+  `WorkspaceAssistantService` (`summarize` / `ask` / `next_actions`,
+  grounded, with citations).
+- **Managers** — `WorkspaceContextManager` (the budgeted context across
+  every M11 subsystem plus Knowledge and Memory) and `WorkspaceRetriever`
+  (workspace-scoped retrieval over the shared `SearchService`).
+- **Agent tools** — `list_workspaces`, `workspace_context`,
+  `search_workspace`, `ask_workspace`, `summarize_workspace`, on the
+  **existing** registry via `build_tool_registry`'s new optional
+  `workspace_assistant` argument.
+- **Events** — `WorkspaceKnowledgeLinkedEvent` and
+  `WorkspaceAssistCompletedEvent`, relayed as
+  `workspace.knowledge_linked` and `workspace.assisted`.
+- **REST** — `/api/v1/workspace-ai/{id}/context`, `/retrieve`,
+  `/assist`, `/ingest`, `/entities`, plus `/api/v1/knowledge-links`
+  (create/list/read/delete). Same Bearer auth and `{data, meta}`
+  envelope as every resource router.
+- **Settings** — `JARVIS_AI_WORKSPACE_*`: `context_budget_chars`,
+  `context_section_items`, `context_item_chars`, `retrieval_top_k`,
+  `retrieval_overfetch`, `ingest_max_targets`.
+
+### Changed
+- **`WorkspaceManager.context` gained `linked_knowledge`** alongside the
+  existing `related_knowledge`. The two answer different questions —
+  what this workspace's text *produced* versus what merely shares a word
+  with its name — and both are kept, because a brand-new workspace has
+  produced nothing yet. Additive: nothing that was in the payload moved.
+- **`ExtractionResult` gained `entity_ids`** (M10A). The counts alone
+  cannot say *which* entities a text is about: one mentioning an entity
+  the graph already knows creates nothing and looks, from the counts,
+  like a text about nothing. Defaulted and last, so every existing
+  construction site and assertion is unchanged.
+
+### Fixed
+- **Tasks with no due date were missing from the assembled context.**
+  `TaskManager.agenda` answers "what is due", which is right for a badge
+  and wrong for a context — an undated task is neither overdue nor due
+  soon, and most tasks are undated. The tasks section now lists open
+  tasks as a third group; the urgency judgement still comes from the
+  manager that owns it.
+
+### Notes
+- **No second anything.** Retrieval narrows M10A's `SearchService` by
+  the `workspace_id` its sources already publish, rather than building a
+  workspace index — widening `ISearchSource.search` would change all
+  thirteen registered sources, most of which have no workspace concept.
+  Extraction is `KnowledgeService.learn_from_text`, called. The agent is
+  M10's `AgentOrchestrator`, reached as tools; this milestone runs no
+  graph of its own.
+- **No search source was registered** — the first M11 task group not to
+  add three. Knowledge entities are already searchable through
+  `KnowledgeSearchSource`, and a second source over the same rows would
+  return one entity twice with no way to tell the hits apart.
+- **Re-ingestion replaces what it extracted and never what a person
+  asserted.** An edited note stops claiming entities its text no longer
+  mentions; a `manual` link survives. Asserting a link the extractor had
+  already found promotes it rather than duplicating it.
+- **The budget is in characters, and truncation is reported.**
+  `pack()` is greedy in a fixed section order, so the tail is what is
+  dropped under pressure, and every section keeps its pre-packing
+  `total` — a section holding three of forty tasks says so. Characters
+  rather than tokens because tokenization belongs to a provider.
+- **The assistant degrades instead of failing.** No reachable provider
+  returns the assembled context verbatim with `synthesized=false` — the
+  posture `KnowledgeService.ask` already set, and the only one
+  compatible with an offline-first product.
+- **Nothing is scheduled, and no assist call is stored.** Ingestion runs
+  on demand (M7 Phase 6 owns scheduling); an assist returns its answer
+  and publishes an event, and `ConversationService` remains the only
+  transcript store. `workspace.assisted` deliberately carries no answer
+  text.
+- **No embeddings over workspace content.** Retrieval is the shared
+  keyword index narrowed by workspace, not a vector search; semantic
+  indexing needs the vector-store work Task Group C deferred.
+- 199 new tests (1737 → 1936). mypy 263 → 263, ruff 21 categories, both
+  unchanged.
+
 ## [0.25.0] — M11 Task Group C: File Platform
 
 A local file subsystem hanging off the Workspace substrate Task Group A

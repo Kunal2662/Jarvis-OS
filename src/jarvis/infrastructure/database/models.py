@@ -410,6 +410,10 @@ class Workspace(Base):
     attachments: Mapped[list[WorkspaceAttachment]] = relationship(
         back_populates="workspace", cascade="all, delete-orphan"
     )
+    # Milestone 11 Task Group D -- same reason as the six above.
+    knowledge_links: Mapped[list[WorkspaceKnowledgeLink]] = relationship(
+        back_populates="workspace", cascade="all, delete-orphan"
+    )
 
 
 class Project(Base):
@@ -912,3 +916,78 @@ class WorkspaceAttachment(Base):
 
     workspace: Mapped[Workspace] = relationship(back_populates="attachments")
     file: Mapped[File] = relationship(back_populates="attachments")
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group D — AI Workspace
+# ---------------------------------------------------------------------------
+class WorkspaceKnowledgeLink(Base):
+    """ "This thing in the workspace is about that entity in the graph."
+
+    The association table Task Group A's ``WorkspaceManager.context``
+    explicitly declined to invent -- its own docstring says relatedness
+    is text matching "because there is no workspace/entity association
+    table, and inventing one before Task Group D has said what it needs
+    would be guessing at a schema". This is what it needs: a real,
+    directed record of which :class:`KnowledgeEntity` rows a workspace
+    entity's text produced, so "related" can stop meaning "shares a
+    word" and start meaning "was extracted from".
+
+    Four nullable narrow foreign keys plus the workspace's own, matching
+    :class:`WorkspaceAttachment`'s shape and for the same reason: five
+    real constraints instead of a polymorphic pair that can point at a
+    deleted row forever. The set is deliberately *not* attachments'
+    five. A link records that prose was about something, so it exists
+    only for entities that carry prose -- projects, notes, tasks, files,
+    and the workspace itself. Calendar events and reminders are out for
+    that reason and one more: an event's workspace lives on its
+    calendar, so this row could not carry a workspace id that agrees
+    with the event's without a join.
+
+    ``source`` separates what the extractor produced (``extracted``)
+    from what a caller asserted (``manual``), because re-ingesting a
+    note must be free to replace everything it extracted last time and
+    must never touch what a human said.
+    """
+
+    __tablename__ = "workspace_knowledge_links"
+    __table_args__ = (
+        Index("ix_workspace_links_workspace", "workspace_id"),
+        Index("ix_workspace_links_entity", "entity_id"),
+        Index("ix_workspace_links_source", "source"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    entity_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("knowledge_entities.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+    )
+    note_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("notes.id", ondelete="CASCADE"), nullable=True
+    )
+    task_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True
+    )
+    file_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("files.id", ondelete="CASCADE"), nullable=True
+    )
+    source: Mapped[str] = mapped_column(String(32), default="extracted")  # extracted|manual
+    confidence: Mapped[float] = mapped_column(default=0.7)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    workspace: Mapped[Workspace] = relationship(back_populates="knowledge_links")
+    # No relationship back to KnowledgeEntity on purpose: that model
+    # declares none of its own (neither KnowledgeRelationship nor
+    # KnowledgeEntityMemory has one either), and the enforced
+    # ``ON DELETE CASCADE`` above is what removes these rows when an
+    # entity is deleted. Adding a one-sided relationship here would make
+    # this table look ORM-managed from one direction and constraint-
+    # managed from the other.

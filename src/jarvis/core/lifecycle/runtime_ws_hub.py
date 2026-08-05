@@ -120,6 +120,8 @@ from jarvis.core.events.events import (
     TaskUpdatedEvent,
     UpdatePhaseEvent,
     VoiceStateChangedEvent,
+    WorkspaceAssistCompletedEvent,
+    WorkspaceKnowledgeLinkedEvent,
     WorkspaceUpdatedEvent,
 )
 
@@ -211,6 +213,13 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     FileUpdatedEvent: "file.updated",
     FolderUpdatedEvent: "folder.updated",
     AttachmentUpdatedEvent: "attachment.updated",
+    # Milestone 11 Task Group D -- AI Workspace. Both stay under the
+    # existing `workspace` category rather than opening an `ai` one: a
+    # subscriber watching a workspace wants to know when its knowledge
+    # links change and when the assistant has run, and a separate
+    # category would make that two subscriptions to the same board.
+    WorkspaceKnowledgeLinkedEvent: "workspace.knowledge_linked",
+    WorkspaceAssistCompletedEvent: "workspace.assisted",
 }
 
 #: Declared but never published, so deliberately absent from the relay

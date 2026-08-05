@@ -1497,7 +1497,7 @@ is blocked on a milestone that has not started.
 
 ---
 
-## 5G. M11 — Intelligent Workspace & Productivity (🟡 Active — Task Groups A, B and C shipped)
+## 5G. M11 — Intelligent Workspace & Productivity (🟡 Active — Task Groups A, B, C and D shipped)
 
 Six task groups, A–F. The milestone was restructured before
 implementation so that a shared Workspace substrate comes first and the
@@ -1594,11 +1594,73 @@ need Vision, Document Intelligence and the vector store.
 **Cloud storage is not here.** Drive, Dropbox, OneDrive and sync are
 Task Group E; this is the local subsystem they will map onto.
 
-### Task Groups D–F (🔴 not started)
+### Task Group D — AI Workspace (✅ shipped, `0.26.0`)
+
+- [x] AI Workspace domain — `domain/ai_workspace/models.py`:
+      `ContextItem`/`ContextSection`/`WorkspaceContext`, the
+      character-budget `pack()`, `clip()`, `order_sections()` and
+      `build_assist_prompt()`, plus the four closed vocabularies. Pure:
+      no database, no service, no container, no provider.
+- [x] One table — `WorkspaceKnowledgeLink`: workspace + entity, four
+      nullable narrow foreign keys (project/note/task/file), `source`
+      (`extracted` | `manual`) and `confidence`. The association table
+      Task Group A's `WorkspaceManager.context` explicitly declined to
+      invent until this task group had said what it needed.
+- [x] `WorkspaceLinkRepository` — exact-match `find` (nulls compared,
+      so "this note is about Ada" and "this workspace is about Ada" stay
+      distinct rows), `delete_extracted_for_target`, and an aggregate
+      `entities_for_workspace` join.
+- [x] `WorkspaceKnowledgeService` — link/unlink with target existence
+      *and* workspace-ownership validation, idempotent linking with
+      extracted→manual promotion, and ingestion over a workspace's own
+      text, its notes and its files' index records.
+- [x] `WorkspaceContextManager` — the budgeted context assembled across
+      every M11 subsystem plus Knowledge and Memory, read through the
+      *managers* that own each answer.
+- [x] `WorkspaceRetriever` — workspace-scoped retrieval over the shared
+      `SearchService`, with the calendar join an event's missing
+      `workspace_id` requires.
+- [x] `WorkspaceAssistantService` — grounded `summarize`/`ask`/
+      `next_actions` with citations, degrading to the assembled context
+      when no provider answers.
+- [x] Five agent tools on the **existing** registry
+      (`agents/tools/workspace_tools.py`), reaching the agent through
+      `build_tool_registry`'s new optional argument.
+- [x] Two relay events (`workspace.knowledge_linked`,
+      `workspace.assisted`); `AIWorkspaceSettings`; DI singletons for
+      all four components; `WorkspaceManager` gained an optional link
+      store and an additive `linked_knowledge` key.
+- [x] REST — `/api/v1/workspace-ai/{id}/context`, `/retrieve`,
+      `/assist`, `/ingest`, `/entities`, plus `/api/v1/knowledge-links`.
+- [x] 199 tests across domain / service / manager / tools / REST /
+      integration.
+
+**Scope boundary — no second anything.** Retrieval narrows M10A's
+`SearchService`; extraction is `KnowledgeService.learn_from_text`;
+the agent is M10's `AgentOrchestrator`, reached as tools. **No search
+source was registered**: knowledge entities are already searchable
+through `KnowledgeSearchSource`, and a second source over the same rows
+would return one entity twice with no way to tell the hits apart.
+
+**Nothing is scheduled and nothing is stored about an assist call.**
+Ingestion runs on demand (M7 Phase 6 owns scheduling), and an assist
+returns its answer and publishes an event — `ConversationService` owns
+chat history, and duplicating it here would be a second transcript.
+
+**No embeddings over workspace content.** The context is assembled from
+stored fields and Task Group C's plain-text index; semantic indexing
+needs the vector store work Task Group C deferred.
+
+**One additive change to a shipped milestone:**
+`ExtractionResult.entity_ids` (M10A) — the counts alone cannot say
+*which* entities a text is about, and a text mentioning an entity the
+graph already knows creates nothing. Defaulted and last, so every
+existing construction site and assertion is unchanged.
+
+### Task Groups E–F (🔴 not started)
 
 | Task Group | Scope |
 |---|---|
-| **D — AI Workspace** | Workspace AI context, Knowledge integration, context retrieval, AI assistance |
 | **E — External Integrations** | GitHub, Gmail, Google Drive, Outlook, Slack, Discord, Notion, calendar providers |
 | **F — UI Integration & Closure** | React/Tauri Workspace UI, final validation, docs, performance review, M11 closure |
 

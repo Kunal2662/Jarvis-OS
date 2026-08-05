@@ -129,6 +129,13 @@ def test_every_documented_event_type_is_mapped() -> None:
         "file.updated",
         "folder.updated",
         "attachment.updated",
+        # Milestone 11 Task Group D. Both under the existing `workspace`
+        # category rather than a new `ai` one: a subscriber watching a
+        # workspace wants its knowledge links and its assistant runs, and
+        # a separate category would make that two subscriptions to the
+        # same board.
+        "workspace.knowledge_linked",
+        "workspace.assisted",
     }
 
 

@@ -462,11 +462,14 @@ def _build_workspace_manager(
     knowledge_service: Any,
     search_service: Any,
     memory_service: Any,
+    workspace_knowledge_service: Any,
 ) -> Any:
     """Milestone 11 Task Group A. Composed here, at the composition
     root, rather than inside ``WorkspaceService`` -- see
     ``services/workspace_manager.py`` for why the service stays
-    single-subsystem."""
+    single-subsystem. Task Group D adds the link store, so
+    ``context()`` can report what a workspace's text actually produced
+    alongside what merely shares words with it."""
     from jarvis.services.workspace_manager import WorkspaceManager
 
     return WorkspaceManager(
@@ -474,6 +477,7 @@ def _build_workspace_manager(
         knowledge_service=knowledge_service,
         search_service=search_service,
         memory_service=memory_service,
+        knowledge_links=workspace_knowledge_service,
     )
 
 
@@ -650,6 +654,109 @@ def _build_attachment_manager(
     )
 
 
+def _build_workspace_knowledge_service(
+    *,
+    database: Any,
+    knowledge_service: Any,
+    workspace_service: Any,
+    file_service: Any,
+    event_bus: Any,
+) -> Any:
+    """Milestone 11 Task Group D. ``knowledge_service`` is a constructor
+    argument rather than an optional collaborator because this service
+    *is* the bridge between the workspace domain and the graph -- see
+    ``services/workspace_ai_service.py``."""
+    from jarvis.services.workspace_ai_service import WorkspaceKnowledgeService
+
+    return WorkspaceKnowledgeService(
+        database=database,
+        knowledge_service=knowledge_service,
+        workspace_service=workspace_service,
+        file_service=file_service,
+        event_bus=event_bus,
+    )
+
+
+def _build_workspace_context_manager(
+    *,
+    settings: Settings,
+    workspace_service: Any,
+    task_manager: Any,
+    task_service: Any,
+    calendar_manager: Any,
+    reminder_manager: Any,
+    file_manager: Any,
+    workspace_knowledge_service: Any,
+    knowledge_service: Any,
+    memory_service: Any,
+) -> Any:
+    """Composed at the composition root out of the *managers* each
+    subsystem already owns, not their services -- reaching past
+    ``TaskManager`` to recompute what is overdue would be a second
+    implementation of the arithmetic that manager exists to own.
+    ``task_service`` is the single exception, and only for the plain
+    listing of open tasks no manager exposes; the urgency judgement
+    still comes from ``TaskManager.agenda``."""
+    from jarvis.services.workspace_ai_managers import WorkspaceContextManager
+
+    return WorkspaceContextManager(
+        workspace_service,
+        task_manager=task_manager,
+        task_service=task_service,
+        calendar_manager=calendar_manager,
+        reminder_manager=reminder_manager,
+        file_manager=file_manager,
+        knowledge_links=workspace_knowledge_service,
+        knowledge_service=knowledge_service,
+        memory_service=memory_service,
+        budget_chars=settings.ai_workspace.context_budget_chars,
+        section_items=settings.ai_workspace.context_section_items,
+        item_chars=settings.ai_workspace.context_item_chars,
+    )
+
+
+def _build_workspace_retriever(
+    *,
+    settings: Settings,
+    workspace_service: Any,
+    search_service: Any,
+    calendar_service: Any,
+    task_service: Any,
+    file_service: Any,
+) -> Any:
+    from jarvis.services.workspace_ai_managers import WorkspaceRetriever
+
+    return WorkspaceRetriever(
+        workspace_service,
+        search_service=search_service,
+        calendar_service=calendar_service,
+        task_service=task_service,
+        file_service=file_service,
+        overfetch=settings.ai_workspace.retrieval_overfetch,
+    )
+
+
+def _build_workspace_assistant_service(
+    *,
+    settings: Settings,
+    llm: Any,
+    workspace_context_manager: Any,
+    workspace_retriever: Any,
+    workspace_service: Any,
+    event_bus: Any,
+) -> Any:
+    from jarvis.services.workspace_ai_service import WorkspaceAssistantService
+
+    return WorkspaceAssistantService(
+        llm=llm,
+        context_manager=workspace_context_manager,
+        retriever=workspace_retriever,
+        workspace_service=workspace_service,
+        event_bus=event_bus,
+        default_top_k=settings.ai_workspace.retrieval_top_k,
+    )
+
+
 def _build_health_monitor(*, service_manager: Any, event_bus: Any, settings: Settings) -> Any:
     """Points the disk metrics at the data directory -- the volume
     JARVIS can actually fill, and therefore the one worth budgeting."""
@@ -795,6 +902,7 @@ def _build_agent_orchestrator(
     vision: Any,
     knowledge: Any,
     intelligence: Any,
+    workspace_assistant: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -811,6 +919,7 @@ def _build_agent_orchestrator(
         vision=vision,
         knowledge=knowledge,
         intelligence=intelligence,
+        workspace_assistant=workspace_assistant,
         event_bus=event_bus,
     )
 
@@ -941,6 +1050,20 @@ class Container(containers.DeclarativeContainer):
     attachment_service = providers.Singleton(
         _build_attachment_service,
         database=database,
+        event_bus=event_bus,
+    )
+
+    # ---- Milestone 11 Task Group D -- AI Workspace (link store) -----------
+    # Declared with the services rather than with the rest of Task Group
+    # D further down, because `workspace_manager` (M11 Task Group A)
+    # composes it and a provider can only reference names already bound
+    # in this class body. Its own dependencies are all services above it.
+    workspace_knowledge_service = providers.Singleton(
+        _build_workspace_knowledge_service,
+        database=database,
+        knowledge_service=knowledge_service,
+        workspace_service=workspace_service,
+        file_service=file_service,
         event_bus=event_bus,
     )
 
@@ -1151,6 +1274,7 @@ class Container(containers.DeclarativeContainer):
         knowledge_service=knowledge_service,
         search_service=search_service,
         memory_service=memory_service,
+        workspace_knowledge_service=workspace_knowledge_service,
     )
 
     # Declared after `search_service` for the same reason
@@ -1205,6 +1329,44 @@ class Container(containers.DeclarativeContainer):
         file_service=file_service,
         workspace_service=workspace_service,
         search_service=search_service,
+    )
+
+    # ---- Milestone 11 Task Group D -- composed AI Workspace ---------------
+    # The rest of Task Group D, declared here rather than beside
+    # `workspace_knowledge_service` above because these three compose
+    # every subsystem before them: the context manager reads through
+    # Task Group B and C's *managers*, and the retriever narrows the
+    # shared `search_service` rather than standing up an index of its own.
+    workspace_context_manager = providers.Singleton(
+        _build_workspace_context_manager,
+        settings=settings,
+        workspace_service=workspace_service,
+        task_manager=task_manager,
+        task_service=task_service,
+        calendar_manager=calendar_manager,
+        reminder_manager=reminder_manager,
+        file_manager=file_manager,
+        workspace_knowledge_service=workspace_knowledge_service,
+        knowledge_service=knowledge_service,
+        memory_service=memory_service,
+    )
+    workspace_retriever = providers.Singleton(
+        _build_workspace_retriever,
+        settings=settings,
+        workspace_service=workspace_service,
+        search_service=search_service,
+        calendar_service=calendar_service,
+        task_service=task_service,
+        file_service=file_service,
+    )
+    workspace_assistant_service = providers.Singleton(
+        _build_workspace_assistant_service,
+        settings=settings,
+        llm=llm_provider,
+        workspace_context_manager=workspace_context_manager,
+        workspace_retriever=workspace_retriever,
+        workspace_service=workspace_service,
+        event_bus=event_bus,
     )
 
     # ---- Milestone 9 Task Group E -- Developer Platform Tools --------------
@@ -1275,5 +1437,6 @@ class Container(containers.DeclarativeContainer):
         vision=vision_service,
         knowledge=knowledge_service,
         intelligence=intelligence_service,
+        workspace_assistant=workspace_assistant_service,
         event_bus=event_bus,
     )

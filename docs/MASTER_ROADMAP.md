@@ -2309,8 +2309,8 @@ deferral blocks M11: the substrate M11 registers against is complete.
 ### M11 — Intelligent Workspace & Productivity
 
 **Status: 🟡 Active — Task Groups A (Workspace Foundation), B
-(Productivity Core) and C (File Platform) shipped (Aug 2026, `0.23.0`,
-`0.24.0` and `0.25.0`).**
+(Productivity Core), C (File Platform) and D (AI Workspace) shipped
+(Aug 2026, `0.23.0`, `0.24.0`, `0.25.0` and `0.26.0`).**
 
 *(Scope refined Aug 2026, at the start of implementation: the milestone
 now opens with a **Workspace Foundation** and is organised into six
@@ -2332,7 +2332,7 @@ what is now one of six task groups.)*
 | **A — Workspace Foundation** | Workspace domain, Project and Note models, repositories, `WorkspaceService`, `WorkspaceManager`, settings/metadata, events, search sources, DI, REST | ✅ **Shipped** (`0.23.0`) |
 | **B — Productivity Core** | Tasks, local Calendar, Reminders, productivity APIs | ✅ **Shipped** (`0.24.0`) |
 | **C — File Platform** | Folder tree, file storage under a contained root, tags, extensible metadata, plain-text indexing, attachments to five workspace entities, file/folder/attachment APIs | ✅ **Shipped** (`0.25.0`) |
-| **D — AI Workspace** | Workspace AI context, Knowledge integration, context retrieval, AI assistance | 🔴 Not started |
+| **D — AI Workspace** | Workspace AI context (budgeted, prompt-ready), Knowledge integration (a real workspace↔entity association table plus ingestion), workspace-scoped context retrieval over the shared search index, and grounded AI assistance reachable from REST and from the existing agent's tool registry | ✅ **Shipped** (`0.26.0`) |
 | **E — External Integrations** | GitHub, Gmail, Google Drive, Outlook, Slack, Discord, Notion, calendar providers | 🔴 Not started |
 | **F — UI Integration & Closure** | React/Tauri Workspace UI, final validation, docs, performance review, M11 closure | 🔴 Not started |
 
@@ -9447,6 +9447,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.24** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group B (Productivity Core) shipped: `Task`, `Calendar`, `CalendarEvent` and `Reminder` models, three repositories, three services, three managers, recurrence rules with bounded expansion, four relay events, three search sources, DI, and `/api/v1/tasks` + `/api/v1/calendar` + `/api/v1/reminders`. Local calendar engine only — no external provider, no sync. **Reminders record scheduling metadata and fire nothing**: delivery is M7's Scheduler (Phase 6). |
 | **0.24.1** | *(none)* | Database Integrity Pass | ✅ **Completed** — not a milestone. Enables `PRAGMA foreign_keys=ON` globally through SQLAlchemy's `connect` event, so every declared `ondelete=` is finally enforced rather than silently ignored by SQLite's default. |
 | **0.25** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group C (File Platform) shipped: `Folder`, `File`, `FileTag`, `FileMetadata`, `IndexRecord` and `WorkspaceAttachment` models, four repositories, three services, three managers, a contained storage root enforced by a pure `safe_join`, plain-text indexing over seven extensions, three relay events, three search sources, DI, and `/api/v1/files` + `/api/v1/folders` + `/api/v1/attachments`. **Local files only** — no Drive, Dropbox or OneDrive, no cloud sync. **No OCR, no PDF parsing, no embeddings and no semantic indexing**: those need Vision, Document Intelligence and the vector store, and belong to later task groups. Task Groups D–F not started. |
+| **0.26** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group D (AI Workspace) shipped: a pure `domain/ai_workspace/` (context value objects, character-budget packing, prompt construction), one table (`WorkspaceKnowledgeLink`), one repository, `WorkspaceKnowledgeService` (links + on-demand ingestion) and `WorkspaceAssistantService` (grounded summarize/ask/next-actions), `WorkspaceContextManager` and `WorkspaceRetriever`, five agent tools on the existing registry, two relay events, DI, and `/api/v1/workspace-ai/*` + `/api/v1/knowledge-links`. **No second anything**: retrieval narrows M10A's `SearchService`, extraction is `KnowledgeService.learn_from_text`, and the agent is M10's `AgentOrchestrator` reached as tools. **Nothing is scheduled** (ingestion is on demand — M7 Phase 6 owns scheduling) and **no assist call is persisted** (`ConversationService` owns transcripts). **No embeddings over workspace content.** Task Groups E–F not started. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -13445,3 +13446,140 @@ joined the shared `SearchService`. Suite 1621 -> 1737, all passing (one
 skip: creating a symlink needs a privilege Windows does not grant by
 default). mypy 263 -> 263. Ruff 21 categories, unchanged. Version bumped
 `0.24.1` -> `0.25.0`.
+
+---
+
+*Aug 2026 addendum -- M11 Task Group D (AI Workspace):* the AI layer
+over the substrate Task Groups A-C shipped. A pure
+`domain/ai_workspace/` (context value objects, character-budget packing,
+prompt construction), one table (`WorkspaceKnowledgeLink`), one
+repository, two services (`WorkspaceKnowledgeService`,
+`WorkspaceAssistantService`), two read-side managers
+(`WorkspaceContextManager`, `WorkspaceRetriever`), five agent tools on
+the **existing** registry, two relay events
+(`workspace.knowledge_linked`, `workspace.assisted`),
+`AIWorkspaceSettings`, DI wiring, and `/api/v1/workspace-ai/*` +
+`/api/v1/knowledge-links`.
+
+**The defining constraint was building no second anything.** Every part
+of this task group had an obvious duplicative implementation available,
+and each was refused for a stated reason:
+
+* *Retrieval* narrows M10A's shared `SearchService` by the
+  `workspace_id` its sources already put in `SearchResult.metadata`,
+  rather than standing up a workspace index. `ISearchSource.search`
+  takes a query and a `top_k` and nothing else, and widening that port
+  would change all thirteen registered sources, most of which have no
+  workspace concept. Post-filtering after ranking is honest about what
+  it is -- one shared ranking, narrowed -- and its cost, over-fetching,
+  is an explicit multiplier rather than a hidden one.
+* *Extraction* is `KnowledgeService.learn_from_text`, called, not
+  reimplemented. One knowledge graph, one extractor.
+* *The agent* is M10's `AgentOrchestrator`, reached through
+  `build_tool_registry`'s new optional argument. `WorkspaceAssistantService`
+  runs no graph, selects no tools and takes no actions; a second
+  orchestrator would be the parallel-runtime duplication this
+  architecture forbids.
+* **No search source was registered at all** -- the first task group in
+  this milestone not to add three. Knowledge entities are already
+  searchable through `KnowledgeSearchSource`, and a second source over
+  the same rows would return one entity twice with no way to tell the
+  hits apart.
+
+**The association table Task Group A declined to invent.** Its
+`WorkspaceManager.context` docstring said relatedness was text matching
+"because there is no workspace/entity association table, and inventing
+one before Task Group D has said what it needs would be guessing at a
+schema". `WorkspaceKnowledgeLink` is what it needed: workspace + entity,
+four nullable narrow foreign keys (project/note/task/file) plus the
+workspace's own, `source` (`extracted` | `manual`) and `confidence`.
+The target set is deliberately *not* `WorkspaceAttachment`'s five -- an
+attachment says "this file belongs here" and can hang off anything,
+while a link says "this text is about this entity" and therefore exists
+only for entities carrying prose. Calendar events are excluded for that
+reason and one more: an event's workspace lives on its calendar, so the
+row could not carry a workspace id that agrees with itself without a
+join.
+
+`source` is what makes re-ingestion safe. Re-reading a note replaces
+everything it previously *extracted* -- an edited note must stop
+claiming entities its text no longer mentions -- and never touches a
+`manual` link, because a person's assertion outlives a re-read of the
+file. Asserting a link the extractor had already found promotes it
+rather than duplicating it.
+
+**Both kinds of relatedness are kept, and named apart.**
+`WorkspaceManager.context` gained `linked_knowledge` (entities this
+workspace's own text produced -- evidence) alongside the existing
+`related_knowledge` (entities sharing a word with its name -- a guess).
+Replacing the second with the first was tempting and wrong: a brand-new
+workspace has produced nothing, and a context reporting nothing would
+make it look unrelated to everything until someone ran an ingestion.
+The payload stays additive, as Task Group A promised.
+
+**Context is budgeted in characters, and truncation is reported.** Sent
+to a model verbatim, a workspace's context grows with the user's data,
+and the first symptom is a rejected request or a silently dropped tail.
+`pack()` is greedy in a fixed section order -- what the workspace *is*,
+then what is overdue, then what is coming, then the material -- so the
+tail is what goes, and every section keeps its pre-packing `total` so a
+section holding three of forty tasks says so instead of looking like a
+workspace with three tasks. Characters rather than tokens, because
+tokenization belongs to a provider and the domain layer has none.
+
+**The assistant degrades rather than failing.** Any provider failure --
+unreachable, timing out, empty -- returns the assembled context verbatim
+with `synthesized=False`. This is the posture `KnowledgeService.ask`
+already set, and the only one compatible with an offline-first product:
+a local model being down must cost synthesis, not the answer. The flag
+is the one fact about an answer a reader cannot infer from its text, so
+it travels on the result, the REST envelope and the event.
+
+**A real gap found and closed on the way.** The first assembled contexts
+were missing most of their tasks. `TaskManager.agenda` answers "what is
+due", which is right for a badge and wrong for a context: a task with no
+due date is neither overdue nor due soon, and most tasks have no due
+date. The section now lists open tasks as a third group, from
+`TaskService` -- the one service among the context manager's
+collaborators, and only for the plain listing no manager exposes. The
+urgency judgement still comes from the manager that owns it.
+
+**One additive change to a shipped milestone.**
+`ExtractionResult.entity_ids` (M10A): the counts alone cannot answer
+"which entities is this text about", because a text mentioning an entity
+the graph already knows creates nothing and looks, from the counts, like
+a text about nothing. Defaulted and last, so every existing construction
+site and assertion is unchanged. The alternative -- searching the graph
+for the names afterwards -- would have been a second, weaker
+implementation of the resolution `learn_from_text` had already done.
+
+**Deliberately not built:** GitHub, Gmail, Drive, Outlook, Slack,
+Discord, Notion and calendar providers (Task Group E); the React/Tauri
+workspace UI (F); embeddings or vector search over workspace content
+(needs the semantic indexing Task Group C deferred); scheduled or
+automatic ingestion (M7 Phase 6 owns scheduling); any persistence of
+assist calls (`ConversationService` owns transcripts, and a second one
+here would be a competing history). The agent graph is untouched: the
+workspace domain reaches it as tools, not as a node, because a
+workspace-shaped node would be a second context assembler needing a
+workspace id no `AgentRequest` carries today.
+
+Testing -- 199 new tests across seven new files (plus five added to
+two existing ones): the domain as pure functions
+(clipping, ordering, greedy packing under a floor, truncation
+reporting, determinism, every mode's prompt), the link service and its
+repository against real temp-file SQLite with foreign keys enforced
+(idempotency, promotion, cross-workspace refusal, re-ingestion
+semantics, cascade on workspace delete), the context manager against the
+*real* Task Group A-C services and managers (every section, the undated
+task, degradation when a subsystem is unwired or throwing, and that it
+persists nothing), the retriever's four scoping rules including the
+calendar join and the "cannot place it, so exclude it" default, the
+assistant's grounding and its degradation path via `FakeLLM(fail=True)`,
+the five agent tools including their text-not-exception failure
+contract, the REST surface (auth, envelope, 400-vs-404, idempotent
+linking), and an end-to-end suite driving the real container, app,
+EventBus, WebSocket hub, `SearchService` and `KnowledgeService` with
+only the LLM faked. Suite 1737 -> 1936, all passing (one skip: the
+pre-existing symlink case Windows will not grant). mypy 263 -> 263.
+Ruff 21 categories, unchanged. Version bumped `0.25.0` -> `0.26.0`.

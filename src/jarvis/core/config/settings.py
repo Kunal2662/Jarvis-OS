@@ -165,6 +165,40 @@ class FileSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}FILES_", extra="ignore")
 
 
+class AIWorkspaceSettings(BaseSettings):
+    """Milestone 11 Task Group D -- AI Workspace tunables.
+
+    ``context_budget_chars`` bounds one assembled workspace context.
+    Characters rather than tokens, because tokenization belongs to a
+    provider and this object is provider-independent -- see
+    ``domain/ai_workspace/models.py`` for the same reasoning at the
+    point the budget is enforced. The literal duplicates that module's
+    ``DEFAULT_CONTEXT_BUDGET_CHARS`` rather than importing it: settings
+    is the lowest layer in this codebase and importing a domain module
+    here would invert the dependency every other section respects.
+
+    ``retrieval_overfetch`` is how many ranked results the shared
+    ``SearchService`` is asked for per result wanted, since narrowing to
+    one workspace happens after ranking. Raising it costs query time and
+    buys recall for a workspace that holds a small share of the corpus.
+
+    ``ingest_max_targets`` caps one workspace-wide ingestion run.
+    Extraction is an LLM call per target, so this is the difference
+    between a slow request and an unbounded one.
+    """
+
+    enabled: bool = True
+    assist_enabled: bool = True
+    context_budget_chars: int = 6000
+    context_section_items: int = 10
+    context_item_chars: int = 240
+    retrieval_top_k: int = 10
+    retrieval_overfetch: int = 4
+    ingest_max_targets: int = 50
+
+    model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}AI_WORKSPACE_", extra="ignore")
+
+
 class MCPSettings(BaseSettings):
     """Milestone 10.5 -- MCP & Integration Platform.
 
@@ -638,6 +672,7 @@ class Settings(BaseSettings):
     knowledge: KnowledgeSettings = Field(default_factory=KnowledgeSettings)
     mcp: MCPSettings = Field(default_factory=MCPSettings)
     files: FileSettings = Field(default_factory=FileSettings)
+    ai_workspace: AIWorkspaceSettings = Field(default_factory=AIWorkspaceSettings)
 
     model_config = SettingsConfigDict(
         env_prefix=ENV_PREFIX,

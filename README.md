@@ -156,6 +156,7 @@ The short version:
 | AI Orchestrator | 🟡 Partial | `agents/graph.py` — Intent, Planning, parallel tool dispatch, interim Permission Validation |
 | Intelligence Layer | ✅ Real | `services/intelligence_service.py` — Goal Manager, Routine/Preference Learning, Daily Briefing |
 | Workspace, Productivity & Files | 🟡 Partial | `services/workspace_service.py`, `task_service.py`, `calendar_service.py`, `reminder_service.py`, `file_service.py` — M11 Task Groups A–C. Local only: no cloud storage, no calendar sync, no scheduler execution |
+| AI Workspace | 🟡 Partial | `services/workspace_ai_service.py`, `workspace_ai_managers.py` — M11 Task Group D: workspace↔knowledge links, budgeted workspace context, workspace-scoped retrieval over the shared search index, grounded summarize/ask/next-actions, five agent tools. On-demand only: nothing schedules ingestion, and no embeddings over workspace content |
 | MCP Architecture | ✅ Real | `core/mcp/` — M10.5 complete: registry, client/server runtimes, negotiation, heartbeat, diagnostics; `transports/` (stdio, websocket, http, ipc); `providers/` (registry, lifecycle, health); `auth/` (credentials, encrypted store, strategies, permission bridge); `sdk/` (builders, validators, examples); plus `jarvis mcp` and `/api/v1/mcp/*`. A *real* provider and the OAuth flow are M11 |
 | Self-Healing Architecture | 🔴 Planned | M13B (foundation) → M18 (full platform) |
 
@@ -275,13 +276,13 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.25.0` · **Current milestone:** M11 — Intelligent
+**Current version:** `0.26.0` · **Current milestone:** M11 — Intelligent
 Workspace & Productivity (🟡 active; Task Groups A — Workspace
-Foundation — B — Productivity Core — and C — File Platform —
-shipped). M10.5 completed across five task groups; `0.21.0` and `0.22.0`
-were backlog completion passes over already-completed milestones, and
-`0.24.1` was a database integrity pass that turned on SQLite foreign-key
-enforcement.
+Foundation — B — Productivity Core — C — File Platform — and D — AI
+Workspace — shipped). M10.5 completed across five task groups; `0.21.0`
+and `0.22.0` were backlog completion passes over already-completed
+milestones, and `0.24.1` was a database integrity pass that turned on
+SQLite foreign-key enforcement.
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source

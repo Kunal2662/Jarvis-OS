@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jarvis-os"
-version = "0.25.0"
+version = "0.26.0"
 description = "JARVIS OS — a production-grade, local-first AI assistant for Windows 11, built on PySide6, FastAPI, LangGraph, Ollama and OpenAI."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"

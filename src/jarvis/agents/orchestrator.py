@@ -67,6 +67,7 @@ if TYPE_CHECKING:
     from jarvis.services.system_service import SystemService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
+    from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 _logger = get_logger("jarvis.agents.orchestrator")
 
@@ -86,6 +87,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         vision: VisionService | None = None,
         knowledge: KnowledgeService | None = None,
         intelligence: IntelligenceService | None = None,
+        workspace_assistant: WorkspaceAssistantService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -100,6 +102,13 @@ class AgentOrchestrator(IAgentOrchestrator):
         self._vision = vision
         self._knowledge = knowledge
         self._intelligence = intelligence
+        # Milestone 11 Task Group D: the workspace domain reaches the
+        # agent as tools, not as a new graph node. The graph already
+        # assembles context (`context_engine`) and already selects tools;
+        # a workspace-shaped node would be a second context assembler
+        # that only some prompts benefit from, and it would need a
+        # workspace id the request has no way to carry today.
+        self._workspace_assistant = workspace_assistant
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -136,6 +145,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 vision=self._vision,
                 knowledge=self._knowledge,
                 intelligence=self._intelligence,
+                workspace_assistant=self._workspace_assistant,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

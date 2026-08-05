@@ -130,6 +130,74 @@ async def test_learn_from_text_is_idempotent_for_repeated_entities(env) -> None:
 
 
 @pytest.mark.asyncio
+async def test_learn_from_text_reports_every_entity_it_resolved(env) -> None:
+    """Milestone 11 Task Group D. ``entities_created`` alone cannot
+    answer "which entities is this text about": a text mentioning an
+    entity the graph already knows creates nothing and would look, from
+    the counts, like a text about nothing."""
+    from jarvis.services.knowledge_service import KnowledgeService
+
+    db, vs, memory = env
+    llm = FakeLLM(
+        json.dumps({"entities": [{"name": "Alice", "type": "person"}], "relationships": []})
+    )
+    svc = KnowledgeService(database=db, vector_store=vs, llm=llm, memory=memory)
+
+    first = await svc.learn_from_text("Alice is here.")
+    second = await svc.learn_from_text("Alice is here again.")
+
+    assert len(first.entity_ids) == 1
+    assert second.entities_created == 0
+    assert second.entity_ids == first.entity_ids  # resolved, not created
+
+
+@pytest.mark.asyncio
+async def test_batch_learning_deduplicates_the_entities_it_reports(env) -> None:
+    """Two memories mentioning the same project resolve to one entity,
+    and reporting it twice would make a caller's link count disagree
+    with the graph's."""
+    from jarvis.services.knowledge_service import KnowledgeService
+    from jarvis.services.memory_service import MemoryRecord
+
+    db, vs, memory = env
+    llm = FakeLLM(
+        json.dumps({"entities": [{"name": "Alice", "type": "person"}], "relationships": []})
+    )
+
+    from jarvis.infrastructure.database.models import Memory
+
+    ids: list[str] = []
+    async with db.session() as sess:
+        for content in ("Alice again.", "Alice once more."):
+            row = Memory(content=content)
+            sess.add(row)
+            await sess.flush()
+            ids.append(row.id)
+
+    async def _browse(*, limit: int = 200, **kwargs):
+        from datetime import UTC, datetime
+
+        return [
+            MemoryRecord(
+                id=identifier,
+                content="Alice.",
+                source="test",
+                metadata={},
+                score=1.0,
+                created_at=datetime.now(UTC),
+            )
+            for identifier in ids
+        ]
+
+    memory.browse = _browse  # type: ignore[method-assign]
+    svc = KnowledgeService(database=db, vector_store=vs, llm=llm, memory=memory)
+
+    result = await svc.learn_from_recent_memories(limit=2)
+
+    assert len(result.entity_ids) == 1
+
+
+@pytest.mark.asyncio
 async def test_learn_from_text_empty_input_extracts_nothing(env) -> None:
     from jarvis.services.knowledge_service import KnowledgeService
 

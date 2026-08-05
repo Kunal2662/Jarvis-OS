@@ -67,6 +67,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
     app.state.container = container
     if container is not None:
         from jarvis.infrastructure.api.routes import agent as agent_routes
+        from jarvis.infrastructure.api.routes import ai_workspace as ai_workspace_routes
         from jarvis.infrastructure.api.routes import devtools as devtools_routes
         from jarvis.infrastructure.api.routes import files as file_routes
         from jarvis.infrastructure.api.routes import intelligence as intelligence_routes
@@ -90,6 +91,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(workspace_routes.router, prefix="/api/v1")
         app.include_router(productivity_routes.router, prefix="/api/v1")
         app.include_router(file_routes.router, prefix="/api/v1")
+        app.include_router(ai_workspace_routes.router, prefix="/api/v1")
 
         # Milestone 9 Task Group E -- API Inspector. A real
         # Starlette BaseHTTPMiddleware, not a decorator-based

@@ -128,6 +128,58 @@ async def test_context_adds_the_neighbouring_subsystems(service: WorkspaceServic
 
 
 @pytest.mark.asyncio
+async def test_context_separates_linked_evidence_from_a_word_match(
+    service: WorkspaceService,
+) -> None:
+    """Milestone 11 Task Group D. ``linked_knowledge`` is what this
+    workspace's own text produced; ``related_knowledge`` is what shares
+    a word with its name. Both are kept, because a brand-new workspace
+    has produced nothing yet."""
+
+    class _Links:
+        async def entities_for(self, workspace_id: str, *, limit: int = 5):
+            return [{"id": "linked-1", "name": "Ada", "link_count": 2}]
+
+    manager = WorkspaceManager(service, knowledge_service=_Knowledge(), knowledge_links=_Links())
+    workspace = await service.create_workspace("Quantum", description="research")
+
+    context = await manager.context(workspace.id)
+
+    assert [row["id"] for row in context["linked_knowledge"]] == ["linked-1"]
+    assert [row["id"] for row in context["related_knowledge"]] == ["k1"]
+
+
+@pytest.mark.asyncio
+async def test_context_without_a_link_store_keeps_its_old_shape(
+    service: WorkspaceService,
+) -> None:
+    """A container wired only through Task Group A behaves exactly as it
+    did before the link store existed."""
+    workspace = await service.create_workspace("Alone")
+
+    context = await WorkspaceManager(service).context(workspace.id)
+
+    assert context["linked_knowledge"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_failing_link_store_costs_context_not_the_call(
+    service: WorkspaceService,
+) -> None:
+    class _BrokenLinks:
+        async def entities_for(self, workspace_id: str, *, limit: int = 5):
+            raise RuntimeError("link table unavailable")
+
+    manager = WorkspaceManager(service, knowledge_links=_BrokenLinks())
+    workspace = await service.create_workspace("Resilient")
+
+    context = await manager.context(workspace.id)
+
+    assert context["linked_knowledge"] == []
+    assert context["workspace"]["name"] == "Resilient"
+
+
+@pytest.mark.asyncio
 async def test_context_without_collaborators_is_still_a_context(
     service: WorkspaceService,
 ) -> None:

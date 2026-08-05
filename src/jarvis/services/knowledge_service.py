@@ -94,6 +94,20 @@ class EntityDetail:
 class ExtractionResult:
     entities_created: int
     relationships_created: int
+    #: Every entity the extraction *resolved*, created or pre-existing,
+    #: in the order the text mentioned them (Milestone 11 Task Group D).
+    #:
+    #: Added because ``entities_created`` alone cannot answer "which
+    #: entities is this note about" -- a note mentioning a project the
+    #: graph already knows creates nothing and would look, from the
+    #: counts, like a note about nothing. Task Group D's workspace links
+    #: need the ids, and the alternative (searching the graph for the
+    #: names afterwards) would be a second, weaker implementation of the
+    #: resolution this method already did.
+    #:
+    #: Defaulted and last, so every pre-existing construction site and
+    #: assertion keeps working unchanged.
+    entity_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,7 +200,13 @@ class KnowledgeService:
                 relationships_created += 1
 
         result = ExtractionResult(
-            entities_created=entities_created, relationships_created=relationships_created
+            entities_created=entities_created,
+            relationships_created=relationships_created,
+            # Insertion-ordered by ``dict``, which is mention order here
+            # -- ``entity_ids`` is populated as the extraction walks the
+            # text. Milestone 11 Task Group D's workspace links consume
+            # this; see ``ExtractionResult.entity_ids``.
+            entity_ids=tuple(entity_ids.values()),
         )
         if entities_created or relationships_created:
             await self._publish_entity_updated()
@@ -199,12 +219,20 @@ class KnowledgeService:
         records = await self._memory.browse(limit=limit)
         total_entities = 0
         total_relationships = 0
+        # Deduplicated across the batch, order preserved: two memories
+        # mentioning the same project resolve to one entity, and
+        # reporting it twice would make a caller's link count disagree
+        # with the graph's.
+        resolved: dict[str, None] = {}
         for record in records:
             result = await self.learn_from_text(record.content, source_memory_id=record.id)
             total_entities += result.entities_created
             total_relationships += result.relationships_created
+            resolved.update(dict.fromkeys(result.entity_ids))
         return ExtractionResult(
-            entities_created=total_entities, relationships_created=total_relationships
+            entities_created=total_entities,
+            relationships_created=total_relationships,
+            entity_ids=tuple(resolved),
         )
 
     # ------------------------------------------------------------------

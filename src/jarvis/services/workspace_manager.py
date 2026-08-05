@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.search_service import SearchService
+    from jarvis.services.workspace_ai_service import WorkspaceKnowledgeService
     from jarvis.services.workspace_service import WorkspaceService
 
 _logger = get_logger("jarvis.services.workspace_manager")
@@ -57,11 +58,16 @@ class WorkspaceManager:
         knowledge_service: KnowledgeService | None = None,
         search_service: SearchService | None = None,
         memory_service: MemoryService | None = None,
+        knowledge_links: WorkspaceKnowledgeService | None = None,
     ) -> None:
         self._workspaces = workspace_service
         self._knowledge = knowledge_service
         self._search = search_service
         self._memory = memory_service
+        # Milestone 11 Task Group D. Optional and last, like every other
+        # collaborator here, so a container wired only through Task Group
+        # A behaves exactly as it did before this existed.
+        self._links = knowledge_links
 
     # ------------------------------------------------------------------
     # Composed reads
@@ -96,13 +102,24 @@ class WorkspaceManager:
         """The workspace plus what the *other* subsystems know that
         relates to it.
 
-        Relatedness is the workspace's own name and description used as
-        a query against Knowledge and Memory. That is deliberately
-        simple: there is no workspace/entity association table, and
-        inventing one before Task Group D has said what it needs would
-        be guessing at a schema. Deterministic text matching over the
-        indexes that already exist is honest about what it is, and
-        replacing it later changes this method only.
+        Two kinds of relatedness, which Task Group D made it possible to
+        tell apart:
+
+        * ``linked_knowledge`` -- entities this workspace's own text
+          produced, read from the association table Task Group D added.
+          Evidence.
+        * ``related_knowledge`` -- entities whose name or description
+          shares words with this workspace's. A guess, and still useful:
+          a brand-new workspace has produced nothing yet.
+
+        Task Group A's version had only the second and said so, noting
+        that inventing an association table before this task group had
+        said what it needed would be guessing at a schema. The guess is
+        kept rather than replaced, because the two answer different
+        questions and dropping the text match would make a workspace
+        look unrelated to everything until someone ran an ingestion.
+        The payload stays additive, as promised: nothing that was here
+        has moved.
         """
         overview = await self.overview(workspace_id)
         workspace = overview["workspace"]
@@ -110,6 +127,7 @@ class WorkspaceManager:
 
         return {
             **overview,
+            "linked_knowledge": await self._linked_knowledge(workspace_id),
             "related_knowledge": await self._related_knowledge(query),
             "related_memories": await self._related_memories(query),
         }
@@ -135,6 +153,15 @@ class WorkspaceManager:
     # ------------------------------------------------------------------
     # Optional collaborators -- absent or failing means less context
     # ------------------------------------------------------------------
+    async def _linked_knowledge(self, workspace_id: str) -> list[dict[str, Any]]:
+        if self._links is None:
+            return []
+        try:
+            return await self._links.entities_for(workspace_id, limit=_RELATED_TOP_K)
+        except Exception as err:  # pragma: no cover -- defensive
+            _logger.debug("Knowledge links for workspace context failed: {}", err)
+            return []
+
     async def _related_knowledge(self, query: str) -> list[dict[str, Any]]:
         if self._knowledge is None or not query:
             return []

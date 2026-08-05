@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from jarvis.services.system_service import SystemService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
+    from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 
 def build_tool_registry(
@@ -38,6 +39,7 @@ def build_tool_registry(
     vision: VisionService | None = None,
     knowledge: KnowledgeService | None = None,
     intelligence: IntelligenceService | None = None,
+    workspace_assistant: WorkspaceAssistantService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -53,6 +55,15 @@ def build_tool_registry(
         from jarvis.agents.tools.intelligence_tools import build_intelligence_tools
 
         tools += build_intelligence_tools(intelligence)
+    if workspace_assistant is not None:
+        # Milestone 11 Task Group D. Optional like every other service
+        # here, and deliberately *not* passed by `_build_search_service`'s
+        # own `build_tool_registry` call: the assistant composes
+        # `SearchService`, so resolving it there would close a cycle at
+        # the composition root.
+        from jarvis.agents.tools.workspace_tools import build_workspace_tools
+
+        tools += build_workspace_tools(workspace_assistant)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

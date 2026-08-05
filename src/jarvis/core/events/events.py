@@ -729,3 +729,62 @@ class AttachmentUpdatedEvent(Event):
     target: str = "workspace"  # workspace|project|note|task|event|reminder
     target_id: str = ""
     action: str = "attached"  # attached|detached
+
+
+# ---------------------------------------------------------------------------
+# Milestone 11 Task Group D — AI Workspace
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class WorkspaceKnowledgeLinkedEvent(Event):
+    """Published by
+    :class:`~jarvis.services.workspace_ai_service.WorkspaceKnowledgeService`
+    when a workspace entity is linked to, or unlinked from, a knowledge
+    entity.
+
+    One class with an ``action`` field, the shape every domain from
+    ``memory.updated`` onward uses. ``target``/``target_id`` are the
+    flattened view of the four nullable foreign keys on
+    ``WorkspaceKnowledgeLink`` -- the row needs real constraints, a
+    subscriber only needs to know what was linked.
+
+    ``source`` travels with the event because the commonest reaction to
+    a re-ingestion is to refresh a view, and "forty extracted links were
+    replaced" and "one link a person asserted was removed" call for
+    different reactions.
+
+    ``reingested`` is the batch action, published once per target rather
+    than once per link, and it is the one case where ``link_id`` and
+    ``entity_id`` are empty -- a rebuild of a target's extracted links is
+    not about any one of them. It is a distinct action rather than a
+    ``linked`` with blank ids precisely so that emptiness reads as the
+    documented shape of a batch instead of a missing field.
+    """
+
+    link_id: str = ""
+    workspace_id: str = ""
+    entity_id: str = ""
+    target: str = "workspace"  # workspace|project|note|task|file
+    target_id: str = ""
+    source: str = "extracted"  # extracted|manual
+    action: str = "linked"  # linked|promoted|unlinked|reingested
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceAssistCompletedEvent(Event):
+    """Published by
+    :class:`~jarvis.services.workspace_ai_service.WorkspaceAssistantService`
+    once an assist call has produced an answer.
+
+    Carries no answer text. The event exists so a UI can show that the
+    assistant ran and on what, and relaying the answer would put a
+    model's full output into every connected client's replay buffer for
+    a request only one of them made. ``synthesized`` distinguishes a
+    real LLM answer from the extractive fallback the assistant returns
+    when no provider is reachable -- the one fact a caller cannot infer
+    from the text itself.
+    """
+
+    workspace_id: str = ""
+    mode: str = "summarize"  # summarize|ask|next_actions
+    synthesized: bool = True
+    citation_count: int = 0
