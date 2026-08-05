@@ -38,6 +38,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from jarvis.core.events.events import SessionClosedEvent, SessionCreatedEvent
+from jarvis.core.exceptions import ServiceError
 from jarvis.core.logging.logger import get_logger
 from jarvis.infrastructure.database.repositories import RuntimeSessionRepository
 
@@ -113,7 +114,23 @@ class SessionManager:
     ) -> SessionInfo:
         meta_json = json.dumps(metadata or {})
         async with self._db.session() as sess:
-            row = await RuntimeSessionRepository(cast("AsyncSession", sess)).create(
+            typed = cast("AsyncSession", sess)
+            # `conversation_id` is a real foreign key and this method is
+            # reachable straight from `POST /api/v1/sessions`'s request
+            # body, so an unknown id has to be rejected here rather than
+            # written. Before the Aug 2026 integrity pass turned on
+            # `PRAGMA foreign_keys`, SQLite accepted it silently and the
+            # session was left pointing at nothing; with enforcement on
+            # it would surface as a 500 for what is plainly a bad
+            # request. `thread_id` is deliberately *not* checked -- it is
+            # not a foreign key (LangGraph's checkpointer owns that id
+            # space, see `RuntimeSession`'s own docstring).
+            if conversation_id is not None and not await self._conversation_exists(
+                typed, conversation_id
+            ):
+                raise ServiceError(f"Conversation {conversation_id!r} does not exist.")
+
+            row = await RuntimeSessionRepository(typed).create(
                 conversation_id=conversation_id, thread_id=thread_id, meta_json=meta_json
             )
             info = SessionInfo._from_row(row)
@@ -124,6 +141,19 @@ class SessionManager:
             SessionCreatedEvent(session_id=info.session_id, recovered=False)
         )
         return info
+
+    @staticmethod
+    async def _conversation_exists(sess: AsyncSession, conversation_id: str) -> bool:
+        """A ``SELECT 1`` rather than loading the row: the only question
+        is existence, and the answer feeds a validation branch."""
+        from sqlalchemy import select
+
+        from jarvis.infrastructure.database.models import Conversation
+
+        found = await sess.scalar(
+            select(Conversation.id).where(Conversation.id == conversation_id).limit(1)
+        )
+        return found is not None
 
     async def touch(self, session_id: str) -> None:
         """Heartbeat -- bumps ``last_active_at``. Silently a no-op for an

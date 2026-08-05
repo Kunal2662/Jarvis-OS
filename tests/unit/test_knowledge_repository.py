@@ -114,18 +114,28 @@ async def test_relationship_roundtrip_and_supersede(db) -> None:
 
 @pytest.mark.asyncio
 async def test_link_entity_memory_is_idempotent(db) -> None:
+    """The link table has a real foreign key to ``memories``, so this
+    seeds an actual memory rather than a made-up id. Before the Aug 2026
+    integrity pass enabled ``PRAGMA foreign_keys`` the fabricated id was
+    accepted and the row pointed at nothing."""
+    from jarvis.infrastructure.database.models import Memory
     from jarvis.infrastructure.database.repositories import KnowledgeRepository
 
     async with db.session() as sess:
+        memory = Memory(content="Alice works on Project X.")
+        sess.add(memory)
+        await sess.flush()
+        memory_id = memory.id
+
         repo = KnowledgeRepository(sess)
         entity = await repo.add_entity("Project X")
-        await repo.link_entity_memory(entity.id, "mem-1")
-        await repo.link_entity_memory(entity.id, "mem-1")  # no-op second call
+        await repo.link_entity_memory(entity.id, memory_id)
+        await repo.link_entity_memory(entity.id, memory_id)  # no-op second call
 
     async with db.session() as sess:
         repo = KnowledgeRepository(sess)
         ids = await repo.list_memory_ids_for_entity(entity.id)
-        assert ids == ["mem-1"]
+        assert ids == [memory_id]
 
 
 @pytest.mark.asyncio

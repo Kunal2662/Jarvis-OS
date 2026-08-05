@@ -90,7 +90,18 @@ async def test_learn_from_text_extracts_entities_and_relationships(env) -> None:
     )
     svc = KnowledgeService(database=db, vector_store=vs, llm=llm, memory=memory)
 
-    result = await svc.learn_from_text("Alice works on Project X.", source_memory_id="mem-1")
+    # A real memory row: `knowledge_entity_memories.memory_id` is a
+    # foreign key, and the production caller
+    # (`learn_from_recent_memories`) always passes a real one.
+    from jarvis.infrastructure.database.models import Memory
+
+    async with db.session() as sess:
+        memory = Memory(content="Alice works on Project X.")
+        sess.add(memory)
+        await sess.flush()
+        memory_id = memory.id
+
+    result = await svc.learn_from_text("Alice works on Project X.", source_memory_id=memory_id)
 
     assert result.entities_created == 2
     assert result.relationships_created == 1

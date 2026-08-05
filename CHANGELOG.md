@@ -3,6 +3,44 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.24.1] — Database integrity: SQLite foreign-key enforcement
+
+A stabilization patch, ahead of M11 Task Group C introducing more
+relational models (folders, files, attachments, indexing).
+
+### Fixed
+- **Foreign keys are now enforced.** SQLite ships with
+  `PRAGMA foreign_keys` off and scopes it per *connection*, so every
+  `ON DELETE`/`ON UPDATE` clause in `models.py` had been decorative
+  since M1. `SQLiteDatabase` now issues the pragma from a single
+  `connect` event listener on the engine — SQLAlchemy's documented
+  pattern — rather than per repository or per session.
+- **`POST /api/v1/sessions` accepted an unvalidated foreign key.**
+  `conversation_id` went straight from the request body into a real FK
+  column; an unknown id silently created a session pointing at nothing
+  and still returned `201`. `SessionManager.create` now checks the
+  conversation exists and the route returns `400`. `thread_id` is
+  deliberately still unchecked — it is not a foreign key (LangGraph's
+  checkpointer owns that id space).
+- Three tests were fabricating parent ids (`"mem-1"`, `"conv-1"`) that
+  no row matched. They now seed real rows; the assertions are unchanged.
+
+### Added
+- `tests/unit/test_database_integrity.py` — pins the pragma across
+  pooled connections, proves an orphan insert is rejected and a valid
+  one still works, proves a declared `ON DELETE CASCADE` now actually
+  fires through raw SQL (no ORM cascade involved), and covers the new
+  session validation on both the reject and accept paths.
+
+### Notes
+- **Nullable foreign keys are unaffected.** `ON DELETE SET NULL`
+  columns stay optional — an unfiled note, a session with no
+  conversation. Enforcement rejects what is broken, not what is unset.
+- `ondelete=` and the ORM's `cascade=` remain two mechanisms, both now
+  live. See `ARCHITECTURE.md` §12 for which governs what.
+- 1613 → 1621 tests, all passing. mypy 263 → 263; ruff 21 categories
+  unchanged; black clean. No roadmap milestone was modified.
+
 ## [0.24.0] — M11 Task Group B, Productivity Core
 
 Tasks, the local Calendar engine, and Reminders — the three domains

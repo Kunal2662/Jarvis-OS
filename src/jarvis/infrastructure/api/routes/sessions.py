@@ -65,12 +65,21 @@ def _to_response(info: Any) -> SessionResponse:
 
 @router.post("/sessions", response_model=Envelope[SessionResponse], status_code=201)
 async def create_session(body: CreateSessionRequest, request: Request) -> Envelope[SessionResponse]:
+    from jarvis.core.exceptions import ServiceError
+
     manager = _session_manager(request)
-    info = await manager.create(
-        conversation_id=body.conversation_id,
-        thread_id=body.thread_id,
-        metadata=body.metadata,
-    )
+    try:
+        info = await manager.create(
+            conversation_id=body.conversation_id,
+            thread_id=body.thread_id,
+            metadata=body.metadata,
+        )
+    except ServiceError as err:
+        # An unknown `conversation_id` is a bad request, not a server
+        # fault. Before the Aug 2026 integrity pass enabled foreign-key
+        # enforcement this wrote a session pointing at nothing and still
+        # returned 201.
+        raise HTTPException(status_code=400, detail=str(err)) from err
     return envelope(_to_response(info), meta={"created": True})
 
 

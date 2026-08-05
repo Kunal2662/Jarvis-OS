@@ -947,6 +947,34 @@ mechanism the loader reads.
 | Encrypted / Secrets | OS keyring (target — see §17), `.env` (current, being migrated per `MASTER_ROADMAP.md` §15) | Never plaintext in SQLite, never plaintext in a settings JSON export. |
 | Cloud sync | Oracle Cloud, outbound-only, end-to-end encrypted before leaving the device | Local SQLite/Chroma remain the source of truth; cloud is a sync target, never a required dependency for local operation (§1). |
 
+**Referential integrity is enforced** *(Aug 2026 database integrity
+pass)*. SQLite ships with `PRAGMA foreign_keys` **off**, and the setting
+is per-*connection* rather than per-database — so every `ON DELETE` /
+`ON UPDATE` clause declared in `infrastructure/database/models.py` was
+decorative until `SQLiteDatabase` began issuing the pragma. Three rules
+follow from that, and a new model that ignores them will be caught by a
+test rather than by a user:
+
+- **The pragma is issued in exactly one place** — a `connect` event
+  listener registered on the engine at its single construction point
+  (`_enable_sqlite_foreign_keys`, `sqlite_client.py`). Never per
+  repository, never per session: a rule that has to be remembered at
+  every call site is one that will be forgotten at one of them, and a
+  pool that grew a connection the listener never saw would fail
+  *intermittently*, which is worse than never enabling it.
+- **A foreign key column is validated before it is written.** Anything
+  reachable from a request body must reject an unknown id with a `400`
+  rather than let the constraint surface as a `500` — see
+  `SessionManager.create`, which is where `POST /api/v1/sessions`'
+  `conversation_id` is checked.
+- **`ondelete=` and the ORM `cascade=` are not the same mechanism.**
+  Both are live now. The database constraint governs raw SQL and any
+  path the ORM does not mediate; the relationship-level cascade governs
+  ORM deletes. A child table that declares the first but not the second
+  can still survive its parent when the delete goes through the
+  session — which is why `Workspace` declares a relationship for every
+  table that references it (see that model's own comment).
+
 **Rule: every new data type gets a row in this table before its first
 migration ships.** A PR introducing a new kind of persisted data
 without an entry here is incomplete, the same way it would be

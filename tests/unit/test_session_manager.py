@@ -32,11 +32,24 @@ async def test_create_persists_and_publishes_session_created_event(database) -> 
     bus.subscribe(SessionCreatedEvent, published.append)
     manager = SessionManager(database, bus)
 
+    # `conversation_id` is a real foreign key, so the conversation has
+    # to exist. `thread_id` is deliberately not one -- LangGraph's
+    # checkpointer owns that id space -- so an arbitrary value is fine.
+    from jarvis.infrastructure.database.models import Conversation
+
+    async with database.session() as sess:
+        conversation = Conversation(title="Test conversation")
+        sess.add(conversation)
+        await sess.flush()
+        conversation_id = conversation.id
+
     info = await manager.create(
-        conversation_id="conv-1", thread_id="thread-1", metadata={"client": "desktop-ui"}
+        conversation_id=conversation_id,
+        thread_id="thread-1",
+        metadata={"client": "desktop-ui"},
     )
 
-    assert info.conversation_id == "conv-1"
+    assert info.conversation_id == conversation_id
     assert info.thread_id == "thread-1"
     assert info.metadata == {"client": "desktop-ui"}
     assert info.closed_at is None
