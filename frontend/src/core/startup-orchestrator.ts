@@ -1,8 +1,10 @@
 import { registerCoreStatusBarItems } from "@/components/layout/status-bar-contributions";
 import { registerCoreDashboardWidgets } from "@/features/dashboard/dashboard-widgets";
 import { registerPlaceholderModules } from "@/modules/register-modules";
+import { registerCorePanels } from "@/core/panel-registry";
 import { ensureRealtimeBridge } from "@/services/realtime-bridge";
 import { useConnectionStore } from "@/stores/connection.store";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout.store";
 
 export type StartupPriority = "high" | "medium" | "low";
 
@@ -53,6 +55,20 @@ export interface StartupTask {
 const STARTUP_TASKS: StartupTask[] = [
   { id: "status-bar", label: "Status Bar", priority: "high", run: registerCoreStatusBarItems },
   { id: "dashboard-widgets", label: "Dashboard Shell", priority: "high", run: registerCoreDashboardWidgets },
+  // Register panels, *then* restore saved layouts -- in that order, in
+  // one task, because the store's rehydrate drops panels whose
+  // contribution is unknown. Restoring first would silently empty every
+  // saved workspace. `workspace-layout.store.ts` sets `skipHydration`
+  // for exactly this reason; this is the explicit trigger.
+  {
+    id: "panels",
+    label: "Workspace Panels",
+    priority: "high",
+    run: () => {
+      registerCorePanels();
+      void useWorkspaceLayoutStore.persist.rehydrate();
+    },
+  },
   { id: "modules", label: "Modules", priority: "medium", run: registerPlaceholderModules },
   { id: "realtime-bridge", label: "Live Events", priority: "medium", run: ensureRealtimeBridge },
   {

@@ -1,321 +1,220 @@
-# Milestone Report — M8 Phase 2: Universal Application Framework & Logic
+# Milestone Report — M8 Phase 3: Universal Workspace Framework
 
-**Version:** 0.29.0
-**Branch:** `feature/m8-phase-2`
-**Baseline:** v0.28.0 (`49efc48`, M11 Task Group F merged to `main` at `47cd99e`)
+**Version:** 0.30.0
+**Branch:** `feature/m8-phase-3`
+**Baseline:** v0.29.0 (`3fe956b`, M8 Phase 2)
 **Date:** 2026-08-06
 
 ---
 
 ## 1. Scope
 
-M8 Phase 2 as specified in `docs/IMPLEMENTATION_ROADMAP.md` §2 — the
-mandatory Business Logic → State Machine → Service Layer → Hooks → Store
-shape, plus Authentication, Permissions, Storage, Settings, API layer,
-Voice/AI/Automation integration, Offline support and Error handling.
+The Universal Workspace Framework: a dockable, resizable, persistable
+panel system, multiple named workspace layouts, and the three
+shell-level panels that framework existed to make possible.
 
-**Only this milestone.** No M7 work, no M8 Phase 3, no M12.
-
-One sub-block of §2 is **not** delivered and is documented as such rather
-than quietly marked done — see §9.
-
----
-
-## 2. What the phase actually turned out to be
-
-Phase 1 built the frontend frameworks. The expectation going in was that
-Phase 2 would mostly wire them to the backend. Roughly half of it was.
-
-The other half was a single recurring defect: **Phase 1's REST and
-WebSocket layers were written against `ARCHITECTURE.md`'s illustrative
-examples before the backend routes existed, and the examples were
-illustrative.** Three separate contracts had drifted from the running
-server, all silently — the failure mode in each case is a handler that
-never fires or a message that never surfaces, with no error anywhere.
-
-That framing drove the phase's most important deliverable, which was not
-on the checklist: a generated contract that makes this class of drift
-impossible to reintroduce (§5).
+**Frontend only.** No backend route, model, schema, contract or module
+changed. Every Python gate below is identical to v0.29.0's — the
+intended result of a frontend milestone, and the evidence that the
+freeze held.
 
 ---
 
-## 3. Checklist status
+## 2. Requirements, and where each landed
 
-| §2 item | Status | Where |
+| Requirement | Status | Where |
 |---|---|---|
-| Business Logic → State Machine → Service Layer → Hooks → Store | ✅ | `core/module-lifecycle.ts` (Phase 1 port, verified faithful), `services/`, `hooks/use-backend-status.ts` |
-| Authentication flow | ✅ | `services/api/session.ts` |
-| Permissions from the Authorization Engine | ✅ (M9's, not M14's — §9) | `services/permissions-sync.ts` |
-| Storage | ✅ (verified sufficient, not rebuilt) | `core/storage-framework.ts` |
-| Settings — API layer + store | ✅ | `routes/settings.py`, `stores/settings.store.ts` |
-| API layer — typed REST + WebSocket | ✅ | `services/api/`, `services/websocket/` |
-| Voice Integration | ✅ | `voice.state_changed` → `services/realtime-bridge.ts` |
-| AI Integration | ✅ | `agent.step` → `stores/agent-activity.store.ts` |
-| Automation Integration | ✅ | `automation.step` |
-| Offline support | ✅ | `services/backend-connection.ts`, `stores/connection.store.ts` |
-| Error handling | ✅ | `providers/error-boundary.tsx` + `services/error-reporting.ts` |
-| **API Integration Rework** (10 items) | ❌ **not delivered** | §9 |
+| Universal Workspace Layout | ✅ new | `components/workspace/workspace-container.tsx` |
+| Dockable Panels | ✅ new | 4 zones + floating layer, `panel-zone.tsx` |
+| Resizable Panels | ✅ new | `panel-splitter.tsx` (pointer **and** keyboard) |
+| Persistent Layout Storage | ✅ new | `workspace-layout.store.ts`, `localStorage` |
+| Multi-Workspace Support | ✅ new | same store |
+| Workspace Switching | ✅ new | `workspace-toolbar.tsx` |
+| Workspace Restore | ✅ new | explicit rehydrate at startup (§5) |
+| Dynamic Module Loading | ✅ new | `panel-registry.ts` + `React.lazy` per panel |
+| Global Command Palette | ✅ **already existed** | `command-palette-provider.tsx` (Phase 3 TG-G) |
+| Global Search | ✅ new | `features/search/`, real `POST /api/v1/search` |
+| Notification Center | ✅ new | `features/notifications/` — closes a deferred item |
+| Activity Center | ✅ new | `features/activity/` |
+| Status Bar | ✅ **already existed** | registry-driven, 9 items (Phase 3 TG-E) |
+| Global Header | ✅ existed; extended | bell + workspace entry point wired |
+| Sidebar Navigation | ✅ **already existed** | adaptive, nested, enablement-driven |
+| Responsive Layout | ✅ new | `hooks/use-responsive-layout.ts` |
+| Theme Integration | ✅ **already existed** | panels use design tokens throughout |
+| Loading States | ✅ existed; applied | `LoadingState` at both Suspense boundaries |
+| Empty States | ✅ new per panel | every panel has a real, honest empty state |
+| Error States | ✅ existed; applied | `describeError` in Global Search |
+
+Panel operations — open, close, resize, collapse, detach, move, restore
+— all seven implemented and tested.
+
+Workspace operations — create, rename, delete, duplicate, reset, import,
+export — all seven implemented and tested.
+
+Performance — lazy loading ✅, route splitting ✅, memoization ✅,
+virtual lists ✅, Suspense ✅, code splitting ✅ (the build now emits
+eight feature chunks where it previously emitted one bundle).
 
 ---
 
-## 4. Defects found and fixed
+## 3. The naming problem this phase had to solve first
 
-### 4.1 Security — OAuth client secrets leaked by `SettingsService.snapshot()`
+"Workspace" already meant two different things here. Adding a third
+without separating them would have been a real defect, not a naming
+quibble:
 
-Pydantic redacts a `SecretStr` on dump, which covers `openai.api_key` and
-its neighbours. It does not cover a secret living inside a plain
-container, and `integrations.clients` — introduced by M11 Task Group E —
-is a `dict[str, dict[str, str]]` whose `client_secret` entries dump
-verbatim.
+| Concept | Owner | What it is |
+|---|---|---|
+| Active module | `core/workspace-manager.ts` | Which module the route has mounted. One at a time. |
+| `Workspace` entity | Backend M11 TG-A | A data scope owning projects, notes, tasks, files. |
+| **Workspace layout** | `stores/workspace-layout.store.ts` | **New.** A named arrangement of panels. |
 
-The leak was **latent**: the only caller was the in-process PySide6
-Configuration Manager, inside the same trust boundary as the `.env` file
-it displays. But adding a settings API is precisely the change that makes
-it live, and without this fix Phase 2 would have shipped a route
-publishing Google OAuth client secrets to any authenticated caller.
-
-Fixed by splitting into two methods — `snapshot()` (in-process,
-unredacted) and `public_snapshot()` (redacted, the only form that may
-cross a process boundary) — matching the
-`Credential.to_storage_dict`/`to_public_dict` split already used in
-`core/mcp/auth/credentials.py`. Two methods rather than one with a flag,
-because a method callers must remember to sanitise is one somebody
-forgets.
-
-Redaction is **by key name**, not by type. A type-based check cannot work
-here: nothing about `dict[str, str]` says "secret". Verified that
-`client_id` — public by design — survives, so a settings screen can still
-show which client is configured.
-
-### 4.2 Eleven of fourteen client WebSocket event names did not exist
-
-`ai.token`, `ai.step`, `ai.complete`, `voice.transcript_partial`,
-`voice.transcript_final`, `automation.step_started`,
-`automation.step_completed`, `automation.workflow_finished`,
-`progress.update`, `notification.created`, `runtime.module_state_changed`
-— none is emitted by anything. Replaced with the real 61 from
-`EVENT_TYPE_NAMES`.
-
-Three of the six payload interfaces this phase types were also wrong
-(`AutomationStepPayload` and `PluginNotificationPayload` had invented
-field names; `UpdatePhasePayload` was missing `session_id`) — a mistake I
-made *while writing the fix*, caught by generating the contract from the
-backend rather than by reading.
-
-### 4.3 The REST client discarded every backend error message
-
-It understood only the `{"error": {...}}` envelope from
-`ARCHITECTURE.md` §9, which no route produces — every route raises
-`HTTPException`, serialising as `{"detail": "..."}`. A real "Workspace
-not found" surfaced as "Request failed with status 404".
-
-### 4.4 The REST client expected cursor pagination
-
-It read `meta.next_cursor`. The backend ships offset paging
-(`{count, limit, offset, has_more}`) as of M11 Task Group F, which
-recorded that divergence from the spec rather than hiding it.
-
-### 4.5 A 2xx with a non-envelope body threw a bare `TypeError`
-
-Found by a test, not by inspection. Now raises `MALFORMED_RESPONSE`
-naming the offending route and flows through the normal error path.
-
-### 4.6 Ruff caught a dead branch in my own redaction code
-
-`return REDACTED if not isinstance(value, dict | list) else REDACTED` —
-both branches identical (RUF034). Simplified.
+The layout links to the backend entity through `backendWorkspaceId` — an
+id, never a copy of backend data, which is the whole point of a foreign
+key — and does not touch the module router at all. A test asserts the
+layout object has exactly five fields, so a future "convenience" mirror
+of the backend workspace's name or project list fails rather than
+silently going stale.
 
 ---
 
-## 5. The contract gate (not on the checklist)
+## 4. What was reused rather than rebuilt
 
-`scripts/export_ws_contract.py` generates
-`frontend/src/services/websocket/event-contract.generated.json` from
-`EVENT_TYPE_NAMES` and each event's dataclass fields.
+The brief's requirement list contains several things this codebase
+already had. Rebuilding any of them would have been the duplicate-system
+mistake the project's rules single out, so:
 
-- `tests/unit/test_ws_contract_export.py` fails if the checked-in file is
-  stale → a backend event added without regenerating breaks the Python
-  suite.
-- `websocket-contract.test.ts` fails if the TypeScript disagrees with the
-  file → a client vocabulary that drifts breaks the frontend suite.
-
-Neither side can drift without something going red. This is the only
-durable fix for §4.2; correcting the names alone would have left the next
-milestone free to repeat the mistake. The frontend test names all eleven
-invented events explicitly, so a future edit that "restores" one fails.
-
----
-
-## 6. Backend changes
-
-| File | Change |
-|---|---|
-| `src/jarvis/services/settings_service.py` | `public_snapshot()`, `_redact()`, `_is_secret_key()`, `REDACTED` (§4.1) |
-| `src/jarvis/infrastructure/api/routes/settings.py` | **new** — `GET /settings`, `GET /settings/{dotted_key}` |
-| `src/jarvis/infrastructure/api/fastapi_server.py` | register the router at `/api/v1` |
-| `scripts/export_ws_contract.py` | **new** — contract generator |
-
-The settings route is **read-only, deliberately**. `set_env` writes
-`.env`; exposing that over HTTP would let a browser request rewrite the
-process's own configuration — a privilege-escalation surface belonging
-with M14's Security Platform, not with a frontend phase whose job is to
-read real values. `test_no_write_route_exists` asserts the absence so a
-later addition is deliberate rather than unnoticed.
-
-**No existing service, repository, registry or manager was duplicated.**
-The settings route delegates to the existing `SettingsService` via the
-existing DI container; permissions reuse M9's `PermissionModel` and the
-existing `core/permission-framework.ts`; every event goes through the
-existing `EventBus` → `RuntimeWebSocketHub` relay.
+- **`ContributionRegistry`** — `panelRegistry` is an instance of it, not
+  a fourth hand-rolled registry alongside Navigation, Dashboard Widgets
+  and Status Bar items. That class's own header says it exists for
+  exactly this.
+- **Command Palette, Status Bar, Sidebar, Theme** — verified present and
+  working; untouched.
+- **`notifications.store.ts` / `background-tasks.store.ts` /
+  `agent-activity.store.ts`** — the Activity Center merges live reads of
+  all three in a `useMemo`. A fourth "activity store" mirroring them
+  would have gone stale the moment one updated without it.
+- **`POST /api/v1/search`** — Global Search adds no index and no
+  client-side corpus. A second search implementation would return
+  different answers to the same question.
+- **`use-media-query.ts`** — the responsive hook builds on it rather than
+  writing a second `matchMedia` listener, and reuses the Sidebar's
+  existing 768px breakpoint so the two cannot disagree by a few pixels
+  and stutter mid-resize.
 
 ---
 
-## 7. Frontend changes
+## 5. Two bugs found and prevented during the build
 
-**New:** `services/api/endpoints.ts`, `services/api/session.ts`,
-`services/backend-connection.ts`, `services/realtime-bridge.ts`,
-`services/permissions-sync.ts`, `services/error-reporting.ts`,
-`stores/connection.store.ts`, `stores/settings.store.ts`,
-`stores/agent-activity.store.ts`, `hooks/use-backend-status.ts`,
-`services/websocket/event-contract.generated.json`.
+**`skipHydration`, or: workspace restore would have silently wiped
+layouts.** Zustand's `persist` rehydrates when its module is first
+imported — whenever some component happens to import it. The store's
+`merge` drops panels whose contribution is not registered (which is what
+makes restore safe against a module removed between releases). Put those
+together and a layout rehydrated before `registerCorePanels()` ran would
+have had *every* panel dropped as unknown, and the user would have lost
+their arrangement to an import-order accident. The store now sets
+`skipHydration` and the startup sequence registers panels and *then*
+rehydrates, in one task, explicitly ordered.
 
-**Rewritten:** `services/api/client.ts`, `services/websocket/types.ts`,
-`services/websocket/connection-manager.ts`, `services/websocket/index.ts`.
-
-**Modified:** `core/startup-orchestrator.ts` (the `low` tier is now real —
-it was honestly empty before), `stores/notifications.store.ts` (stale
-event name in a comment), `package.json`.
-
-Design decisions worth flagging:
-
-- **The session token is not persisted.** Backend sessions do not survive
-  a backend restart, so a persisted token is usually stale by the time it
-  is read; and M11 Task Group F tightened `/sessions/{id}` precisely
-  because a leaked id is a real problem. One request at startup is
-  cheaper than that risk.
-- **`BackendState` distinguishes `unreachable` from `unauthenticated`.**
-  Collapsing them produces a UI that says "something went wrong" when the
-  truth is "JARVIS isn't running".
-- **A failed request while offline does not toast.** The condition is
-  already on screen persistently; a stack of identical complaints about
-  it is noise. `reportError` returns `false` rather than failing
-  silently, and `force: true` overrides for user-triggered actions.
-- **All WebSocket subscriptions are installed once at startup**, not
-  inside component effects — voice state must be correct whether or not
-  the voice orb is mounted. `ensureRealtimeBridge()` is idempotent
-  because React StrictMode double-invokes effects in development, and a
-  second registration would record every step twice: a duplicate-data bug
-  that only reproduces in development.
+**A splitter nested inside the flex item it resizes.** First draft put
+the divider inside the panel's own flex child; it would have been laid
+out along that item's axis and moved with it. Caught on review before it
+was written to tests — the splitter is a sibling.
 
 ---
 
-## 8. Quality gates
+## 6. Deliberate limits
 
-| Gate | Result |
-|---|---|
-| `pytest` | ✅ **2218 passed, 1 skipped** (2219 collected, 156 files) — was 2184/1/2185, so +34, matching the 34 tests added. The skip is a pre-existing platform guard (symlink creation). |
-| `npm run lint` | ✅ 16 warnings, **1 category** (`react(only-export-components)`) — identical to baseline. One new `no-unused-vars` I introduced was fixed. |
-| `npm run typecheck` | ✅ clean |
-| `npm test` | ✅ **58 files, 404 tests passed** (was 48/293 — +10 files, +111 tests) |
-| `npm run build` | ✅ built in 1.62s |
-| `black --check src tests` | ✅ 567 files unchanged |
-| `ruff check src tests` | ✅ **21 categories** — identical to baseline |
-| `mypy src` | ✅ **262 errors** — identical to baseline (one new error I introduced was fixed) |
-
-### 8.1 A note on the `typecheck` gate — a deviation, stated
-
-The instruction was `npm run typecheck` using `tsc --noEmit`. Run
-verbatim, that gate **checks zero files and always passes**: the root
-`tsconfig.json` is a solution file (`"files": []`) whose real projects
-live behind `references`, which plain `tsc` ignores. Confirmed
-empirically with `--listFilesOnly` (empty output, exit 0) before
-deviating.
-
-The script is therefore `tsc -b --noEmit` — build mode, which honours the
-project references. It caught six real errors on its first run.
-
----
-
-## 9. What was deliberately not delivered
-
-**The "API Integration Rework" sub-block of §2** — Real API Activation,
-Provider Registry, Runtime Provider Registration, API Validation,
-Connection Testing, Health Checks, Automatic Provider Loading, Provider
-Failover, No Fake Providers, Runtime Provider Switching.
-
-These ten items are **backend provider-lifecycle work**, tied by §2's own
-cross-reference to M11's API Center Architecture module. They are not
-frontend framework work, and a client that can merely *display* provider
-state would not honestly satisfy any of them. They remain unchecked in
-`IMPLEMENTATION_ROADMAP.md` §2 with an explicit note, and are called out
-in `MASTER_ROADMAP.md`'s M8 entry, rather than being marked done.
-
-**A note on the Permissions item.** §2 specifies "the backend's
-Authorization Engine (M14)". M14 does not exist. The Authorization Engine
-that does exist is M9's `PermissionModel`, which owns the same ten-scope
-vocabulary `core/permission-framework.ts` already mirrors exactly
-(verified against `core/plugins/sdk.py`'s `PERMISSION_SCOPES`). Phase 2
-surfaces that one; `services/api/endpoints.ts` is the single place that
-repoints if a future M14 supersedes it.
+- **Detached panels float inside the viewport, not in OS windows.** A
+  real second window needs Tauri's multi-window API — its own React root,
+  store bridge and IPC — which is `IMPLEMENTATION_ROADMAP.md` Phase 3's
+  separate, still-open "Window management (Tauri window APIs)" item. The
+  persisted `frame` geometry is already in the shape that work needs, so
+  this is a stopping point rather than a wrong turn.
+- **Eleven modules register no panel.** The brief lists Chat, Memory,
+  Knowledge Graph, Automation, Tasks, Calendar, Vision, Files, Developer
+  and Admin Dashboard as example panels. Six panels ship (Dashboard,
+  Voice, Settings, Notifications, Activity, Search) — the ones with real
+  content. The rest still render `PlaceholderRoute`; wrapping "this
+  module hasn't been built yet" in a title bar with resize handles would
+  dress an unbuilt module up as a working one, which this project's
+  standing "no fake data" rule forbids. The framework needs no change on
+  the day they have something to show.
+- **Layouts persist locally.** There is no endpoint for panel geometry
+  and the backend contract is frozen. It is also genuinely per-device
+  state: an arrangement that suits a 34" monitor is wrong on a laptop.
+- **DPI scaling and multi-monitor remain open**, both blocked on the same
+  Tauri window APIs. Marked as such in the roadmap rather than left
+  ambiguous.
 
 ---
 
-## 10. Tests added
+## 7. Quality gates
 
-**Backend (34):** `tests/unit/test_ws_contract_export.py` (9),
-`tests/unit/test_settings_redaction.py` (15),
-`tests/integration/test_settings_api_e2e.py` (10).
+| Gate | Result | vs. baseline |
+|---|---|---|
+| `pytest` | 2218 passed, 1 skipped | **unchanged** |
+| `npm test` | **489 passed, 64 files** | +85 tests, +6 files |
+| `npm run lint` | 16 warnings, 1 category | **unchanged** |
+| `npm run typecheck` | clean | unchanged |
+| `npm run build` | clean, 8 feature chunks | no warnings |
+| `black --check src tests` | 567 files unchanged | **unchanged** |
+| `ruff check src tests` | 21 categories | **unchanged** |
+| `mypy src` | 262 errors | **unchanged** |
 
-The e2e tests assert the security property directly — the raw response
-text must not contain the planted secrets — rather than asserting that a
-redaction function was called.
+Three lint warnings and one build warning appeared mid-build and were
+both fixed rather than accepted:
 
-**Frontend (111 across 10 files):** `client.test.ts` (22),
-`session.test.ts` (10), `websocket-contract.test.ts` (11),
-`backend-connection.test.ts` (11), `realtime-bridge.test.ts` (11),
-`error-reporting.test.ts` (13), `permissions-sync.test.ts` (9),
-`connection.store.test.ts` (8), `settings.store.test.ts` (8),
-`agent-activity.store.test.ts` (9).
-
----
-
-## 11. Documentation updated
-
-`CHANGELOG.md` (0.29.0), `docs/IMPLEMENTATION_ROADMAP.md` (§2 checkboxes
-+ the deferred-backlog entry), `docs/MASTER_ROADMAP.md` (§1 status, §8
-M8 entry), `docs/ROADMAP.md` (a pointer for M7+ rather than fabricated
-entries — the file genuinely stops at M6 and disclaims itself),
-`pyproject.toml` (0.28.0 → 0.29.0).
+- `react(only-export-components)` ×3 — the lazy route components were
+  defined in `router.tsx`, which also exports `router`, breaking their
+  Fast Refresh. Moved to `routes/lazy-routes.ts`.
+- `INEFFECTIVE_DYNAMIC_IMPORT` — `dashboard-grid.tsx` was dynamically
+  imported by the panel registry while statically imported by the router,
+  so the dynamic import produced no chunk. Made static in both, with the
+  reason recorded at both sites.
 
 ---
 
-## 12. Public contract changes
+## 8. Tests added (85 across 6 files)
 
-- **Added:** `GET /api/v1/settings`, `GET /api/v1/settings/{dotted_key}`.
-- **Changed:** `SettingsService.snapshot()` keeps its behaviour;
-  `public_snapshot()` is new. No caller of `snapshot()` changed.
-- **No breaking changes.**
+- `workspace-layout.store.test.ts` (36) — workspace lifecycle, zone
+  normalisation invariants (sizes always sum to 1, orders always dense),
+  detach/restore, import/export round-trip, and the malformed-import
+  cases.
+- `workspace-container.test.tsx` (12) — driven through the rendered
+  chrome, not store calls: closing, collapsing, moving and detaching a
+  panel; zones appearing only when populated; keyboard-operable
+  splitters; rails dropping at compact widths.
+- `workspace-toolbar.test.tsx` (13) — all seven workspace operations
+  through the UI, including that export downloads a correctly-slugged
+  file and revokes its object URL.
+- `notification-center.test.tsx` (9), `activity-center.test.tsx` (7),
+  `global-search-panel.test.tsx` (9).
+
+Notable assertions: Global Search must not fire a request while offline
+(a silently-empty search box is indistinguishable from one that searched
+and found nothing); the Activity Center treats an unrecognised backend
+status as *still running* rather than inventing an outcome; a workspace
+layout has exactly five fields.
 
 ---
 
-## 13. Known gaps
+## 9. Documentation updated
 
-- `frontend/package.json` still reports `"version": "0.0.0"` and
-  `tauri.conf.json` `"0.1.0"`. Both predate this phase and neither is
-  read by anything; left alone rather than changed as a drive-by.
-- The connection layer is wired and tested but has no UI surface yet — no
-  offline banner, no settings screen. Those are Phase 3/Phase 5 view
-  work. The stores and hooks they will read are complete.
-- `resolveWebSocketUrl` derives the socket URL from the REST base URL, so
-  the two cannot diverge. Not exercised against a non-default
-  `VITE_API_BASE_URL` in CI.
+`README.md` (current version and M8 status), `CHANGELOG.md` (0.30.0),
+`docs/IMPLEMENTATION_ROADMAP.md` (Phase 3 checkboxes — Notification
+Center and Responsive layout now checked, the framework itself added,
+DPI/multi-monitor annotated with their blocking dependency),
+`docs/MASTER_ROADMAP.md` (§1 status, §8 Phase 3 entry including the
+three-meanings-of-workspace table), `pyproject.toml` (0.29.0 → 0.30.0).
 
 ---
 
-## 14. Status
+## 10. Status
 
-**M8 Phase 2 is complete** except for the API Integration Rework
-sub-block documented in §9. All five mandated quality gates pass, with
-mypy, ruff, Black and lint at exactly their pre-existing baselines.
+**M8 Phase 3's Universal Workspace Framework is complete**, with the
+limits in §6 documented rather than glossed. Backend architecture, API
+contracts, database schema and milestone structure are untouched.
 
 **Stopping here for approval before any further milestone work.**

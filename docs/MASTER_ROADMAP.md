@@ -98,14 +98,16 @@ future work; see M6's own §3 entry for the full scope note.
   which is backend provider-lifecycle work belonging to M11's API Center
   Architecture module) and Phase 4 (Voice Experience & Motion, in full —
   the Premium UI & Voice Experience initiative's five task groups
-  H–L) shipped; Phase 3 (Desktop Workspace) partially shipped (Dashboard,
+  H–L) shipped; Phase 3 (Desktop Workspace) largely shipped — Dashboard,
   Sidebar, Dock, Status Bar, Command Palette shell, Dashboard Widget
-  Grid); Phases 5, 6, 7 and the remainder of Phase 3 (Notification
-  Center, Context Menu system, Background Task Manager, Workspace
-  views, Window management, Developer Mode's 9 read-only viewers,
-  Responsive/DPI/Multi-monitor) are 🟠 **deferred to the Deferred
-  Backlog** (see the new subsection under M8's §8 entry) — none of
-  this blocks M9, which has no real dependency on it (see
+  Grid, and as of v0.30.0 the **Universal Workspace Framework**
+  (dockable/resizable panels, multi-workspace layouts, Notification
+  Center, Activity Center, Global Search, responsive layout); Phases 5,
+  6, 7 and the remainder of Phase 3 (Context Menu system, Background
+  Task Manager, Workspace views, Window management, Developer Mode's 9
+  read-only viewers, DPI/Multi-monitor) are 🟠 **deferred to the
+  Deferred Backlog** (see the new subsection under M8's §8 entry) — none
+  of this blocks M9, which has no real dependency on it (see
   `IMPLEMENTATION_ROADMAP.md` §5's own Dependencies note). **M8 is not
   100% complete** — do not treat it as shipped.
 - **M9 — Runtime & Core Services** (see §8) — ✅ **100% complete, all
@@ -1239,6 +1241,35 @@ Dashboard, Sidebar, Dock, Workspace views (one per M5 workspace:
 Voice, Files & Drive, Browser, Coding, Finance, Smart Home, Calendar,
 Gmail, Spotify), Window Management, Command Palette, Responsive
 Layout, DPI Scaling, Multi-Monitor support.
+
+**Universal Workspace Framework** *(added Aug 2026, shipped v0.30.0)*:
+the dockable panel system the rest of this phase composes into. Four
+dock zones plus a floating layer; every module's content can be a panel
+alongside any other's; panels open, close, resize, collapse, detach,
+move and restore. Multiple named workspaces, each a saved arrangement,
+with create/rename/delete/duplicate/reset/import/export.
+
+Three things now called "workspace" in this system, kept deliberately
+distinct — conflating them would be a real defect, not a naming quibble:
+
+| Concept | Owner | What it is |
+|---|---|---|
+| Active module | `core/workspace-manager.ts` | Which module the current route has mounted. One at a time. |
+| `Workspace` entity | Backend, M11 Task Group A | A data scope owning projects, notes, tasks, files. `/api/v1/workspaces`. |
+| Workspace layout | `stores/workspace-layout.store.ts` | A named arrangement of panels. Device-local. |
+
+The layout links to the backend entity through `backendWorkspaceId` — an
+id, never a copy of backend data — so panels can scope to a real
+workspace without mirroring it. Layouts persist to `localStorage`: there
+is no endpoint for panel geometry, the backend contract is frozen, and
+an arrangement that suits a 34" monitor is wrong on a laptop, so
+per-device is where this state belongs.
+
+Shipped alongside it, as panels: the **Notification Center** (previously
+deferred for want of a container), the **Activity Center** (background
+tasks + `agent.step` + `automation.step`, merged live rather than
+copied), and **Global Search** (the real `POST /api/v1/search`, distinct
+from the Command Palette's local navigation).
 
 **Dynamic Sidebar & Dashboard Widget Grid** *(added Aug 2026 per the
 UI Architecture Update review — see the changelog addendum)*: both

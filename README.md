@@ -277,15 +277,24 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.28.0` · **Current milestone:** M11 — Intelligent
-Workspace & Productivity (🟡 active; Task Groups A — Workspace
-Foundation — B — Productivity Core — C — File Platform — D — AI
-Workspace — E — Integration Platform — and F — Platform Integration —
-shipped; F's React/Tauri UI half belongs to M8 and remains deferred).
-M10.5 completed across five task groups; `0.21.0` and `0.22.0` were
+**Current version:** `0.30.0` · **Current milestone:** M8 — React
+Frontend & Desktop Experience (🟡 active; Phase 1 React Foundation,
+Phase 2 Universal Application Framework & Logic, Phase 3's Universal
+Workspace Framework, and Phase 4 Voice Experience & Motion shipped).
+
+M11 — Intelligent Workspace & Productivity completed across six task
+groups (A Workspace Foundation, B Productivity Core, C File Platform,
+D AI Workspace, E Integration Platform, F Platform Integration) at
+`0.28.0`; M10.5 completed across five. `0.21.0` and `0.22.0` were
 backlog completion passes over already-completed milestones, and
 `0.24.1` was a database integrity pass that turned on SQLite
 foreign-key enforcement.
+
+`0.29.0` connected the React client to the FastAPI backend — and found
+that the client's REST and WebSocket layers, written in Phase 1 against
+`ARCHITECTURE.md`'s *illustrative* examples before the routes existed,
+had drifted from the running server in three places. `0.30.0` built the
+workspace framework the UI arranges itself in.
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source
@@ -299,7 +308,11 @@ Memory, Automation, Desktop Platform, Vision & Multimodal
 architecture layer); **M7 — Workflow Intelligence** active (Phases
 1–2 shipped); **M8 — React Frontend & Desktop Experience** active
 (migrating the UI from PySide6 to React + Tauri — the PySide6 UI
-above remains the one that actually runs today); **M9 — Runtime &
+above remains the one that actually runs today. Phases 1, 2 and 4
+shipped, and Phase 3's Universal Workspace Framework: dockable and
+resizable panels, multiple named workspace layouts with
+import/export, a Notification Center, an Activity Center, and Global
+Search over the real `/api/v1/search`); **M9 — Runtime &
 Core Services shipped in full** — Runtime/Service/Session/Configuration
 Managers, Health Monitor, Background Task Manager, Crash Recovery,
 Resource Manager, a real `/api/v1/ws` WebSocket API, a full plugin

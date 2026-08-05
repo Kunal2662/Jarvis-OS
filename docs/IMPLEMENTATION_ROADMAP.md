@@ -346,11 +346,18 @@ value, a real loading state, or a real empty state.
         component reference (was `() => unknown`), matching
         `StatusBarContribution.render`'s contract, now that a real
         consumer proved out the correct shape.
-- [ ] **Notification Center** *(moved to the Deferred Backlog, §6 —
-      see there for detail)* — the persistent panel view over
-      `core/notification-framework.ts`'s already-real data.
-      `components/layout/notification-layer.tsx` exists today only as
-      a reserved, empty anchor (`return null`).
+- [x] **Notification Center** *(shipped v0.30.0, M8 Phase 3)* — the
+      persistent panel view over `core/notification-framework.ts`'s
+      already-real data, as `features/notifications/notification-center.tsx`.
+      It was deferred because it had nowhere to live; the Universal
+      Workspace Framework's panel system is that container, so it ships
+      as a panel rather than as a bespoke layer. The header's
+      notification bell gained its handler at the same time and for the
+      same reason. `components/layout/notification-layer.tsx` stays a
+      reserved `return null` anchor for a future *transient* overlay
+      (e.g. an OS-style banner) — deliberately not a second rendering of
+      the same list, which could scroll and mark-as-read independently
+      of the panel.
 - [ ] **Context Menu system** *(moved to the Deferred Backlog, §6)* —
       a reusable, registry-driven right-click menu system for Sidebar/
       Dock/Workspace items. `components/ui/context-menu.tsx` is only
@@ -397,9 +404,51 @@ value, a real loading state, or a real empty state.
         no module overrides `getNavigationContribution()` yet
         (`modules/placeholder-module.ts` deliberately doesn't) --
         honest emptiness, not a missing feature.
-- [ ] Responsive layout.
-- [ ] DPI scaling.
-- [ ] Multi-monitor support.
+- [x] **Universal Workspace Framework** *(added Aug 2026, shipped
+      v0.30.0 — M8 Phase 3)*: the dockable/resizable panel system the
+      rest of this phase's surfaces now compose into.
+  - [x] `core/panel-registry.ts` — a `ContributionRegistry` instance,
+        the same generic mechanism Navigation, Dashboard Widgets and
+        Status Bar items already register through. Not a fourth registry.
+  - [x] `stores/workspace-layout.store.ts` — multi-workspace layouts with
+        create/rename/delete/duplicate/reset/import/export/switch, panel
+        instances, zone sizing, and `localStorage` persistence under the
+        established `jarvis.<name>` convention.
+  - [x] Four dock zones (`left`, `main`, `right`, `bottom`) plus a
+        floating layer; each zone disappears when empty.
+  - [x] Panel operations: open, close, resize, collapse, detach, move,
+        restore. Splitters are pointer-driven *and* keyboard-operable
+        (WAI-ARIA `separator`), since a drag-only layout is unreachable
+        without a pointer.
+  - [x] **Detached panels float inside the viewport**, not in OS windows
+        — a real second window is the separate "Window management (Tauri
+        window APIs)" item below, still open. The persisted `frame`
+        geometry is already in the shape that work needs.
+  - [x] Activity Center (`features/activity/`) — merges background
+        tasks, `agent.step` and `automation.step` into one timeline
+        without storing a fourth copy of them.
+  - [x] Global Search (`features/search/`) — the real
+        `POST /api/v1/search`, M10A's 13 registered sources. Distinct
+        from the Command Palette, which resolves navigation locally.
+  - [x] Performance: route splitting (`routes/lazy-routes.ts`), lazily
+        imported panels, `<Suspense>` at both boundaries, `memo` on
+        `PanelFrame`, and `components/common/virtual-list.tsx` for the
+        two unbounded lists.
+  - [x] **Panels are registered only by modules with real content** —
+        six today (Dashboard, Voice, Settings, Notifications, Activity,
+        Search). The eleven placeholder modules register none; a title
+        bar and resize handles around "this module hasn't been built
+        yet" would dress an unbuilt module up as a working one.
+- [x] **Responsive layout** *(v0.30.0)* — `hooks/use-responsive-layout.ts`
+      shares the Sidebar's existing 768px breakpoint rather than
+      introducing a second one a few pixels away. Below it the workspace
+      drops its rails and `main` fills the width; rail panels stay in the
+      workspace and remain reachable from the toolbar. Squeezing three
+      rails onto a phone is how a layout ends up technically responsive
+      and practically unusable.
+- [ ] DPI scaling. *(Deferred Backlog, §6 — needs Tauri window APIs,
+      same dependency as Window management below.)*
+- [ ] Multi-monitor support. *(Deferred Backlog, §6 — same dependency.)*
 
 ### Phase 4 — Voice Experience & Motion
 - [x] Remove the Orb (per the standing instruction from the earlier UI

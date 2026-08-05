@@ -3,6 +3,83 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.30.0] — M8 Phase 3: Universal Workspace Framework
+
+Panels. The frontend gains a dockable, resizable, persistable workspace
+in which any module's content can sit alongside any other's, plus the
+three shell-level panels that framework existed to make possible.
+
+Backend untouched: no route, model, schema or contract changed. Every
+Python gate is byte-identical to v0.29.0's, which is the intended result
+of a frontend-only milestone rather than a coincidence.
+
+### Added
+- **Universal Workspace Layout** — four dock zones (`left`, `main`,
+  `right`, `bottom`) plus a floating layer, each zone collapsing out of
+  the layout entirely when empty, so a one-panel workspace looks like a
+  single-pane app rather than a grid with three blank cells.
+- **Panel system** — every panel supports the seven required operations:
+  open, close, resize, collapse, detach, move, restore.
+  `core/panel-registry.ts` is a `ContributionRegistry` instance, not a
+  fourth hand-rolled registry — the generic mechanism exists for exactly
+  this.
+- **Multi-workspace support** — create, rename, delete, duplicate, reset,
+  import, export, switch, and restore-on-launch. Layouts persist to
+  `localStorage` under the established `jarvis.<name>` key convention.
+- **Notification Center** — the persistent panel over
+  `core/notification-framework.ts`'s already-real data. Listed in
+  `IMPLEMENTATION_ROADMAP.md` Phase 3 and deferred since Phase 1 because
+  it had nowhere to live; `notification-layer.tsx` has been a reserved
+  `return null` anchor all along. The header's notification bell finally
+  has a handler, for the same reason.
+- **Activity Center** — one timeline merging background tasks, `agent.step`
+  and `automation.step`. It merges live store reads rather than keeping a
+  fourth copy of the same facts.
+- **Global Search** — backed by the real `POST /api/v1/search` (M10A's
+  13 registered sources). Distinct from the Command Palette, which
+  navigates the app locally and instantly; this searches content over the
+  network, and says so plainly when the backend is unreachable rather
+  than returning an empty list that looks like "no results".
+- **Responsive layout** — `hooks/use-responsive-layout.ts` shares the
+  Sidebar's existing 768px breakpoint. Below it the rails are dropped and
+  `main` fills, rather than three rails being squeezed to unusability.
+- **Performance** — route splitting (`routes/lazy-routes.ts`), lazily
+  imported panels, `<Suspense>` at both boundaries with one shared
+  fallback, `memo` on `PanelFrame`, and `components/common/virtual-list.tsx`
+  for the two unbounded lists. The build now emits eight feature chunks
+  where it previously emitted one bundle.
+
+### Notes
+- **"Workspace" now means three things, deliberately kept apart.**
+  `WorkspaceManager`/`workspace.store.ts` is which *module* the route has
+  mounted; the backend `Workspace` (M11 Task Group A) is a data scope
+  owning projects, notes, tasks and files; and this phase's
+  `workspace-layout.store.ts` is a named *arrangement of panels*. The
+  third links to the second through `backendWorkspaceId` — an id, never a
+  copy of backend data — and does not touch the first.
+- **Layouts persist locally, and that is not a compromise.** There is no
+  endpoint for panel geometry and the backend contract is frozen; a
+  layout is also genuinely per-device state, since an arrangement that
+  suits a 34" monitor is wrong on a laptop.
+- **Detached panels float inside the viewport, not in OS windows.** A
+  real second window needs Tauri's multi-window API — its own React root,
+  store bridge and IPC — which is `IMPLEMENTATION_ROADMAP.md` Phase 3's
+  separate, still-open "Window management" item. The store's `frame`
+  geometry is already in the shape that work would need.
+- **Nine modules deliberately register no panel.** Conversation, Memory,
+  Automation, Files, Browser, Coding, Finance, Smart Home, Calendar,
+  Gmail and Spotify still render `PlaceholderRoute` — they have no real
+  content. Wrapping "this module hasn't been built yet" in a title bar
+  with resize handles would dress an unbuilt module up as a working one.
+  They register on the day they have something to show; the framework
+  needs no change when they do.
+- **`skipHydration` on the layout store.** Zustand rehydrates on import,
+  which can precede panel registration; since rehydration drops panels
+  whose contribution is unknown, a layout restored at that moment would
+  come back empty and the user would have lost their arrangement to an
+  import-order accident. The startup sequence registers panels and *then*
+  rehydrates, explicitly.
+
 ## [0.29.0] — M8 Phase 2: Universal Application Framework & Logic
 
 The React client stops being a self-contained shell and starts talking to
