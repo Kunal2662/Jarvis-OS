@@ -3,6 +3,108 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.28.0] — M11 Task Group F: Platform Integration & Closure
+
+An audit of every cross-cutting surface M11 built, and the fixes the
+audit turned up. Four defects were real; the rest of the platform was
+already consistent, and this entry says which is which rather than
+implying everything needed work.
+
+**What was audited, with evidence.** 170 REST routes, 1 WebSocket route,
+66 event classes, 88 DI providers, 13 search sources, 37 settings
+sections. Findings are pinned as tests in
+`tests/unit/test_platform_integration.py`, so the invariants cannot
+quietly regress.
+
+### Security
+- **A session could be read and closed by anyone who learned its id.**
+  `GET`/`DELETE /api/v1/sessions/{id}` took the id in the URL path and
+  required nothing else — but a session id *is* the Bearer token for
+  the rest of this API, so anyone who saw one in a proxy log, a browser
+  history entry or a `Referer` header could confirm it was live and,
+  worse, close it, logging the real holder out. Both routes now require
+  the Bearer token **and** check it names the same session as the path.
+  A caller can only read or close its own. Cross-session access returns
+  `404`, not `403`, so a valid token for one session cannot be used to
+  discover whether another exists. (RFC 6750 §2.3 is the general rule
+  this violated.)
+
+### Fixed
+- **Collections truncated silently.** Every repository already capped
+  its queries (200 on the workspace tables, 500 on files and links),
+  nothing above them exposed the cap, and `meta` reported only `count`
+  — so a workspace holding 250 notes returned 200, said `"count": 200`,
+  and gave the caller no way to tell a complete answer from a truncated
+  one nor any way to reach the rest. The cap was right; its invisibility
+  was the bug. All nine M11 collections now take `limit`/`offset` and
+  report `{count, limit, offset, has_more}` through one shared helper
+  (`infrastructure/api/pagination.py`), not a parameter invented per
+  router.
+- **`memory_recall_hook` was registered twice in the DI container.** An
+  earlier `NoopMemoryRecall` binding that the real
+  `SemanticMemoryRecallHook` silently replaced. Behaviour was correct —
+  the last binding wins — but a reader following the first one would
+  have concluded the chat pipeline ran with recall disabled. The dead
+  registration and its now-unreferenced factory are gone.
+- **M11's subsystems reported nothing to `HealthMonitor`.** Task Groups
+  A–E shipped five subsystems and none of them appeared in `/health`,
+  in the `health.updated` relay, or in Developer Mode: a file storage
+  root that had become unwritable, or an integration gateway failing
+  every outbound call, was invisible. One new collector
+  (`workspace_platform`) closes that on the extension point that
+  already exists.
+
+### Added
+- `infrastructure/api/pagination.py` — `Page`, `page_params`,
+  `page_meta`. Over-fetch by one to answer `has_more` exactly, rather
+  than a `COUNT(*)` beside every listing that would double the queries
+  and still be racy.
+- `offset` on the nine list repositories that already took `limit`, and
+  `limit`/`offset` pass-through on their services.
+- `tests/unit/test_pagination.py` and
+  `tests/unit/test_platform_integration.py` — the audit invariants as
+  tests.
+
+### Notes — what the audit found already correct
+These were checked and needed no change; they are recorded so a future
+audit knows they were verified rather than skipped:
+- **Auth coverage.** 170 routes; exactly six are session-free, and all
+  six are deliberate: `/health`, `/ready`, `POST /sessions` (how a token
+  is obtained), the two session routes above (now token-checked), and
+  the OAuth callback (a browser redirect carries no header; its
+  single-use `state` is the defence).
+- **Response envelope.** Every resource route returns `{data, meta}`.
+  The five exceptions are `/health`, `/ready` (flat by design for
+  probes) and `/agent/stream` (SSE).
+- **Error handling.** 14 probes across every M11 domain: unknown id →
+  `404`, invalid input → `400`, zero deviations.
+- **Events.** 66 declared, 61 relayed, 5 absent and all 5 on the
+  documented exception list. No duplicate relay names; every name is
+  `<category>.<event>` lowercase; every relayed event is really
+  published.
+- **Search.** 13 sources, each registered exactly once, none missing —
+  and every service `search*` method sits behind exactly one of them.
+- **Dependency injection.** 88 providers, 84 singletons and 3 factories
+  (all deliberate), no two providers building the same target.
+- **Settings.** 37 sections, every one under `JARVIS_`, no duplicate
+  prefixes, every one constructible from defaults — so a fresh install
+  with no `.env` starts.
+- **Workspace isolation.** Cross-workspace writes are refused with a
+  `400` naming the reason: a note cannot join another workspace's
+  project, a file cannot attach to another workspace's task, and
+  workspace-scoped listings do not leak.
+- 49 new tests (2136 → 2185). mypy 263 → **262** (the deleted legacy
+  factory carried an untyped parameter), ruff 21 categories unchanged.
+
+### Remaining
+- **The React/Tauri workspace UI is not built.** The original M11 Task
+  Group F brief paired "UI Integration" with "Platform Closure"; the
+  frontend half belongs to M8, which is deferred, and this task group
+  delivered the backend integration only. No UI work is claimed.
+- OpenAPI descriptions are uneven — routes carry docstrings where the
+  reasoning mattered and not elsewhere. Cosmetic, and mass-adding
+  summaries would be noise rather than documentation.
+
 ## [0.27.0] — M11 Task Group E: Integration Platform
 
 The outbound half of M11: OAuth2, one audited egress point, and vendor

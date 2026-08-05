@@ -277,13 +277,15 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.27.0` · **Current milestone:** M11 — Intelligent
+**Current version:** `0.28.0` · **Current milestone:** M11 — Intelligent
 Workspace & Productivity (🟡 active; Task Groups A — Workspace
 Foundation — B — Productivity Core — C — File Platform — D — AI
-Workspace — and E — Integration Platform — shipped). M10.5 completed
-across five task groups; `0.21.0` and `0.22.0` were backlog completion
-passes over already-completed milestones, and `0.24.1` was a database
-integrity pass that turned on SQLite foreign-key enforcement.
+Workspace — E — Integration Platform — and F — Platform Integration —
+shipped; F's React/Tauri UI half belongs to M8 and remains deferred).
+M10.5 completed across five task groups; `0.21.0` and `0.22.0` were
+backlog completion passes over already-completed milestones, and
+`0.24.1` was a database integrity pass that turned on SQLite
+foreign-key enforcement.
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source

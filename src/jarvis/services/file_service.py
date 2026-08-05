@@ -281,12 +281,16 @@ class FolderService(_StorageMixin):
         workspace_id: str | None = None,
         parent_folder_id: str | None = None,
         root_only: bool = False,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[Folder]:
         async with self._db.session() as sess:
             return await FolderRepository(sess).list_folders(  # type: ignore[arg-type]
                 workspace_id=workspace_id,
                 parent_folder_id=parent_folder_id,
                 root_only=root_only,
+                offset=offset,
+                **({} if limit is None else {"limit": limit}),
             )
 
     async def tree(self, workspace_id: str) -> list[dict[str, object]]:
@@ -682,17 +686,27 @@ class FileService(_StorageMixin):
         extension: str | None = None,
         tag: str | None = None,
         unfiled_only: bool = False,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[File]:
+        """*limit*/*offset* page the listing (M11 Task Group F).
+
+        The *tag* path goes through ``list_by_tag``, which is a real
+        join rather than a Python filter, so paging is exact there too.
+        """
         async with self._db.session() as sess:
             files = FileRepository(sess)  # type: ignore[arg-type]
+            bound = {} if limit is None else {"limit": limit}
             if tag is not None:
-                return await files.list_by_tag(tag, workspace_id=workspace_id)
+                return await files.list_by_tag(tag, workspace_id=workspace_id, **bound)
             return await files.list_files(
                 workspace_id=workspace_id,
                 folder_id=folder_id,
                 project_id=project_id,
                 extension=extension,
                 unfiled_only=unfiled_only,
+                offset=offset,
+                **bound,
             )
 
     async def update_file(
@@ -1076,6 +1090,8 @@ class AttachmentService:
         file_id: str | None = None,
         target: str | None = None,
         target_id: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[WorkspaceAttachment]:
         if target is not None and target not in ATTACHMENT_TARGETS:
             raise ServiceError(f"Unknown attachment target {target!r}.")
@@ -1093,6 +1109,8 @@ class AttachmentService:
                 task_id=columns["task_id"],
                 event_id=columns["event_id"],
                 reminder_id=columns["reminder_id"],
+                offset=offset,
+                **({} if limit is None else {"limit": limit}),
             )
 
     async def detach(self, attachment_id: str) -> bool:

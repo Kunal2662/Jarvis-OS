@@ -307,6 +307,8 @@ class WorkspaceKnowledgeService:
         target: str | None = None,
         target_id: str | None = None,
         source: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[WorkspaceKnowledgeLink]:
         if target is not None:
             _validate(target, LINK_TARGETS, "link target")
@@ -318,10 +320,18 @@ class WorkspaceKnowledgeService:
             else dict.fromkeys(_NARROW_COLUMNS)
         )
         async with self._db.session() as sess:
-            return await WorkspaceLinkRepository(sess).list_links(  # type: ignore[arg-type]
+            links = WorkspaceLinkRepository(sess)  # type: ignore[arg-type]
+            # `limit` is passed only when the caller set one, so the
+            # repository's own default cap still applies otherwise.
+            # Typed `Any` because it is unpacked alongside `**columns`,
+            # whose values are `str | None`.
+            bound: dict[str, Any] = {} if limit is None else {"limit": limit}
+            return await links.list_links(
                 workspace_id=workspace_id,
                 entity_id=entity_id,
                 source=source,
+                offset=offset,
+                **bound,
                 **columns,
             )
 

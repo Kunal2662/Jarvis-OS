@@ -26,6 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
+from jarvis.infrastructure.api.pagination import Page, page_meta, page_params
 
 if TYPE_CHECKING:
     from jarvis.services.calendar_service import CalendarService
@@ -286,21 +287,28 @@ async def list_tasks(
     status: str | None = None,
     priority: str | None = None,
     tag: str | None = None,
+    page: Page = Depends(page_params),
 ) -> Envelope[list[dict[str, Any]]]:
+    """Paginated (M11 Task Group F). With ``tag``, the page bounds the
+    *query* and the tag filter runs over it in Python -- so a tagged
+    page can be shorter than ``limit``; see ``TaskService.list_tasks``."""
     from jarvis.core.exceptions import ServiceError
 
     try:
-        tasks = await _tasks(request).list_tasks(
+        rows = await _tasks(request).list_tasks(
             workspace_id=workspace_id,
             project_id=project_id,
             status=status,
             priority=priority,
             tag=tag,
+            limit=page.probe_limit,
+            offset=page.offset,
         )
     except ServiceError as err:
         raise _bad_request(err) from err
-    payload = [_task_payload(task) for task in tasks]
-    return envelope(payload, meta={"count": len(payload)})
+    rows, has_more = page.trim(rows)
+    payload = [_task_payload(task) for task in rows]
+    return envelope(payload, meta=page_meta(page=page, count=len(payload), has_more=has_more))
 
 
 @router.get("/tasks/agenda", response_model=Envelope[dict[str, Any]])
@@ -572,17 +580,24 @@ async def list_reminders(
     status: str | None = None,
     task_id: str | None = None,
     event_id: str | None = None,
+    page: Page = Depends(page_params),
 ) -> Envelope[list[dict[str, Any]]]:
     from jarvis.core.exceptions import ServiceError
 
     try:
-        reminders = await _reminders(request).list_reminders(
-            workspace_id=workspace_id, status=status, task_id=task_id, event_id=event_id
+        rows = await _reminders(request).list_reminders(
+            workspace_id=workspace_id,
+            status=status,
+            task_id=task_id,
+            event_id=event_id,
+            limit=page.probe_limit,
+            offset=page.offset,
         )
     except ServiceError as err:
         raise _bad_request(err) from err
-    payload = [_reminder_payload(reminder) for reminder in reminders]
-    return envelope(payload, meta={"count": len(payload)})
+    rows, has_more = page.trim(rows)
+    payload = [_reminder_payload(reminder) for reminder in rows]
+    return envelope(payload, meta=page_meta(page=page, count=len(payload), has_more=has_more))
 
 
 @router.get("/reminders/due", response_model=Envelope[dict[str, Any]])

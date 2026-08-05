@@ -144,17 +144,6 @@ def _build_os_automation(settings: Settings) -> Any:
     return NoopAutomationAdapter()
 
 
-def _build_memory_recall_hook(settings) -> Any:
-    """Legacy no-op factory — kept for the standalone import path.
-
-    The real hook is provided by the container as a
-    ``SemanticMemoryRecallHook`` singleton wired to ``memory_service``.
-    """
-    from jarvis.core.interfaces.memory import NoopMemoryRecall
-
-    return NoopMemoryRecall()
-
-
 def _build_conversation_service(database: Any) -> Any:
     from jarvis.services.conversation_service import ConversationService
 
@@ -1025,7 +1014,6 @@ class Container(containers.DeclarativeContainer):
     database = providers.Singleton(_build_database, settings=settings)
     browser = providers.Singleton(_build_browser, settings=settings)
     os_automation = providers.Singleton(_build_os_automation, settings=settings)
-    memory_recall_hook = providers.Singleton(_build_memory_recall_hook, settings=settings)
     session_manager = providers.Singleton(
         "jarvis.core.lifecycle.session_manager.SessionManager",
         database=database,
@@ -1127,7 +1115,15 @@ class Container(containers.DeclarativeContainer):
         event_bus=event_bus,
     )
 
-    memory_recall_hook = providers.Singleton(
+    # Declared exactly once (M11 Task Group F). This name was previously
+    # bound twice in this class body -- an earlier `NoopMemoryRecall`
+    # registration that the later real one silently replaced. Behaviour
+    # was correct, because the last binding wins, but a reader following
+    # the first one would have concluded the pipeline ran with recall
+    # disabled. Chat's own default is still `NoopMemoryRecall`
+    # (`ChatService.__init__`), which is where "no hook wired" is
+    # honestly modelled.
+    memory_recall_hook: providers.Singleton[Any] = providers.Singleton(
         "jarvis.services.semantic_memory_recall_hook.SemanticMemoryRecallHook",
         memory_service=memory_service,
     )

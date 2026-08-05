@@ -70,8 +70,9 @@ class FolderRepository:
         parent_folder_id: str | None = None,
         root_only: bool = False,
         limit: int = 500,
+        offset: int = 0,
     ) -> list[Folder]:
-        stmt = select(Folder).order_by(Folder.relative_path.asc()).limit(limit)
+        stmt = select(Folder).order_by(Folder.relative_path.asc()).limit(limit).offset(offset)
         if workspace_id is not None:
             stmt = stmt.where(Folder.workspace_id == workspace_id)
         if root_only:
@@ -211,8 +212,9 @@ class FileRepository:
         extension: str | None = None,
         unfiled_only: bool = False,
         limit: int = 500,
+        offset: int = 0,
     ) -> list[File]:
-        stmt = select(File).order_by(File.filename.asc()).limit(limit)
+        stmt = select(File).order_by(File.filename.asc()).limit(limit).offset(offset)
         if workspace_id is not None:
             stmt = stmt.where(File.workspace_id == workspace_id)
         if unfiled_only:
@@ -461,9 +463,13 @@ class AttachmentRepository:
         event_id: str | None = None,
         reminder_id: str | None = None,
         limit: int = 500,
+        offset: int = 0,
     ) -> list[WorkspaceAttachment]:
         stmt = (
-            select(WorkspaceAttachment).order_by(WorkspaceAttachment.created_at.desc()).limit(limit)
+            select(WorkspaceAttachment)
+            .order_by(WorkspaceAttachment.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
         for column, value in (
             (WorkspaceAttachment.workspace_id, workspace_id),

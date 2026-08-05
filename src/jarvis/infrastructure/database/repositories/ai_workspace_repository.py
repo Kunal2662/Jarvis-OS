@@ -109,6 +109,7 @@ class WorkspaceLinkRepository:
         file_id: str | None = None,
         source: str | None = None,
         limit: int = 500,
+        offset: int = 0,
     ) -> list[WorkspaceKnowledgeLink]:
         stmt = (
             select(WorkspaceKnowledgeLink)
@@ -117,6 +118,7 @@ class WorkspaceLinkRepository:
                 WorkspaceKnowledgeLink.created_at.desc(),
             )
             .limit(limit)
+            .offset(offset)
         )
         for column, value in (
             (WorkspaceKnowledgeLink.workspace_id, workspace_id),

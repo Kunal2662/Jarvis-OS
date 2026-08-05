@@ -37,6 +37,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
+from jarvis.infrastructure.api.pagination import Page, page_meta, page_params
 
 if TYPE_CHECKING:
     from jarvis.services.file_managers import (
@@ -257,11 +258,20 @@ async def list_folders(
     workspace_id: str | None = None,
     parent_folder_id: str | None = None,
     root_only: bool = False,
+    page: Page = Depends(page_params),
 ) -> Envelope[list[dict[str, Any]]]:
-    folders = await _folders(request).list_folders(
-        workspace_id=workspace_id, parent_folder_id=parent_folder_id, root_only=root_only
+    rows = await _folders(request).list_folders(
+        workspace_id=workspace_id,
+        parent_folder_id=parent_folder_id,
+        root_only=root_only,
+        limit=page.probe_limit,
+        offset=page.offset,
     )
-    return envelope([_folder_payload(folder) for folder in folders], meta={"count": len(folders)})
+    rows, has_more = page.trim(rows)
+    return envelope(
+        [_folder_payload(folder) for folder in rows],
+        meta=page_meta(page=page, count=len(rows), has_more=has_more),
+    )
 
 
 @router.get("/folders/tree", response_model=Envelope[dict[str, Any]])
@@ -375,16 +385,23 @@ async def list_files(
     extension: str | None = None,
     tag: str | None = None,
     unfiled_only: bool = False,
+    page: Page = Depends(page_params),
 ) -> Envelope[list[dict[str, Any]]]:
-    files = await _files(request).list_files(
+    rows = await _files(request).list_files(
         workspace_id=workspace_id,
         folder_id=folder_id,
         project_id=project_id,
         extension=extension,
         tag=tag,
         unfiled_only=unfiled_only,
+        limit=page.probe_limit,
+        offset=page.offset,
     )
-    return envelope([_file_payload(file) for file in files], meta={"count": len(files)})
+    rows, has_more = page.trim(rows)
+    return envelope(
+        [_file_payload(file) for file in rows],
+        meta=page_meta(page=page, count=len(rows), has_more=has_more),
+    )
 
 
 @router.get("/files/stats", response_model=Envelope[dict[str, Any]])
@@ -582,18 +599,25 @@ async def list_attachments(
     file_id: str | None = None,
     target: str | None = None,
     target_id: str | None = None,
+    page: Page = Depends(page_params),
 ) -> Envelope[list[dict[str, Any]]]:
     from jarvis.core.exceptions import ServiceError
 
     try:
-        attachments = await _attachments(request).list_attachments(
-            workspace_id=workspace_id, file_id=file_id, target=target, target_id=target_id
+        rows = await _attachments(request).list_attachments(
+            workspace_id=workspace_id,
+            file_id=file_id,
+            target=target,
+            target_id=target_id,
+            limit=page.probe_limit,
+            offset=page.offset,
         )
     except ServiceError as err:
         raise _bad_request(err) from err
+    rows, has_more = page.trim(rows)
     return envelope(
-        [_attachment_payload(attachment) for attachment in attachments],
-        meta={"count": len(attachments)},
+        [_attachment_payload(attachment) for attachment in rows],
+        meta=page_meta(page=page, count=len(rows), has_more=has_more),
     )
 
 

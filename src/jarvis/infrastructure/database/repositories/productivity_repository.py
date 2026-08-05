@@ -73,6 +73,7 @@ class TaskRepository:
         status: str | None = None,
         priority: str | None = None,
         limit: int = 200,
+        offset: int = 0,
     ) -> list[Task]:
         """Ordered by due date (soonest first, undated last), then most
         recently updated -- the order a task list is read in, applied
@@ -86,6 +87,7 @@ class TaskRepository:
             select(Task)
             .order_by(Task.due_at.is_(None), Task.due_at.asc(), Task.updated_at.desc())
             .limit(limit)
+            .offset(offset)
         )
         if workspace_id is not None:
             stmt = stmt.where(Task.workspace_id == workspace_id)
@@ -488,8 +490,9 @@ class ReminderRepository:
         task_id: str | None = None,
         event_id: str | None = None,
         limit: int = 200,
+        offset: int = 0,
     ) -> list[Reminder]:
-        stmt = select(Reminder).order_by(Reminder.remind_at.asc()).limit(limit)
+        stmt = select(Reminder).order_by(Reminder.remind_at.asc()).limit(limit).offset(offset)
         if workspace_id is not None:
             stmt = stmt.where(Reminder.workspace_id == workspace_id)
         if status is not None:
