@@ -169,8 +169,75 @@ export async function disconnectBackend(): Promise<void> {
   });
 }
 
+// --- Connection recovery (M8 Phase 6) --------------------------------
+
+/** Backoff for re-establishing the *session*, distinct from the socket's
+ *  own reconnect ladder. Capped: a backend that has been down for an
+ *  hour is not helped by a retry every second, and a laptop lid closed
+ *  overnight should not wake to thousands of failed attempts. */
+const RECOVERY_DELAYS_MS = [2_000, 5_000, 10_000, 30_000, 60_000];
+
+let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+let recoveryAttempt = 0;
+let recoveryInstalled = false;
+
+function cancelRecovery(): void {
+  if (recoveryTimer) clearTimeout(recoveryTimer);
+  recoveryTimer = null;
+  recoveryAttempt = 0;
+}
+
+function scheduleRecovery(): void {
+  if (recoveryTimer) return; // one in flight is enough
+  const delay = RECOVERY_DELAYS_MS[Math.min(recoveryAttempt, RECOVERY_DELAYS_MS.length - 1)];
+  recoveryAttempt += 1;
+  recoveryTimer = setTimeout(() => {
+    recoveryTimer = null;
+    void connectBackend().then((next) => {
+      if (next.state === "ready") cancelRecovery();
+      else scheduleRecovery();
+    });
+  }, delay);
+}
+
+/**
+ * Bring the connection back by itself after an outage.
+ *
+ * `WebSocketConnectionManager` already retries the *socket*, but with
+ * the same token — which is exactly wrong for the most common real
+ * outage: the backend restarted, so its session table is empty and that
+ * token will be refused forever. Recovery at this level re-runs the full
+ * ping → session → socket sequence, which gets a *fresh* session.
+ *
+ * Also covers the case the socket cannot see at all: the backend being
+ * unreachable before a socket was ever opened.
+ *
+ * Idempotent — the startup sequence installs it once.
+ */
+export function installConnectionRecovery(): () => void {
+  if (recoveryInstalled) return () => undefined;
+  recoveryInstalled = true;
+
+  const unsubscribe = websocketManager.onStatusChange((socket) => {
+    if (socket === "connected") {
+      cancelRecovery();
+      return;
+    }
+    // `not_configured` is a deliberate disconnect, not a failure.
+    if (socket === "offline" || socket === "error") scheduleRecovery();
+  });
+
+  return () => {
+    unsubscribe();
+    cancelRecovery();
+    recoveryInstalled = false;
+  };
+}
+
 /** Test seam -- resets observable state without touching the network. */
 export function resetBackendStatusForTesting(): void {
+  cancelRecovery();
+  recoveryInstalled = false;
   status = {
     state: "idle",
     detail: "",

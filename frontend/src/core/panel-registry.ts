@@ -24,6 +24,7 @@
 
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import { ContributionRegistry, type Contribution } from "@/core/contribution-registry";
+import type { UserMode } from "@/core/user-mode";
 // Static, unlike every other panel below: `routes/router.tsx` imports
 // this eagerly as the app's landing route, and a module statically
 // imported anywhere cannot be split into its own chunk. Importing it
@@ -57,6 +58,17 @@ export interface PanelContribution extends Contribution {
    *  field exists so a future one does not need a special case in the
    *  frame component. */
   permanent?: boolean;
+  /**
+   * The minimum audience that may see this panel exists (M8 Phase 5).
+   *
+   * Omitted means `"personal"` — visible to everyone. The Developer and
+   * Administrator dashboards set this, and it is enforced in two places
+   * for two different reasons: the panel *menu* filters on it so a
+   * personal user is never offered a panel they cannot open, and each
+   * dashboard component checks again so a layout imported from a
+   * developer's machine cannot render one. `ARCHITECTURE.md` §22.12.
+   */
+  requiredMode?: UserMode;
 }
 
 export const panelRegistry = new ContributionRegistry<PanelContribution>();
@@ -82,6 +94,18 @@ const VoicePage = lazy(async () => ({
 }));
 const SettingsPage = lazy(async () => ({
   default: (await import("@/features/settings/settings-page")).SettingsPage,
+}));
+const DeveloperDashboard = lazy(async () => ({
+  default: (await import("@/features/developer/developer-dashboard")).DeveloperDashboard,
+}));
+const AdministratorDashboard = lazy(async () => ({
+  default: (await import("@/features/admin/administrator-dashboard")).AdministratorDashboard,
+}));
+const PluginsPanel = lazy(async () => ({
+  default: (await import("@/features/plugins/plugins-panel")).PluginsPanel,
+}));
+const DiagnosticsPanel = lazy(async () => ({
+  default: (await import("@/features/diagnostics/diagnostics-panel")).DiagnosticsPanel,
 }));
 
 let registered = false;
@@ -158,6 +182,50 @@ export function registerCorePanels(): void {
     defaultZone: "main",
     render: SettingsPage,
     hideOnCompact: true,
+  });
+
+  // --- M8 Phase 5 ----------------------------------------------------
+  panelRegistry.register({
+    id: "plugins.main",
+    moduleId: "core",
+    title: "Plugins",
+    icon: "puzzle",
+    defaultZone: "main",
+    render: PluginsPanel,
+    hideOnCompact: true,
+  });
+  panelRegistry.register({
+    id: "core.diagnostics",
+    moduleId: "core",
+    title: "Diagnostics",
+    icon: "stethoscope",
+    defaultZone: "bottom",
+    render: DiagnosticsPanel,
+    hideOnCompact: true,
+  });
+
+  // Restricted panels. `requiredMode` keeps them out of a personal
+  // user's panel menu; each component re-checks, so a layout imported
+  // from a developer's machine cannot render one either.
+  panelRegistry.register({
+    id: "core.developer",
+    moduleId: "core",
+    title: "Developer",
+    icon: "terminal",
+    defaultZone: "main",
+    render: DeveloperDashboard,
+    hideOnCompact: true,
+    requiredMode: "developer",
+  });
+  panelRegistry.register({
+    id: "core.administrator",
+    moduleId: "core",
+    title: "Administrator",
+    icon: "shield",
+    defaultZone: "main",
+    render: AdministratorDashboard,
+    hideOnCompact: true,
+    requiredMode: "administrator",
   });
 }
 

@@ -206,6 +206,138 @@ export const healthApi = {
   path: "/health" as const,
 };
 
+// --- Calendar (M11 Task Group B) --------------------------------------
+
+export interface CalendarEvent {
+  id: string;
+  calendar_id: string;
+  workspace_id: string;
+  title: string;
+  description: string;
+  location: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  all_day: boolean;
+}
+
+export const calendarApi = {
+  /** The backend's own agenda view, not a client-side date filter over
+   *  every event — the server already knows how to answer this. */
+  agenda: (workspace_id: string, horizon_days?: number): Promise<Record<string, unknown>> =>
+    apiRequest("/calendar/agenda", { query: { workspace_id, horizon_days } }),
+  occurrences: (query: {
+    workspace_id?: string;
+    start?: string;
+    end?: string;
+  }): Promise<CalendarEvent[]> => apiRequest<CalendarEvent[]>("/calendar/occurrences", { query }),
+  events: (query: PageQuery & { workspace_id?: string; calendar_id?: string } = {}) =>
+    apiList<CalendarEvent>("/calendar/events", { query }),
+};
+
+// --- Knowledge graph (M10A) -------------------------------------------
+
+export const knowledgeApi = {
+  ask: (question: string): Promise<Record<string, unknown>> =>
+    apiRequest("/knowledge/ask", { query: { question } }),
+  entity: (name: string): Promise<Record<string, unknown>> =>
+    apiRequest(`/knowledge/entities/${encodeURIComponent(name)}`),
+  /** The whole graph. Used by the Knowledge Graph status widget for a
+   *  real entity/relation count — there is no dedicated stats route, and
+   *  the backend is frozen, so this is the honest source. */
+  export: (): Promise<Record<string, unknown>> => apiRequest("/knowledge/export"),
+};
+
+// --- Intelligence layer (M10B) ----------------------------------------
+
+export interface Suggestion {
+  id: string;
+  title: string;
+  detail: string;
+  kind: string;
+  score: number;
+}
+
+export const intelligenceApi = {
+  briefing: (): Promise<Record<string, unknown>> => apiRequest("/intelligence/briefing"),
+  suggestions: (): Promise<Suggestion[]> => apiRequest<Suggestion[]>("/intelligence/suggestions"),
+  context: (): Promise<Record<string, unknown>> => apiRequest("/intelligence/context"),
+};
+
+// --- Plugins (M9 Task Group D) ----------------------------------------
+
+export interface PluginSummary {
+  plugin_id: string;
+  name: string;
+  version: string;
+  state: string;
+  enabled: boolean;
+  permissions: string[];
+}
+
+export const pluginsApi = {
+  list: (): Promise<PluginSummary[]> => apiRequest<PluginSummary[]>("/plugins"),
+  get: (id: string): Promise<PluginSummary> => apiRequest<PluginSummary>(`/plugins/${id}`),
+  enable: (id: string): Promise<Record<string, unknown>> =>
+    apiRequest(`/plugins/${id}/enable`, { method: "POST" }),
+  disable: (id: string): Promise<Record<string, unknown>> =>
+    apiRequest(`/plugins/${id}/disable`, { method: "POST" }),
+};
+
+// --- Developer platform tools (M9 Task Group E) -----------------------
+//
+// §22.12-restricted, every one of them: these name backend services,
+// API calls and internal state. `core/user-mode.ts` gates the surfaces
+// that call them; the client functions themselves are unguarded because
+// a gate in two places is a gate that can disagree with itself.
+
+export interface ApiCallRecord {
+  method: string;
+  path: string;
+  status_code: number;
+  duration_ms: number;
+  at: string;
+}
+
+export interface PerformanceMetric {
+  name: string;
+  value: number;
+  unit: string;
+}
+
+export const devtoolsApi = {
+  apiCalls: (limit?: number): Promise<ApiCallRecord[]> =>
+    apiRequest<ApiCallRecord[]>("/devtools/api-calls", { query: { limit } }),
+  logs: (limit?: number): Promise<Record<string, unknown>[]> =>
+    apiRequest<Record<string, unknown>[]>("/devtools/logs", { query: { limit } }),
+  performance: (): Promise<Record<string, unknown>> => apiRequest("/devtools/performance"),
+  performanceMetrics: (): Promise<PerformanceMetric[]> =>
+    apiRequest<PerformanceMetric[]>("/devtools/performance/metrics"),
+  state: (): Promise<Record<string, unknown>> => apiRequest("/devtools/state"),
+};
+
+// --- MCP platform (M10.5) ---------------------------------------------
+//
+// §22.12-restricted -- provider names and routing.
+
+export interface McpProvider {
+  provider_id: string;
+  name: string;
+  state: string;
+  transport: string;
+}
+
+export const mcpApi = {
+  status: (): Promise<Record<string, unknown>> => apiRequest("/mcp/status"),
+  providers: (): Promise<McpProvider[]> => apiRequest<McpProvider[]>("/mcp/providers"),
+  providerHealth: (id: string): Promise<Record<string, unknown>> =>
+    apiRequest(`/mcp/providers/${id}/health`),
+  diagnostics: (): Promise<Record<string, unknown>> => apiRequest("/mcp/diagnostics"),
+  connections: (): Promise<Record<string, unknown>[]> =>
+    apiRequest<Record<string, unknown>[]>("/mcp/connections"),
+  auth: (): Promise<Record<string, unknown>[]> =>
+    apiRequest<Record<string, unknown>[]>("/mcp/auth"),
+};
+
 // --- Permissions (M9 Plugin Platform's PermissionModel) ---------------
 //
 // The roadmap files this under "the backend's Authorization Engine
@@ -266,4 +398,20 @@ export const integrationsApi = {
     apiRequest<Record<string, unknown>[]>("/integrations"),
   disconnect: (id: string): Promise<void> =>
     apiVoid(`/integrations/${id}/disconnect`, { method: "POST" }),
+  /** The audited egress point's own counters — the closest thing the
+   *  frozen backend has to "API usage". Real call/failure counts, not a
+   *  budget: budgets are `ARCHITECTURE.md` §22.2's Calibration Engine,
+   *  which is approved and not built. §22.12-restricted. */
+  gatewayStats: (): Promise<Record<string, number>> =>
+    apiRequest<Record<string, number>>("/integrations/gateway/stats"),
+};
+
+// --- Permission audit log (M9) ----------------------------------------
+//
+// The only audit trail the frozen backend keeps. The Administrator
+// Dashboard's "Audit Logs" requirement maps onto this and nothing wider;
+// there is no general-purpose audit store to read.
+export const auditApi = {
+  permissionLog: (): Promise<PermissionAuditEntry[]> =>
+    apiRequest<PermissionAuditEntry[]>("/permissions/audit-log"),
 };

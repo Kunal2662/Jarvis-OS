@@ -20,7 +20,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { panelRegistry } from "@/core/panel-registry";
+import { atLeast } from "@/core/user-mode";
 import { reportError, reportSuccess } from "@/services/error-reporting";
+import { useUserMode } from "@/stores/user-mode.store";
 import {
   selectActiveWorkspace,
   useWorkspaceLayoutStore,
@@ -60,7 +62,14 @@ export function WorkspaceToolbar() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const openPanelIds = new Set(active.panels.map((panel) => panel.panelId));
-  const available = panelRegistry.getAll();
+  const mode = useUserMode();
+  // A personal user is never *offered* a restricted panel. The panel
+  // components check again themselves -- this filter is about not
+  // advertising something that would refuse to render, not about
+  // security (`ARCHITECTURE.md` §22.12).
+  const available = panelRegistry
+    .getAll()
+    .filter((panel) => atLeast(mode, panel.requiredMode ?? "personal"));
 
   function commitRename() {
     renameWorkspace(active.id, draftName);

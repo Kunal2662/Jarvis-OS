@@ -1,220 +1,245 @@
-# Milestone Report — M8 Phase 3: Universal Workspace Framework
+# Milestone Report — M8 Phase 5 + Phase 6
 
-**Version:** 0.30.0
-**Branch:** `feature/m8-phase-3`
-**Baseline:** v0.29.0 (`3fe956b`, M8 Phase 2)
+**Version:** 0.31.0
+**Branch:** `feature/m8-phase-5-6`
+**Baseline:** v0.30.0 (`daf387f` M8 Phase 3, `524a123` architecture docs)
 **Date:** 2026-08-06
 
 ---
 
-## 1. Scope
+## 1. Executive summary
 
-The Universal Workspace Framework: a dockable, resizable, persistable
-panel system, multiple named workspace layouts, and the three
-shell-level panels that framework existed to make possible.
+Phase 5 turned the workspace into the JARVIS operating environment:
+every backend module that has something real to show now reaches the
+user, through three audience-specific dashboards and eleven new
+dashboard widgets. Phase 6 hardened it — skeleton loaders, honest
+per-widget offline/empty/error states, automatic connection recovery,
+and the §22.12 audience gate.
 
-**Frontend only.** No backend route, model, schema, contract or module
-changed. Every Python gate below is identical to v0.29.0's — the
-intended result of a frontend milestone, and the evidence that the
-freeze held.
+**The milestone began with an API audit, and that audit changed the
+plan.** I enumerated all 172 REST operations the frozen backend exposes
+before writing any UI. Three findings shaped everything after:
 
----
+1. **`GET /health` is a bare liveness probe** (`{status, version}`). The
+   rich subsystem data every "… Status" widget needs is published as the
+   `health.updated` **WebSocket** event, which nothing on the frontend
+   was reading. The dashboards subscribe rather than poll — no new
+   endpoint, and the numbers move on their own.
+2. **Seven of the Administrator Dashboard's thirteen panels have no
+   backend at all.** Users, budgets, provider priority, calibration
+   status, analytics and synchronization are all `ARCHITECTURE.md` §22
+   — approved and *not built*. They are named on screen, not mocked.
+3. **Two AI Dashboard widgets from the brief have no data source.**
+   Recent Conversations (no conversation-history route exists) and
+   Pinned Projects (`Project` has no `pinned` column; `Note` and
+   `Workspace` do).
 
-## 2. Requirements, and where each landed
-
-| Requirement | Status | Where |
-|---|---|---|
-| Universal Workspace Layout | ✅ new | `components/workspace/workspace-container.tsx` |
-| Dockable Panels | ✅ new | 4 zones + floating layer, `panel-zone.tsx` |
-| Resizable Panels | ✅ new | `panel-splitter.tsx` (pointer **and** keyboard) |
-| Persistent Layout Storage | ✅ new | `workspace-layout.store.ts`, `localStorage` |
-| Multi-Workspace Support | ✅ new | same store |
-| Workspace Switching | ✅ new | `workspace-toolbar.tsx` |
-| Workspace Restore | ✅ new | explicit rehydrate at startup (§5) |
-| Dynamic Module Loading | ✅ new | `panel-registry.ts` + `React.lazy` per panel |
-| Global Command Palette | ✅ **already existed** | `command-palette-provider.tsx` (Phase 3 TG-G) |
-| Global Search | ✅ new | `features/search/`, real `POST /api/v1/search` |
-| Notification Center | ✅ new | `features/notifications/` — closes a deferred item |
-| Activity Center | ✅ new | `features/activity/` |
-| Status Bar | ✅ **already existed** | registry-driven, 9 items (Phase 3 TG-E) |
-| Global Header | ✅ existed; extended | bell + workspace entry point wired |
-| Sidebar Navigation | ✅ **already existed** | adaptive, nested, enablement-driven |
-| Responsive Layout | ✅ new | `hooks/use-responsive-layout.ts` |
-| Theme Integration | ✅ **already existed** | panels use design tokens throughout |
-| Loading States | ✅ existed; applied | `LoadingState` at both Suspense boundaries |
-| Empty States | ✅ new per panel | every panel has a real, honest empty state |
-| Error States | ✅ existed; applied | `describeError` in Global Search |
-
-Panel operations — open, close, resize, collapse, detach, move, restore
-— all seven implemented and tested.
-
-Workspace operations — create, rename, delete, duplicate, reset, import,
-export — all seven implemented and tested.
-
-Performance — lazy loading ✅, route splitting ✅, memoization ✅,
-virtual lists ✅, Suspense ✅, code splitting ✅ (the build now emits
-eight feature chunks where it previously emitted one bundle).
+**Backend untouched.** No route, model, schema, event or contract
+changed. pytest, black, ruff and mypy are byte-identical to v0.30.0 —
+the evidence, not the assertion, that the freeze held.
 
 ---
 
-## 3. The naming problem this phase had to solve first
+## 2. Architecture decisions
 
-"Workspace" already meant two different things here. Adding a third
-without separating them would have been a real defect, not a naming
-quibble:
+### 2.1 A single audience gate, not per-panel judgement
 
-| Concept | Owner | What it is |
-|---|---|---|
-| Active module | `core/workspace-manager.ts` | Which module the route has mounted. One at a time. |
-| `Workspace` entity | Backend M11 TG-A | A data scope owning projects, notes, tasks, files. |
-| **Workspace layout** | `stores/workspace-layout.store.ts` | **New.** A named arrangement of panels. |
+`core/user-mode.ts` defines three modes and the seven classes of
+information §22.12 restricts. Every restricted surface asks it; none
+re-decides what "advanced" means. `stores/user-mode.store.ts` *derives*
+the mode from Developer Mode's existing session unlock rather than
+keeping a second flag — two flags that can disagree about whether
+provider names may be shown will eventually disagree permissively.
 
-The layout links to the backend entity through `backendWorkspaceId` — an
-id, never a copy of backend data, which is the whole point of a foreign
-key — and does not touch the module router at all. A test asserts the
-layout object has exactly five fields, so a future "convenience" mirror
-of the backend workspace's name or project list fails rather than
-silently going stale.
+Administrator is modelled and enforced now even though the backend
+account model does not exist (§22.11 is approved, not built). Nothing
+regresses if it never arrives; nothing leaks if it does.
+`resolveUserMode()` is the one function that changes on the day it ships.
 
----
+### 2.2 Two gates, because layouts travel
 
-## 4. What was reused rather than rebuilt
+Restricted panels are filtered out of the panel *menu* **and** refused
+by the dashboard components themselves. The menu filter alone is not
+enough: a workspace layout exported from a developer's machine and
+imported on a personal one would otherwise render a Developer Dashboard.
 
-The brief's requirement list contains several things this codebase
-already had. Rebuilding any of them would have been the duplicate-system
-mistake the project's rules single out, so:
+This is a *render* gate, not a security boundary — the routes behind it
+are session-authenticated like every other route. That division is
+correct: the backend authenticates, the frontend decides what to show.
+§22.12 is a product rule about what a personal user's JARVIS *contains*.
 
-- **`ContributionRegistry`** — `panelRegistry` is an instance of it, not
-  a fourth hand-rolled registry alongside Navigation, Dashboard Widgets
-  and Status Bar items. That class's own header says it exists for
-  exactly this.
-- **Command Palette, Status Bar, Sidebar, Theme** — verified present and
-  working; untouched.
-- **`notifications.store.ts` / `background-tasks.store.ts` /
-  `agent-activity.store.ts`** — the Activity Center merges live reads of
-  all three in a `useMemo`. A fourth "activity store" mirroring them
-  would have gone stale the moment one updated without it.
-- **`POST /api/v1/search`** — Global Search adds no index and no
-  client-side corpus. A second search implementation would return
-  different answers to the same question.
-- **`use-media-query.ts`** — the responsive hook builds on it rather than
-  writing a second `matchMedia` listener, and reuses the Sidebar's
-  existing 768px breakpoint so the two cannot disagree by a few pixels
-  and stutter mid-resize.
+### 2.3 No new registries
 
----
+Eleven AI Dashboard widgets joined the existing
+`dashboardWidgetRegistry`; four new panels joined the existing
+`panelRegistry`. Both are `ContributionRegistry` instances. The widget
+grid, panel container, persistence and import/export all work on them
+with no change, because there was nothing new to teach.
 
-## 5. Two bugs found and prevented during the build
+### 2.4 One fetch hook, one set of states
 
-**`skipHydration`, or: workspace restore would have silently wiped
-layouts.** Zustand's `persist` rehydrates when its module is first
-imported — whenever some component happens to import it. The store's
-`merge` drops panels whose contribution is not registered (which is what
-makes restore safe against a module removed between releases). Put those
-together and a layout rehydrated before `registerCorePanels()` ran would
-have had *every* panel dropped as unknown, and the user would have lost
-their arrangement to an import-order accident. The store now sets
-`skipHydration` and the startup sequence registers panels and *then*
-rehydrates, in one task, explicitly ordered.
+`useBackendResource` + `ResourceView` replace what would have been
+fifteen hand-rolled `useEffect`/`useState` triples — fifteen chances to
+forget the offline case and fifteen slightly different error strings. It
+also makes connection recovery free at the widget level: `isLive` is a
+dependency, so a widget refetches when the backend returns.
 
-**A splitter nested inside the flex item it resizes.** First draft put
-the divider inside the panel's own flex child; it would have been laid
-out along that item's axis and moved with it. Caught on review before it
-was written to tests — the splitter is a sibling.
+Deliberately not TanStack Query (which *is* a dependency): Query's value
+is its cache, and a live health snapshot wants the current answer.
 
 ---
 
-## 6. Deliberate limits
+## 3. Implementation details
 
-- **Detached panels float inside the viewport, not in OS windows.** A
-  real second window needs Tauri's multi-window API — its own React root,
-  store bridge and IPC — which is `IMPLEMENTATION_ROADMAP.md` Phase 3's
-  separate, still-open "Window management (Tauri window APIs)" item. The
-  persisted `frame` geometry is already in the shape that work needs, so
-  this is a stopping point rather than a wrong turn.
-- **Eleven modules register no panel.** The brief lists Chat, Memory,
-  Knowledge Graph, Automation, Tasks, Calendar, Vision, Files, Developer
-  and Admin Dashboard as example panels. Six panels ship (Dashboard,
-  Voice, Settings, Notifications, Activity, Search) — the ones with real
-  content. The rest still render `PlaceholderRoute`; wrapping "this
-  module hasn't been built yet" in a title bar with resize handles would
-  dress an unbuilt module up as a working one, which this project's
-  standing "no fake data" rule forbids. The framework needs no change on
-  the day they have something to show.
-- **Layouts persist locally.** There is no endpoint for panel geometry
-  and the backend contract is frozen. It is also genuinely per-device
-  state: an arrangement that suits a 34" monitor is wrong on a laptop.
-- **DPI scaling and multi-monitor remain open**, both blocked on the same
-  Tauri window APIs. Marked as such in the roadmap rather than left
-  ambiguous.
+### 3.1 Phase 5 — modules and dashboards
+
+**New:** `core/user-mode.ts`, `stores/user-mode.store.ts`,
+`stores/health.store.ts`, `hooks/use-backend-resource.ts`,
+`components/common/resource-view.tsx`,
+`components/common/skeleton.tsx`,
+`features/dashboard/ai-dashboard-widgets.tsx`,
+`features/dashboard/ai-dashboard-registration.ts`,
+`features/developer/developer-dashboard.tsx`,
+`features/admin/administrator-dashboard.tsx`,
+`features/plugins/plugins-panel.tsx`,
+`features/diagnostics/diagnostics-panel.tsx`.
+
+**Extended:** `services/api/endpoints.ts` (calendar, knowledge,
+intelligence, plugins, devtools, MCP, gateway stats, audit log — every
+path verified against the 172-operation dump), `services/realtime-bridge.ts`
+(health snapshot + clear-on-disconnect), `core/panel-registry.ts`
+(`requiredMode`), `core/startup-orchestrator.ts`.
+
+**AI Dashboard — 11 widgets, all on real data:** System Overview,
+Subsystem Status, Performance, Knowledge Graph, Suggestions (M10B's real
+engine), Recent Tasks, Projects, Pinned Notes, Recent Files, Upcoming
+Calendar, Notification Summary.
+
+Six of the brief's separate "… Status" widgets ship as one
+`SubsystemStatusWidget`: they share one data source and one
+presentation, and a user asking "is anything wrong?" is better served by
+one list than by hunting six cards.
+
+**Developer Dashboard — 7 panels:** providers & routing, outbound API
+counters, API inspector, performance metrics, agent trace, the relay's
+61-event vocabulary, runtime state.
+
+**Administrator Dashboard — 6 real panels + 1 honest gap panel:** AI
+health, API usage, provider health, voice providers, secrets status
+(configured-or-not, never values), audit log; plus "Not yet available"
+naming the seven §22 capabilities and why.
+
+### 3.2 Phase 6 — polish
+
+Skeleton loaders shaped like the content they replace; `ResourceView`'s
+four honest states per widget; automatic connection recovery
+(`installConnectionRecovery` — re-runs ping → session → socket, because
+the socket's own retry reuses a token a restarted backend will refuse
+forever); virtual lists on every unbounded list; lazy-loaded panels with
+`<Suspense>`; `memo` where it pays.
 
 ---
 
-## 7. Quality gates
+## 4. Security notes
 
-| Gate | Result | vs. baseline |
+**A real §22.12 leak I shipped in Phase 3 is fixed here.** The Activity
+Center rendered `agent.step`'s raw `node` field — `planner`,
+`tool_executor`, `critic` — to every audience. My Phase 3 report flagged
+it as a gating requirement; this is that gate. Personal users now see
+the mandated progress vocabulary; step count, ordering and status are
+identical in both modes, so it is fewer *words*, not less truth.
+
+**A correction to that same Phase 3 report:** it also claimed the Status
+Bar's "AI Provider" item names a provider. It does not — it renders
+"Not configured" via `NotConfiguredItem`, and never leaked.
+
+**Secrets:** the Administrator Dashboard reports whether a secret is
+configured, never its value, and does no redaction of its own — the
+backend already redacts server-side (`public_snapshot()`, the Phase 2
+fix). A second redaction layer would imply the first might be
+incomplete.
+
+**No credentials, tokens or provider values are rendered anywhere.**
+
+---
+
+## 5. Performance notes
+
+| Concern | Approach |
+|---|---|
+| Fast startup | Panels and dashboards lazy-loaded; the build emits 14 feature chunks |
+| Low memory | Virtual lists on notifications, activity, API calls, audit log, secrets |
+| Fast navigation | Route splitting; `memo` on `PanelFrame` |
+| Smooth panel movement | Fractional layout maths, no per-frame React state |
+| Fast search | Debounced, out-of-order-guarded, server-side |
+| Instant workspace switching | Layout is local state; switching is a store read |
+| No duplicated state | Health has one store; activity merges three live stores rather than copying them; user mode is derived |
+
+Bundle: largest app chunk 99 kB (29 kB gzipped), unchanged in shape from
+v0.30.0; new features arrive as their own chunks.
+
+---
+
+## 6. Quality gate results
+
+| Gate | Result | vs. v0.30.0 |
 |---|---|---|
 | `pytest` | 2218 passed, 1 skipped | **unchanged** |
-| `npm test` | **489 passed, 64 files** | +85 tests, +6 files |
+| `npm test` | **530 passed, 67 files** | +41 tests, +3 files |
 | `npm run lint` | 16 warnings, 1 category | **unchanged** |
 | `npm run typecheck` | clean | unchanged |
-| `npm run build` | clean, 8 feature chunks | no warnings |
+| `npm run build` | clean, no warnings | unchanged |
 | `black --check src tests` | 567 files unchanged | **unchanged** |
 | `ruff check src tests` | 21 categories | **unchanged** |
 | `mypy src` | 262 errors | **unchanged** |
 
-Three lint warnings and one build warning appeared mid-build and were
-both fixed rather than accepted:
+One lint warning appeared mid-build (an unused non-component export in
+`ai-dashboard-widgets.tsx`) and was removed rather than accepted.
 
-- `react(only-export-components)` ×3 — the lazy route components were
-  defined in `router.tsx`, which also exports `router`, breaking their
-  Fast Refresh. Moved to `routes/lazy-routes.ts`.
-- `INEFFECTIVE_DYNAMIC_IMPORT` — `dashboard-grid.tsx` was dynamically
-  imported by the panel registry while statically imported by the router,
-  so the dynamic import produced no chunk. Made static in both, with the
-  reason recorded at both sites.
+**41 tests added:** `user-mode.test.ts` (14), `health.store.test.ts`
+(13), `dashboard-gating.test.tsx` (10), plus the Activity Center suite
+rewritten to prove both modes (11, up from 7).
 
 ---
 
-## 8. Tests added (85 across 6 files)
+## 7. Remaining work
 
-- `workspace-layout.store.test.ts` (36) — workspace lifecycle, zone
-  normalisation invariants (sizes always sum to 1, orders always dense),
-  detach/restore, import/export round-trip, and the malformed-import
-  cases.
-- `workspace-container.test.tsx` (12) — driven through the rendered
-  chrome, not store calls: closing, collapsing, moving and detaching a
-  panel; zones appearing only when populated; keyboard-operable
-  splitters; rails dropping at compact widths.
-- `workspace-toolbar.test.tsx` (13) — all seven workspace operations
-  through the UI, including that export downloads a correctly-slugged
-  file and revokes its object URL.
-- `notification-center.test.tsx` (9), `activity-center.test.tsx` (7),
-  `global-search-panel.test.tsx` (9).
+**Not built because the frozen backend has no API** — all of it
+`ARCHITECTURE.md` §22, approved and not built:
 
-Notable assertions: Global Search must not fire a request while offline
-(a silently-empty search box is indistinguishable from one that searched
-and found nothing); the Activity Center treats an unrecognised backend
-status as *still running* rather than inventing an outcome; a workspace
-layout has exactly five fields.
+- Users & roles (§22.11) · Daily/monthly budgets (§22.3) · Provider
+  priority (§22.2) · Calibration status (§22.8) · Analytics and
+  Synchronization (§22.5).
+- Recent Conversations — no conversation-history route.
+- Vision status — M6 shipped an architecture layer; no vision service
+  reports to the health monitor and no `vision` search source exists.
 
----
+**Deliberate scope decisions:**
 
-## 9. Documentation updated
+- *Pinned Projects* → **Pinned Notes**. `Project` has no `pinned`
+  column; `Note` does. Projects surface by their real `status` field.
+- *Provider Status* moved off the AI Dashboard to the Developer
+  Dashboard — real data, but §22.12 restricts it.
+- Plugin install/uninstall omitted: `POST /plugins/install` takes a path
+  on the *backend's* filesystem, which a browser cannot supply.
+- Eleven placeholder modules (Chat, Memory, Browser, Coding, Finance,
+  Smart Home, Calendar, Gmail, Spotify…) still register no panel — they
+  have no real content, and a title bar around "not built yet" would
+  dress an unbuilt module up as a working one.
 
-`README.md` (current version and M8 status), `CHANGELOG.md` (0.30.0),
-`docs/IMPLEMENTATION_ROADMAP.md` (Phase 3 checkboxes — Notification
-Center and Responsive layout now checked, the framework itself added,
-DPI/multi-monitor annotated with their blocking dependency),
-`docs/MASTER_ROADMAP.md` (§1 status, §8 Phase 3 entry including the
-three-meanings-of-workspace table), `pyproject.toml` (0.29.0 → 0.30.0).
+**Phase 6 items still open:** image optimization (no images to
+optimise), window state persistence beyond the existing
+`@tauri-apps/plugin-window-state`, and DPI/multi-monitor — all blocked
+on the same Tauri window APIs as Phase 3's Window Management item.
 
 ---
 
-## 10. Status
+## 8. Version, commit, push
 
-**M8 Phase 3's Universal Workspace Framework is complete**, with the
-limits in §6 documented rather than glossed. Backend architecture, API
-contracts, database schema and milestone structure are untouched.
+- **Application version:** 0.30.0 → **0.31.0** (`pyproject.toml`).
+- **Branch:** `feature/m8-phase-5-6`
+- **Commit:** see §9 below.
+- **Push:** confirmed to `origin`.
 
-**Stopping here for approval before any further milestone work.**
+Documentation is a **separate commit** per the brief, made after this
+one, touching no application code.

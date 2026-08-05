@@ -1,7 +1,9 @@
 import { registerCoreStatusBarItems } from "@/components/layout/status-bar-contributions";
+import { registerAiDashboardWidgets } from "@/features/dashboard/ai-dashboard-registration";
 import { registerCoreDashboardWidgets } from "@/features/dashboard/dashboard-widgets";
 import { registerPlaceholderModules } from "@/modules/register-modules";
 import { registerCorePanels } from "@/core/panel-registry";
+import { installConnectionRecovery } from "@/services/backend-connection";
 import { ensureRealtimeBridge } from "@/services/realtime-bridge";
 import { useConnectionStore } from "@/stores/connection.store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout.store";
@@ -55,6 +57,10 @@ export interface StartupTask {
 const STARTUP_TASKS: StartupTask[] = [
   { id: "status-bar", label: "Status Bar", priority: "high", run: registerCoreStatusBarItems },
   { id: "dashboard-widgets", label: "Dashboard Shell", priority: "high", run: registerCoreDashboardWidgets },
+  // M8 Phase 5's eleven AI Dashboard widgets, joining the *same*
+  // `dashboardWidgetRegistry` as the four above -- a second call into
+  // one registry, not a second registry.
+  { id: "ai-dashboard", label: "AI Dashboard", priority: "high", run: registerAiDashboardWidgets },
   // Register panels, *then* restore saved layouts -- in that order, in
   // one task, because the store's rehydrate drops panels whose
   // contribution is unknown. Restoring first would silently empty every
@@ -75,7 +81,13 @@ const STARTUP_TASKS: StartupTask[] = [
     id: "backend-connection",
     label: "JARVIS Backend",
     priority: "low",
-    run: () => useConnectionStore.getState().connect(),
+    run: async () => {
+      // Recovery is installed *before* the first connect, so an attempt
+      // that fails at startup (backend not up yet) is retried rather
+      // than leaving the app offline until the user reloads.
+      installConnectionRecovery();
+      await useConnectionStore.getState().connect();
+    },
   },
 ];
 

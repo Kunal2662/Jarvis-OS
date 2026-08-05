@@ -24,10 +24,12 @@ import { websocketManager } from "@/services/websocket";
 import type {
   AgentStepPayload,
   AutomationStepPayload,
+  HealthUpdatedPayload,
   PluginNotificationPayload,
   VoiceStateChangedPayload,
 } from "@/services/websocket";
 import { useAgentActivityStore } from "@/stores/agent-activity.store";
+import { useHealthStore, type HealthSnapshot } from "@/stores/health.store";
 import { useNotificationsStore } from "@/stores/notifications.store";
 import { useVoiceStateStore } from "@/stores/voice-state.store";
 import { VOICE_STATES, type VoiceState } from "@/core/voice-state-machine";
@@ -93,6 +95,28 @@ export function installRealtimeBridge(): () => void {
         createdAt: message.occurred_at,
         read: false,
       });
+    }),
+  );
+
+  // --- Backend health (M8 Phase 5) ------------------------------------
+  // The rich subsystem snapshot the AI Dashboard renders. `GET /health`
+  // is only a liveness probe; this event is where the real data is, and
+  // nothing on the frontend was reading it before this phase.
+  unsubscribes.push(
+    websocketManager.on<HealthUpdatedPayload>("health.updated", (message) => {
+      useHealthStore
+        .getState()
+        .apply(message.payload.snapshot as HealthSnapshot, message.occurred_at);
+    }),
+  );
+
+  // A snapshot from before an outage describes a backend that is no
+  // longer running. Keeping it on screen as though it were current is
+  // exactly the fake data this project forbids, so the socket dropping
+  // clears it and the dashboard falls back to its "not known" state.
+  unsubscribes.push(
+    websocketManager.onStatusChange((status) => {
+      if (status === "offline" || status === "error") useHealthStore.getState().clear();
     }),
   );
 

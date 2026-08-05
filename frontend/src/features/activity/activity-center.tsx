@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import { Activity, Bot, CircleCheck, CircleX, Loader2, Workflow } from "lucide-react";
 import { VirtualList } from "@/components/common/virtual-list";
+import { progressPhraseFor } from "@/core/user-mode";
 import { useAgentActivityStore } from "@/stores/agent-activity.store";
 import { useBackgroundTasksStore, type BackgroundTask } from "@/stores/background-tasks.store";
+import { useCanReveal } from "@/stores/user-mode.store";
 
 /**
  * The Activity Center -- one timeline of everything JARVIS is currently
@@ -25,6 +27,23 @@ import { useBackgroundTasksStore, type BackgroundTask } from "@/stores/backgroun
  *
  * Empty until something happens, which on a freshly-started backend is
  * the honest state rather than a defect.
+ *
+ * ### What a personal user sees (M8 Phase 5)
+ *
+ * As first shipped in Phase 3 this panel rendered `agent.step`'s raw
+ * `node` field — `planner`, `tool_executor`, `critic` — to everyone.
+ * Those are internal agent names, which `ARCHITECTURE.md` §22.12 puts
+ * off-limits to personal users; the Phase 3 milestone report flagged it
+ * as a gating requirement before a personal-user build ships, and this
+ * is that gate.
+ *
+ * A personal user now sees §22.12's mandated progress vocabulary
+ * ("Working…", "Thinking…", "Checking information…") in place of node
+ * names, and automation `action` strings are collapsed the same way.
+ * Developer Mode and above still see the real trace — nothing is lost,
+ * it is audience-dependent. The *ordering, count and status* of steps
+ * are identical in both modes, so a personal user still sees genuine
+ * progress rather than a decorative animation.
  */
 
 type ActivityKind = "task" | "agent" | "automation";
@@ -100,6 +119,8 @@ export function ActivityCenter() {
   const tasks = useBackgroundTasksStore((s) => s.tasks);
   const agentSteps = useAgentActivityStore((s) => s.agentSteps);
   const automationSteps = useAgentActivityStore((s) => s.automationSteps);
+  // §22.12: internal agent names are Developer Mode and above.
+  const mayShowInternals = useCanReveal("internal_agents");
 
   const entries = useMemo<ActivityEntry[]>(() => {
     const merged: ActivityEntry[] = [
@@ -107,30 +128,44 @@ export function ActivityCenter() {
         id: `task:${task.id}`,
         kind: "task" as const,
         title: task.label,
-        detail: task.percent === null ? task.moduleId : `${task.moduleId} — ${task.percent}%`,
+        // `moduleId` names a backend module. The percentage is the part
+        // a personal user needs; the module is the part they must not
+        // see.
+        detail: mayShowInternals
+          ? task.percent === null
+            ? task.moduleId
+            : `${task.moduleId} — ${task.percent}%`
+          : task.percent === null
+            ? ""
+            : `${task.percent}%`,
         at: task.timestamp,
         status: taskStatus(task),
       })),
       ...agentSteps.map((step) => ({
         id: `agent:${step.thread_id}:${step.step}`,
         kind: "agent" as const,
-        title: `${step.node} (step ${step.step})`,
-        detail: step.detail,
+        title: mayShowInternals
+          ? `${step.node} (step ${step.step})`
+          : progressPhraseFor(step.step),
+        // `detail` is free text the agent node wrote about its own
+        // execution -- exactly the "backend execution" §22.12 names.
+        detail: mayShowInternals ? step.detail : "",
         at: step.receivedAt,
         status: stepStatus(step.status),
       })),
-      ...automationSteps.map((step) => ({
+      ...automationSteps.map((step, index) => ({
         id: `automation:${step.step_id}`,
         kind: "automation" as const,
-        title: step.action,
-        detail: step.step_id,
+        // An automation `action` is a backend operation name.
+        title: mayShowInternals ? step.action : progressPhraseFor(index),
+        detail: mayShowInternals ? step.step_id : "",
         at: step.receivedAt,
         status: stepStatus(step.status),
       })),
     ];
     // Newest first: an activity feed is read from the top.
     return merged.sort((a, b) => b.at.localeCompare(a.at));
-  }, [tasks, agentSteps, automationSteps]);
+  }, [tasks, agentSteps, automationSteps, mayShowInternals]);
 
   if (entries.length === 0) {
     return (
