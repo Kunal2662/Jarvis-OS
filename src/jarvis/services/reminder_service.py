@@ -114,6 +114,8 @@ class ReminderService:
         status: str | None = None,
         task_id: str | None = None,
         event_id: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[Reminder]:
         _validate(status, REMINDER_STATUSES, "reminder status")
         async with self._db.session() as sess:
@@ -122,6 +124,8 @@ class ReminderService:
                 status=status,
                 task_id=task_id,
                 event_id=event_id,
+                offset=offset,
+                **({} if limit is None else {"limit": limit}),
             )
 
     async def update_reminder(

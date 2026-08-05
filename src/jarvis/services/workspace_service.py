@@ -105,10 +105,19 @@ class WorkspaceService:
             raise ServiceError(f"Workspace {workspace_id!r} does not exist.")
         return workspace
 
-    async def list_workspaces(self, *, status: str | None = None) -> list[Workspace]:
+    async def list_workspaces(
+        self, *, status: str | None = None, limit: int | None = None, offset: int = 0
+    ) -> list[Workspace]:
+        """*limit*/*offset* are passed through to the repository, whose
+        own default cap applies when *limit* is omitted (M11 Task Group
+        F). Every list method in this service takes the same pair, so a
+        caller pages one collection exactly as it pages another."""
         _validate_status(status, WORKSPACE_STATUSES, "workspace")
         async with self._db.session() as sess:
-            return await WorkspaceRepository(sess).list_workspaces(status=status)  # type: ignore[arg-type]
+            repo = WorkspaceRepository(sess)  # type: ignore[arg-type]
+            return await repo.list_workspaces(
+                status=status, offset=offset, **({} if limit is None else {"limit": limit})
+            )
 
     async def update_workspace(
         self,
@@ -205,12 +214,21 @@ class WorkspaceService:
         return project
 
     async def list_projects(
-        self, *, workspace_id: str | None = None, status: str | None = None
+        self,
+        *,
+        workspace_id: str | None = None,
+        status: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[Project]:
         _validate_status(status, PROJECT_STATUSES, "project")
         async with self._db.session() as sess:
-            return await ProjectRepository(sess).list_projects(  # type: ignore[arg-type]
-                workspace_id=workspace_id, status=status
+            repo = ProjectRepository(sess)  # type: ignore[arg-type]
+            return await repo.list_projects(
+                workspace_id=workspace_id,
+                status=status,
+                offset=offset,
+                **({} if limit is None else {"limit": limit}),
             )
 
     async def update_project(
@@ -308,11 +326,20 @@ class WorkspaceService:
         return note
 
     async def list_notes(
-        self, *, workspace_id: str | None = None, project_id: str | None = None
+        self,
+        *,
+        workspace_id: str | None = None,
+        project_id: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[Note]:
         async with self._db.session() as sess:
-            return await NoteRepository(sess).list_notes(  # type: ignore[arg-type]
-                workspace_id=workspace_id, project_id=project_id
+            repo = NoteRepository(sess)  # type: ignore[arg-type]
+            return await repo.list_notes(
+                workspace_id=workspace_id,
+                project_id=project_id,
+                offset=offset,
+                **({} if limit is None else {"limit": limit}),
             )
 
     async def update_note(

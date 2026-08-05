@@ -120,7 +120,17 @@ class TaskService:
         status: str | None = None,
         priority: str | None = None,
         tag: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[Task]:
+        """*limit*/*offset* page the SQL query (M11 Task Group F).
+
+        **With a *tag*, they page the query and not the result.** Tags
+        are filtered in Python below, for the reason that comment gives,
+        so a tagged page can come back shorter than *limit* even when
+        more matches exist further on. Reporting that honestly beats
+        pretending the tag filter is part of the query it is not.
+        """
         _validate(status, TASK_STATUSES, "task status")
         _validate(priority, frozenset(TASK_PRIORITIES), "task priority")
         async with self._db.session() as sess:
@@ -129,6 +139,8 @@ class TaskService:
                 project_id=project_id,
                 status=status,
                 priority=priority,
+                offset=offset,
+                **({} if limit is None else {"limit": limit}),
             )
         if tag is None:
             return tasks

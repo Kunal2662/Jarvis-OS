@@ -41,9 +41,13 @@ class WorkspaceRepository:
         return await self._s.get(Workspace, workspace_id)
 
     async def list_workspaces(
-        self, *, status: str | None = None, limit: int = 200
+        self,
+        *,
+        status: str | None = None,
+        limit: int = 200,
+        offset: int = 0,
     ) -> list[Workspace]:
-        stmt = select(Workspace).order_by(Workspace.created_at.desc()).limit(limit)
+        stmt = select(Workspace).order_by(Workspace.created_at.desc()).limit(limit).offset(offset)
         if status is not None:
             stmt = stmt.where(Workspace.status == status)
         return list((await self._s.execute(stmt)).scalars().all())
@@ -129,9 +133,14 @@ class ProjectRepository:
         return await self._s.get(Project, project_id)
 
     async def list_projects(
-        self, *, workspace_id: str | None = None, status: str | None = None, limit: int = 200
+        self,
+        *,
+        workspace_id: str | None = None,
+        status: str | None = None,
+        limit: int = 200,
+        offset: int = 0,
     ) -> list[Project]:
-        stmt = select(Project).order_by(Project.created_at.desc()).limit(limit)
+        stmt = select(Project).order_by(Project.created_at.desc()).limit(limit).offset(offset)
         if workspace_id is not None:
             stmt = stmt.where(Project.workspace_id == workspace_id)
         if status is not None:
@@ -228,11 +237,17 @@ class NoteRepository:
         workspace_id: str | None = None,
         project_id: str | None = None,
         limit: int = 200,
+        offset: int = 0,
     ) -> list[Note]:
         """Pinned notes first, then most-recently-updated -- the order a
         note list is actually read in, applied here rather than left to
         each caller to re-sort."""
-        stmt = select(Note).order_by(Note.pinned.desc(), Note.updated_at.desc()).limit(limit)
+        stmt = (
+            select(Note)
+            .order_by(Note.pinned.desc(), Note.updated_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
         if workspace_id is not None:
             stmt = stmt.where(Note.workspace_id == workspace_id)
         if project_id is not None:

@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
+from jarvis.infrastructure.api.pagination import Page, page_meta, page_params
 
 if TYPE_CHECKING:
     from jarvis.services.workspace_manager import WorkspaceManager
@@ -155,16 +156,24 @@ async def create_workspace(
 
 @router.get("/workspaces", response_model=Envelope[list[dict[str, Any]]])
 async def list_workspaces(
-    request: Request, status: str | None = None
+    request: Request,
+    status: str | None = None,
+    page: Page = Depends(page_params),
 ) -> Envelope[list[dict[str, Any]]]:
+    """Paginated (M11 Task Group F). ``meta.has_more`` tells a caller
+    whether another page exists -- previously the repository's own cap
+    truncated silently and ``meta.count`` looked complete."""
     from jarvis.core.exceptions import ServiceError
 
     try:
-        workspaces = await _workspaces(request).list_workspaces(status=status)
+        rows = await _workspaces(request).list_workspaces(
+            status=status, limit=page.probe_limit, offset=page.offset
+        )
     except ServiceError as err:
         raise _bad_request(err) from err
-    payload = [_workspace_payload(w) for w in workspaces]
-    return envelope(payload, meta={"count": len(payload)})
+    rows, has_more = page.trim(rows)
+    payload = [_workspace_payload(w) for w in rows]
+    return envelope(payload, meta=page_meta(page=page, count=len(payload), has_more=has_more))
 
 
 @router.get("/workspaces/{workspace_id}", response_model=Envelope[dict[str, Any]])
@@ -254,18 +263,25 @@ async def create_project(body: CreateProjectRequest, request: Request) -> Envelo
 
 @router.get("/projects", response_model=Envelope[list[dict[str, Any]]])
 async def list_projects(
-    request: Request, workspace_id: str | None = None, status: str | None = None
+    request: Request,
+    workspace_id: str | None = None,
+    status: str | None = None,
+    page: Page = Depends(page_params),
 ) -> Envelope[list[dict[str, Any]]]:
     from jarvis.core.exceptions import ServiceError
 
     try:
-        projects = await _workspaces(request).list_projects(
-            workspace_id=workspace_id, status=status
+        rows = await _workspaces(request).list_projects(
+            workspace_id=workspace_id,
+            status=status,
+            limit=page.probe_limit,
+            offset=page.offset,
         )
     except ServiceError as err:
         raise _bad_request(err) from err
-    payload = [_project_payload(p) for p in projects]
-    return envelope(payload, meta={"count": len(payload)})
+    rows, has_more = page.trim(rows)
+    payload = [_project_payload(p) for p in rows]
+    return envelope(payload, meta=page_meta(page=page, count=len(payload), has_more=has_more))
 
 
 @router.get("/projects/{project_id}", response_model=Envelope[dict[str, Any]])
@@ -323,11 +339,20 @@ async def create_note(body: CreateNoteRequest, request: Request) -> Envelope[dic
 
 @router.get("/notes", response_model=Envelope[list[dict[str, Any]]])
 async def list_notes(
-    request: Request, workspace_id: str | None = None, project_id: str | None = None
+    request: Request,
+    workspace_id: str | None = None,
+    project_id: str | None = None,
+    page: Page = Depends(page_params),
 ) -> Envelope[list[dict[str, Any]]]:
-    notes = await _workspaces(request).list_notes(workspace_id=workspace_id, project_id=project_id)
-    payload = [_note_payload(n) for n in notes]
-    return envelope(payload, meta={"count": len(payload)})
+    rows = await _workspaces(request).list_notes(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        limit=page.probe_limit,
+        offset=page.offset,
+    )
+    rows, has_more = page.trim(rows)
+    payload = [_note_payload(n) for n in rows]
+    return envelope(payload, meta=page_meta(page=page, count=len(payload), has_more=has_more))
 
 
 @router.get("/notes/{note_id}", response_model=Envelope[dict[str, Any]])

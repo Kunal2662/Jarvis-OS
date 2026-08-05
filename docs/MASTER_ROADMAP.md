@@ -2309,9 +2309,11 @@ deferral blocks M11: the substrate M11 registers against is complete.
 ### M11 — Intelligent Workspace & Productivity
 
 **Status: 🟡 Active — Task Groups A (Workspace Foundation), B
-(Productivity Core), C (File Platform), D (AI Workspace) and E
-(Integration Platform) shipped (Aug 2026, `0.23.0`, `0.24.0`, `0.25.0`,
-`0.26.0` and `0.27.0`).**
+(Productivity Core), C (File Platform), D (AI Workspace), E
+(Integration Platform) and F (Platform Integration) shipped (Aug 2026,
+`0.23.0`, `0.24.0`, `0.25.0`, `0.26.0`, `0.27.0` and `0.28.0`).
+Task Group F's *backend* integration is complete; its React/Tauri UI
+half belongs to M8, which remains deferred, so M11 is not closed.**
 
 *(Scope refined Aug 2026, at the start of implementation: the milestone
 now opens with a **Workspace Foundation** and is organised into six
@@ -2335,7 +2337,7 @@ what is now one of six task groups.)*
 | **C — File Platform** | Folder tree, file storage under a contained root, tags, extensible metadata, plain-text indexing, attachments to five workspace entities, file/folder/attachment APIs | ✅ **Shipped** (`0.25.0`) |
 | **D — AI Workspace** | Workspace AI context (budgeted, prompt-ready), Knowledge integration (a real workspace↔entity association table plus ingestion), workspace-scoped context retrieval over the shared search index, and grounded AI assistance reachable from REST and from the existing agent's tool registry | ✅ **Shipped** (`0.26.0`) |
 | **E — Integration Platform** | OAuth2 (authorization-code + PKCE, client-credentials), the audited API Gateway, and connectors as declarative specs running as MCP providers. Google Workspace ships; the other vendors are catalogue entries against the same engine | 🟡 **Platform + Phase 1 shipped** (`0.27.0`) |
-| **F — UI Integration & Closure** | React/Tauri Workspace UI, final validation, docs, performance review, M11 closure | 🔴 Not started |
+| **F — Platform Integration & Closure** | Cross-cutting audit and unification: REST (auth, envelope, pagination, error handling), WebSocket events, DI, search sources, settings, health, security isolation. Four defects found and fixed | 🟡 **Backend shipped** (`0.28.0`); React/Tauri UI deferred to M8 |
 
 *(Originally retitled Aug 2026 from "Productivity Platform" as part of
 the frontend technology migration — see `TECH_STACK.md` and the changelog
@@ -9450,6 +9452,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.25** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group C (File Platform) shipped: `Folder`, `File`, `FileTag`, `FileMetadata`, `IndexRecord` and `WorkspaceAttachment` models, four repositories, three services, three managers, a contained storage root enforced by a pure `safe_join`, plain-text indexing over seven extensions, three relay events, three search sources, DI, and `/api/v1/files` + `/api/v1/folders` + `/api/v1/attachments`. **Local files only** — no Drive, Dropbox or OneDrive, no cloud sync. **No OCR, no PDF parsing, no embeddings and no semantic indexing**: those need Vision, Document Intelligence and the vector store, and belong to later task groups. Task Groups D–F not started. |
 | **0.26** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group D (AI Workspace) shipped: a pure `domain/ai_workspace/` (context value objects, character-budget packing, prompt construction), one table (`WorkspaceKnowledgeLink`), one repository, `WorkspaceKnowledgeService` (links + on-demand ingestion) and `WorkspaceAssistantService` (grounded summarize/ask/next-actions), `WorkspaceContextManager` and `WorkspaceRetriever`, five agent tools on the existing registry, two relay events, DI, and `/api/v1/workspace-ai/*` + `/api/v1/knowledge-links`. **No second anything**: retrieval narrows M10A's `SearchService`, extraction is `KnowledgeService.learn_from_text`, and the agent is M10's `AgentOrchestrator` reached as tools. **Nothing is scheduled** (ingestion is on demand — M7 Phase 6 owns scheduling) and **no assist call is persisted** (`ConversationService` owns transcripts). **No embeddings over workspace content.** Task Groups E–F not started. |
 | **0.27** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group E (Integration Platform) shipped: OAuth2 authorization-code with mandatory PKCE and the client-credentials grant (closing M10.5 Task Group D's explicit deferral, registered into the *existing* `AuthStrategyRegistry`); one audited API gateway (single pool, retry for idempotent methods only, `Retry-After`, account-keyed response cache); connectors as declarative `IntegrationSpec` data executed by `RestIntegrationProvider`, an `IMCPProvider` in the *same* `MCPProviderRegistry` with the same lifecycle, events, capability registry and permission gates; Google Workspace Phase 1 (11 integrations, 65 operations); per-integration search sources on M10A's registry; four agent tools; and `/api/v1/integrations/*` including the one deliberately session-free route in the application, the OAuth callback, protected by a single-use `state`. **Phases 2–6 (Microsoft 365, GitHub/GitLab, Slack/Discord/Teams, Notion/Jira/Trello/ClickUp/Linear/Asana, Dropbox/Box) are catalogue entries against this engine and are not built** — deliberately not written from memory, because a subtly wrong endpoint ships a connector that fails at the first real call. **No two-way sync** (needs a conflict policy and M7's Scheduler), no webhooks, no durable outbound queue, no resumable upload. Task Group F not started. |
+| **0.28** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group F (Platform Integration) shipped: a cross-cutting audit of 170 REST routes, 66 event classes, 88 DI providers, 13 search sources and 37 settings sections, plus the four defects it found. **Security:** `GET`/`DELETE /sessions/{id}` required no token although a session id *is* the Bearer token, so anyone who learned one could confirm it live or close it; both now require that session's own token and answer `404` for another's. **Pagination:** every repository already capped at 200/500 but nothing exposed the cap and `meta` reported only `count`, so a 250-note workspace silently returned 200 — all nine M11 collections now take `limit`/`offset` and report `has_more` through one shared helper. **DI:** `memory_recall_hook` was bound twice; the dead binding removed. **Health:** M11's subsystems reported nothing to `HealthMonitor`; one collector on the existing extension point now carries the storage root, AI switches, egress counters and live search sources. Everything else audited was already consistent and is recorded as verified. **The React/Tauri UI half is not built** — it is M8's, which is deferred, so M11 is not closed. |
 | *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
@@ -13735,3 +13738,108 @@ revocation -- against a threaded fake vendor, with only the vendor
 faked. Suite 1936 -> 2136, all passing (one skip: the pre-existing
 symlink case Windows will not grant). mypy 263 -> 263. Ruff 21
 categories, unchanged. Version bumped `0.26.0` -> `0.27.0`.
+
+---
+
+*Aug 2026 addendum -- M11 Task Group F (Platform Integration &
+Closure):* not a feature task group. Task Groups A-E each shipped a
+subsystem correctly; this one asked whether five correct subsystems add
+up to one coherent platform, and fixed the places where they did not.
+
+**The audit was evidence-driven, and its results are now tests.**
+Enumerating 170 REST routes, 1 WebSocket route, 66 event classes, 88 DI
+providers, 13 search sources and 37 settings sections by introspecting
+the *running* application -- rather than by reading the source and
+believing it -- is what turned up the four defects below and what
+established that everything else was already right. Both halves of that
+matter: an audit that only reports problems cannot tell you what it
+checked. The invariants live in
+``tests/unit/test_platform_integration.py`` so the next milestone
+cannot break them silently.
+
+**The security defect was the one worth finding.** ``GET`` and
+``DELETE /api/v1/sessions/{session_id}`` took the id in the URL path and
+required nothing else. But a session id *is* the Bearer token for every
+other route, so this was a credential in a URL -- exactly what RFC 6750
+section 2.3 warns against, because URLs land in proxy logs, browser
+history and ``Referer`` headers. Anyone who saw one could confirm it was
+live and, worse, close it and log the real holder out. Both routes now
+require the Bearer token *and* check it names the same session as the
+path. The refusal for somebody else's session is ``404`` rather than
+``403``, so a caller holding a valid token cannot use the route to
+discover whether another session exists -- "not found" is the same
+answer for never existed, already closed, and not yours, which is the
+only answer that leaks nothing.
+
+**The pagination defect had been there since Task Group A.** Every
+repository capped its queries -- 200 rows on the workspace tables, 500
+on files and links -- which was correct. Nothing above them exposed that
+cap, and the envelope reported only ``count``. So a workspace holding
+250 notes returned 200 of them, said ``"count": 200``, and gave the
+caller no way to tell a complete answer from a truncated one nor any
+route to the remaining 50. The cap was never the bug; its invisibility
+was. One shared helper now serves all nine M11 collections, because nine
+routers each inventing a ``limit`` parameter is how a convention becomes
+nine conventions. ``has_more`` is answered by over-fetching a single row
+rather than by a ``COUNT(*)`` beside every listing, which would double
+the queries to report a number most callers never read and would still
+race a concurrent insert.
+
+**The DI defect changed no behaviour and still mattered.**
+``memory_recall_hook`` was bound twice in the container body: an early
+``NoopMemoryRecall`` registration that the real
+``SemanticMemoryRecallHook`` silently replaced. The last binding wins,
+so the application always ran the real hook -- but a reader following
+the first one would have concluded the chat pipeline had recall
+disabled, and that is a bug in the source even when it is not one in the
+program.
+
+**The health gap was five subsystems wide.** Task Groups A-E shipped
+Workspace, Productivity, Files, AI Workspace and Integrations, and not
+one of them reported anything to ``HealthMonitor``. A storage root that
+had become unwritable, or an egress gateway failing every outbound call,
+was invisible to ``/health``, to the ``health.updated`` relay and to
+Developer Mode. One collector closes that, on the extension point M10.5
+already used -- not a second health subsystem. Everything in it is O(1):
+a directory check, counters the gateway already keeps, the live source
+list. A health poll that scanned the workspace tables would make
+observability cost more than the thing observed. Integrations are
+deliberately absent from it, because an integration is an MCP provider
+and is already reported under the ``mcp`` collector; two answers to one
+question is precisely what this task group audits for.
+
+**What the audit found already correct**, recorded so the next one knows
+these were verified rather than skipped: auth on 170 routes with exactly
+six session-free exceptions, every one deliberate; the ``{data, meta}``
+envelope on every resource route, with probes and SSE the only
+exceptions; ``404`` for an unknown id and ``400`` for invalid input,
+zero deviations across fourteen probes spanning every M11 domain; 61 of
+66 events relayed with the other five on the documented exception list,
+no duplicate relay names, every name ``<category>.<event>``; 13 search
+sources each registered exactly once with every service ``search*``
+method behind exactly one; 88 DI providers with no two building the same
+target; 37 settings sections all under ``JARVIS_``, no duplicate
+prefixes, every one constructible from defaults so a fresh install with
+no ``.env`` starts; and cross-workspace isolation holding -- a note
+cannot join another workspace's project, a file cannot attach to another
+workspace's task, and scoped listings do not leak.
+
+**M11 is not closed.** The original Task Group F brief paired "UI
+Integration" with "Platform Closure", and the UI half is M8's React/
+Tauri work, which is deferred. This task group delivered the backend
+integration; claiming closure while the frontend half is unbuilt would
+be the kind of overstatement this roadmap has avoided for eleven
+milestones.
+
+Testing -- 49 new tests across three files: the pagination convention as
+pure functions and then across all nine M11 collections (paging, no
+overlap, exact ``has_more``, bounds refused with 422 rather than
+clamped), and the audit invariants themselves (one health channel with
+every M11 subsystem in it and integrations *not* duplicated into it, one
+registration per search source, one relay name per event, no DI name
+bound twice, M11 services genuinely singletons, every settings section
+under the shared prefix). Suite 2136 -> 2185, all passing (one skip: the
+pre-existing symlink case Windows will not grant). mypy 263 -> 262 --
+the deleted legacy factory carried an untyped parameter, so removing it
+resolved a baseline error as well. Ruff
+21 categories, unchanged. Version bumped `0.27.0` -> `0.28.0`.

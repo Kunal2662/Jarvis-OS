@@ -460,6 +460,32 @@ GET /api/v1/memories?cursor=<opaque>&limit=50
 `limit` defaults to 50, caps at 200. A route that can return unbounded
 results and doesn't paginate is a bug, not an exception.
 
+*As shipped (M11 Task Group F):* the nine M11 collections
+(`/workspaces`, `/projects`, `/notes`, `/tasks`, `/reminders`, `/files`,
+`/folders`, `/attachments`, `/knowledge-links`) paginate through one
+shared helper, `infrastructure/api/pagination.py`, and return
+`meta: {count, limit, offset, has_more}` with `limit` defaulting to 50
+and capped at 200 exactly as above — but **offset-based, not
+cursor-based**. That is a deliberate, recorded divergence from this
+section, not an oversight. A correct cursor needs a stable, unique sort
+key; these collections order by `pinned DESC, updated_at DESC` and by
+due date, neither unique, so a cursor would need a composite
+`(sort_key, id)` tiebreaker designed per collection. That work belongs
+with the first collection that genuinely needs it — a high-write feed —
+rather than retrofitted across nine of a single user's own lists, where
+concurrent insertion mid-paging is close to hypothetical. `has_more` is
+exact either way, because it is answered by an over-fetched row rather
+than by comparing against a total, so the property this section
+actually protects — a caller can always tell a complete answer from a
+truncated one — holds. When a cursor is needed, `page_meta` grows
+`next_cursor` and the other keys keep their meaning.
+
+**What this replaced.** Before Task Group F every repository capped its
+queries (200 on the workspace tables, 500 on files and links) and
+nothing above them exposed the cap: `meta` reported only `count`, so a
+workspace holding 250 notes returned 200 and looked complete. The cap
+was right; its invisibility was the bug.
+
 ### Streaming
 
 A REST route that returns a genuinely large or slow-to-produce
@@ -481,8 +507,15 @@ have hard-coded, so removing it would break callers for no benefit.
 One router, mounted twice; there is no second implementation to drift.
 `/api/v1/sessions`
 (M9 Task Group B) is a second, deliberate, permanent exception below —
-it has no auth dependency at all, being the mechanism that issues the
-very session token every *other* route's Bearer auth requires; nothing
+**`POST` only**, as of M11 Task Group F: it has no auth dependency,
+being the mechanism that issues the very session token every *other*
+route's Bearer auth requires. `GET` and `DELETE /sessions/{id}` were
+exempt too and should not have been — a session id *is* the Bearer
+token, so accepting one in a URL path and asking for nothing else let
+anyone who saw a proxy log or a `Referer` header confirm a session was
+live and close it. Both now require that session's own token and answer
+`404` (not `403`) for another's, so a valid token cannot be used to
+probe for other sessions. Nothing
 exists to authenticate a request for a session with.
 
 Every route except the health/readiness probes and `/api/v1/sessions` requires a

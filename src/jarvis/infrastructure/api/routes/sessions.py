@@ -18,19 +18,39 @@ reasoning has expired and the inconsistency was the only thing left.
 
 Callers read ``response.json()["data"]["session_id"]`` where they
 previously read ``response.json()["session_id"]``.
+
+**Who may read and close a session (tightened M11 Task Group F).**
+``POST /sessions`` is necessarily open -- it is how a caller obtains the
+token every other route requires, so demanding one first would be a
+chicken-and-egg. Reading and closing were open too, and that was wrong:
+a session id *is* the Bearer token for the rest of this API, so anyone
+who learned one from a proxy log, a browser history entry or a
+``Referer`` header could confirm it was live and, worse, close it --
+logging the real holder out. Both routes now require the Bearer token
+**and** check it names the same session as the path, so a caller can
+only ever read or close its own. That is the only change; the URLs,
+status codes and payloads are unchanged for a legitimate caller, who
+already holds the token by definition.
+
+Putting a credential in a URL path is what RFC 6750 §2.3 warns against
+for exactly this reason. The path parameter is kept rather than removed
+because it is the documented shape and removing it would break every
+existing caller for no security gain once the token is also required --
+but it is now redundant, and ``/sessions/current`` is the form a future
+milestone should prefer.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from jarvis.infrastructure.api.auth import Envelope, envelope
+from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
 
 if TYPE_CHECKING:
-    from jarvis.core.lifecycle.session_manager import SessionManager
+    from jarvis.core.lifecycle.session_manager import SessionInfo, SessionManager
 
 router = APIRouter(tags=["sessions"])
 
@@ -83,17 +103,43 @@ async def create_session(body: CreateSessionRequest, request: Request) -> Envelo
     return envelope(_to_response(info), meta={"created": True})
 
 
+def _require_own_session(session_id: str, current: Any) -> None:
+    """Refuse a request for a session other than the caller's own.
+
+    404 rather than 403, deliberately: a caller holding a valid token
+    for session A must not be able to use this route to discover
+    *whether* session B exists. "Not found" is the same answer for a
+    session that never existed, one that has closed, and one that
+    belongs to somebody else -- which is the only answer that leaks
+    nothing.
+    """
+    if getattr(current, "session_id", None) != session_id:
+        raise HTTPException(status_code=404, detail="Session not found or already closed.")
+
+
 @router.get("/sessions/{session_id}", response_model=Envelope[SessionResponse])
-async def get_session(session_id: str, request: Request) -> Envelope[SessionResponse]:
-    manager = _session_manager(request)
-    info = manager.get(session_id)
+async def get_session(
+    session_id: str,
+    request: Request,
+    current: SessionInfo = Depends(get_current_session),
+) -> Envelope[SessionResponse]:
+    """Read a session. Requires that session's own Bearer token."""
+    _require_own_session(session_id, current)
+    info = _session_manager(request).get(session_id)
     if info is None:
         raise HTTPException(status_code=404, detail="Session not found or already closed.")
     return envelope(_to_response(info))
 
 
 @router.delete("/sessions/{session_id}", status_code=204)
-async def close_session(session_id: str, request: Request) -> None:
+async def close_session(
+    session_id: str,
+    request: Request,
+    current: SessionInfo = Depends(get_current_session),
+) -> None:
+    """Close a session. Requires that session's own Bearer token -- so
+    one caller can no longer log another out by learning its id."""
+    _require_own_session(session_id, current)
     manager = _session_manager(request)
     if manager.get(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found or already closed.")

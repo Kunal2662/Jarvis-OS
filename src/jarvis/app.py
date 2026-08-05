@@ -144,6 +144,7 @@ class ApplicationBootstrapper:
         self._register_task_group_d_hooks(runtime_manager, settings)
         self._register_task_group_e_hooks(runtime_manager, settings)
         self._register_mcp_hooks(runtime_manager, settings, health_monitor)
+        self._register_workspace_platform_hooks(settings, health_monitor)
 
         # Milestone 3.1 — preload the local Whisper model eagerly instead of
         # paying the load cost on the user's first PTT/toggle-listen call.
@@ -508,6 +509,69 @@ class ApplicationBootstrapper:
             }
 
         health_monitor.register_collector("mcp", _collect_mcp_health)
+
+    def _register_workspace_platform_hooks(
+        self, settings: Settings, health_monitor: HealthMonitor
+    ) -> None:
+        """Milestone 11 Task Group F -- the workspace platform joins the
+        one health channel.
+
+        Task Groups A-E each shipped a subsystem and none of them
+        reported anything to ``HealthMonitor``: a file storage root that
+        had become unwritable, or an integration gateway failing every
+        outbound call, was invisible to ``/health``, to the
+        ``health.updated`` relay and to Developer Mode. This closes that
+        gap the way M10.5 did -- one more ``register_collector`` entry on
+        the extension point that already exists, **not** a second health
+        subsystem.
+
+        **Everything here is O(1).** The collector runs on the health
+        poll's cadence, so it reports liveness signals the subsystems
+        already hold -- a directory check, counters the gateway keeps,
+        registry lengths -- and never counts rows. A health poll that
+        scanned the workspace tables would make observability cost more
+        than the thing observed.
+
+        Integrations are deliberately **absent** from this payload: an
+        integration is an MCP provider, so it is already reported under
+        the ``mcp`` collector's ``providers`` key. Repeating it here
+        would be two answers to one question.
+        """
+        assert self._container is not None
+        gateway = self._container.api_gateway()
+        search_service = self._container.search_service()
+
+        async def _collect_workspace_platform() -> dict[str, Any]:
+            files_dir = settings.resolved_files_dir
+            return {
+                # Task Group C: the one filesystem dependency M11 added.
+                "files": {
+                    "storage_root": str(files_dir),
+                    "storage_root_exists": files_dir.is_dir(),
+                    "indexing_enabled": settings.files.index_enabled,
+                },
+                # Task Group D: whether the AI layer is switched on at
+                # all, so a caller can tell "no assists happened" from
+                # "assists are disabled".
+                "ai_workspace": {
+                    "enabled": settings.ai_workspace.enabled,
+                    "assist_enabled": settings.ai_workspace.assist_enabled,
+                    "context_budget_chars": settings.ai_workspace.context_budget_chars,
+                },
+                # Task Group E: the audited egress point's own counters.
+                # `failures` climbing while `calls` climbs is the signal
+                # that a vendor or a credential has gone bad, and it was
+                # previously only visible on a REST route nobody polls.
+                "egress": gateway.stats(),
+                # M10A: how many sources are answering. A source that
+                # unregistered itself (an integration disconnecting) is
+                # visible here rather than only as emptier results.
+                "search_sources": sorted(
+                    source.source_type for source in search_service.get_sources()
+                ),
+            }
+
+        health_monitor.register_collector("workspace_platform", _collect_workspace_platform)
 
     def _register_task_group_e_hooks(
         self, runtime_manager: RuntimeManager, settings: Settings

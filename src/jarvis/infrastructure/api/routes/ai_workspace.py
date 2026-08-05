@@ -29,6 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
+from jarvis.infrastructure.api.pagination import Page, page_meta, page_params
 
 if TYPE_CHECKING:
     from jarvis.infrastructure.database.models import WorkspaceKnowledgeLink
@@ -263,21 +264,25 @@ async def list_knowledge_links(
     target: str | None = None,
     target_id: str | None = None,
     source: str | None = None,
+    page: Page = Depends(page_params),
 ) -> Envelope[list[dict[str, Any]]]:
     from jarvis.core.exceptions import ServiceError
 
     try:
-        links = await _knowledge(request).list_links(
+        rows = await _knowledge(request).list_links(
             workspace_id=workspace_id,
             entity_id=entity_id,
             target=target,
             target_id=target_id,
             source=source,
+            limit=page.probe_limit,
+            offset=page.offset,
         )
     except ServiceError as err:
         raise _bad_request(err) from err
-    payload = [_link_payload(link) for link in links]
-    return envelope(payload, meta={"count": len(payload)})
+    rows, has_more = page.trim(rows)
+    payload = [_link_payload(link) for link in rows]
+    return envelope(payload, meta=page_meta(page=page, count=len(payload), has_more=has_more))
 
 
 @router.get("/knowledge-links/{link_id}", response_model=Envelope[dict[str, Any]])

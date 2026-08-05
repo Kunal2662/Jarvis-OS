@@ -1497,7 +1497,7 @@ is blocked on a milestone that has not started.
 
 ---
 
-## 5G. M11 — Intelligent Workspace & Productivity (🟡 Active — Task Groups A, B, C, D and E shipped)
+## 5G. M11 — Intelligent Workspace & Productivity (🟡 Active — Task Groups A–F shipped; F's UI half deferred to M8)
 
 Six task groups, A–F. The milestone was restructured before
 implementation so that a shared Workspace substrate comes first and the
@@ -1719,11 +1719,51 @@ that silently loses an edit.
 ships, correct to 5 MB), webhooks and inbound delivery, a durable
 outbound queue, and Oracle Cloud sync.
 
-### Task Group F (🔴 not started)
+### Task Group F — Platform Integration & Closure (🟡 backend shipped, `0.28.0`)
 
-| Task Group | Scope |
-|---|---|
-| **F — UI Integration & Closure** | React/Tauri Workspace UI, final validation, docs, performance review, M11 closure |
+An audit of every cross-cutting surface Task Groups A–E built, plus the
+fixes it turned up. Four defects were real; the rest was already
+consistent, and the record below says which is which.
+
+- [x] **Security — sessions could be read and closed by anyone who
+      learned an id.** A session id *is* the Bearer token for this API,
+      and `GET`/`DELETE /sessions/{id}` took it in the URL path and
+      required nothing else. Both now require the token *and* check it
+      names the same session; cross-session access is `404`, not `403`,
+      so a valid token cannot probe for others' sessions.
+- [x] **Pagination — collections truncated silently.** Repositories
+      already capped at 200/500, nothing exposed the cap, and `meta`
+      reported only `count`. All nine M11 collections now take
+      `limit`/`offset` and report `{count, limit, offset, has_more}`
+      through one shared helper, `infrastructure/api/pagination.py`.
+- [x] **DI — `memory_recall_hook` was bound twice**, an earlier no-op
+      registration silently replaced by the real one. Behaviour was
+      right; the dead binding misled every reader. Removed.
+- [x] **Health — M11's subsystems reported nothing.** One
+      `workspace_platform` collector on the existing extension point now
+      carries the file storage root, the AI-workspace switches, the
+      egress counters and the live search sources. Integrations are
+      deliberately absent: they are MCP providers and already ride the
+      `mcp` collector.
+- [x] Audit invariants pinned as tests
+      (`tests/unit/test_platform_integration.py`), so none of this can
+      regress quietly.
+
+**Verified and already correct** — recorded so a later audit knows they
+were checked rather than skipped: 170 routes with exactly six
+deliberate session-free exceptions; the `{data, meta}` envelope on every
+resource route (probes and SSE excepted); `404` for unknown ids and
+`400` for invalid input with zero deviations across 14 probes; 66 event
+classes with 61 relayed and 5 documented as absent, no duplicate relay
+names; 13 search sources each registered exactly once; 88 DI providers
+with no duplicate targets; 37 settings sections all under `JARVIS_`,
+all constructible from defaults; and cross-workspace writes refused
+with a reason.
+
+**Not built: the React/Tauri workspace UI.** The original brief paired
+"UI Integration" with "Platform Closure". The frontend half is M8's,
+which is deferred, so this task group delivered the backend integration
+only and **M11 is not closed**.
 
 ---
 
