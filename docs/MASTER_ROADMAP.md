@@ -6,9 +6,29 @@
 > into other docs.
 
 **Document owner:** project lead
-**Version:** 3.0 · Jul 2026 — reorganized long-term engineering roadmap
-(see the changelog note at the very end of this file for what changed
-and why).
+**Version:** 3.1 · Aug 2026 — records the approved architecture
+decisions (Local AI First, the AI/API Calibration Engine, the three-tier
+AI strategy, and the development freeze) and points to
+[`ARCHITECTURE.md` §22](ARCHITECTURE.md#22-approved-architecture-decisions-aug-2026)
+for their full specification. Version 3.0 · Jul 2026 reorganized the
+long-term engineering roadmap (see the changelog note at the very end of
+this file for what changed and why).
+
+> ### Development policy (Aug 2026)
+>
+> | Area | Status |
+> |---|---|
+> | Backend architecture | 🔒 **Frozen** |
+> | API contracts | 🔒 **Frozen** |
+> | Database schema | 🔒 **Frozen** |
+> | Core backend modules | 🔒 **Frozen** |
+> | Milestone structure | 🔒 **Frozen** |
+> | Frontend / UI / UX | 🟢 **Continues** |
+>
+> No additional backend architecture is introduced unless explicitly
+> approved **after UI validation**. Architecture changes require explicit
+> approval. Frozen does not mean finished — it means the shape is settled
+> and further change needs a decision, not a commit.
 **Companion docs:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`ARCHITECTURE_LEGACY.md`](ARCHITECTURE_LEGACY.md) · [`TECH_STACK.md`](TECH_STACK.md) · [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) · [`CONFIGURATION.md`](CONFIGURATION.md) · [`DEPENDENCY_INJECTION.md`](DEPENDENCY_INJECTION.md) · [`THEMING.md`](THEMING.md) · [`LOGGING.md`](LOGGING.md)
 **Delivery records:** [`MILESTONE_4_DELIVERY.md`](../MILESTONE_4_DELIVERY.md) · [`MILESTONE_5_DELIVERY.md`](../MILESTONE_5_DELIVERY.md) · [`MILESTONE_5_AGENTS_DELIVERY.md`](../MILESTONE_5_AGENTS_DELIVERY.md) · [`AUDIT_REPORT_M0-M5.md`](../AUDIT_REPORT_M0-M5.md) · [`AUDIT_REPORT_M5-AGENTS.md`](../AUDIT_REPORT_M5-AGENTS.md) · [`CHANGELOG.md`](../CHANGELOG.md)
 
@@ -1080,6 +1100,32 @@ asked to remove.
 ---
 
 ## 8. Future roadmap
+
+> **Approved architecture decisions (Aug 2026) apply across this whole
+> section.** Local AI First, the Universal AI/API Calibration Engine, the
+> AI Cost Optimizer, the three-tier AI strategy, the Oracle Cloud role,
+> the voice provider abstraction, hardware calibration, the Universal
+> Performance Engine, the installation platform, the two-account model,
+> and the hidden-backend-operations rule are specified in full in
+> [`ARCHITECTURE.md` §22](ARCHITECTURE.md#22-approved-architecture-decisions-aug-2026).
+>
+> They are **approved but not built**, and none is scheduled into a
+> milestone by that section — except Cross-Platform Distribution, which
+> joins **M22** (§22.15). The rest await milestone assignment under §20's
+> governance process; this document remains the single source of truth
+> for sequencing.
+>
+> **JARVIS Core Intelligence is deferred to Future Vision** and is not
+> part of the v1 roadmap (§22.16) — it needs a mature AI ecosystem, a
+> large user base, and more infrastructure and compute than the product
+> will have. Recorded rather than dropped, so it cannot silently
+> reappear as scope in a nearer milestone.
+>
+> Until the Calibration Engine exists, the binding rule for every
+> milestone below is: **do not build a competing design.** A feature
+> needing provider routing, cost control, voice-provider selection or
+> hardware profiling raises that as a blocker rather than solving it
+> locally.
 
 Every milestone below lists: **Objective**, **Key features**,
 **Dependencies**, **Complexity** (T-shirt size: S/M/L/XL), and
@@ -6655,6 +6701,17 @@ milestone — extending the existing Ollama local-first story to real
 edge deployment — into a complete enterprise-grade platform. See the
 changelog addendum at the end of this document.)*
 
+*(Aug 2026 — **Cross-Platform Distribution added to this milestone** per
+the approved architecture decisions: Windows, Linux and macOS builds, a
+Portable edition, an Installer and an Enterprise installer, Auto-update,
+Code signing, and an **OS abstraction layer**. Filed here because the OS
+abstraction layer is the same substrate M22's hardware backends already
+need, and splitting "run locally on this hardware" from "ship to this
+platform" across two milestones would give one concern two owners. Full
+specification: `ARCHITECTURE.md` §22.15. The OS abstraction layer is the
+load-bearing piece — it is what keeps §22.10's single installation flow
+honest across three platforms instead of three flows wearing one name.)*
+
 **Objective:** enable JARVIS to execute AI models locally with strong
 privacy, low latency, offline capability, hardware acceleration, and
 intelligent hybrid execution. The platform abstracts model providers,
@@ -9365,6 +9422,25 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 ---
 
 ## 13. AI provider roadmap
+
+> **Governed by the approved Local AI First architecture (Aug 2026).**
+> Every provider below is reached through the **AI/API Calibration
+> Engine**, never called directly, and provider *selection* is the
+> engine's decision rather than a per-feature one. The execution
+> priority is fixed — **Local AI → Cloud AI → Failover** — and every
+> installation ships with a local LLM, so the table below describes what
+> is *available*, not what is preferred. Full specification:
+> `ARCHITECTURE.md` §22.1–§22.4 and §22.7.
+>
+> Two consequences for this table specifically: no provider-specific
+> implementation exists above the adapter layer, and **normal users never
+> see provider information at all** (§22.11–§22.12) — this is an
+> engineering reference, not a user-facing menu.
+>
+> **Status: approved, not built.** No routing layer exists yet; today's
+> selection remains configuration-driven via
+> `JARVIS_LLM_DEFAULT_PROVIDER`/`JARVIS_LLM_FALLBACK_PROVIDER`, which
+> becomes an *input* to the engine rather than a competing mechanism.
 
 ### Chat providers
 

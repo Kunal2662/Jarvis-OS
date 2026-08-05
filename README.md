@@ -303,6 +303,28 @@ of truth) and [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md)
 lighter-weight, non-authoritative summary covering only M0–M6 — check
 the two documents above for anything current.
 
+### Development policy (Aug 2026)
+
+| Area | Status |
+|---|---|
+| Backend architecture · API contracts · Database schema · Core backend modules · Milestone structure | 🔒 **Frozen** |
+| Frontend / UI / UX | 🟢 **Continues** |
+
+No additional backend architecture is introduced unless explicitly
+approved after UI validation.
+
+**Approved target architecture** — Local AI First (every installation
+ships a local LLM; cloud enhances, never replaces), the Universal
+AI/API Calibration Engine (no external API is called directly), the AI
+Cost Optimizer, the three-tier AI strategy, hardware calibration at
+install time, Personal/Administrator accounts, and the rule that users
+never see provider names or routing — is specified in full in
+[`docs/ARCHITECTURE.md` §22](docs/ARCHITECTURE.md#22-approved-architecture-decisions-aug-2026).
+
+**It is approved, not built.** None of it exists in code yet; §22 is a
+contract for the milestones that will build it, and exists so nobody
+implements a competing design in the meantime.
+
 As of this writing: **M0–M6 shipped** (Foundation, Chat, Voice,
 Memory, Automation, Desktop Platform, Vision & Multimodal
 architecture layer); **M7 — Workflow Intelligence** active (Phases

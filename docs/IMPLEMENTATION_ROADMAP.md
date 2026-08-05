@@ -1,5 +1,33 @@
 # JARVIS OS — Implementation Roadmap (Active)
 
+> ### Development policy (Aug 2026) — read before starting a phase
+>
+> | Area | Status |
+> |---|---|
+> | Backend architecture · API contracts · Database schema · Core backend modules · Milestone structure | 🔒 **Frozen** |
+> | Frontend / UI / UX | 🟢 **Continues** |
+>
+> No additional backend architecture is introduced unless explicitly
+> approved **after UI validation.** A phase below that appears to need a
+> new backend route, model or contract should stop and raise it, not
+> add one.
+>
+> **Approved architecture decisions are recorded but not scheduled.**
+> Local AI First, the Universal AI/API Calibration Engine, the AI Cost
+> Optimizer, the three-tier AI strategy, the Oracle Cloud role, the
+> voice provider abstraction, hardware calibration, the Universal
+> Performance Engine, the installation platform, the two-account model
+> and the hidden-backend-operations rule are specified in
+> [`ARCHITECTURE.md` §22](ARCHITECTURE.md#22-approved-architecture-decisions-aug-2026).
+> **None of it is in any checklist in this document**, and none of it is
+> in scope for the phases below. Cross-Platform Distribution is the one
+> exception with a milestone: it joins M22.
+>
+> The binding rule until the Calibration Engine exists: **do not build a
+> competing design.** A phase needing provider routing, cost control,
+> voice-provider selection or hardware profiling raises a blocker rather
+> than solving it locally.
+
 > **Companion to [`MASTER_ROADMAP.md`](MASTER_ROADMAP.md) and
 > [`TECH_STACK.md`](TECH_STACK.md).** `MASTER_ROADMAP.md` remains the
 > complete historical + full future-milestone reference — nothing has

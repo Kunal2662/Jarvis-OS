@@ -54,6 +54,7 @@ mistakes a standard for a shipped guarantee.
 19. [Performance standards](#19-performance-standards)
 20. [Governance — how this document changes](#20-governance--how-this-document-changes)
 21. [Domain architecture map](#21-domain-architecture-map)
+22. [Approved architecture decisions (Aug 2026)](#22-approved-architecture-decisions-aug-2026)
 
 ---
 
@@ -1345,3 +1346,336 @@ repeated here.
 | Mobile Architecture | 🔴 Planned | M21 | `MASTER_ROADMAP.md` §8 M21 — Mobile Platform (Mobile Companion, Wearable integration); `docs/TECH_STACK.md` §10 |
 | Enterprise Architecture | 🔴 Planned | No single dedicated milestone — cross-cutting scope distributed across M15/M16/M18/M19/M20/M23 | `MASTER_ROADMAP.md` — "Enterprise collaboration" under M23 Distributed JARVIS is the primary owner; Personality/Plugin-Health/Model marketplaces (M15/M18/M22) are the marketplace-shaped pieces |
 | Future Extension Points | — | Ongoing, every milestone | §20 Governance above; the `ISearchSource`/`IPlatformAdapter`/provider-registry pattern this document's standards require at every external boundary is itself the extension mechanism — a future capability is a new adapter/source/provider, never a parallel system |
+
+---
+
+## 22. Approved architecture decisions (Aug 2026)
+
+**Status: approved, not built.** Every decision in this section has been
+signed off as the target architecture. None of it exists in code today.
+It is recorded here so that the milestones which do build it have a
+binding specification to build against, and so that no one implements a
+competing design in the meantime.
+
+Read this section as a contract for future work, not as a description of
+the running system. Where a decision constrains something that *does*
+exist today, that is called out explicitly.
+
+**Development policy in force alongside these decisions:**
+
+| Area | Status |
+|---|---|
+| Backend architecture | 🔒 **Frozen** |
+| API contracts | 🔒 **Frozen** |
+| Database schema | 🔒 **Frozen** |
+| Core backend modules | 🔒 **Frozen** |
+| Milestone structure | 🔒 **Frozen** |
+| Frontend / UI / UX | 🟢 Continues |
+
+No additional backend architecture is introduced unless explicitly
+approved after UI validation. Architecture changes require explicit
+approval — §20's governance rules apply to this section as to every
+other.
+
+---
+
+### 22.1 Local AI First
+
+**Global principle: JARVIS must never depend solely on cloud AI.**
+
+Every installation includes a local LLM. Cloud AI *enhances* JARVIS; it
+never *replaces* local AI. An installation with no network must remain a
+working assistant, not a degraded shell — this is the same local-first
+commitment §1 already makes for storage and state, extended to
+inference.
+
+Execution priority is fixed:
+
+```
+Local AI  →  Cloud AI  →  Failover
+```
+
+A hard ordering, not a preference: a request escalates to cloud only
+when local execution cannot satisfy it (§22.3), and failover is reached
+only when a selected cloud provider fails.
+
+**What this constrains today:** nothing shipped violates it, because no
+routing layer exists yet — `services/llm_service.py`'s provider
+selection is configuration-driven. That selection becomes an *input* to
+the Calibration Engine rather than a competing mechanism.
+
+---
+
+### 22.2 Universal AI/API Calibration Engine
+
+**Every external API call passes through the Calibration Engine. No API
+is called directly.**
+
+The same rule §8 already applies to services and §5 to REST routes,
+extended to outbound calls: one audited path, not one per feature.
+`core/integrations/gateway.py` (M11 Task Group E) is the existing
+precedent — a single egress point with pooling, retry and caching — and
+the Calibration Engine is that idea generalised with a routing decision
+in front of it.
+
+**Applies to:** LLM, Voice, Vision, OCR, Search, Translation,
+Automation, and every future API category. A new category joins by
+registering, not by bypassing.
+
+**Decision inputs:**
+
+| Class | Inputs |
+|---|---|
+| Hardware | CPU, GPU, RAM, NPU, Storage, Battery |
+| Network | Internet availability, Latency |
+| Provider | Provider health |
+| Budget | Monthly budget, Daily budget |
+| Request | Confidence score, Request complexity |
+| Policy | User policy, Administrator policy |
+
+The engine returns a routing decision — which tier, which provider, under
+what budget — and the caller executes it. A caller that inspects these
+inputs and decides for itself is the duplicate-mechanism failure this
+rule exists to prevent.
+
+---
+
+### 22.3 AI Cost Optimizer
+
+Before any cloud request:
+
+```
+Can Local AI complete this?
+        │
+       YES ──→ Use Local
+        │
+        NO
+        ↓
+Compare: Quality · Latency · Cost · Provider Health
+        ↓
+   Select Provider
+```
+
+**Goal: every cloud request must justify its cost.** "The cloud model is
+better" is not a justification on its own — it must be better *enough*
+for this request, against the budget inputs in §22.2.
+
+---
+
+### 22.4 Three-tier AI strategy
+
+| Tier | Scope | Contents |
+|---|---|---|
+| **Tier 1** | Local execution | Local LLM, Memory, Knowledge Graph, Piper, Whisper, OCR, Automation, Tasks, Calendar, File Search |
+| **Tier 2** | Cloud providers | OpenAI, Gemini, Groq, ElevenLabs, Search APIs, Vision APIs |
+| **Tier 3** | Enterprise AI *(future)* | Self-hosted GPU, Private AI |
+
+Tier 1 is the floor, not the fallback: those capabilities run locally in
+every installation. Tier 3 is explicitly future scope with no milestone
+assigned.
+
+---
+
+### 22.5 Oracle Cloud architecture
+
+Oracle Cloud Free Tier serves: Authentication · Admin Dashboard ·
+Synchronization · Analytics · Logging · PostgreSQL · Redis · Vector
+database · WebSocket coordination.
+
+**No AI inference by default.** The cloud tier coordinates and stores; it
+does not think. That is what preserves §22.1 — an installation that
+loses its cloud tier loses sync and analytics, not its assistant.
+
+Consistent with §1's existing Cloud box: optional, outbound-only.
+
+---
+
+### 22.6 Voice platform
+
+Voice runs through a **provider abstraction**, never a provider-specific
+implementation:
+
+| Role | Provider |
+|---|---|
+| Primary cloud TTS | ElevenLabs |
+| Primary local TTS | Piper |
+| Speech recognition | Faster Whisper |
+
+**Persistent voice identity: JARVIS always sounds like JARVIS.** The
+voice is a property of the product, not of whichever provider answered.
+Three binding consequences:
+
+- **Users never select providers.** There is no voice-provider dropdown.
+- **Automatic failover**, with automatic voice mapping across providers —
+  a failover must not change how JARVIS sounds mid-sentence.
+- **Administrators manage providers** (§22.11), not end users.
+
+---
+
+### 22.7 AI providers
+
+| Role | Providers |
+|---|---|
+| Primary | Local LLM |
+| Cloud | OpenAI, Gemini, Groq, and future providers |
+
+**Provider abstraction only. No provider-specific implementation above
+the adapter layer.** This is §8's existing ports-and-adapters rule stated
+for AI providers specifically: a feature that branches on "if provider is
+OpenAI" has broken it.
+
+---
+
+### 22.8 Hardware calibration
+
+During installation JARVIS detects CPU, GPU, RAM, VRAM, Storage,
+Internet, Battery and Temperature, and computes an **AI Capability
+Score**.
+
+From that score it automatically configures: local model selection, AI
+usage policy, performance profile, API usage policy.
+
+Automatically, not as a questionnaire — the installer measures the
+machine rather than asking the user to characterise it.
+
+---
+
+### 22.9 Universal Performance Engine
+
+**Goal: the same user experience across all hardware — a different
+execution strategy, not different features.**
+
+A low-powered machine runs smaller local models and leans harder on
+cloud within its budget. It does not lose capabilities and does not get a
+visibly different product. Feature parity is the invariant; execution
+strategy is the variable.
+
+---
+
+### 22.10 Installation platform
+
+Supported platforms: **Windows, Linux, macOS.**
+
+```
+Welcome
+   ↓
+Personal  OR  Administrator
+   ↓
+Hardware Scan
+   ↓
+AI Calibration
+   ↓
+Local Model Download
+   ↓
+Voice Setup
+   ↓
+Memory Initialization
+   ↓
+Ready
+```
+
+One flow across all three platforms. Local Model Download is a step in
+the standard installation, not an optional extra — that is what makes
+§22.1's "every installation includes a local LLM" true in practice.
+
+---
+
+### 22.11 Personal and Administrator accounts
+
+**Exactly two account types: Personal and Administrator.**
+
+**No feature differences — only management differences.** An
+Administrator does not get a better JARVIS; they get control over how a
+fleet of them is configured.
+
+Administrators control: Users · API keys · Provider priority · Budgets ·
+AI health · Analytics · Voice providers · Calibration policies.
+
+**Normal users never see provider information.** Not as a hidden setting,
+not behind an "advanced" toggle — it is not part of the personal user's
+product.
+
+---
+
+### 22.12 Hidden backend operations
+
+Users never see provider names, routing decisions, internal agents,
+backend execution, API switching, or failover. They see progress:
+
+> Working… · Thinking… · Preparing response… · Checking information… ·
+> Almost ready…
+
+A product decision with an architectural consequence: **status surfaces
+must not leak routing detail.** This constrains something that exists
+today — the Status Bar's "AI Provider" item
+(`components/layout/status-bar-contributions.tsx`) names a provider, and
+M8 Phase 3's Activity Center shows agent node names. Both are acceptable
+now because Developer Mode is the audience; both must be gated behind
+Administrator/Developer Mode before a personal-user build ships.
+Recorded here so that gating is a tracked requirement rather than a late
+discovery.
+
+---
+
+### 22.13 Cross-agent collaboration
+
+**Approved.** Agents collaborate internally, backend-only, invisible to
+users — consistent with §22.12. Collaboration is an implementation detail
+of producing an answer, never a surface.
+
+---
+
+### 22.14 AI Health Dashboard
+
+**Administrator only.** Displays provider health, latency, failures,
+usage, cost, API budget, success rate, and the local-vs-cloud ratio.
+
+The local-vs-cloud ratio is the direct measure of whether §22.1 and
+§22.3 are actually holding in production, which is why it is a
+first-class metric rather than something derived on request.
+
+---
+
+### 22.15 Cross-platform distribution (M22)
+
+Windows · Linux · macOS · Portable edition · Installer · Enterprise
+installer · Auto-update · Code signing · OS abstraction layer.
+
+Assigned to **M22**. The OS abstraction layer is the load-bearing piece:
+it is what keeps §22.10's single installation flow honest across three
+platforms rather than three flows wearing one name.
+
+---
+
+### 22.16 JARVIS Core Intelligence — deferred to Future Vision
+
+**Status: deferred. Not part of the v1 roadmap.**
+
+Reason: requires a mature AI ecosystem, a large user base, more
+infrastructure and more compute than the product will have. Recorded as
+Future Vision rather than dropped, so it does not silently reappear as
+scope in a nearer milestone.
+
+---
+
+### 22.17 Recommended free infrastructure
+
+Oracle Cloud Free Tier · Cloudflare · GitHub · GitHub Actions ·
+PostgreSQL · Redis · Qdrant · Docker
+
+Recommended defaults for *development*, not a production dependency
+list. §22.5 governs what the cloud tier is actually for.
+
+---
+
+### 22.18 Where these decisions get built
+
+This document schedules none of §22 into a milestone. §22.15 names M22
+because that assignment came with the decision; the rest await milestone
+assignment under §20's governance process, and `MASTER_ROADMAP.md`
+remains the single source of truth for sequencing.
+
+Until then the rule is: **do not build a competing design.** A feature
+that needs provider routing, cost control, voice-provider selection or
+hardware profiling before the Calibration Engine exists should raise that
+as a blocker, not solve it locally.

@@ -3,6 +3,59 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] — Documentation: approved architecture decisions
+
+Documentation only. **No application code changed** — no backend, no
+frontend, no version bump. The application version stays `0.30.0`;
+`MASTER_ROADMAP.md`'s own document version moves 3.0 → 3.1.
+
+Records eighteen approved architecture decisions as the binding target
+architecture, and the development freeze that accompanies them.
+
+### Added
+- **`docs/ARCHITECTURE.md` §22 — Approved architecture decisions (Aug
+  2026)**, eighteen subsections covering Local AI First (§22.1), the
+  Universal AI/API Calibration Engine (§22.2), the AI Cost Optimizer
+  (§22.3), the three-tier AI strategy (§22.4), the Oracle Cloud role
+  (§22.5), the voice platform (§22.6), AI providers (§22.7), hardware
+  calibration (§22.8), the Universal Performance Engine (§22.9), the
+  installation platform (§22.10), Personal/Administrator accounts
+  (§22.11), hidden backend operations (§22.12), cross-agent
+  collaboration (§22.13), the AI Health Dashboard (§22.14),
+  cross-platform distribution (§22.15), JARVIS Core Intelligence's
+  deferral (§22.16), recommended free infrastructure (§22.17), and where
+  the rest gets built (§22.18).
+
+### Changed
+- **`docs/MASTER_ROADMAP.md`** — the development-policy freeze at the
+  top; a note at the head of §8 Future Roadmap making §22 binding across
+  every milestone; §13 AI Provider Roadmap reframed as available
+  providers reached *through* the Calibration Engine rather than a
+  selection menu; **Cross-Platform Distribution added to M22**, filed
+  there because the OS abstraction layer is the same substrate M22's
+  hardware backends need.
+- **`docs/IMPLEMENTATION_ROADMAP.md`** — the same freeze, stated as a
+  pre-flight check before starting a phase, plus an explicit note that
+  none of §22 is in any checklist in that document.
+- **`README.md`** — a pointer to §22 and the freeze.
+
+### Notes
+- **Approved is not built.** Every decision in §22 is signed off as the
+  target architecture and **none of it exists in code**. The section is
+  written as a contract for future work, and says so in its first line,
+  so it cannot be misread as a description of the running system.
+- **Two places where §22 constrains what already exists** are called out
+  rather than left to be discovered later: today's configuration-driven
+  provider selection (`JARVIS_LLM_DEFAULT_PROVIDER`) becomes an *input*
+  to the Calibration Engine rather than a competing mechanism (§22.1);
+  and the Status Bar's "AI Provider" item plus the Activity Center's
+  agent node names both leak routing detail that §22.12 forbids to
+  personal users — acceptable while Developer Mode is the audience, and
+  now a tracked gating requirement before a personal-user build ships.
+- **Nothing was scheduled** beyond M22. The rest awaits milestone
+  assignment under `ARCHITECTURE.md` §20's governance process;
+  `MASTER_ROADMAP.md` stays the single source of truth for sequencing.
+
 ## [0.30.0] — M8 Phase 3: Universal Workspace Framework
 
 Panels. The frontend gains a dockable, resizable, persistable workspace
