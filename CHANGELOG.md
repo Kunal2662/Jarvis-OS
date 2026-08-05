@@ -3,6 +3,126 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.0] — M8 Phase 2: Universal Application Framework & Logic
+
+The React client stops being a self-contained shell and starts talking to
+the Python process. Most of this phase was not writing new frameworks —
+Phase 1 built those — but connecting them to a backend that had moved on
+underneath them, and finding that in three places the client's idea of
+the backend was simply wrong.
+
+**The recurring defect: a client written against the spec, not the
+server.** Phase 1 shipped its REST and WebSocket layers before the
+backend routes existed, using `ARCHITECTURE.md`'s illustrative examples
+as the contract. The examples were illustrative. Every drift below is the
+same mistake, and the fix is the same idea in each case — assert against
+the running server, not the document.
+
+### Security
+- **`SettingsService.snapshot()` leaked OAuth client secrets.** Pydantic
+  redacts a `SecretStr` on dump, which covers `openai.api_key` and its
+  neighbours. It does not cover a secret inside a plain container, and
+  `integrations.clients` (added by M11 Task Group E) is a
+  `dict[str, dict[str, str]]` whose `client_secret` entries dump
+  verbatim. The leak was latent — the only caller was the in-process
+  PySide6 Configuration Manager — but adding a settings API is precisely
+  the change that would have made it live, and it would have shipped a
+  route that published Google OAuth client secrets to any authenticated
+  caller. `public_snapshot()` now redacts by *key name* (the only check
+  that catches a secret whose type says nothing about it), and the REST
+  route serves that and never `snapshot()`. Two methods rather than one
+  with a flag, matching `Credential.to_storage_dict`/`to_public_dict`:
+  a method callers must remember to sanitise is one somebody forgets.
+
+### Fixed
+- **Eleven of the client's fourteen WebSocket event names did not
+  exist.** `ai.token`, `ai.step`, `ai.complete`,
+  `voice.transcript_partial`, `voice.transcript_final`,
+  `automation.step_started`, `automation.step_completed`,
+  `automation.workflow_finished`, `progress.update`,
+  `notification.created` and `runtime.module_state_changed` were never
+  emitted by anything. A handler registered for any of them would never
+  fire — silently, with no error anywhere. The vocabulary is now the real
+  61 names from `EVENT_TYPE_NAMES`, and three of the six payload
+  interfaces this phase types had wrong field names too
+  (`AutomationStepPayload` and `PluginNotificationPayload` were
+  invented; `UpdatePhasePayload` was missing `session_id`).
+- **The REST client discarded every error message the backend sent.** It
+  understood only the `{"error": {...}}` envelope from `ARCHITECTURE.md`
+  §9, which no route produces — every route raises `HTTPException`, which
+  serialises as `{"detail": "..."}`. So a real "Workspace not found"
+  surfaced as "Request failed with status 404". Both shapes are handled,
+  `detail` first because it is the one that occurs.
+- **The REST client expected cursor pagination.** It read
+  `meta.next_cursor`; the backend ships offset paging
+  (`{count, limit, offset, has_more}`) as of M11 Task Group F, which
+  recorded that divergence rather than hiding it. `apiList` follows the
+  server.
+- **A 2xx with a non-envelope body threw a bare `TypeError`** from inside
+  the client, naming nothing. It now raises `MALFORMED_RESPONSE` naming
+  the route, and flows through the normal error path. Found by a test.
+- **`notification.created` in `notifications.store.ts`** — a comment
+  documenting an event that has never existed. The real one is
+  `notification.plugin`.
+
+### Added
+- **A generated WebSocket contract, asserted from both sides.**
+  `scripts/export_ws_contract.py` writes
+  `frontend/src/services/websocket/event-contract.generated.json` from
+  `EVENT_TYPE_NAMES` and each event's dataclass fields.
+  `tests/unit/test_ws_contract_export.py` fails if the checked-in file is
+  stale; `websocket-contract.test.ts` fails if the TypeScript disagrees
+  with it. Neither side can drift without something going red — which is
+  the only durable fix for the class of defect above.
+- **`GET /api/v1/settings` and `/api/v1/settings/{dotted_key}`** —
+  read-only, session-authenticated, `{data, meta}` envelope, secrets
+  redacted. Read-only deliberately: writing a setting means writing
+  `.env`, which is a privilege-escalation surface belonging with M14's
+  Security Platform, not with a frontend phase whose job is to read real
+  values.
+- **Frontend service layer** — `services/api/client.ts` (typed REST,
+  configurable base URL via `VITE_API_BASE_URL`),
+  `services/api/session.ts` (the authentication flow; the token is
+  deliberately not persisted), `services/api/endpoints.ts` (typed
+  helpers for every M9–M11 surface the client reads),
+  `services/backend-connection.ts` (the ping → session → socket
+  ordering, in one place), `services/realtime-bridge.ts` (every
+  WebSocket subscription, installed once at startup rather than inside
+  component effects), `services/permissions-sync.ts`,
+  `services/error-reporting.ts`.
+- **Stores and hooks** — `connection.store.ts`, `settings.store.ts`,
+  `agent-activity.store.ts`, `use-backend-status.ts`.
+- **`npm run typecheck`** as a permanent quality gate. It runs
+  `tsc -b --noEmit`, not `tsc --noEmit`: the root `tsconfig.json` is a
+  solution file (`"files": []`), so plain `tsc --noEmit` type-checks zero
+  files and exits 0 — a gate that always passes. Verified with
+  `--listFilesOnly` before choosing build mode. It caught six real errors
+  on its first run.
+
+### Notes
+- **Offline is an explicit state, never fake data.** `BackendState`
+  distinguishes `unreachable` (the process is not answering) from
+  `unauthenticated` (it is, but refused a session), because collapsing
+  them produces a UI that says "something went wrong" when the truth is
+  "JARVIS isn't running". A failed request while offline deliberately
+  does *not* toast — the condition is already on screen persistently.
+- **Permissions are surfaced from M9's `PermissionModel`.** The roadmap
+  files this under "the backend's Authorization Engine (M14)"; M14 does
+  not exist. The Authorization Engine that does exist owns the same
+  ten-scope vocabulary `core/permission-framework.ts` already mirrors, so
+  Phase 2 surfaces that one and `services/api/endpoints.ts` is the single
+  place that repoints if M14 supersedes it.
+- **Storage needed no new work.** `core/storage-framework.ts` already
+  implements the four sensitivity tiers ARCHITECTURE.md §12 specifies,
+  including refusing client-side encryption rather than pretending to
+  offer it. Verified, not rebuilt.
+- **The "API Integration Rework" sub-block is not included.** Those ten
+  items (Real API Activation, Provider Registry, Runtime Provider
+  Registration, failover, …) are backend provider-lifecycle work tied to
+  M11's API Center Architecture module, not frontend framework work, and
+  they are not honestly completable in this phase. They remain unchecked
+  in `IMPLEMENTATION_ROADMAP.md` with this note.
+
 ## [0.28.0] — M11 Task Group F: Platform Integration & Closure
 
 An audit of every cross-cutting surface M11 built, and the fixes the

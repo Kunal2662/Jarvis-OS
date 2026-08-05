@@ -93,11 +93,14 @@ future work; see M6's own §3 entry for the full scope note.
   actively blocked on anything further. See M7's own §8 entry for the
   full phase-by-phase status, including acceptance-criteria detail.
 - **M8 — React Frontend & Desktop Experience** (see §8) — Phase 1
-  (React Foundation) and Phase 4 (Voice Experience & Motion, in full —
+  (React Foundation), Phase 2 (Universal Application Framework & Logic,
+  v0.29.0 — everything except its API Integration Rework sub-block,
+  which is backend provider-lifecycle work belonging to M11's API Center
+  Architecture module) and Phase 4 (Voice Experience & Motion, in full —
   the Premium UI & Voice Experience initiative's five task groups
   H–L) shipped; Phase 3 (Desktop Workspace) partially shipped (Dashboard,
   Sidebar, Dock, Status Bar, Command Palette shell, Dashboard Widget
-  Grid); Phases 2, 5, 6, 7 and the remainder of Phase 3 (Notification
+  Grid); Phases 5, 6, 7 and the remainder of Phase 3 (Notification
   Center, Context Menu system, Background Task Manager, Workspace
   views, Window management, Developer Mode's 9 read-only viewers,
   Responsive/DPI/Multi-monitor) are 🟠 **deferred to the Deferred
@@ -1206,7 +1209,7 @@ Hook Form, Zod, the Inter font, design tokens, a Theme Engine
 equivalent to M5's, and a base component library. Full technology
 rationale in `TECH_STACK.md`.
 
-#### Phase 2 — Universal Application Framework & Logic
+#### Phase 2 — Universal Application Framework & Logic ✅ *(v0.29.0)*
 The mandatory shape every application in the new frontend follows:
 Business Logic → State Machine → Service Layer → React Hooks → State
 Store → Authentication → Permissions → Storage → Settings → API Layer
@@ -1216,6 +1219,20 @@ Offline Support → Error Handling. Ports the §7 UI Foundation's
 redesigning it (see §7's own frontend migration note). **No fake
 data** — every screen renders a real value, a real loading state, or a
 real empty state; never a placeholder dressed up to look real.
+
+*Shipped v0.29.0.* The phase's substantive finding: Phase 1's REST and
+WebSocket layers had been written against `ARCHITECTURE.md`'s
+*illustrative* examples before the backend routes existed, and had
+drifted — eleven of fourteen client event names named nothing that is
+emitted, the error envelope matched no route, and pagination expected
+cursors the backend does not send. Fixed, and pinned against drift by a
+contract generated from `EVENT_TYPE_NAMES` and asserted by both test
+suites (`scripts/export_ws_contract.py`). The phase also found and
+closed a latent OAuth client-secret leak in `SettingsService.snapshot()`
+— see `CHANGELOG.md` 0.29.0. **The API Integration Rework sub-block is
+not included**: those ten items are backend provider-lifecycle work
+belonging to M11's API Center Architecture module, and remain open in
+`IMPLEMENTATION_ROADMAP.md` §2.
 
 #### Phase 3 — Desktop Workspace
 Dashboard, Sidebar, Dock, Workspace views (one per M5 workspace:

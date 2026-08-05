@@ -1,6 +1,8 @@
 import { registerCoreStatusBarItems } from "@/components/layout/status-bar-contributions";
 import { registerCoreDashboardWidgets } from "@/features/dashboard/dashboard-widgets";
 import { registerPlaceholderModules } from "@/modules/register-modules";
+import { ensureRealtimeBridge } from "@/services/realtime-bridge";
+import { useConnectionStore } from "@/stores/connection.store";
 
 export type StartupPriority = "high" | "medium" | "low";
 
@@ -39,11 +41,26 @@ export interface StartupTask {
  *   honestly empty rather than padded with fabricated delays just to
  *   fill out three tiers -- it becomes real once a real background
  *   service (cache cleanup, analytics, etc.) actually exists.
+ *
+ * **M8 Phase 2 makes the `low` tier real.** `backend-connection` reaches
+ * the Python process, obtains a session and opens the WebSocket; it sits
+ * in `low` because nothing above it needs the backend to have answered,
+ * and it never rejects -- a backend that is not running resolves to an
+ * explicit `unreachable` state that the UI renders, rather than throwing
+ * and stalling the reveal. `realtime-bridge` runs *before* it, in
+ * `medium`, so no relayed event can arrive before a handler exists.
  */
 const STARTUP_TASKS: StartupTask[] = [
   { id: "status-bar", label: "Status Bar", priority: "high", run: registerCoreStatusBarItems },
   { id: "dashboard-widgets", label: "Dashboard Shell", priority: "high", run: registerCoreDashboardWidgets },
   { id: "modules", label: "Modules", priority: "medium", run: registerPlaceholderModules },
+  { id: "realtime-bridge", label: "Live Events", priority: "medium", run: ensureRealtimeBridge },
+  {
+    id: "backend-connection",
+    label: "JARVIS Backend",
+    priority: "low",
+    run: () => useConnectionStore.getState().connect(),
+  },
 ];
 
 async function runTier(priority: StartupPriority): Promise<void> {

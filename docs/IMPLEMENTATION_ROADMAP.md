@@ -149,32 +149,81 @@ rendered route, caused by mixing `index: true` with an explicit
 `routes/router.tsx`.
 
 ### Phase 2 — Universal Application Framework & Logic
-- [ ] Business Logic → State Machine → Service Layer → Hooks → Store
+- [x] Business Logic → State Machine → Service Layer → Hooks → Store
       pattern established as the mandatory shape for every application
       (mirrors the PySide6-era `ModuleStateMachine` foundation —
       `domain/app_state/` — ported to a TypeScript equivalent, not
-      redesigned from scratch).
-- [ ] Authentication flow against the FastAPI backend.
-- [ ] Permissions model surfaced from the backend's Authorization
-      Engine (M14).
-- [ ] Storage — client-side persistence layer (Tauri's filesystem
+      redesigned from scratch). `core/module-lifecycle.ts` is that port
+      (12 states, same transition graph, `InvalidStateTransitionError`)
+      and shipped in Phase 1; Phase 2 supplies the Service Layer and
+      Hooks tiers the pattern was missing (`services/`, `hooks/use-
+      backend-status.ts`) and follows the direction strictly — no
+      business logic in a store, no `websocketManager` import in a
+      component.
+- [x] Authentication flow against the FastAPI backend —
+      `services/api/session.ts`. One credential across both transports
+      (Bearer header for REST, `?token=` for the WebSocket), per
+      `ARCHITECTURE.md` §5/§6. Not persisted, deliberately: backend
+      sessions do not survive a restart, and M11 Task Group F tightened
+      `/sessions/{id}` because a leaked id is a real problem.
+- [x] Permissions model surfaced from the backend's Authorization
+      Engine (M14) — surfaced from **M9's `PermissionModel`**, the
+      Authorization Engine that actually exists, whose ten-scope
+      vocabulary `core/permission-framework.ts` already mirrors exactly.
+      `services/permissions-sync.ts` feeds the existing framework rather
+      than adding a second permission system; write-through asks the
+      backend first, so a permission is never shown as held that the
+      enforcing process does not recognise. Repoints in one place if a
+      future M14 supersedes it.
+- [x] Storage — client-side persistence layer (Tauri's filesystem
       APIs / local storage as appropriate per data sensitivity).
-- [ ] Settings — API layer + store, real backend-backed values only.
-- [ ] API layer — typed REST client + WebSocket client, per
-      `TECH_STACK.md` §3.
-- [ ] Voice Integration — WebSocket-streamed voice state, replacing
-      the PySide6 `VoiceOrb`'s direct service calls.
-- [ ] AI Integration — chat/agent streaming over WebSocket.
-- [ ] Automation Integration — automation run status over WebSocket.
-- [ ] Offline support — graceful degradation when the Python backend
+      `core/storage-framework.ts` already implements all four
+      sensitivity tiers of `ARCHITECTURE.md` §12, including refusing
+      client-side encryption rather than pretending to offer it.
+      Verified as sufficient; no new work, and none invented.
+- [x] Settings — API layer + store, real backend-backed values only.
+      New `GET /api/v1/settings` (read-only, secrets redacted
+      server-side) + `stores/settings.store.ts`. Distinct from
+      `core/settings-framework.ts`, which owns *per-module client*
+      settings — different owner, different lifetime.
+- [x] API layer — typed REST client + WebSocket client, per
+      `TECH_STACK.md` §3. `services/api/client.ts`,
+      `services/api/endpoints.ts`, `services/websocket/`. Three drifts
+      from the real server corrected (error envelope, pagination,
+      event vocabulary) — see `CHANGELOG.md` 0.29.0.
+- [x] Voice Integration — WebSocket-streamed voice state, replacing
+      the PySide6 `VoiceOrb`'s direct service calls. `voice.state_changed`
+      drives `stores/voice-state.store.ts` through
+      `services/realtime-bridge.ts`.
+- [x] AI Integration — chat/agent streaming over WebSocket. `agent.step`
+      relays step-level progress into `stores/agent-activity.store.ts`.
+      Token-level output stays on `/api/v1/agent/stream` (SSE) — M10's
+      deliberate split, not an omission.
+- [x] Automation Integration — automation run status over WebSocket
+      (`automation.step`).
+- [x] Offline support — graceful degradation when the Python backend
       is unreachable (never fake data — an explicit "disconnected"
-      state).
-- [ ] Error handling — a single, consistent error-boundary + toast
-      pattern for the whole app.
+      state). `services/backend-connection.ts` distinguishes
+      `unreachable` from `unauthenticated`; `selectIsOffline` does not
+      report offline before an attempt has concluded.
+- [x] Error handling — a single, consistent error-boundary + toast
+      pattern for the whole app. `providers/error-boundary.tsx` (render
+      failures) + `services/error-reporting.ts` (action failures), with
+      one `describeError` deciding what any failure reads like.
 
 **API Integration Rework** *(added Aug 2026 per the roadmap
 architecture review — full design in `MASTER_ROADMAP.md` §8 M11's
 API Center Architecture module)*:
+
+> **Not delivered by M8 Phase 2 (v0.29.0), deliberately.** Every item
+> below is *backend* provider-lifecycle work — activation, registration,
+> validation, failover, health polling — belonging to M11's API Center
+> Architecture module, not to the frontend framework phase this block
+> happens to sit inside. Phase 2 shipped the rest of §2 in full; these
+> ten were left unchecked rather than marked done on the strength of a
+> client that can merely *display* provider state. They need their own
+> milestone slot.
+
 - [ ] Real API Activation — a saved key activates its provider
       immediately, no restart.
 - [ ] Provider Registry — the live, post-startup registration surface
@@ -1798,12 +1847,18 @@ note above and in §5 for why M9 was never blocked on any of this.)*
 - [ ] Window management (Tauri window APIs).
 - [ ] Responsive layout, DPI scaling, multi-monitor support.
 
-### M8 Phase 2 — Universal Application Framework & Logic (in full)
-- [ ] Business Logic → State Machine → Service Layer → Hooks → Store
-      pattern, Authentication, Permissions, Storage, Settings API
-      layer, Voice/AI/Automation Integration, Offline support, Error
-      handling, and the full API Integration Rework block — see §2
-      above for the complete itemized list.
+### M8 Phase 2 — Universal Application Framework & Logic
+**Shipped in v0.29.0** — Business Logic → State Machine → Service Layer
+→ Hooks → Store pattern, Authentication, Permissions, Storage, Settings
+API layer, Voice/AI/Automation Integration, Offline support and Error
+handling are all complete; see §2 above for the itemized list and
+`CHANGELOG.md` 0.29.0 for what the phase found and fixed.
+- [ ] **API Integration Rework block only** — the ten provider-lifecycle
+      items (Real API Activation, Provider Registry, Runtime Provider
+      Registration, API Validation, Connection Testing, Health Checks,
+      Automatic Provider Loading, Provider Failover, No Fake Providers,
+      Runtime Provider Switching). Backend work belonging to M11's API
+      Center Architecture module; see the note in §2.
 
 ### M8 Phase 5 — Settings & User Profiles (in full)
 - [ ] Dynamic Settings, Settings page structure (General/Appearance/

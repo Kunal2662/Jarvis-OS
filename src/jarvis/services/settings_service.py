@@ -13,7 +13,7 @@ app than in-flight DI re-wiring.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from jarvis.core.exceptions import ServiceError
 from jarvis.core.logging.logger import get_logger
@@ -137,7 +137,41 @@ class SettingsService:
     # Read
     # ------------------------------------------------------------------
     def snapshot(self) -> dict[str, Any]:
+        """The **full** settings tree, secrets included where the model
+        does not wrap them.
+
+        In-process callers only -- the PySide6 Configuration Manager view
+        runs inside the same trust boundary as the ``.env`` file it is
+        displaying. Anything that leaves the process must use
+        :meth:`public_snapshot` instead.
+        """
         return self._settings.model_dump(mode="json")
+
+    def public_snapshot(self) -> dict[str, Any]:
+        """The settings tree with every secret redacted -- the only form
+        that may cross a process boundary (M8 Phase 2).
+
+        Two serializers rather than one, the same split
+        ``Credential.to_storage_dict`` / ``to_public_dict`` already uses
+        in ``core/mcp/auth/credentials.py``, and for the same reason: a
+        single method that callers must remember to sanitise is a method
+        somebody will forget to sanitise.
+
+        **Why this is not redundant with ``SecretStr``.** Pydantic
+        redacts a ``SecretStr`` on dump, which covers ``openai.api_key``
+        and friends. It does *not* cover a secret living inside a plain
+        container -- ``integrations.clients`` (M11 Task Group E) is a
+        ``dict[str, dict[str, str]]`` whose ``client_secret`` entries
+        dump verbatim. Redacting by *key name* here catches that case and
+        every future one shaped like it, which typing alone would not.
+        """
+        # `_redact` is genuinely polymorphic -- it returns a str for a
+        # secret leaf, a dict for a mapping, a list for a sequence -- so
+        # its return type is `Any`. The cast is safe because a dict input
+        # always produces a dict: the only branch that could return
+        # something else needs a secret-looking `key`, and the top-level
+        # call passes none.
+        return cast("dict[str, Any]", _redact(self._settings.model_dump(mode="json")))
 
     def get(self, dotted_key: str) -> Any:
         node: Any = self._settings
@@ -177,3 +211,45 @@ class SettingsService:
         if not replaced:
             lines.append(line)
         self._env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+#: Substrings that mark a settings key as secret. Matched
+#: case-insensitively against the *key*, not the value, because a value
+#: heuristic ("looks like a token") both misses real secrets and redacts
+#: innocent strings. Deliberately broad: a redacted non-secret is a
+#: cosmetic problem, a leaked secret is not.
+_SECRET_KEY_MARKERS: tuple[str, ...] = (
+    "secret",
+    "password",
+    "api_key",
+    "apikey",
+    "token",
+    "credential",
+    "private_key",
+)
+
+#: What a redacted value is replaced with. Matches what pydantic's own
+#: ``SecretStr`` renders, so a consumer cannot tell which mechanism did
+#: the redacting and does not need to.
+REDACTED = "**********"
+
+
+def _is_secret_key(key: str) -> bool:
+    lowered = key.lower()
+    return any(marker in lowered for marker in _SECRET_KEY_MARKERS)
+
+
+def _redact(value: Any, *, key: str = "") -> Any:
+    """Recursively replace secret-looking leaves.
+
+    A secret key whose value is a container redacts the whole container
+    rather than descending into it -- ``{"credentials": {...}}`` should
+    not leak because the nesting hid it from a leaf-only check.
+    """
+    if key and _is_secret_key(key):
+        return REDACTED
+    if isinstance(value, dict):
+        return {k: _redact(v, key=k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    return value
