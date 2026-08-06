@@ -91,7 +91,44 @@ reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
 version timeline uses the same four symbols consistently.)*
 
-**Current version:** `0.25.0`
+**Current version:** `0.36.0`
+
+*(Corrected Aug 2026. This line read `0.25.0` while the package was at
+`0.35.0` — ten releases of drift, in the one field a reader checks
+first. `pyproject.toml` and `src/jarvis/__version__.py` are the source
+of truth, and as of `0.36.0` `frontend/src-tauri/tauri.conf.json` is
+held to the same number by `tests/unit/test_version_consistency.py`.
+This document is not machine-checked; when it disagrees with those
+files, they are right.)*
+
+### Execution order
+
+The order work is actually being done in, which is **not** ascending
+numeric order:
+
+```
+M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8   ✅ completed
+                                  ↓
+M22  ← current
+  TG-A ✅   TG-B ✅   TG-C 🟡 current   TG-D   TG-E   TG-F
+                                  ↓
+M9 → M10 → M11 → M12 → M13 → M14 → M15 → M16 → M17 → M18 → M19 → M20 → M21
+                                  ↓
+M23 — Core Intelligence   🟠 deferred
+```
+
+**Why M22 runs out of order:** it owns installation and packaging.
+Until it ships there is no way to *deliver* M1–M8 to a machine that is
+not a development checkout, so every milestone after it would be built
+on top of software nobody can install.
+
+Numbering is unchanged — this is a sequencing decision, not a
+renumbering. Individual entries below keep their own detailed status,
+including scope explicitly deferred within a milestone (M7's Phases
+4–6, M8's Deferred Backlog, M10's M14/M16-dependent remainder). A
+milestone marked completed here means its *planned scope for this pass*
+shipped, not that every idea ever filed under its number is built; the
+deferrals are tracked in each entry rather than erased by the summary.
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -126,14 +163,32 @@ future work; see M6's own §3 entry for the full scope note.
   (AI Workspace & Module Integration) and Phase 6's production-UX half
   shipped at v0.31.0** — the AI, Developer and Administrator dashboards,
   the §22.12 audience gate, skeletons, per-widget state handling and
-  connection recovery. Phase 7, Phase 6's visual-design pass, Settings &
-  User Profiles, and the remainder of Phase 3 (Context Menu system,
+  connection recovery. **Phase 7 (Production Readiness) shipped at
+  v0.32.0**, closing M8's planned scope: the security review against
+  §22.11/§22.12, the release-readiness checklist, and four defects a
+  live-backend audit found that code review had not — a three-release
+  version drift, five widgets instructing the user to use a control
+  that did not exist, a health selector reporting "degraded" for a
+  collector that was simply absent, and default-emptiness logic that
+  did not understand a paginated payload. **M8 is complete** as of
+  v0.32.0 in the sense §2's Execution order defines: its planned scope
+  for this pass shipped. Phase 6's visual-design pass, Settings & User
+  Profiles, and the remainder of Phase 3 (Context Menu system,
   Background Task Manager, Workspace views, Window management, Developer
-  Mode's 9 read-only viewers, DPI/Multi-monitor) are 🟠 **deferred to
-  the Deferred Backlog** (see the new subsection under M8's §8 entry) —
-  none of this blocks M9, which has no real dependency on it (see
-  `IMPLEMENTATION_ROADMAP.md` §5's own Dependencies note). **M8 is not
-  100% complete** — do not treat it as shipped.
+  Mode's 9 read-only viewers, DPI/Multi-monitor) remain 🟠 **deferred to
+  the Deferred Backlog** (see the subsection under M8's §8 entry) — none
+  of it blocks M22 or M9 (see `IMPLEMENTATION_ROADMAP.md` §5's own
+  Dependencies note).
+- **M22 — Cross-Platform Distribution & Universal Installer** (§8's
+  "M22 — Edge AI Platform" entry; the milestone absorbed cross-platform
+  distribution in Aug 2026) — 🟡 **current, running out of numeric
+  order** per §2's Execution order. Task Group A (Universal Installer
+  Foundation, v0.33.0) and Task Group B (Runtime Provisioning, v0.34.0)
+  shipped, followed by the Installer UI integration (v0.35.0) that
+  connected them. **Task Group C (Windows Packaging & Host Bridge,
+  v0.36.0)** is the current task group. Task Groups D–F are not
+  started. See §8's M22 entry for the per-task-group detail and
+  `IMPLEMENTATION_ROADMAP.md` for the checklists.
 - **M9 — Runtime & Core Services** (see §8) — ✅ **100% complete, all
   five task groups shipped:** Task Group A (Runtime Manager,
   Application Lifecycle), Task Group B (Service Manager, Session
@@ -6866,14 +6921,41 @@ disagree with the engine. Speed and time remaining are the two derived
 values, computed in the UI because a rate is a property of an observer
 over an interval rather than a fact about a download.
 
-**The host bridge is intentionally deferred to Task Group C.**
-`@tauri-apps/plugin-shell` is not a dependency and no Rust command
-spawns the Python process. Rather than add a dependency so a screen
-looks finished, the transport *defines the contract* -- one command, one
-event -- and rejects with a readable reason when the host cannot supply
-it, which surfaces as friendly copy with a Retry. A stub that resolved
-quietly would make the installer look complete while installing nothing.
-See `IMPLEMENTATION_ROADMAP.md` for the five items TG-C must implement.
+**Task Group C — Windows Packaging & Host Bridge 🟡 v0.36.0, code
+complete but unbuilt.** The bridge TG-B deferred: `installer.rs` spawns
+the Python engine, relays its stdout as `provisioning://event`, and
+implements the four contract commands. **Not one payload, command name
+or event name changed** when it landed — the contract was written first
+precisely so the UI would need no edit on the day the host arrived, and
+it did not.
+
+*Cancellation became reachable.* The frontend had modelled a cancelled
+run since v0.35.0 — classifier, label, icon — with nothing able to
+trigger it. TG-C's scope names cancellation, so the host command and the
+control that calls it close that loop rather than leaving a state no
+user could reach.
+
+*The planned `@tauri-apps/plugin-shell` dependency was not added, and
+planning it was the error.* A Rust command spawning a process needs no
+plugin; the shell plugin exists to let *JavaScript* spawn processes,
+which is a strictly larger capability than this needs and one worth
+withholding from a webview.
+
+*Three hang guards, one of which did not work.* The inactivity timeout
+was checked after reading a line — so a process that hung producing no
+output, the one case it exists for, never reached it. stdout now feeds a
+channel and the loop waits with a timeout, which makes both the timeout
+and prompt cancellation real. A second defect in the same pass: `Child`
+detaches rather than kills on drop, so closing the window mid-run left
+Python downloading gigabytes invisibly.
+
+**This task group is not verified.** There is no Rust toolchain on the
+build machine, so nothing here has been compiled and no installer has
+been produced — see `IMPLEMENTATION_ROADMAP.md` and `MILESTONE_REPORT.md`
+for exactly what is proven and what is not. The contract between Rust
+and TypeScript *is* tested, by a suite that reads the Rust as text and
+needs no compiler; it caught a `launch_application` written to take an
+argument no caller sends.
 
 *(Aug 2026 — **Cross-Platform Distribution added to this milestone** per
 the approved architecture decisions: Windows, Linux and macOS builds, a

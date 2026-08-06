@@ -3,6 +3,81 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.36.0] — M22 Task Group C: Windows Packaging & Host Bridge
+
+Implements the host side of the transport contract v0.35.0 defined, and
+configures the Windows installer. **Not one payload, command name or
+event name changed** — the contract was written first so the UI would
+need no edit on the day the host landed, and it needed none.
+
+**This release is not verified.** There is no Rust toolchain on the
+build machine, so nothing in `src-tauri/` has been compiled, no
+`tauri build` has run, and no installer has been produced. See Notes.
+
+### Added
+- **`src-tauri/src/installer.rs`** — the Windows host bridge. Spawns
+  `python -m jarvis.installer`, relays stdout, captures stderr, and
+  implements the four contract commands: `run_provisioning`,
+  `load_installation_plan`, `launch_application`,
+  `open_installation_folder`.
+- **`cancel_provisioning`**, additive to the contract, plus the Cancel
+  control that calls it. The UI has modelled a cancelled run since
+  v0.35.0 — classifier, label, icon — with nothing able to trigger it;
+  Task Group C's scope names cancellation, so the state is now
+  reachable instead of decorative.
+- **Interpreter discovery** — `JARVIS_PYTHON`, then a runtime bundled
+  beside the executable, then the project virtual environment, then
+  `PATH`. Returns "Python unavailable" rather than failing later with an
+  opaque spawn error.
+- **Windows packaging configuration** — NSIS target, per-user install
+  (no elevation), publisher, copyright, descriptions, icons.
+- **Unconditional structured logging** to the platform log directory,
+  not debug-only: an installer failing on a user's machine is where a
+  log is worth most, and that machine runs a release build.
+- **A Rust/TypeScript contract suite** (13 tests) pinning command names,
+  argument arity and the event name. It reads the Rust as *text*, so it
+  needs no toolchain and runs in the ordinary `vitest` pass.
+- **`tauri.conf.json` is now version-checked** against `__version__`.
+  This is the first milestone producing a packaged artifact, so it is
+  the first where that file's version is something a user reads — in
+  Add/Remove Programs, while `/api/v1/health` reports the other one.
+
+### Fixed
+- **An inactivity timeout that could not fire.** It was checked *after*
+  reading a line from stdout, so a process that hung producing no output
+  — precisely the case it exists for — blocked forever in the read and
+  never reached the check. stdout now feeds a channel and the loop waits
+  with a timeout, which also makes cancellation prompt rather than
+  dependent on the child saying something first.
+- **A process that outlived the installer.** Rust's `Child` detaches on
+  drop rather than killing, so closing the window mid-run left Python
+  downloading gigabytes with no window and no way to stop it.
+- **`launch_application` took an argument no caller sends.** Written as
+  `(location: String)` while the frontend invokes it with none — a clean
+  compile on both sides and a guaranteed runtime failure the first time
+  a user pressed the button on the completion screen. The host now
+  remembers where it installed, which keeps the documented no-argument
+  contract intact. Found by the new contract suite.
+- **Cancelling reported "the installer process disappeared."** The
+  cancel path clears the child handle, and the exit-status branch ran
+  first, so an ordinary cancel surfaced as an error — and missed the
+  word "cancel" that the failure classifier matches on.
+
+### Notes
+- **`@tauri-apps/plugin-shell` was not added, and planning to add it was
+  the error.** A `#[tauri::command]` spawning `std::process::Command`
+  needs no plugin. The shell plugin exists to let *JavaScript* spawn
+  processes — a strictly larger capability than this needs, on the
+  surface with the largest attack area. The roadmap line item is closed
+  by deciding against it.
+- **What is unproven.** No compilation, no `tauri build`, no installer,
+  no shortcut or icon observed, and the desktop/Start Menu shortcuts are
+  left to Tauri's default NSIS template rather than forced through an
+  untested `.nsh` hook. What *is* checked without a toolchain: both JSON
+  configs parse, every referenced icon exists, the NSIS keys used are
+  real keys in the bundled `config.schema.json`, and the contract suite
+  above. `MILESTONE_REPORT.md` carries the full split.
+
 ## [0.35.0] — M22: Installer UI & Provisioning Integration
 
 Connects the installer wizard to the provisioning engine. The engine

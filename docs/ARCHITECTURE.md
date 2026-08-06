@@ -1718,6 +1718,31 @@ Assigned to **M22**. The OS abstraction layer is the load-bearing piece:
 it is what keeps §22.10's single installation flow honest across three
 platforms rather than three flows wearing one name.
 
+**Windows is in progress (M22 Task Group C, v0.36.0);** Linux, macOS,
+the portable edition, the enterprise installer, auto-update and code
+signing are not started.
+
+*The host bridge* (`frontend/src-tauri/src/installer.rs`) is where the
+webview meets the operating system. It spawns
+`python -m jarvis.installer provision --stream` and relays its NDJSON
+stdout to the UI as `provisioning://event`. Two boundaries are worth
+recording here because they generalise past Windows:
+
+- **stdout is data, stderr is diagnostics.** The installer CLI reserves
+  stdout for JSON so a log line can never be parsed as a progress
+  event. Any future platform's bridge inherits this rule rather than
+  inventing its own framing.
+- **The host holds the install location, so the contract stays
+  argument-free.** `launch_application` and `open_installation_folder`
+  take no arguments; the host remembers where it just installed. This
+  keeps the frontend contract identical across platforms whose notions
+  of "launch" and "open a folder" differ entirely.
+
+No JavaScript-facing process-spawning capability is granted. Spawning
+happens in Rust, behind named commands with fixed shapes — a webview
+that could spawn arbitrary processes is a larger capability than an
+installer needs, on the surface with the largest attack area.
+
 ---
 
 ### 22.16 JARVIS Core Intelligence — deferred to Future Vision

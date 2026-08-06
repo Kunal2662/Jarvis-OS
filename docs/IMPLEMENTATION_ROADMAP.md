@@ -2142,35 +2142,76 @@ is a property of an observer over an interval, not a fact about a
 download; a stopwatch in the engine would report different numbers to
 two consumers.
 
-### Task Group C — Windows Packaging & Host Bridge *(next)*
+### Task Group C — Windows Packaging & Host Bridge 🟡 *(v0.36.0 — code complete, build unverified)*
 
-**The host bridge is intentionally deferred to here.**
-`@tauri-apps/plugin-shell` is not a dependency and no Rust command
-exists to spawn the Python process. Rather than add a dependency to make
-a screen look finished, `provisioning-transport.ts` defines the contract
-and rejects with a readable reason when the host cannot satisfy it --
-which the failure classifier turns into friendly copy with a Retry. The
-UI needs no change when the bridge lands.
+The bridge TG-B deferred. `src-tauri/src/installer.rs` implements the
+host side of the contract `provisioning-transport.ts` defined; no
+payload, command name or event name changed when it landed, which is
+what the contract-first split was for.
 
-- [ ] `run_provisioning` — Tauri command, args `{ location,
+- [x] `run_provisioning` — Tauri command, args `{ location,
       accountType }`. Spawns `python -m jarvis.installer provision
       --stream`, relays each stdout line, resolves on exit.
-- [ ] `load_installation_plan` — Tauri command, same args, returns the
+- [x] `load_installation_plan` — Tauri command, same args, returns the
       plan document.
-- [ ] `provisioning://event` — Tauri event carrying one NDJSON line or
+- [x] `provisioning://event` — Tauri event carrying one NDJSON line or
       the parsed object; the transport accepts both.
-- [ ] `launch_application` and `open_installation_folder` — Tauri
-      commands, no args. Until they exist the completion screen disables
-      those buttons *with a reason* rather than hiding them.
-- [ ] `@tauri-apps/plugin-shell` dependency plus the Rust-side
-      capability to spawn a process.
-- [ ] Installer executable, portable edition, desktop and Start Menu
-      shortcuts, auto-start, native notifications.
+- [x] `launch_application` and `open_installation_folder` — Tauri
+      commands, **no args**, now enabled by the completion screen.
+- [x] `cancel_provisioning` — additive, not part of the four-command
+      contract. The frontend already modelled a cancelled run
+      (classifier, label, icon) with nothing able to trigger it; TG-C's
+      scope names cancellation, so the state is now reachable.
+- [x] Process management — spawn, stdout relay, stderr capture,
+      cancellation, graceful shutdown then kill, inactivity timeout.
+- [x] Windows packaging configuration — NSIS target, per-user install,
+      publisher/copyright/description metadata, icons.
+- [x] Structured logging to `LogDir`, registered **unconditionally**
+      rather than debug-only: an installer failing on a user's machine
+      is the case a log is worth most, and that machine runs a release
+      build.
+- [x] Version parity — `tauri.conf.json` is now held to `__version__`
+      by `tests/unit/test_version_consistency.py`. TG-C is the first
+      milestone to produce a packaged artifact, so it is the first where
+      that file's version is what a user reads.
+
+**`@tauri-apps/plugin-shell` was not added, and the earlier plan to add
+it was wrong.** A `#[tauri::command]` spawning `std::process::Command`
+needs no plugin; the shell plugin exists to let *JavaScript* spawn
+processes, which is a strictly larger capability than this needs and one
+worth not granting a webview. The line item is closed by deciding
+against it, not by doing it.
+
+**Not verified — no Rust toolchain on the build machine.** `cargo` and
+`rustc` are absent, so this task group's Rust and packaging config are
+**unbuilt**: not compiled, no `tauri build` run, no installer produced,
+no shortcut or icon observed. What *is* verified: both JSON configs
+parse, every referenced icon exists, the NSIS options used are real keys
+in the bundled `config.schema.json`, and a 13-test contract suite pins
+the Rust command names, argument arity and event name against the
+TypeScript that calls them — which caught a real defect
+(`launch_application` written to take a `location` that no caller
+sends). See `MILESTONE_REPORT.md` for the full proven/unproven split.
+
+- [ ] Desktop and Start Menu shortcuts — left to Tauri's default NSIS
+      template, which is believed to create both. **Unverified**, and
+      not configurable through `tauri.conf.json`: v2.11's `NsisConfig`
+      exposes only `startMenuFolder` (which would nest a single app in
+      a needless subfolder) and `installerHooks`. Writing an untested
+      `.nsh` to force the desktop shortcut risks breaking the whole
+      installer build to guarantee one icon; confirm the default first.
+- [ ] Portable edition, auto-start, native notifications, code signing.
+      Auto-start is explicitly **not** in this task group.
 - [ ] A configured download source publishing checksums. Until one
       exists the registry ships empty by design, and downloads verify as
       *present but unverifiable* rather than claiming to be verified.
 
-### Task Groups D+ — Linux and macOS *(not started)*
+### Task Groups D–F *(not started)*
+
+Remaining M22 scope. The D/E/F split is named in `MASTER_ROADMAP.md`
+§2's execution order but not yet broken down here; these are the known
+contents, not an assignment to a particular letter.
+
 - [ ] AppImage, Flatpak, DEB, RPM, desktop integration.
 - [ ] DMG, PKG, Apple Silicon and Intel, native menu.
 - [ ] Cross-browser QA for the Tauri webviews (WebKit, WebView2) —

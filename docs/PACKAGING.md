@@ -1,5 +1,66 @@
 # Packaging & Distribution
 
+> **Two packaging paths exist, and the newer one supersedes the older.**
+> Everything below the "Legacy" heading describes the **PySide6**
+> desktop application packaged with PyInstaller and Inno Setup, written
+> during the Milestone 5.5 stabilization pass. The frontend has since
+> migrated to React + Tauri (M8), and Windows packaging is now
+> **Tauri/NSIS** — see the section immediately below. The legacy
+> material is kept because the Python backend it packages is unchanged
+> and the section's honesty notes still apply to it; it is *not* the
+> current route to a Windows installer.
+
+## Current: Tauri + NSIS (M22 Task Group C, v0.36.0)
+
+Configured in `frontend/src-tauri/tauri.conf.json`:
+
+* **Target: `nsis`.** One installer, per-user (`installMode:
+  "currentUser"`), so no elevation prompt. English only, no language
+  selector for a single-language product. `allowDowngrades: false`.
+* **Icons are wired but are still Tauri's defaults.**
+  `frontend/src-tauri/icons/` holds a complete, valid `.ico` and PNG set,
+  so the build will not fail for a missing icon — but the artwork is the
+  **Tauri logo** from `tauri init`, not JARVIS branding. As it stands the
+  installer, desktop and Start Menu shortcuts, taskbar entry and
+  Add/Remove Programs listing would all show Tauri's emblem. The legacy
+  section's "no application icon" gap is therefore *not* closed; it has
+  moved from missing to wrong, which is less obvious and worth catching
+  before any public build. Replacing the set requires real artwork.
+* **The host bridge** (`frontend/src-tauri/src/installer.rs`) is what
+  makes the packaged app able to *install itself*: it spawns
+  `python -m jarvis.installer` and relays its progress to the installer
+  UI. See `ARCHITECTURE.md` §22.15.
+* **Logging is unconditional**, to the platform log directory under
+  `jarvis-installer`. A release build is exactly where an install
+  failure needs a log.
+
+### Not yet verified
+
+**No `tauri build` has been run.** There is no Rust toolchain on the
+machine this was written on, so no installer has been produced and no
+install/upgrade/uninstall cycle has been exercised. Specifically
+unconfirmed: that Tauri's default NSIS template creates the **desktop
+and Start Menu shortcuts** — v2.11's `NsisConfig` exposes no shortcut
+toggle, only `startMenuFolder` and `installerHooks`, so the default is
+relied on rather than forced through an untested `.nsh`.
+
+Also still open on this path: portable edition, auto-start, native
+notifications, code signing, and CI.
+
+**First job for whoever has a Rust toolchain:** run
+`npm run tauri build` in `frontend/`, expect compile errors in ~450
+lines of never-compiled Rust, then verify the two shortcuts exist.
+
+### Not superseded
+
+The Python side is unchanged by the Tauri migration. `pyproject.toml`'s
+entry points, and the packaging of the backend itself, are as described
+below.
+
+---
+
+## Legacy: PyInstaller + Inno Setup (PySide6 era)
+
 **Status as of the Milestone 5.5 production-stabilization pass: foundational,
 not release-ready.** This document is deliberately specific about what
 exists, what was verified, what wasn't, and why -- rather than claiming a
@@ -87,8 +148,23 @@ Windows executable.
 
 ## Version consistency
 
-`pyproject.toml`'s `version` and `Settings.app_version` (in
-`core/config/settings.py`) are both `"0.3.0"` and were confirmed in sync
-as of this pass. Keep them in lockstep on every version bump -- nothing
-currently enforces this automatically (a good candidate for a small CI
-check, not implemented yet).
+*(Updated for M22 Task Group C. This section previously recorded both
+versions as `"0.3.0"` and called an automated check "a good candidate
+… not implemented yet". It exists now, and it exists because the drift
+it was proposed to prevent happened: M8 Phase 7 found `pyproject.toml`
+at `0.31.0` while `__version__.py` — whose own docstring calls itself
+the single source of truth — still said `0.28.0`.)*
+
+`tests/unit/test_version_consistency.py` enforces that these agree:
+
+| File | What reads it |
+|---|---|
+| `src/jarvis/__version__.py` | `GET /api/v1/health`, `jarvis --version` |
+| `pyproject.toml` | the built wheel |
+| `frontend/src-tauri/tauri.conf.json` | the NSIS installer, Add/Remove Programs, the `.exe`'s file properties |
+
+The third was added by Task Group C, the first milestone to produce a
+packaged artifact — before it, that file's version was cosmetic. It
+caught a live mismatch on the day it was written.
+
+**Bump all three together.** The test fails if you don't.

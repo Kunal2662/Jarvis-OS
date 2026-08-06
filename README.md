@@ -277,17 +277,25 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.35.0` · **Current milestone:** M22 —
-Cross-Platform Distribution & Universal Installer (🟡 active; Task Group
-A — Universal Installer Foundation — and Task Group B — Runtime
-Provisioning — are complete, and the installer UI is wired to the
-engine).
+**Current version:** `0.36.0` · **Current milestone:** M22 —
+Cross-Platform Distribution & Universal Installer (🟡 active; Task Groups
+A and B complete, the installer UI wired to the engine, and Task Group C
+— Windows Packaging & Host Bridge — code complete but **not yet built**,
+see below).
 
-M8 — React Frontend & Desktop Experience is 🟡 active with Phase 1
-(React Foundation), Phase 2 (Universal Application Framework & Logic),
-Phase 3 (Universal Workspace Framework), Phase 4 (Voice Experience &
-Motion), Phase 5 (AI Workspace & Module Integration), Phase 6's
-production-UX half and Phase 7's Production Readiness audit shipped.
+**Work is not proceeding in numeric order.** M1–M8 are complete; M22
+runs next because it owns installation and packaging, and until it ships
+there is no way to deliver the first eight milestones to a machine that
+is not a development checkout. Development resumes at M9 once M22
+finishes, then runs M9 → M21 in order. M23 — Core Intelligence is
+deferred.
+
+M8 — React Frontend & Desktop Experience is complete for this pass, with
+Phase 1 (React Foundation), Phase 2 (Universal Application Framework &
+Logic), Phase 3 (Universal Workspace Framework), Phase 4 (Voice
+Experience & Motion), Phase 5 (AI Workspace & Module Integration), Phase
+6's production-UX half and Phase 7's Production Readiness audit shipped.
+Its Deferred Backlog is tracked in `docs/MASTER_ROADMAP.md`.
 
 M11 — Intelligent Workspace & Productivity completed across six task
 groups (A Workspace Foundation, B Productivity Core, C File Platform,
@@ -324,11 +332,20 @@ configuration change. `0.35.0` connected the wizard to that engine: live
 progress, per-item download state, resume, friendly failure recovery and
 completion, all rendered from the engine's own event stream.
 
-Windows packaging is Task Group C — and with it the **host bridge**, the
-one piece deliberately left unbuilt. Nothing spawns the installer's
-Python process from the desktop shell yet, so the frontend defines that
-boundary as a contract and reports honestly that it needs the desktop
-application, rather than simulating an installation. Also still open: cross-browser testing
+`0.36.0` built the **host bridge** Task Group B had deliberately left
+out: a Rust command that spawns the installer's Python process and
+relays its output to the UI, plus the Windows/NSIS packaging
+configuration. No payload, command name or event name changed — the
+contract was written first so the UI would need no edit when the host
+arrived, and it needed none.
+
+**That release is code complete but unverified.** This machine has no
+Rust toolchain, so none of it has been compiled, no installer has been
+produced, and no shortcut or icon has been observed. The Rust/TypeScript
+contract *is* tested — by a suite that reads the Rust as text and needs
+no compiler, which caught a command written to take an argument no
+caller sends. `CHANGELOG.md` and `MILESTONE_REPORT.md` state precisely
+what is proven and what is not. Also still open: cross-browser testing
 (Chromium only so far; the Tauri shell uses WebKit/WebView2), a
 screen-reader pass, and contrast measurement.
 
