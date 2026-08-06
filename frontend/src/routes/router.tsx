@@ -5,7 +5,7 @@ import { LoadingState } from "@/components/common/loading-spinner";
 import { DesktopShell } from "@/components/layout/desktop-shell";
 import { DashboardGrid } from "@/features/dashboard/dashboard-grid";
 import { MODULE_DEFINITIONS } from "@/modules/module-definitions";
-import { SettingsRoute, VoiceRoute, WorkspaceRoute } from "@/routes/lazy-routes";
+import { InstallerRoute, SettingsRoute, VoiceRoute, WorkspaceRoute } from "@/routes/lazy-routes";
 import { PlaceholderRoute } from "@/routes/placeholder-route";
 
 /**
@@ -71,6 +71,22 @@ const childRoutes: RouteObject[] = MODULE_DEFINITIONS.map((manifest) => {
 childRoutes.push({ path: "workspace", element: lazyRoute(<WorkspaceRoute />) });
 
 export const router = createBrowserRouter([
+  /**
+   * `/install` sits **outside** `DesktopShell`, unlike every other
+   * route.
+   *
+   * M22 Task Groups A and B built the wizard and the provisioning
+   * engine but left the wizard mounted nowhere -- it had no route, so
+   * nothing in the running application could reach it. Adding it as a
+   * child of the shell made it reachable and wrong: the installer
+   * rendered inside the sidebar, header and status bar of the
+   * application it is installing, which is both visually incoherent and
+   * an invitation to navigate away mid-installation.
+   *
+   * A sibling route gets the whole viewport, which is what the wizard's
+   * own `h-svh` layout assumes.
+   */
+  { path: "/install", element: lazyRoute(<InstallerRoute />) },
   {
     path: "/",
     element: <DesktopShell />,

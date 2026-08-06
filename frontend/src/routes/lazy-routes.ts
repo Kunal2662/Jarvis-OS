@@ -27,3 +27,7 @@ export const VoiceRoute = lazy(async () => ({
 export const SettingsRoute = lazy(async () => ({
   default: (await import("@/features/settings/settings-page")).SettingsPage,
 }));
+
+export const InstallerRoute = lazy(async () => ({
+  default: (await import("@/features/installer/installer-route")).InstallerRoute,
+}));

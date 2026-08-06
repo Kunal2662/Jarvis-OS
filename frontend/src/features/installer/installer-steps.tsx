@@ -165,10 +165,18 @@ export function LocationStep({ defaultLocation }: { defaultLocation: string }) {
           spellCheck={false}
         />
       </label>
-      <p className="text-muted-foreground text-xs">
-        This location needs no administrator rights. Free space is checked on its drive in the
-        next step.
-      </p>
+      {(location ?? defaultLocation).trim() === "" ? (
+        // Continue is disabled while this is blank; saying so beats a
+        // dead button with no explanation.
+        <p className="text-amber-600 text-xs dark:text-amber-500">
+          Enter a folder to continue.
+        </p>
+      ) : (
+        <p className="text-muted-foreground text-xs">
+          This location needs no administrator rights. Free space is checked on its drive in the
+          next step.
+        </p>
+      )}
     </div>
   );
 }
