@@ -61,6 +61,17 @@ export interface InstallerWizardProps {
     onEvent: (event: ProvisioningEvent) => void;
   }) => Promise<void>;
 
+  /**
+   * Asks the host to stop the running installation.
+   *
+   * Optional: a host that cannot stop a run passes nothing and the
+   * Cancel control is not offered, rather than being shown and doing
+   * nothing. The user-visible outcome still arrives through
+   * `runProvisioning` rejecting — there is one path to the cancelled
+   * state, not two.
+   */
+  cancelProvisioning?: (() => void) | null;
+
   /** Application version, shown on completion. */
   version?: string;
 
@@ -74,6 +85,7 @@ export function InstallerWizard({
   loadPlan,
   defaultLocation,
   runProvisioning,
+  cancelProvisioning = null,
   version = "",
   onLaunch = null,
   onOpenFolder = null,
@@ -225,7 +237,9 @@ export function InstallerWizard({
         {step === "model" && plan && <ModelStep plan={plan} />}
         {step === "voice" && plan && <VoiceStep plan={plan} />}
         {step === "summary" && plan && <SummaryStep plan={plan} />}
-        {step === "install" && <InstallProgressStep onRetry={startProvisioning} />}
+        {step === "install" && (
+          <InstallProgressStep onRetry={startProvisioning} onCancel={cancelProvisioning} />
+        )}
         {step === "ready" && plan && (
           <CompletionStep
             plan={plan}

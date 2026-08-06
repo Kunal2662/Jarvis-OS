@@ -476,4 +476,54 @@ describe("cancelled installation", () => {
     const list = screen.getByRole("list");
     expect(within(list).getByLabelText("Cancelled")).toBeInTheDocument();
   });
+
+  /**
+   * The control that reaches the host -- M22 Task Group C.
+   *
+   * Until TG-C the cancelled state was unreachable: the classifier, the
+   * label and the icon all existed and nothing could ever trigger them.
+   * These cover the wiring, not the state.
+   */
+  it("offers Cancel while running, and asks the host when pressed", async () => {
+    const onCancel = vi.fn();
+    store().begin();
+    store().ingest(progress());
+
+    render(<InstallProgressStep onRetry={vi.fn()} onCancel={onCancel} />);
+
+    const button = screen.getByRole("button", { name: /Cancel installation/ });
+    await userEvent.click(button);
+
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("tells the user cancelling is safe, since the journal makes it so", () => {
+    store().begin();
+    store().ingest(progress());
+
+    render(<InstallProgressStep onRetry={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.getByText(/continue later from where it stops/i)).toBeInTheDocument();
+  });
+
+  it("offers no Cancel control when the host cannot stop a run", () => {
+    // A button that cannot act is worse than no button: it invites a
+    // press that silently does nothing, on the one screen where the
+    // user is already anxious about interrupting.
+    store().begin();
+    store().ingest(progress());
+
+    render(<InstallProgressStep onRetry={vi.fn()} onCancel={null} />);
+
+    expect(screen.queryByRole("button", { name: /Cancel installation/ })).toBeNull();
+  });
+
+  it("does not offer Cancel once the run has already failed", () => {
+    store().begin();
+    store().fail("Connection lost.");
+
+    render(<InstallProgressStep onRetry={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: /Cancel installation/ })).toBeNull();
+  });
 });

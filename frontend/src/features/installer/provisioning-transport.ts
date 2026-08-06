@@ -10,25 +10,19 @@ import type { ProvisioningEvent } from "@/features/installer/provisioning-types"
  * its stdout, and in a Tauri application that something is the Rust
  * side.
  *
- * ### What exists today, stated plainly
+ * ### Where the host side lives
  *
- * **The host bridge is not built.** `@tauri-apps/plugin-shell` is not a
- * dependency of this project and no Rust command exists to spawn a
- * process; adding either is packaging work (Task Group C), and quietly
- * adding a dependency to make a screen look finished would be the wrong
- * call to make unilaterally.
+ * `src-tauri/src/installer.rs`, added by M22 Task Group C. This file
+ * remains the **specification**: the command names and the event name
+ * below are what the Rust side implements, not the other way round. The
+ * shapes did not change when the bridge landed, which is what the
+ * contract-first split was for.
  *
- * So this module does two honest things instead of one dishonest one:
- *
- * 1. It **defines the contract** the Rust side must satisfy — one
- *    command and one event name — so Task Group C implements against a
- *    written interface rather than inventing one, and the UI needs no
- *    change on the day it lands.
- * 2. When the host cannot provide it, it **rejects with a readable
- *    reason** rather than hanging on a screen that says "Preparing…"
- *    forever. `classifyFailure` turns that into friendly copy and the
- *    user gets a Retry, which is the correct behaviour for a capability
- *    that may genuinely appear later in the session.
+ * The bridge can still be absent at runtime — the installer also runs in
+ * a plain browser during development, where no host exists. That case
+ * **rejects with a readable reason** rather than hanging on a screen
+ * that says "Preparing…" forever. `classifyFailure` turns the message
+ * into friendly copy and offers a Retry.
  *
  * A stub that resolved immediately, or one that emitted invented
  * progress, would make the installer *look* complete while installing
@@ -38,6 +32,9 @@ import type { ProvisioningEvent } from "@/features/installer/provisioning-types"
 
 /** The Rust command Task Group C implements. */
 export const PROVISION_COMMAND = "run_provisioning";
+
+/** Asks a running installation to stop. */
+export const CANCEL_COMMAND = "cancel_provisioning";
 
 /** The Tauri event each NDJSON line is relayed on. */
 export const PROVISION_EVENT = "provisioning://event";
@@ -124,5 +121,23 @@ export async function runProvisioningViaHost({
     // Always detach: a listener surviving a failed run would deliver a
     // later installation's events into a dead screen.
     unlisten();
+  }
+}
+
+/**
+ * Ask the host to stop the running installation.
+ *
+ * Resolves either way. The outcome the user sees comes from
+ * `runProvisioningViaHost` rejecting with a message containing
+ * "cancelled" — which `classifyFailure` already maps to the cancelled
+ * state — so a failure to deliver the request must not produce a second,
+ * competing error on top of it. If the host never stops the process, the
+ * run simply continues, which is visible on screen.
+ */
+export async function cancelProvisioningViaHost(): Promise<void> {
+  try {
+    await tauri()?.core?.invoke?.(CANCEL_COMMAND);
+  } catch {
+    // Intentionally swallowed; see above.
   }
 }

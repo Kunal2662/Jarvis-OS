@@ -131,9 +131,14 @@ export interface InstallProgressStepProps {
   /** Re-run provisioning. Resumes from the journal, so a retry never
    *  repeats completed work. */
   onRetry: () => void;
+
+  /** Stop the running installation. `null` when the host cannot, in
+   *  which case no control is offered — a Cancel button that does
+   *  nothing is worse than none. */
+  onCancel?: (() => void) | null;
 }
 
-export function InstallProgressStep({ onRetry }: InstallProgressStepProps) {
+export function InstallProgressStep({ onRetry, onCancel = null }: InstallProgressStepProps) {
   const phase = useProvisioningStore((s) => s.phase);
   const label = useProvisioningStore((s) => s.label);
   const percent = useProvisioningStore((s) => s.percent);
@@ -251,6 +256,24 @@ export function InstallProgressStep({ onRetry }: InstallProgressStepProps) {
         <p className="text-muted-foreground text-xs">
           Work already completed is being skipped.
         </p>
+      )}
+
+      {/* Cancelling is safe and says so: the journal records completed
+          steps, so stopping here loses at most the step in flight. The
+          reassurance is the point — without it the honest question
+          "will this leave a broken half-installation?" has no answer,
+          and the user's alternative is killing the window, which is the
+          same stop with none of the cleanup. */}
+      {onCancel && (
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={onCancel} className="gap-1.5">
+            <CircleX className="size-4" aria-hidden="true" />
+            Cancel installation
+          </Button>
+          <span className="text-muted-foreground text-xs">
+            You can continue later from where it stops.
+          </span>
+        </div>
       )}
     </div>
   );

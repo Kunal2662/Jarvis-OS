@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { InstallerWizard } from "@/features/installer/installer-wizard";
 import {
+  cancelProvisioningViaHost,
   isHostBridgeAvailable,
   runProvisioningViaHost,
 } from "@/features/installer/provisioning-transport";
@@ -77,6 +78,10 @@ export function InstallerRoute({
   const bridged = isHostBridgeAvailable();
   const location = defaultLocation || proposedLocation();
 
+  const onCancel = useCallback(() => {
+    void cancelProvisioningViaHost();
+  }, []);
+
   const onLaunch = useCallback(() => {
     const host = (globalThis as { __TAURI__?: { core?: { invoke?: (c: string) => Promise<unknown> } } })
       .__TAURI__;
@@ -98,6 +103,9 @@ export function InstallerRoute({
       // `null` rather than a no-op: the completion screen disables the
       // button with a reason, which tells the user why it cannot act
       // instead of appearing to work and doing nothing.
+      // Same rule as the two below: offered only when a host can
+      // actually act on it.
+      cancelProvisioning={bridged ? onCancel : null}
       onLaunch={bridged ? onLaunch : null}
       onOpenFolder={bridged ? onOpenFolder : null}
     />
