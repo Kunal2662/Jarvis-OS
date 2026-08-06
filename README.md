@@ -277,9 +277,10 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.33.0` · **Current milestone:** M22 —
-Cross-Platform Distribution & Universal Installer (🟡 active; Task
-Group A, the Universal Installer Foundation, shipped).
+**Current version:** `0.34.0` · **Current milestone:** M22 —
+Cross-Platform Distribution & Universal Installer (🟡 active; Task Group
+A, the Universal Installer Foundation, and Task Group B, Runtime
+Provisioning, shipped).
 
 M8 — React Frontend & Desktop Experience is 🟡 active with Phase 1
 (React Foundation), Phase 2 (Universal Application Framework & Logic),
@@ -314,8 +315,11 @@ eleven-step wizard, real hardware detection and an AI Capability Score
 that picks a local model tier to suit the machine. Its governing rule is
 that a field is either measured or `null` — never estimated — and
 running it on real hardware found three defects that reading the code
-would not have. Nothing downloads and nothing installs yet; Windows
-packaging is Task Group B. Also still open: cross-browser testing
+would not have. `0.34.0` made it provision: a resumable,
+checksum-verified download manager, a durable journal that survives a
+power cut, parallel verification and an `installation.json` manifest —
+with no URL hardcoded anywhere, so an air-gapped mirror is a
+configuration change. Windows packaging is Task Group C. Also still open: cross-browser testing
 (Chromium only so far; the Tauri shell uses WebKit/WebView2), a
 screen-reader pass, and contrast measurement.
 

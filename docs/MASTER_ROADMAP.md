@@ -6819,6 +6819,35 @@ auto-start, portable edition, code signing) — all Task Group B. Linux
 and macOS are detected and warned about, per "Windows is the primary
 platform".
 
+**Task Group B — Runtime Provisioning 🟡 shipped v0.34.0.** Turns the
+planning wizard into a provisioning system: dependency detection, a
+resumable checksum-verified download manager, a durable journal, parallel
+verification, first-run preparation and an `installation.json` manifest.
+
+*One engine, three behaviours.* `provision` skips whatever the journal
+records as complete, so install, resume-after-crash and repair are the
+same code path — a resume with its own path would be the least-exercised
+and most often broken.
+
+*No URL exists in the package.* The source registry ships empty; with
+nothing configured it names the environment variable rather than falling
+back to a vendor host, which is what makes "all downloads use provider
+abstraction" true rather than stated. `file://` sources are marked as
+needing no network, so an air-gapped installation is possible.
+
+*Honesty rules carried forward from TG-A.* A file is verified as `.part`
+and renamed last, so its final name is proof it passed; a source
+publishing no checksum yields *unverifiable*, never a quiet pass.
+
+Running it end to end found four defects the unit tests had not,
+including a model id that cannot be a Windows filename and a source
+specification whose separators made voice downloads silently find no
+source while model downloads worked.
+
+*Not built here:* packaging (MSI, EXE, code signing), any configured
+download source, and the Tauri bridge from the wizard to the engine —
+all Task Group C.
+
 *(Aug 2026 — **Cross-Platform Distribution added to this milestone** per
 the approved architecture decisions: Windows, Linux and macOS builds, a
 Portable edition, an Installer and an Enterprise installer, Auto-update,

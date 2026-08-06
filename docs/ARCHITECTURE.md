@@ -1578,6 +1578,26 @@ One flow across all three platforms. Local Model Download is a step in
 the standard installation, not an optional extra — that is what makes
 §22.1's "every installation includes a local LLM" true in practice.
 
+> **Implementation status (v0.34.0, M22 Task Groups A–B).** The flow and
+> its calibration ship (TG-A); the provisioning engine behind it ships
+> (TG-B) — dependency detection, resumable checksum-verified downloads, a
+> durable journal, parallel verification and an `installation.json`
+> manifest. **Packaging does not yet exist**: no MSI, EXE or code
+> signing, and Linux and macOS are detected and warned about rather than
+> supported.
+>
+> Two rules from that work are worth binding here, because both were
+> learned by running against real hardware and a real mirror:
+>
+> - **A registry identifier is not a filename.** `qwen2.5:14b` cannot
+>   name a file on NTFS. Anything that addresses an artefact and anything
+>   that stores one must use different strings.
+> - **No download URL may be hardcoded.** The source registry ships
+>   empty; with nothing configured the installer names the environment
+>   variable to set rather than falling back to a vendor host. A silent
+>   fallback would defeat the abstraction on the default path, which is
+>   the only path most installations take.
+
 ---
 
 ### 22.11 Personal and Administrator accounts

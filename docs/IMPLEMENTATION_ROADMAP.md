@@ -2082,13 +2082,46 @@ measured on the wrong drive, a 16 GB machine that could never reach the
 Windows packaging (MSI, shortcuts, auto-start, portable edition, code
 signing). Linux and macOS are detected and warned about.
 
-### Task Group B — Windows Packaging *(next)*
+### Task Group B — Runtime Provisioning ✅ *(v0.34.0)*
+- [x] Provisioning engine — eight ordered, **idempotent** steps, driven
+      by a durable journal so install, resume and repair are one code
+      path rather than three.
+- [x] Dependency manager — Python, Git, Visual C++, CUDA, DirectML, ONNX
+      Runtime. **No code path that writes**, which is how "never
+      silently overwrite" is enforced structurally.
+- [x] Download manager — queued, **byte-level resumable** (HTTP
+      `Range`), checksum-verified, with pause/cancel/retry and source
+      failover. A file is verified as `.part` and renamed last, so its
+      final name is proof it passed.
+- [x] **No hardcoded URLs.** `sources.py` ships an empty registry; with
+      nothing configured it names the environment variable rather than
+      falling back to a vendor host.
+- [x] Installation recovery and resume — power failure, network failure,
+      installer crash and partial download all resume from the journal.
+- [x] Verification — nine checks, run in parallel.
+- [x] First-run preparation — directory tree and configuration,
+      idempotent, never overwriting an existing config.
+- [x] `installation.json` manifest, recording measurements *and* the
+      inputs behind them, for future migrations to consume.
+- [x] CLI: `dependencies`, `provision`, `verify`, `repair`, `status`.
+
+**Four defects found by running it end to end**, including a model id
+(`qwen2.5:14b`) that cannot be a Windows filename and a source spec whose
+comma separators made voice downloads silently find no source while model
+downloads worked. See `CHANGELOG.md` 0.34.0.
+
+**Not in this task group:** no packaging (MSI, EXE, code signing), no
+configured download source, and no installer-UI change — wiring the
+wizard's Install step to this engine needs the Tauri command bridge,
+which belongs with packaging.
+
+### Task Group C — Windows Packaging *(next)*
 - [ ] Installer executable, portable edition, desktop and Start Menu
       shortcuts, auto-start, native notifications.
-- [ ] The installation engine the Install step currently describes.
-- [ ] Model and voice-component provisioning.
+- [ ] The Tauri command bridge connecting the wizard to the provisioning
+      engine.
 
-### Task Groups C+ — Linux and macOS *(not started)*
+### Task Groups D+ — Linux and macOS *(not started)*
 - [ ] AppImage, Flatpak, DEB, RPM, desktop integration.
 - [ ] DMG, PKG, Apple Silicon and Intel, native menu.
 - [ ] Cross-browser QA for the Tauri webviews (WebKit, WebView2) —

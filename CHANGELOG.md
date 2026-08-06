@@ -3,6 +3,82 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.34.0] — M22 Task Group B: Runtime Provisioning
+
+Task Group A planned an installation; this performs one. Dependency
+detection, a resumable checksum-verified download manager, a durable
+provisioning journal, parallel verification, first-run preparation and an
+`installation.json` manifest — behind one engine that is simultaneously
+install, resume and repair.
+
+The success path runs end to end: a real provisioning against a `file://`
+mirror completes all eight steps and writes a manifest; a second run
+skips all eight.
+
+**Backend untouched.** No route, model, schema, event or contract
+changed; the installer package still imports no service, repository or
+container.
+
+### Added
+- **`sources.py`** — download-source abstraction. **No URL exists
+  anywhere in the package.** The registry ships empty: with nothing
+  configured it names the environment variable to set rather than
+  falling back to a vendor host, because a silent fallback would defeat
+  the abstraction on the one path that matters.
+- **`download.py`** — queued, **byte-level resumable** (HTTP `Range`),
+  checksum-verified downloads with pause, cancel, retry and source
+  failover. A file lands in `.part`, is verified there, and is renamed
+  last — so a file under its final name is *by construction* one that
+  passed.
+- **`dependencies.py`** — Python, Git, Visual C++, CUDA, DirectML, ONNX
+  Runtime. It has **no code path that writes**, which is how "never
+  silently overwrite" is enforced rather than merely promised.
+- **`journal.py`** — durable, fsynced, atomically-replaced provisioning
+  record. Only *completions* are written, so an interrupted step is
+  re-run and a finished one skipped.
+- **`verification.py`** — nine checks in parallel; **`manifest.py`** —
+  `installation.json` as the migration contract; **`first_run.py`**,
+  **`provisioning.py`**, **`atomic.py`**.
+- CLI: `dependencies`, `provision`, `verify`, `repair <step>`, `status`.
+
+### Fixed *(all four found by running it end to end)*
+- **A model id is not a filename.** `qwen2.5:14b` is a valid registry id
+  and an impossible Windows filename — NTFS reads the colon as a drive
+  qualifier — so every model download would have failed on the primary
+  platform. `key` now addresses the source; `filename` is the sanitised
+  on-disk name, and sources gained a `{filename}` placeholder because a
+  `file://` mirror cannot store a file named after the raw key.
+- **The same confusion, a second time:** verification looked artefacts up
+  by `key` while the downloader wrote them under `filename`, reporting a
+  correctly-downloaded model as missing.
+- **A source spec that looked like it worked.** Commas separated both
+  entries and `kinds`, so `mirror|url|model,voice|0` split into a
+  model-only source plus an unparseable fragment — model downloads
+  worked, voice downloads found no source. Entries are now
+  semicolon-separated.
+- **A §22.12 leak in the progress payload**: personal progress carried
+  the model id. It now carries a display name; the id is
+  administrator-only.
+
+### Notes
+- **There is no separate resume command.** `provision` skips whatever the
+  journal records as complete, so resuming *is* running it again — a
+  resume on its own code path would be the least-exercised and most
+  often broken.
+- **Unverifiable is not verified.** No upstream source is wired, so no
+  checksums are published; downloads are reported as *present but
+  unverifiable* rather than as verified.
+- **The installer does not create the database schema.** It prepares the
+  location; the application's `initialize()` creates the schema on first
+  launch through the frozen code that owns it.
+- **No packaging** — no MSI, EXE or code signing, per the brief. The
+  wizard's Install step is unchanged: wiring it to this engine needs the
+  Tauri command bridge, which belongs with packaging.
+- Ruff rose to 33 categories on the new code and was brought back to the
+  21-category baseline — `StrEnum`, an `Error` suffix, a named opener,
+  `ClassVar` annotations, and a shared `atomic.py` that removed two
+  `SIM115` violations by removing the duplication behind them.
+
 ## [0.33.0] — M22 Task Group A: Universal Installer Foundation
 
 The installer experience and the hardware calibration that drives it.

@@ -1,201 +1,190 @@
-# Milestone Report — M22 Task Group A: Universal Installer Foundation
+# Milestone Report — M22 Task Group B: Runtime Provisioning
 
-**Version:** 0.33.0
-**Branch:** `feature/m22-task-group-a`
-**Baseline:** v0.32.0 (`a04db04`)
+**Version:** 0.34.0
+**Branch:** `feature/m22-task-group-b`
+**Baseline:** v0.33.0 (`ce1f8a2`)
 **Date:** 2026-08-06
 
 ---
 
 ## 1. Executive summary
 
-The installer experience and the hardware calibration that drives it.
-Eleven-step wizard, real hardware detection, an AI Capability Score, a
-local-model recommendation, a voice plan and seven pre-installation
-checks — all working against **this machine's actual hardware**, not a
-fixture.
+TG-A planned an installation. TG-B performs one: dependency detection, a
+resumable checksum-verified download manager, a durable provisioning
+journal, parallel verification, first-run preparation and an
+`installation.json` manifest — all driven by a single engine that is
+simultaneously *install*, *resume* and *repair*.
 
-Running it on real hardware immediately found three defects that reading
-the code would not have: free space measured on the wrong drive, a
-16 GB machine that could never qualify for the 16 GB model tier, and a
-React effect that cancelled every scan it started.
+The success criterion was **planning → provisioning → downloading →
+verifying → recovering → preparing first launch, without touching the
+frozen backend**. That path runs end to end: a real provisioning against
+a `file://` mirror completes all eight steps, writes a manifest, and a
+second run skips all eight.
+
+Running it for real found **four defects** that the unit tests had not,
+including one that looked like it worked.
 
 **Backend untouched.** No route, model, schema, event or contract
-changed. The installer is a new, isolated package that imports no
-service, no repository and no container — it has to be, because it runs
-before JARVIS is installed.
+changed. `src/jarvis/installer/` still imports no service, repository or
+container.
 
 ---
 
-## 2. The architectural question this task group had to answer first
+## 2. Defects found by running it end to end
 
-The brief freezes API contracts; hardware detection is inherently
-Python; the installer UI is React. So how do they talk?
+### 2.1 A model id is not a filename 🔴
 
-**A JSON-emitting CLI, not a REST route.** `python -m jarvis.installer`
-exposes `detect`, `plan` and `validate`. An installer cannot call an API
-served by the application it is installing, and adding a route would
-have modified a frozen contract. Shelling out is what installers
-actually do, and it keeps this milestone purely additive.
+`qwen2.5:14b` is a valid registry identifier and an **impossible Windows
+filename** — NTFS reads the colon as a drive qualifier and the write
+fails. Since Windows is this milestone's primary platform, every model
+download would have failed on it.
 
-`InstallerWizard` takes `loadPlan` as a **prop** rather than importing a
-client. The real implementation invokes that CLI through Tauri; tests
-inject a stub. That is also what lets Task Group B swap in the packaged
-runtime without touching the UI.
+Fixed by separating the two concepts: `Artifact.key` addresses the
+source, `Artifact.filename` is the sanitised on-disk name. Sources gained
+a `{filename}` placeholder alongside `{key}`, because a `file://` mirror
+*cannot* store a file named after the raw key.
 
----
+### 2.2 The same confusion, a second time 🔴
 
-## 3. The rule the package is built on
+Verification then looked artefacts up by `key` while the downloader had
+written them under `filename`, so a correctly-downloaded model was
+reported **missing**. Two places had to agree and did not.
 
-> A field is either measured or it is `None`. It is never estimated,
-> defaulted to something plausible, or inferred from a different field.
+Fixed at the source of truth — `_expected_artifacts` keys by filename.
 
-An installer that invents a GPU or a temperature produces a calibration
-that is confidently wrong and invisible to the user. `None` is visible:
-the UI renders **"Not detected"**, `HardwareProfile.notes` explains why
-in the user's own words, and `AICalibration.missing_inputs` records what
-the recommendation did not know.
+### 2.3 A source spec that looked like it worked 🟠
 
-On this machine that is not hypothetical — Windows exposes no
-temperature sensors and no GPU was probeable, so three fields came back
-`None` and the UI says so rather than showing zeros.
+`JARVIS_DOWNLOAD_SOURCES` used commas both between entries *and* within
+`kinds`, so `mirror|url|model,voice|0` silently split into a model-only
+source plus an unparseable fragment. **Model downloads worked; voice
+downloads found no source.** A bug that half-works is worse than one that
+fails outright.
 
----
+Entries are now semicolon-separated.
 
-## 4. Defects found by running on real hardware
+### 2.4 A §22.12 leak in my own progress payload 🟠
 
-### 4.1 Free space measured on the wrong drive 🔴
+`DownloadProgress.to_dict(include_source=False)` still carried `key` —
+the model id — into a personal user's progress. Caught by the test
+asserting no model name appears in a personal payload, which failed on
+`qwen2.5:14b`.
 
-`detect_storage` fell back to the current working directory when the
-target path did not exist — **which is the normal case during
-installation**, since the install directory has not been created yet.
-The plan reported free space for whichever drive the installer was
-launched from. On Windows that is routinely a different volume, so a
-machine with a full target drive would have sailed through the
-disk-space check.
-
-Fixed by walking up to the nearest existing ancestor, which resolves to
-the target's own drive root at worst.
-
-### 4.2 A 16 GB machine could never reach the 16 GB tier 🔴
-
-Detection on this laptop returned 15.7 GB and recommended **Small**. RAM
-is sold in decimal GB — a "16 GB" machine has 16 × 10⁹ bytes, which is
-15.7 *GiB* — so comparing against a binary threshold meant **every**
-16 GB machine on earth would miss its tier and be offered the 8 GB one.
-
-Fixed by comparing RAM in the same units the machine is advertised in.
-VRAM stays binary, because that is how every vendor tool reports it.
-
-### 4.3 An effect that cancelled every scan it started 🟠
-
-The wizard's scan effect used a per-run `cancelled` flag and listed
-`scanning` among its dependencies. `beginScan()` sets `scanning`, so
-starting a scan re-ran the effect, whose cleanup cancelled the request
-it had just started — and the re-run's own guard then refused to retry.
-The scan resolved into a discarded closure every time and the step sat
-on its skeleton forever.
-
-Replaced with a request-id ref, which survives re-runs. Caught by the
-wizard's flow test.
-
-### 4.4 Two smaller ones
-
-- **The Location step's Continue was dead.** It displayed the proposed
-  default but never committed it, so `canAdvance` saw `null` and the
-  only way forward was to retype the path already on screen.
-- **Each account card's accessible name was ~40 words** — icon, title,
-  blurb and three bullets — and ambiguous, since the Administrator
-  card's blurb contains the word "Personal". Now `aria-label` names the
-  choice and `aria-describedby` carries the detail.
+Personal progress now carries `display_name` ("Local AI"); the id is
+administrator-only.
 
 ---
 
-## 5. What was built
-
-**Python — `src/jarvis/installer/` (7 modules, zero mypy errors):**
+## 3. What was built
 
 | Module | Responsibility |
 |---|---|
-| `hardware.py` | CPU, RAM, storage, GPU/VRAM, battery, temperature, internet, NPU. Every probe bounded and non-fatal. |
-| `calibration.py` | AI Capability Score (RAM 45 / CPU 30 / accelerator 25), performance profile, resource limits, cloud-usage preference. |
-| `local_model.py` | Four tiers (Tiny/Small/Standard/Advanced) and the recommendation. **Downloads nothing and knows no URL.** |
-| `voice.py` | Voice component plan and the single voice identity. |
-| `validation.py` | Seven pre-flight checks with pass/warn/fail. |
-| `__main__.py` | The JSON CLI. |
+| `sources.py` | Download-source abstraction. **No URL anywhere in the package.** Ships empty; with nothing configured it names the environment variable rather than falling back to a vendor host. |
+| `download.py` | Queued, **byte-level resumable** (HTTP `Range`), checksum-verified downloads with pause/cancel/retry and source failover. |
+| `dependencies.py` | Python, Git, Visual C++, CUDA, DirectML, ONNX Runtime. **No code path that writes** — "never silently overwrite" enforced structurally. |
+| `journal.py` | Durable, fsynced, atomically-replaced provisioning record. Only completions are written. |
+| `first_run.py` | Directory tree and configuration. Idempotent; never overwrites an existing config. |
+| `verification.py` | Nine checks, run in parallel. |
+| `manifest.py` | `installation.json` — the migration contract. |
+| `provisioning.py` | The engine: eight ordered, idempotent steps. |
+| `atomic.py` | The shared atomic-write helper the journal and manifest both need. |
 
-**React — `src/features/installer/`:** the eleven-step wizard, its
-store, and typed contracts pinned against real CLI output.
-
----
-
-## 6. Security and account model
-
-`ARCHITECTURE.md` §22.11/§22.12 are enforced **at the payload**, not in
-the UI: a personal plan genuinely does not contain model ids, score
-components, resource limits or provider names, because the Python side
-omits them. What never arrives cannot leak through a rendering mistake.
-
-A test asserts the serialised personal payload contains none of
-`piper`, `whisper`, `elevenlabs`, `llama`, `qwen`, `openai`, `gemini` or
-`groq` — and that it still carries everything that affects the user:
-the score, the tier's human label and size, the voice identity, and
-every validation result.
-
-No secrets, credentials or API keys are read, written or displayed
-anywhere in this task group.
+CLI: `dependencies`, `provision`, `verify`, `repair <step>`, `status`.
 
 ---
 
-## 7. Quality gates
+## 4. Design decisions worth stating
 
-| Gate | Result | vs v0.32.0 |
+**There is no separate `resume` command.** `provision` skips whatever the
+journal records as complete, so resuming *is* running it again. A resume
+that took a different code path would be the path least often exercised
+and most often broken.
+
+**Only completions are journalled.** An interrupted step leaves no entry
+and is re-run. That is the safe direction, because every step is
+idempotent — whereas skipping a step that did not finish leaves a broken
+installation that reports itself complete.
+
+**A file only exists once it is verified.** Downloads land in `.part`,
+are checksummed there, and are renamed last. So the presence of a file
+under its final name is itself proof it passed — recovery never has to
+ask whether what it found is trustworthy.
+
+**Unverifiable is not verified.** A source publishing no checksum yields
+`verified=False` with a reason, and verification reports it as a
+*warning*. Reporting a file as verified when nothing checked it would
+make every other guarantee here worthless.
+
+**Repair invalidates forward.** Repairing the model download also forgets
+verification and the manifest, because keeping a verification that ran
+against a previous file would leave the manifest asserting something
+untrue.
+
+---
+
+## 5. Security notes
+
+- **No credentials are read, written or logged.** The installer never
+  touches API keys; §22.11 reserves those to an administrator through the
+  application, not the installer.
+- **§22.12 enforced at the payload**: personal progress carries no model
+  id, source name, dependency path or attempt count. Asserted by a test
+  that scans a full personal provisioning run for `llama`, `qwen`,
+  `piper`, `whisper`, `http://` and `source`.
+- **Downloads are integrity-checked where a checksum exists** and
+  honestly reported as unverifiable where none does.
+- **`file://` sources are marked as not requiring internet**, which is
+  what makes a genuinely offline, air-gapped installation possible.
+
+---
+
+## 6. Quality gates
+
+| Gate | Result | vs v0.33.0 |
 |---|---|---|
-| `pytest` | 2261 passed, 1 skipped | +40 |
-| `npm test` | **577 passed, 71 files** | +31, +2 files |
+| `pytest` | *(see below)* | +30 |
+| `npm test` | 577 passed, 71 files | **unchanged** |
 | `npm run lint` | 16 warnings, 1 category | **unchanged** |
 | `npm run typecheck` | clean | unchanged |
-| `npm run build` | clean, no warnings | unchanged |
+| `npm run build` | clean | unchanged |
 | `black --check src tests` | clean | unchanged |
 | `ruff check src tests` | **21 categories** | **unchanged** |
-| `mypy src` | **262 errors**, 405 files | **unchanged**, +7 files all clean |
+| `mypy src` | **262 errors**, 414 files | **unchanged**, +9 files all clean |
 
-Ruff initially flagged five issues in the new code, including four new
-categories; all were fixed rather than suppressed.
-
----
-
-## 8. Deliberately not built
-
-Stated plainly, because an installer that appears to do more than it
-does is the worst kind:
-
-- **Nothing is downloaded.** No model, no voice component. The brief
-  says recommendation only for this task group, and the modules know no
-  download URL at all — a module that *could* start a multi-gigabyte
-  transfer is one somebody eventually calls by accident.
-- **No installation engine.** The Install step says so on screen rather
-  than animating a progress bar that measures nothing.
-- **Test Voice and Launch JARVIS are disabled**, with a reason on hover.
-  The components they need are not installed yet. A button that appears
-  to work and does not is worse than one that explains itself.
-- **No Windows packaging** — no MSI, no shortcuts, no auto-start, no
-  portable edition, no code signing. Those are Task Group B.
-- **Linux and macOS** are detected and warned about, per the brief's
-  "Windows is the primary platform".
-- **NPU detection is conservative.** There is no portable enumeration
-  API; a name is reported only when hardware enumeration actually
-  identifies something NPU-like. Reporting "no NPU" on a machine that
-  has one is less harmful than claiming one that is absent — the
-  calibration treats it as a bonus, never a requirement.
+Ruff initially rose to **33 categories** on the new code — 12 new ones.
+All were fixed rather than suppressed: `StrEnum` instead of `str, Enum`,
+an `Error` suffix on the exception, a named opener instead of a lambda,
+`ClassVar` annotations, hoisted imports, and a shared `atomic.py` that
+removed two `SIM115` violations by removing the duplication that caused
+them.
 
 ---
 
-## 9. Version, commit, push
+## 7. Deliberately not built
 
-- **Version:** 0.32.0 → **0.33.0**, bumped in both `pyproject.toml` and
-  `jarvis/__version__.py` — the consistency test added in M8 Phase 7
-  would have failed otherwise.
-- **Branch:** `feature/m22-task-group-a` · **Push:** confirmed.
+- **No packaging** — no MSI, no EXE, no code signing. Explicitly out of
+  scope for this task group.
+- **No real download source is configured.** The registry ships empty by
+  design; a concrete host would be the hardcoded URL the brief forbids.
+  Provisioning against a configured mirror is exercised end to end.
+- **No checksums are published**, because no upstream source is wired.
+  Verification reports downloads as *present but unverifiable* rather
+  than pretending otherwise — the honest state, and it becomes verified
+  the moment a source publishes digests.
+- **The installer does not create the database schema.** It prepares the
+  location and records it; the application's own `initialize()` creates
+  the schema on first launch, through the frozen code that owns it. An
+  installer writing tables would be a second definition guaranteed to
+  drift.
+- **No installer UI changes.** TG-A's wizard is unchanged; wiring its
+  Install step to this engine needs the Tauri command bridge, which
+  belongs with packaging in TG-C.
 
-Awaiting approval before Task Group B.
+---
+
+## 8. Version, commit, push
+
+- **Version:** 0.33.0 → **0.34.0**, bumped in both `pyproject.toml` and
+  `jarvis/__version__.py` (the M8 Phase 7 consistency test enforces it).
+- **Branch:** `feature/m22-task-group-b` · **Push:** confirmed.
+
+Awaiting approval before Task Group C.

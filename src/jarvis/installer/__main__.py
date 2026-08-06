@@ -24,9 +24,15 @@ from pathlib import Path
 from typing import Any
 
 from jarvis.installer.calibration import calibrate
+from jarvis.installer.dependencies import detect_dependencies
 from jarvis.installer.hardware import detect_hardware
+from jarvis.installer.journal import ProvisioningJournal
 from jarvis.installer.local_model import tier_to_dict
+from jarvis.installer.manifest import read_manifest
+from jarvis.installer.provisioning import ProvisioningEngine, repair_step_from_key
+from jarvis.installer.sources import registry_from_environment
 from jarvis.installer.validation import default_install_location, validate_installation
+from jarvis.installer.verification import verify_installation
 from jarvis.installer.voice import plan_voice
 
 _EXIT_OK = 0
@@ -94,6 +100,89 @@ def _validate(args: argparse.Namespace) -> int:
     return _EXIT_OK if report.can_install else _EXIT_BLOCKED
 
 
+def _dependencies(args: argparse.Namespace) -> int:
+    """Detect runtime dependencies. Never installs anything."""
+    report = detect_dependencies()
+    _emit(report.to_dict(include_paths=args.account_type == "administrator"))
+    return _EXIT_OK if report.satisfied else _EXIT_BLOCKED
+
+
+def _provision(args: argparse.Namespace) -> int:
+    """Run (or resume) provisioning.
+
+    There is no separate `resume` command: `provision` skips whatever the
+    journal records as complete, so resuming *is* running it again. A
+    resume that took a different code path would be the path least often
+    exercised and most often broken.
+    """
+    is_admin = args.account_type == "administrator"
+    target = Path(args.target) if args.target else default_install_location()
+
+    profile = detect_hardware(target)
+    calibration = calibrate(profile)
+    voice = plan_voice(profile, include_cloud_voice=args.cloud_voice and is_admin)
+
+    engine = ProvisioningEngine(
+        target,
+        registry=registry_from_environment(),
+        hardware=profile,
+        calibration=calibration,
+        voice_plan=voice,
+        account_type=args.account_type,
+        online=profile.internet is not False,
+    )
+
+    result = engine.provision()
+    _emit(result.to_dict(include_detail=is_admin))
+    return _EXIT_OK if result.succeeded else _EXIT_BLOCKED
+
+
+def _verify(args: argparse.Namespace) -> int:
+    target = Path(args.target) if args.target else default_install_location()
+    report = verify_installation(target, manifest=read_manifest(target))
+    _emit(report.to_dict())
+    return _EXIT_OK if report.healthy else _EXIT_BLOCKED
+
+
+def _repair(args: argparse.Namespace) -> int:
+    """Redo one step and everything after it."""
+    step = repair_step_from_key(args.step)
+    if step is None:
+        _emit({"error": f"Unknown repair target {args.step!r}."})
+        return _EXIT_BLOCKED
+
+    is_admin = args.account_type == "administrator"
+    target = Path(args.target) if args.target else default_install_location()
+    profile = detect_hardware(target)
+
+    engine = ProvisioningEngine(
+        target,
+        registry=registry_from_environment(),
+        hardware=profile,
+        calibration=calibrate(profile),
+        voice_plan=plan_voice(profile),
+        account_type=args.account_type,
+        online=profile.internet is not False,
+    )
+    result = engine.repair(step)
+    _emit(result.to_dict(include_detail=is_admin))
+    return _EXIT_OK if result.succeeded else _EXIT_BLOCKED
+
+
+def _status(args: argparse.Namespace) -> int:
+    """What an interrupted installation got through."""
+    target = Path(args.target) if args.target else default_install_location()
+    journal = ProvisioningJournal(target / "config")
+    _emit(
+        {
+            "install_location": str(target),
+            "journal": journal.to_dict(),
+            "manifest": read_manifest(target) is not None,
+        }
+    )
+    return _EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m jarvis.installer",
@@ -123,6 +212,48 @@ def build_parser() -> argparse.ArgumentParser:
     validate = subparsers.add_parser("validate", help="Pre-installation checks only.")
     validate.add_argument("--target", help="Planned installation directory.")
     validate.set_defaults(handler=_validate)
+
+    # --- M22 Task Group B ---------------------------------------------
+
+    def _with_account(sub: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        sub.add_argument("--target", help="Installation directory.")
+        sub.add_argument(
+            "--account-type",
+            choices=("personal", "administrator"),
+            default="personal",
+            help="Shapes the payload: a personal one omits ids, sources and paths.",
+        )
+        return sub
+
+    dependencies = _with_account(
+        subparsers.add_parser("dependencies", help="Detect runtime dependencies. Installs nothing.")
+    )
+    dependencies.set_defaults(handler=_dependencies)
+
+    provision = _with_account(
+        subparsers.add_parser("provision", help="Run or resume provisioning.")
+    )
+    provision.add_argument(
+        "--cloud-voice", action="store_true", help="Administrator only; ignored otherwise."
+    )
+    provision.set_defaults(handler=_provision)
+
+    verify = _with_account(subparsers.add_parser("verify", help="Verify an installation."))
+    verify.set_defaults(handler=_verify)
+
+    repair = _with_account(
+        subparsers.add_parser("repair", help="Redo a step and everything after it.")
+    )
+    repair.add_argument(
+        "step",
+        help="dependencies | directories | configuration | model_download | "
+        "voice_download | first_run | verification | manifest",
+    )
+    repair.set_defaults(handler=_repair)
+
+    status = subparsers.add_parser("status", help="What provisioning has completed so far.")
+    status.add_argument("--target", help="Installation directory.")
+    status.set_defaults(handler=_status)
 
     return parser
 
