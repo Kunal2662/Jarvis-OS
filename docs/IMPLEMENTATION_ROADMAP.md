@@ -2142,7 +2142,7 @@ is a property of an observer over an interval, not a fact about a
 download; a stopwatch in the engine would report different numbers to
 two consumers.
 
-### Task Group C — Windows Packaging & Host Bridge 🟡 *(v0.36.0 — code complete, build unverified)*
+### Task Group C — Windows Packaging & Host Bridge 🟡 *(v0.36.0 — Implementation Complete, Build Verification Pending)*
 
 The bridge TG-B deferred. `src-tauri/src/installer.rs` implements the
 host side of the contract `provisioning-transport.ts` defined; no
@@ -2193,13 +2193,42 @@ TypeScript that calls them — which caught a real defect
 (`launch_application` written to take a `location` that no caller
 sends). See `MILESTONE_REPORT.md` for the full proven/unproven split.
 
-- [ ] Desktop and Start Menu shortcuts — left to Tauri's default NSIS
-      template, which is believed to create both. **Unverified**, and
-      not configurable through `tauri.conf.json`: v2.11's `NsisConfig`
-      exposes only `startMenuFolder` (which would nest a single app in
-      a needless subfolder) and `installerHooks`. Writing an untested
-      `.nsh` to force the desktop shortcut risks breaking the whole
-      installer build to guarantee one icon; confirm the default first.
+**Build Verification Tasks — gate to Fully Complete.** TG-C stays at
+Implementation Complete until all ten pass. None has been run; each
+needs the Rust toolchain this machine lacks.
+
+- [ ] 1. Build the Windows installer with the Rust toolchain.
+- [ ] 2. Verify the installer builds successfully.
+- [ ] 3. Verify desktop shortcut creation — left to Tauri's default NSIS
+      template, which is believed to create it. Not configurable through
+      `tauri.conf.json`: v2.11's `NsisConfig` exposes only
+      `startMenuFolder` and `installerHooks`, no shortcut toggle. Writing
+      an untested `.nsh` to force it risks breaking the whole installer
+      build to guarantee one icon; confirm the default first.
+- [ ] 4. Verify Start Menu shortcut creation — same default template;
+      `startMenuFolder` deliberately left unset (a single app does not
+      need its own subfolder).
+- [ ] 5. **Replace all default Tauri branding with official JARVIS
+      branding.** Not merely unverified — unstarted. `icons/` currently
+      holds Tauri's own logo (confirmed by opening the PNG, not just
+      checking the files exist); the installer, both shortcuts, the
+      taskbar and Add/Remove Programs would all show it. Needs real
+      JARVIS artwork before any build is public-facing.
+- [ ] 6. Verify installer metadata (publisher, copyright, category,
+      descriptions) renders correctly in a real installer / Properties
+      dialog.
+- [ ] 7. Verify the uninstall entry NSIS generates.
+- [ ] 8. Verify Launch JARVIS from the completion screen against a real
+      packaged executable.
+- [ ] 9. Verify Open Installation Folder against a real install.
+- [ ] 10. Verify the provisioning bridge end to end in the packaged
+      application — a real `.exe` spawning the bundled Python and
+      relaying real progress into a real webview, not the Python CLI run
+      standalone (already done, see `MILESTONE_REPORT.md` §7) or the
+      Rust/TypeScript contract (already tested, §6.1 there).
+
+Not in this task group, independent of the verification gate above:
+
 - [ ] Portable edition, auto-start, native notifications, code signing.
       Auto-start is explicitly **not** in this task group.
 - [ ] A configured download source publishing checksums. Until one

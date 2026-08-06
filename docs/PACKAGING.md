@@ -12,6 +12,8 @@
 
 ## Current: Tauri + NSIS (M22 Task Group C, v0.36.0)
 
+**Status: Implementation Complete — Build Verification Pending.**
+
 Configured in `frontend/src-tauri/tauri.conf.json`:
 
 * **Target: `nsis`.** One installer, per-user (`installMode:
@@ -34,22 +36,39 @@ Configured in `frontend/src-tauri/tauri.conf.json`:
   `jarvis-installer`. A release build is exactly where an install
   failure needs a log.
 
-### Not yet verified
+### Build Verification Tasks — gate to Fully Complete
 
-**No `tauri build` has been run.** There is no Rust toolchain on the
-machine this was written on, so no installer has been produced and no
-install/upgrade/uninstall cycle has been exercised. Specifically
-unconfirmed: that Tauri's default NSIS template creates the **desktop
-and Start Menu shortcuts** — v2.11's `NsisConfig` exposes no shortcut
-toggle, only `startMenuFolder` and `installerHooks`, so the default is
-relied on rather than forced through an untested `.nsh`.
+No Rust toolchain on the machine this was written on, so none of the
+ten tasks below has run. All ten must pass before this task group is
+Fully Complete, and Linux/macOS packaging (Task Groups D+) waits for
+that plus explicit approval:
 
-Also still open on this path: portable edition, auto-start, native
-notifications, code signing, and CI.
+1. Build the Windows installer with the Rust toolchain.
+2. Verify the installer builds successfully.
+3. Verify desktop shortcut creation — relies on Tauri's default NSIS
+   template; v2.11's `NsisConfig` exposes no shortcut toggle, only
+   `startMenuFolder` and `installerHooks`, so the default is trusted
+   rather than forced through an untested `.nsh`.
+4. Verify Start Menu shortcut creation — same template.
+5. **Replace all default Tauri branding with official JARVIS
+   branding.** Unstarted, not merely unverified — see above.
+6. Verify installer metadata (publisher, copyright, descriptions).
+7. Verify the uninstall entry.
+8. Verify Launch JARVIS against a real packaged executable.
+9. Verify Open Installation Folder against a real install.
+10. Verify the provisioning bridge end to end inside the packaged
+    application — the packaged `.exe` spawning bundled Python and
+    relaying real progress into a real webview, not the CLI run
+    standalone or the Rust/TypeScript contract, both already checked
+    (see `MILESTONE_REPORT.md` §7).
 
-**First job for whoever has a Rust toolchain:** run
-`npm run tauri build` in `frontend/`, expect compile errors in ~450
-lines of never-compiled Rust, then verify the two shortcuts exist.
+Also still open on this path, independent of the gate above: portable
+edition, auto-start, native notifications, code signing, and CI.
+
+**First job for whoever has a Rust toolchain:** work through the ten in
+order — `npm run tauri build` in `frontend/` first, expecting compile
+errors in ~450 lines of never-compiled Rust — then report the outcome
+of all ten before Task Group D starts.
 
 ### Not superseded
 

@@ -280,8 +280,8 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 **Current version:** `0.36.0` · **Current milestone:** M22 —
 Cross-Platform Distribution & Universal Installer (🟡 active; Task Groups
 A and B complete, the installer UI wired to the engine, and Task Group C
-— Windows Packaging & Host Bridge — code complete but **not yet built**,
-see below).
+— Windows Packaging & Host Bridge — **Implementation Complete, Build
+Verification Pending**, see below).
 
 **Work is not proceeding in numeric order.** M1–M8 are complete; M22
 runs next because it owns installation and packaging, and until it ships
@@ -339,15 +339,22 @@ configuration. No payload, command name or event name changed — the
 contract was written first so the UI would need no edit when the host
 arrived, and it needed none.
 
-**That release is code complete but unverified.** This machine has no
-Rust toolchain, so none of it has been compiled, no installer has been
-produced, and no shortcut or icon has been observed. The Rust/TypeScript
-contract *is* tested — by a suite that reads the Rust as text and needs
-no compiler, which caught a command written to take an argument no
-caller sends. `CHANGELOG.md` and `MILESTONE_REPORT.md` state precisely
-what is proven and what is not. Also still open: cross-browser testing
-(Chromium only so far; the Tauri shell uses WebKit/WebView2), a
-screen-reader pass, and contrast measurement.
+**Status: Implementation Complete — Build Verification Pending.** This
+machine has no Rust toolchain, so none of it has been compiled, no
+installer has been produced, and no shortcut or icon has been observed.
+The Rust/TypeScript contract *is* tested — by a suite that reads the
+Rust as text and needs no compiler, which caught a command written to
+take an argument no caller sends. Ten **Build Verification Tasks** gate
+this to Fully Complete: build the installer, confirm it builds, confirm
+the desktop and Start Menu shortcuts, **replace Tauri's default logo
+with real JARVIS branding** (unstarted, not just unverified), confirm
+installer metadata, the uninstall entry, Launch JARVIS, Open
+Installation Folder, and the provisioning bridge inside the packaged
+app. `CHANGELOG.md` and `MILESTONE_REPORT.md` §9 carry the full list and
+current state of each; TG-D waits for all ten plus explicit approval.
+Also still open: cross-browser testing (Chromium only so far; the Tauri
+shell uses WebKit/WebView2), a screen-reader pass, and contrast
+measurement.
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source

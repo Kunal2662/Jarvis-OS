@@ -5,14 +5,23 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [0.36.0] — M22 Task Group C: Windows Packaging & Host Bridge
 
+**Status: Implementation Complete — Build Verification Pending.**
+
 Implements the host side of the transport contract v0.35.0 defined, and
 configures the Windows installer. **Not one payload, command name or
 event name changed** — the contract was written first so the UI would
 need no edit on the day the host landed, and it needed none.
 
-**This release is not verified.** There is no Rust toolchain on the
-build machine, so nothing in `src-tauri/` has been compiled, no
-`tauri build` has run, and no installer has been produced. See Notes.
+There is no Rust toolchain on the build machine, so nothing in
+`src-tauri/` has been compiled, no `tauri build` has run, and no
+installer has been produced. Ten Build Verification Tasks — build the
+installer, confirm it builds, confirm the desktop and Start Menu
+shortcuts, replace Tauri's default logo with real JARVIS branding
+(unstarted, not just unverified), confirm installer metadata, the
+uninstall entry, Launch JARVIS, Open Installation Folder, and the
+provisioning bridge inside the packaged app — gate this task group to
+Fully Complete; none has run. See Notes and `MILESTONE_REPORT.md` §9
+for the full list.
 
 ### Added
 - **`src-tauri/src/installer.rs`** — the Windows host bridge. Spawns
@@ -77,6 +86,18 @@ build machine, so nothing in `src-tauri/` has been compiled, no
   configs parse, every referenced icon exists, the NSIS keys used are
   real keys in the bundled `config.schema.json`, and the contract suite
   above. `MILESTONE_REPORT.md` carries the full split.
+- **The application icon is still Tauri's default logo**, not JARVIS
+  branding — found by opening the PNG, not by checking the files exist.
+  This is unstarted work, not a verification gap: it needs real artwork
+  before it can even be checked.
+- **Ten Build Verification Tasks gate this task group to Fully
+  Complete**, none run: build the installer; confirm it builds; confirm
+  the desktop shortcut; confirm the Start Menu shortcut; replace Tauri's
+  branding with JARVIS's; confirm installer metadata; confirm the
+  uninstall entry; confirm Launch JARVIS; confirm Open Installation
+  Folder; confirm the provisioning bridge inside the packaged app. See
+  `MILESTONE_REPORT.md` §9. Task Group D does not begin until all ten
+  pass and that is explicitly approved.
 
 ## [0.35.0] — M22: Installer UI & Provisioning Integration
 

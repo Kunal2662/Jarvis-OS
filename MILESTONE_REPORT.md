@@ -22,10 +22,14 @@ split was for, and it is worth stating as the headline because the
 alternative (a bridge that forced UI changes) would have meant the
 contract was never really a contract.
 
-**This task group is code complete and unverified.** There is no Rust
+**Status: Implementation Complete — Build Verification Pending.** Every
+line of Rust and every config change described in this report has been
+written and reviewed; none of it has been compiled. There is no Rust
 toolchain on this machine. §7 states exactly what that leaves proven and
-unproven; the short version is that no line of Rust here has been
-compiled and no installer has been produced.
+unproven. §9A is the explicit list of ten checks — the **Build
+Verification Tasks** — that gate TG-C from Implementation Complete to
+**Fully Complete**. This report does not claim TG-C is finished; it
+claims the implementation behind it is.
 
 ---
 
@@ -36,8 +40,8 @@ compiled and no installer has been produced.
 | **A — Universal Installer Foundation** | ✅ Complete (v0.33.0) |
 | **B — Runtime Provisioning** | ✅ Complete (v0.34.0) |
 | **Installer UI integration** | ✅ Complete (v0.35.0) |
-| **C — Windows Packaging & Host Bridge** | 🟡 **Code complete, build unverified** (v0.36.0, this report) |
-| **D–F** | ⬜ Not started |
+| **C — Windows Packaging & Host Bridge** | 🟡 **Implementation Complete — Build Verification Pending** (v0.36.0, this report) |
+| **D–F** | ⬜ Not started — blocked on TG-C reaching Fully Complete |
 
 TG-A and TG-B are unmodified by this work. The provisioning engine, the
 download manager, the manifest, the checksum verification, the journal
@@ -274,7 +278,9 @@ contract it sits between, both ends of which have now been exercised.
 **This task group should not be considered complete until someone runs
 `npm run tauri build` on a machine with the Rust toolchain.** The first
 build will likely surface compile errors; that is expected of ~450 lines
-of uncompiled Rust and does not indicate a design problem.
+of uncompiled Rust and does not indicate a design problem. §9 turns this
+list into the ten explicit Build Verification Tasks that gate TG-C to
+Fully Complete.
 
 ---
 
@@ -300,9 +306,43 @@ planned" — nothing in the roadmap plans them.
 
 ---
 
-## 9. Recommended next step
+## 9. Build Verification Tasks — gate to Fully Complete
 
-Build on a machine with Rust before starting TG-D. Everything in §7's
-unproven list resolves in one `npm run tauri build`, and TG-D's
+**TG-C is Implementation Complete, not Fully Complete.** These ten
+checks are what closes the gap, in the order a build machine would
+naturally hit them. Every one requires a Rust toolchain (`cargo`,
+`rustc`) that this machine does not have, so **none has been run**. Each
+row states what already exists to support the check and what "pass"
+means; none of that existing support is a substitute for running it.
+
+| # | Task | What exists toward it | Verified? |
+|---|---|---|---|
+| 1 | Build the Windows installer with the Rust toolchain | `tauri.conf.json` targets `nsis`; both JSON configs parse; all referenced icons exist on disk | ⬜ Not run |
+| 2 | Verify the installer builds successfully | ~450 lines of `installer.rs` have never been compiled — expect and fix compile errors on the first attempt | ⬜ Not run |
+| 3 | Verify desktop shortcut creation | Relies on Tauri's default NSIS template; v2.11's `NsisConfig` has no shortcut toggle to configure either way | ⬜ Not run |
+| 4 | Verify Start Menu shortcut creation | Same default template; `startMenuFolder` was deliberately left unset (a single app does not need its own subfolder) | ⬜ Not run |
+| 5 | Replace all default Tauri branding with official JARVIS branding | **Not started.** `frontend/src-tauri/icons/` currently holds Tauri's own logo (confirmed by opening the PNG, not just checking the files exist) — the installer, both shortcuts, the taskbar and Add/Remove Programs would all show it. Needs real JARVIS icon artwork before any build is public-facing | ⬜ Not started |
+| 6 | Verify installer metadata | `publisher`, `copyright`, `category`, `shortDescription`, `longDescription` are set in `tauri.conf.json`; not yet seen rendered in a real installer or Properties dialog | ⬜ Not run |
+| 7 | Verify the uninstall entry | NSIS generates one by default; per-user install mode (`installMode: "currentUser"`) chosen so it needs no elevation; never produced or inspected | ⬜ Not run |
+| 8 | Verify Launch JARVIS | `launch_application` takes no arguments, reads the location the host recorded during the run, and is unit-tested against the frontend's call site (§6.1) — but has never launched a packaged executable | ⬜ Not run |
+| 9 | Verify Open Installation Folder | `open_installation_folder` — same no-argument shape, same test coverage, same "never run for real" status | ⬜ Not run |
+| 10 | Verify the provisioning bridge in the packaged application | The bridge's Python side was exercised directly (§7) and the Rust/TypeScript contract is tested (§6.1), but the full path — packaged `.exe` spawning the bundled Python, relaying real progress into a real webview — has not | ⬜ Not run |
+
+**Task 5 is not merely unverified — it is unstarted work**, distinct
+from the other nine, which are verification of something already built.
+Branding needs real artwork before it can be checked at all.
+
+**Gate:** TG-C moves from Implementation Complete to **Fully Complete**
+only once all ten rows above read pass. TG-D does not begin until then,
+and only with explicit approval — this report does not request that
+approval; it requests approval to run the verification pass.
+
+---
+
+## 10. Recommended next step
+
+Get access to a machine with the Rust toolchain and work through §9 in
+order — each task assumes the ones above it passed. Report the outcome
+of all ten (or exactly where one fails) before TG-D starts. TG-D's
 Linux/macOS packaging would otherwise be built on top of a Windows
 packaging configuration that has never produced an artifact.

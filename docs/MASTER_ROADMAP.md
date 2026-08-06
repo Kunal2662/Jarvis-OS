@@ -110,7 +110,9 @@ numeric order:
 M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8   ✅ completed
                                   ↓
 M22  ← current
-  TG-A ✅   TG-B ✅   TG-C 🟡 current   TG-D   TG-E   TG-F
+  TG-A ✅   TG-B ✅   TG-C 🟡 impl. complete,   TG-D   TG-E   TG-F
+                       build verification
+                       pending — gates TG-D
                                   ↓
 M9 → M10 → M11 → M12 → M13 → M14 → M15 → M16 → M17 → M18 → M19 → M20 → M21
                                   ↓
@@ -121,6 +123,14 @@ M23 — Core Intelligence   🟠 deferred
 Until it ships there is no way to *deliver* M1–M8 to a machine that is
 not a development checkout, so every milestone after it would be built
 on top of software nobody can install.
+
+**TG-C does not yet unblock TG-D.** Its code is written and reviewed,
+but ten Build Verification Tasks — build the installer, confirm both
+shortcuts, replace Tauri's placeholder branding with real JARVIS
+artwork, and five more — have not been run on this machine for want of
+a Rust toolchain. See TG-C's own entry in §8 and
+`MILESTONE_REPORT.md` §9 for the full list. TG-D starts only once all
+ten pass and that is explicitly approved.
 
 Numbering is unchanged — this is a sequencing decision, not a
 renumbering. Individual entries below keep their own detailed status,
@@ -186,9 +196,16 @@ future work; see M6's own §3 entry for the full scope note.
   Foundation, v0.33.0) and Task Group B (Runtime Provisioning, v0.34.0)
   shipped, followed by the Installer UI integration (v0.35.0) that
   connected them. **Task Group C (Windows Packaging & Host Bridge,
-  v0.36.0)** is the current task group. Task Groups D–F are not
-  started. See §8's M22 entry for the per-task-group detail and
-  `IMPLEMENTATION_ROADMAP.md` for the checklists.
+  v0.36.0) is Implementation Complete — Build Verification Pending**:
+  the code is written, reviewed and unit-tested, but ten Build
+  Verification Tasks that need a Rust toolchain (build the installer,
+  both shortcuts, official JARVIS branding in place of Tauri's default,
+  metadata, uninstall entry, Launch/Open Folder, the packaged
+  provisioning bridge) have not been run on this machine. Task Groups
+  D–F are not started, and do not start until TG-C's ten tasks pass and
+  that is explicitly approved. See §8's M22 entry for the per-task-group
+  detail and `IMPLEMENTATION_ROADMAP.md` / `MILESTONE_REPORT.md` §9 for
+  the checklists.
 - **M9 — Runtime & Core Services** (see §8) — ✅ **100% complete, all
   five task groups shipped:** Task Group A (Runtime Manager,
   Application Lifecycle), Task Group B (Service Manager, Session
@@ -6921,8 +6938,9 @@ disagree with the engine. Speed and time remaining are the two derived
 values, computed in the UI because a rate is a property of an observer
 over an interval rather than a fact about a download.
 
-**Task Group C — Windows Packaging & Host Bridge 🟡 v0.36.0, code
-complete but unbuilt.** The bridge TG-B deferred: `installer.rs` spawns
+**Task Group C — Windows Packaging & Host Bridge 🟡 v0.36.0,
+Implementation Complete — Build Verification Pending.** The bridge TG-B
+deferred: `installer.rs` spawns
 the Python engine, relays its stdout as `provisioning://event`, and
 implements the four contract commands. **Not one payload, command name
 or event name changed** when it landed — the contract was written first
@@ -6949,13 +6967,20 @@ and prompt cancellation real. A second defect in the same pass: `Child`
 detaches rather than kills on drop, so closing the window mid-run left
 Python downloading gigabytes invisibly.
 
-**This task group is not verified.** There is no Rust toolchain on the
-build machine, so nothing here has been compiled and no installer has
-been produced — see `IMPLEMENTATION_ROADMAP.md` and `MILESTONE_REPORT.md`
-for exactly what is proven and what is not. The contract between Rust
-and TypeScript *is* tested, by a suite that reads the Rust as text and
-needs no compiler; it caught a `launch_application` written to take an
-argument no caller sends.
+**This task group is Implementation Complete, not Fully Complete.**
+There is no Rust toolchain on the build machine, so nothing here has
+been compiled and no installer has been produced. Ten explicit **Build
+Verification Tasks** gate it to Fully Complete — build the installer,
+confirm it builds, confirm both shortcuts, replace Tauri's default logo
+with real JARVIS branding (unstarted, not merely unverified), confirm
+installer metadata, the uninstall entry, Launch JARVIS, Open
+Installation Folder, and the provisioning bridge inside the packaged
+app. None has run. See `IMPLEMENTATION_ROADMAP.md` and
+`MILESTONE_REPORT.md` §9 for the full list and current state of each.
+TG-D does not begin until all ten pass **and** that is explicitly
+approved. The contract between Rust and TypeScript *is* tested, by a
+suite that reads the Rust as text and needs no compiler; it caught a
+`launch_application` written to take an argument no caller sends.
 
 *(Aug 2026 — **Cross-Platform Distribution added to this milestone** per
 the approved architecture decisions: Windows, Linux and macOS builds, a
