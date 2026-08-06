@@ -28,7 +28,7 @@ written and reviewed; none of it has been compiled. There is no Rust
 toolchain on this machine. §7 states exactly what that leaves proven and
 unproven. §9A is the explicit list of ten checks — the **Build
 Verification Tasks** — that gate TG-C from Implementation Complete to
-**Fully Complete**. This report does not claim TG-C is finished; it
+**Complete**. This report does not claim TG-C is finished; it
 claims the implementation behind it is.
 
 ---
@@ -41,7 +41,7 @@ claims the implementation behind it is.
 | **B — Runtime Provisioning** | ✅ Complete (v0.34.0) |
 | **Installer UI integration** | ✅ Complete (v0.35.0) |
 | **C — Windows Packaging & Host Bridge** | 🟡 **Implementation Complete — Build Verification Pending** (v0.36.0, this report) |
-| **D–F** | ⬜ Not started — blocked on TG-C reaching Fully Complete |
+| **D–F** | ⬜ Not started — blocked on TG-C reaching Complete |
 
 TG-A and TG-B are unmodified by this work. The provisioning engine, the
 download manager, the manifest, the checksum verification, the journal
@@ -280,7 +280,7 @@ contract it sits between, both ends of which have now been exercised.
 build will likely surface compile errors; that is expected of ~450 lines
 of uncompiled Rust and does not indicate a design problem. §9 turns this
 list into the ten explicit Build Verification Tasks that gate TG-C to
-Fully Complete.
+Complete.
 
 ---
 
@@ -306,9 +306,10 @@ planned" — nothing in the roadmap plans them.
 
 ---
 
-## 9. Build Verification Tasks — gate to Fully Complete
+## 9. Build Verification Tasks — gate to Complete
 
-**TG-C is Implementation Complete, not Fully Complete.** These ten
+**TG-C's status is Implementation Complete — Build Verification
+Pending, not the terminal Complete status.** These ten
 checks are what closes the gap, in the order a build machine would
 naturally hit them. Every one requires a Rust toolchain (`cargo`,
 `rustc`) that this machine does not have, so **none has been run**. Each
@@ -332,7 +333,7 @@ means; none of that existing support is a substitute for running it.
 from the other nine, which are verification of something already built.
 Branding needs real artwork before it can be checked at all.
 
-**Gate:** TG-C moves from Implementation Complete to **Fully Complete**
+**Gate:** TG-C moves from Implementation Complete to **Complete**
 only once all ten rows above read pass. TG-D does not begin until then,
 and only with explicit approval — this report does not request that
 approval; it requests approval to run the verification pass.
@@ -346,3 +347,138 @@ order — each task assumes the ones above it passed. Report the outcome
 of all ten (or exactly where one fails) before TG-D starts. TG-D's
 Linux/macOS packaging would otherwise be built on top of a Windows
 packaging configuration that has never produced an artifact.
+
+---
+
+## 11. Governance Verification Report
+
+*(This section is the deliverable of a separate, documentation-only
+governance pass — not new TG-C work. No application code changed; the
+version stays `0.36.0`.)*
+
+### Documentation updated
+
+| File | What changed |
+|---|---|
+| `docs/ARCHITECTURE.md` | New §23 Milestone Lifecycle (§23.1–§23.6: the six canonical statuses) and §23.7 Build Verification Policy. TOC updated. §22.15's Windows status line corrected to the canonical wording (was "in progress", which is a defined status word TG-C has already passed). |
+| `docs/MASTER_ROADMAP.md` | New §18 M22 Acceptance Criteria, §19 Roadmap Governance, §20 Documentation Synchronization Policy. TOC updated. §2's execution-order diagram rewritten to the literal Completed/Current/After-M22/Deferred format, with a note reconciling the pre-existing four-symbol (✅🟡🟠🔴) roadmap-position marker against the new six-status lifecycle. TG-C references updated to canonical wording throughout. |
+| `docs/IMPLEMENTATION_ROADMAP.md` | New M22 Acceptance Criteria section, mirroring §18 with task-group checklist detail. New Current Project Status block in §1. TG-C's status line and its "Not verified" lead-in corrected to canonical wording. |
+| `README.md` | Status line and execution-order paragraph corrected to canonical wording and cross-referenced to the new governance sections. |
+| `CHANGELOG.md` | 0.36.0 entry's status line and Notes corrected (`Fully Complete` → `Complete`). |
+| `docs/PACKAGING.md` | Build Verification Tasks heading corrected (`Fully Complete` → `Complete`). |
+| `MILESTONE_REPORT.md` (this file) | §9's heading and internal references corrected; this §11 added. |
+
+### Governance improvements added
+
+- **A single, closed vocabulary for milestone status** — Planned, In
+  Progress, Implementation Complete, Build Verification Pending,
+  Complete, Production Ready (`ARCHITECTURE.md` §23) — replacing the
+  five different phrasings TG-C's status had accumulated across five
+  documents before this pass.
+- **A Build Verification Policy** (`ARCHITECTURE.md` §23.7) naming
+  which categories of platform-specific work require a real build
+  before Complete: Rust, Windows Installer, Linux Packages, macOS
+  Packages, Code Signing, Release Validation — and stating explicitly
+  that reading a schema, a text-level contract test, or reasoning
+  about a default template does not satisfy it, even though TG-C used
+  all three legitimately for what they *can* prove.
+- **A worked Acceptance Criteria example for M22** in two places
+  (`MASTER_ROADMAP.md` §18, `IMPLEMENTATION_ROADMAP.md`'s own section),
+  kept in the same six-status vocabulary, stating the exact condition
+  under which "M22 is complete" may be said at all: all six task
+  groups at Complete, with TG-C's specifically requiring Build
+  Verification Passed, not just an implementation checklist.
+- **Permanent Roadmap Governance rules** (`MASTER_ROADMAP.md` §19): no
+  renumbering, no silent redefinition of a completed milestone,
+  CHANGELOG entries are corrected by addition not edit, corrections
+  must identify themselves as corrections, and `MASTER_ROADMAP.md` is
+  named explicitly as the tie-breaker when documents disagree.
+- **A Documentation Synchronization Policy** (`MASTER_ROADMAP.md` §20)
+  naming the six documents every completed milestone must update, and
+  stating that synchronization is a *precondition* of the
+  Implementation Complete status (§23.3's third bullet) rather than a
+  follow-up task.
+
+### Remaining documentation drift
+
+Found and fixed in this pass, not left standing:
+
+- **"Fully Complete"** — a term this session coined for TG-C across
+  eight locations in the previous commit, before the canonical
+  vocabulary existed. Not one of the six defined statuses; replaced
+  everywhere with **Complete**.
+- **A comma where the canonical phrase uses an em dash** — "Implementation
+  Complete, Build Verification Pending" appeared twice (`README.md`,
+  `IMPLEMENTATION_ROADMAP.md`) against "Implementation Complete —
+  Build Verification Pending" everywhere else. Normalized.
+- **"Windows is in progress"** (`ARCHITECTURE.md` §22.15) — used a
+  defined status word (In Progress) to describe a milestone that has
+  already passed that status. Corrected to Implementation Complete —
+  Build Verification Pending.
+- **A stray "Not verified" lead-in** (`IMPLEMENTATION_ROADMAP.md`,
+  TG-C's detail paragraph) that functioned as an second, competing
+  status declaration sitting directly under the canonical one in the
+  section heading above it. Replaced with the canonical phrase.
+
+**Found and deliberately left alone, with reasoning recorded so it is
+a decision and not an oversight:**
+
+- **`MASTER_ROADMAP.md`'s §17 "Appendix" section contains roughly 3,900
+  lines of chronological addenda** (milestone-completion narratives
+  appended after the appendix table, using bold-text pseudo-headers
+  rather than `##`/`###` headings) that structurally belong nearer §3
+  or §8. This predates this pass, is unrelated to milestone-status
+  terminology, and reorganizing it is a large, separate content-move
+  that this documentation-governance task did not ask for and that
+  risks breaking a great deal of existing cross-referencing for no
+  governance benefit. Flagged here rather than silently worked around.
+- **The pre-existing four-symbol roadmap-position marker** (✅ Completed
+  / 🟡 Active / 🟠 Deferred / 🔴 Planned, used throughout §2, §3, §8,
+  and `IMPLEMENTATION_ROADMAP.md`'s §1 table) is a coarser, different
+  axis than the new six-status lifecycle and was not replaced by it —
+  see the reconciling note added to `MASTER_ROADMAP.md` §2. Replacing
+  every one of these symbols across two multi-thousand-line documents
+  with the new vocabulary would be a much larger change than this
+  governance pass, for a distinction (roadmap position vs.
+  implementation-readiness) that is genuinely useful to keep separate.
+- **Historical milestone entries' own status words** (e.g. "✅ shipped"
+  used throughout M9–M11's task-group headers in
+  `IMPLEMENTATION_ROADMAP.md`) were not rewritten to the new
+  vocabulary. Those milestones are historically complete and frozen
+  (`ARCHITECTURE.md` §20's freeze note, `MASTER_ROADMAP.md` §3); this
+  pass's Documentation Synchronization Policy (§20) governs
+  milestones going forward, and §19's "no silent redefinition of a
+  completed milestone" rule counsels against touching their language
+  retroactively without a specific reason to.
+
+### Confirmation
+
+- **Milestone numbering:** unchanged. No milestone number was added,
+  removed, or reassigned in this pass.
+- **Execution order:** stated identically (Completed M1–M8 → Current
+  M22, with TG-A/TG-B Complete, TG-C Implementation Complete — Build
+  Verification Pending, TG-D/E/F Not Started → resumes M9…M21 → M23
+  deferred) in `MASTER_ROADMAP.md` §2, `IMPLEMENTATION_ROADMAP.md`'s
+  new Current Project Status block, and `README.md`.
+- **Version consistency:** unaffected — this pass changed no code and
+  no version file; `0.36.0` is unchanged in `pyproject.toml`,
+  `src/jarvis/__version__.py`, and `tauri.conf.json`, and
+  `tests/unit/test_version_consistency.py` (added in the TG-C
+  implementation commit) still holds all three to the same value.
+- **Acceptance criteria consistency:** `MASTER_ROADMAP.md` §18 and
+  `IMPLEMENTATION_ROADMAP.md`'s M22 Acceptance Criteria section carry
+  identical per-task-group statuses (diffed directly while writing
+  this report — the only difference is the checklist detail the
+  implementation-roadmap copy adds, which is additive, not
+  contradictory).
+- **The roadmap is now the single authoritative source.**
+  `MASTER_ROADMAP.md` §19 states this as a permanent rule and names
+  itself as the tie-breaker; every other document in this pass
+  (`ARCHITECTURE.md`, `IMPLEMENTATION_ROADMAP.md`, `README.md`) was
+  edited to cross-reference it rather than restate its own competing
+  account of sequencing.
+
+**TG-D is not started by this pass, and this report does not request
+that it start.** It requests approval to begin work on §9's Build
+Verification Tasks — the only thing standing between TG-C's current
+status and a Complete M22.

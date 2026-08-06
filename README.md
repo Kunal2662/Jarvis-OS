@@ -280,15 +280,21 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 **Current version:** `0.36.0` · **Current milestone:** M22 —
 Cross-Platform Distribution & Universal Installer (🟡 active; Task Groups
 A and B complete, the installer UI wired to the engine, and Task Group C
-— Windows Packaging & Host Bridge — **Implementation Complete, Build
-Verification Pending**, see below).
+— Windows Packaging & Host Bridge — **Implementation Complete — Build
+Verification Pending**, see below). Status vocabulary throughout this
+README is the six terms `docs/ARCHITECTURE.md` §23 defines.
 
 **Work is not proceeding in numeric order.** M1–M8 are complete; M22
 runs next because it owns installation and packaging, and until it ships
 there is no way to deliver the first eight milestones to a machine that
-is not a development checkout. Development resumes at M9 once M22
-finishes, then runs M9 → M21 in order. M23 — Core Intelligence is
-deferred.
+is not a development checkout. Within M22: TG-A and TG-B are Complete,
+TG-C is Implementation Complete — Build Verification Pending, and
+TG-D/E/F are Not Started. Development resumes at M9 once **all** of
+M22 reaches Complete (`docs/MASTER_ROADMAP.md` §18's Acceptance
+Criteria state the exact gate), then runs M9 → M21 in order. M23 —
+Core Intelligence is deferred. This is a sequencing decision, not a
+renumbering — see `docs/MASTER_ROADMAP.md` §19, Roadmap Governance,
+which remains authoritative over this summary.
 
 M8 — React Frontend & Desktop Experience is complete for this pass, with
 Phase 1 (React Foundation), Phase 2 (Universal Application Framework &
@@ -345,7 +351,7 @@ installer has been produced, and no shortcut or icon has been observed.
 The Rust/TypeScript contract *is* tested — by a suite that reads the
 Rust as text and needs no compiler, which caught a command written to
 take an argument no caller sends. Ten **Build Verification Tasks** gate
-this to Fully Complete: build the installer, confirm it builds, confirm
+this to Complete: build the installer, confirm it builds, confirm
 the desktop and Start Menu shortcuts, **replace Tauri's default logo
 with real JARVIS branding** (unstarted, not just unverified), confirm
 installer metadata, the uninstall entry, Launch JARVIS, Open

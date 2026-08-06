@@ -110,6 +110,45 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | **M13B – Self-Healing & Observability** | 🔴 Planned, not started. *(New lettered companion to M13, added Aug 2026 — the foundational subset of M18/M20A, which remain their full-scale realizations. M13A "AI Sandbox" is unchanged.)* See `MASTER_ROADMAP.md` §8 and §14. |
 | M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
+**M22 is not a row in the table above** — this table predates M22 and
+was never extended to include it, since this document's own scope
+statement above only claims to track M8. That is itself a gap worth
+naming rather than leaving silent: M22 is the milestone actually being
+worked on right now, and its own section (below, "M22 — Cross-Platform
+Distribution & Universal Installer") is where its status lives.
+
+### Current Project Status (Aug 2026)
+
+*(Added alongside `ARCHITECTURE.md` §23 and `MASTER_ROADMAP.md` §18–20,
+so this document states the same execution order rather than requiring
+a reader to cross-check `MASTER_ROADMAP.md` §2 for it.)*
+
+```
+Completed:  M1  M2  M3  M4  M5  M6  M7  M8
+
+Current:    M22
+              TG-A  Complete
+              TG-B  Complete
+              TG-C  Implementation Complete
+                    Build Verification Pending
+              TG-D  Not Started
+              TG-E  Not Started
+              TG-F  Not Started
+
+After M22, resume with M9 → M10 → M11 → M12 → M13 → M14 → M15
+                      → M16 → M17 → M18 → M19 → M20 → M21
+
+Deferred:   M23 — Core Intelligence
+```
+
+M22 is the current milestone because it owns installation and
+packaging; M9 onward resumes once it reaches Complete (see the M22
+Acceptance Criteria section near the end of this document for the
+exact gate). This is a sequencing decision, not a renumbering —
+`MASTER_ROADMAP.md` §19 (Roadmap Governance) is the permanent rule this
+follows, and that document remains authoritative if the two ever
+disagree.
+
 M7's Phases 4–6 (Workflow Builder, Recorder, Scheduler) were paused
 pending the UI Foundation review; that review is superseded by the
 decision to migrate the frontend to React + Tauri (this document).
@@ -2142,7 +2181,7 @@ is a property of an observer over an interval, not a fact about a
 download; a stopwatch in the engine would report different numbers to
 two consumers.
 
-### Task Group C — Windows Packaging & Host Bridge 🟡 *(v0.36.0 — Implementation Complete, Build Verification Pending)*
+### Task Group C — Windows Packaging & Host Bridge 🟡 *(v0.36.0 — Implementation Complete — Build Verification Pending)*
 
 The bridge TG-B deferred. `src-tauri/src/installer.rs` implements the
 host side of the contract `provisioning-transport.ts` defined; no
@@ -2182,9 +2221,10 @@ processes, which is a strictly larger capability than this needs and one
 worth not granting a webview. The line item is closed by deciding
 against it, not by doing it.
 
-**Not verified — no Rust toolchain on the build machine.** `cargo` and
-`rustc` are absent, so this task group's Rust and packaging config are
-**unbuilt**: not compiled, no `tauri build` run, no installer produced,
+**Status: Implementation Complete — Build Verification Pending** (see
+`ARCHITECTURE.md` §23.4). `cargo` and `rustc` are absent from the build
+machine, so this task group's Rust and packaging config remain
+unbuilt: not compiled, no `tauri build` run, no installer produced,
 no shortcut or icon observed. What *is* verified: both JSON configs
 parse, every referenced icon exists, the NSIS options used are real keys
 in the bundled `config.schema.json`, and a 13-test contract suite pins
@@ -2193,7 +2233,7 @@ TypeScript that calls them — which caught a real defect
 (`launch_application` written to take a `location` that no caller
 sends). See `MILESTONE_REPORT.md` for the full proven/unproven split.
 
-**Build Verification Tasks — gate to Fully Complete.** TG-C stays at
+**Build Verification Tasks — gate to Complete.** TG-C stays at
 Implementation Complete until all ten pass. None has been run; each
 needs the Rust toolchain this machine lacks.
 
@@ -2245,3 +2285,46 @@ contents, not an assignment to a particular letter.
 - [ ] DMG, PKG, Apple Silicon and Intel, native menu.
 - [ ] Cross-browser QA for the Tauri webviews (WebKit, WebView2) —
       carried over from M8 Phase 7, which tested Chromium only.
+
+---
+
+## M22 Acceptance Criteria
+
+*(Added Aug 2026. Status words are the six defined in
+`ARCHITECTURE.md` §23 (Milestone Lifecycle) — the same vocabulary
+`MASTER_ROADMAP.md` §18 uses for the same milestone. That section
+carries the milestone-level status of record; this one carries the
+task-group-level checklist detail that backs it — read together, not
+as two independent claims that happen to agree.)*
+
+| Task Group | Status |
+|---|---|
+| **TG-A** — Universal Installer Foundation | **Complete** (v0.33.0) — all checklist items above checked |
+| **TG-B** — Runtime Provisioning | **Complete** (v0.34.0) — all checklist items above checked |
+| **TG-C** — Windows Packaging & Host Bridge | **Implementation Complete — Build Verification Pending** (v0.36.0) — implementation checklist above fully checked; all ten Build Verification Tasks unchecked |
+| **TG-D** | **Not Started** |
+| **TG-E** | **Not Started** |
+| **TG-F** | **Not Started** |
+
+TG-D/E/F's letter-to-scope mapping is not yet decided — see the "Task
+Groups D–F" note immediately above this section. Three Not Started rows
+means three task groups' worth of remaining scope, not a committed
+Linux/macOS/QA assignment.
+
+### M22 is considered COMPLETE only when
+
+- TG-A: Complete
+- TG-B: Complete
+- TG-C: Build Verification Passed — its status has advanced from
+  Implementation Complete — Build Verification Pending to Complete,
+  meaning every row in TG-C's own Build Verification Tasks table above
+  is checked, not merely that its implementation checklist is
+  checked
+- TG-D: Complete
+- TG-E: Complete
+- TG-F: Complete
+
+TG-D does not begin until TG-C's row reads Complete **and** that is
+explicitly approved (`MASTER_ROADMAP.md` §19's implementation-order
+documentation rule — the order is not self-authorizing just because
+it is written down).

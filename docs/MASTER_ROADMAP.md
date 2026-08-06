@@ -53,6 +53,9 @@ this file for what changed and why).
 15. [Technical debt](#15-technical-debt)
 16. [Recommended development order](#16-recommended-development-order)
 17. [Appendix — companion documents](#17-appendix--companion-documents)
+18. [M22 Acceptance Criteria](#18-m22-acceptance-criteria)
+19. [Roadmap Governance](#19-roadmap-governance)
+20. [Documentation Synchronization Policy](#20-documentation-synchronization-policy)
 
 ---
 
@@ -89,7 +92,17 @@ where the product is going. It exists so that:
 *(Reconciled Aug 2026 — see the changelog addendum for the full
 reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
-version timeline uses the same four symbols consistently.)*
+version timeline uses the same four symbols consistently. These four
+mark a milestone's **position in the roadmap** — is it being worked
+on at all — and are a coarser, complementary axis to the six-status
+Milestone Lifecycle (`ARCHITECTURE.md` §23: Planned, In Progress,
+Implementation Complete, Build Verification Pending, Complete,
+Production Ready) that §18's M22 Acceptance Criteria uses for
+task-group-level detail. A milestone marked 🟡 Active here can — and
+in M22 TG-C's case does — have a task group whose own status is
+Implementation Complete — Build Verification Pending underneath it;
+the two vocabularies describe different granularities, not competing
+answers to the same question.)*
 
 **Current version:** `0.36.0`
 
@@ -101,22 +114,34 @@ held to the same number by `tests/unit/test_version_consistency.py`.
 This document is not machine-checked; when it disagrees with those
 files, they are right.)*
 
-### Execution order
+### Execution order — Current Project Status
 
 The order work is actually being done in, which is **not** ascending
-numeric order:
+numeric order. Status words below are the six defined in
+`ARCHITECTURE.md` §23 (Milestone Lifecycle); "Not Started" is that
+section's alternate spelling for Planned, used here because it is the
+form this table already used before §23 unified the vocabulary.
 
 ```
-M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8   ✅ completed
-                                  ↓
-M22  ← current
-  TG-A ✅   TG-B ✅   TG-C 🟡 impl. complete,   TG-D   TG-E   TG-F
-                       build verification
-                       pending — gates TG-D
-                                  ↓
-M9 → M10 → M11 → M12 → M13 → M14 → M15 → M16 → M17 → M18 → M19 → M20 → M21
-                                  ↓
-M23 — Core Intelligence   🟠 deferred
+Completed
+  M1  M2  M3  M4  M5  M6  M7  M8
+
+Current
+  M22
+    TG-A  Complete
+    TG-B  Complete
+    TG-C  Implementation Complete
+          Build Verification Pending
+    TG-D  Not Started
+    TG-E  Not Started
+    TG-F  Not Started
+
+After M22, resume with
+  M9 → M10 → M11 → M12 → M13 → M14 → M15
+     → M16 → M17 → M18 → M19 → M20 → M21
+
+Deferred
+  M23 — Core Intelligence
 ```
 
 **Why M22 runs out of order:** it owns installation and packaging.
@@ -124,13 +149,16 @@ Until it ships there is no way to *deliver* M1–M8 to a machine that is
 not a development checkout, so every milestone after it would be built
 on top of software nobody can install.
 
-**TG-C does not yet unblock TG-D.** Its code is written and reviewed,
-but ten Build Verification Tasks — build the installer, confirm both
+**TG-C does not yet unblock TG-D.** Its code is Implementation
+Complete: written, reviewed, gated and merged. It is not Complete: ten
+Build Verification Tasks — build the installer, confirm both
 shortcuts, replace Tauri's placeholder branding with real JARVIS
 artwork, and five more — have not been run on this machine for want of
-a Rust toolchain. See TG-C's own entry in §8 and
-`MILESTONE_REPORT.md` §9 for the full list. TG-D starts only once all
-ten pass and that is explicitly approved.
+a Rust toolchain. See §18 (M22 Acceptance Criteria) for the exact gate,
+TG-C's own entry in §8 for the narrative, and `MILESTONE_REPORT.md` §9
+for the full task list. TG-D starts only once all ten pass **and**
+that is explicitly approved — the second condition is not implied by
+the first.
 
 Numbering is unchanged — this is a sequencing decision, not a
 renumbering. Individual entries below keep their own detailed status,
@@ -203,9 +231,10 @@ future work; see M6's own §3 entry for the full scope note.
   metadata, uninstall entry, Launch/Open Folder, the packaged
   provisioning bridge) have not been run on this machine. Task Groups
   D–F are not started, and do not start until TG-C's ten tasks pass and
-  that is explicitly approved. See §8's M22 entry for the per-task-group
-  detail and `IMPLEMENTATION_ROADMAP.md` / `MILESTONE_REPORT.md` §9 for
-  the checklists.
+  that is explicitly approved. See §18 for the formal Acceptance
+  Criteria gate, §8's M22 entry for the per-task-group detail, and
+  `IMPLEMENTATION_ROADMAP.md` / `MILESTONE_REPORT.md` §9 for the
+  checklists.
 - **M9 — Runtime & Core Services** (see §8) — ✅ **100% complete, all
   five task groups shipped:** Task Group A (Runtime Manager,
   Application Lifecycle), Task Group B (Service Manager, Session
@@ -6967,10 +6996,11 @@ and prompt cancellation real. A second defect in the same pass: `Child`
 detaches rather than kills on drop, so closing the window mid-run left
 Python downloading gigabytes invisibly.
 
-**This task group is Implementation Complete, not Fully Complete.**
+**This task group's status is Implementation Complete — Build
+Verification Pending, not the terminal Complete status.**
 There is no Rust toolchain on the build machine, so nothing here has
 been compiled and no installer has been produced. Ten explicit **Build
-Verification Tasks** gate it to Fully Complete — build the installer,
+Verification Tasks** gate it to Complete — build the installer,
 confirm it builds, confirm both shortcuts, replace Tauri's default logo
 with real JARVIS branding (unstarted, not merely unverified), confirm
 installer metadata, the uninstall entry, Launch JARVIS, Open
@@ -14248,3 +14278,161 @@ pre-existing symlink case Windows will not grant). mypy 263 -> 262 --
 the deleted legacy factory carried an untyped parameter, so removing it
 resolved a baseline error as well. Ruff
 21 categories, unchanged. Version bumped `0.27.0` -> `0.28.0`.
+
+---
+
+## 18. M22 Acceptance Criteria
+
+*(Added Aug 2026, as the worked example the Milestone Lifecycle
+(`ARCHITECTURE.md` §23) and Build Verification Policy
+(`ARCHITECTURE.md` §23.7) point to. Mirrored, not duplicated in spirit,
+in `IMPLEMENTATION_ROADMAP.md`'s own M22 Acceptance Criteria section —
+that copy carries the task-group-level checklist detail; this one is
+the milestone-level status of record.)*
+
+| Task Group | Status |
+|---|---|
+| **TG-A** — Universal Installer Foundation | **Complete** (v0.33.0) |
+| **TG-B** — Runtime Provisioning | **Complete** (v0.34.0) |
+| **TG-C** — Windows Packaging & Host Bridge | **Implementation Complete — Build Verification Pending** (v0.36.0) |
+| **TG-D** | **Not Started** |
+| **TG-E** | **Not Started** |
+| **TG-F** | **Not Started** |
+
+*(The Installer UI integration that connected TG-A to TG-B, shipped at
+v0.35.0, is not a lettered task group in its own right — see §2's M22
+entry — and is not a row here for that reason; it is folded into TG-A/
+TG-B's own Complete status above.)*
+
+**TG-D/E/F's letter-to-scope assignment is not yet finalized.** The
+known remaining content — Linux packaging (AppImage, Flatpak, DEB,
+RPM), macOS packaging (DMG, PKG), and cross-platform/cross-browser QA
+— is documented in `IMPLEMENTATION_ROADMAP.md`'s "Task Groups D–F" entry,
+but has not been split into three individually-scoped task groups.
+Listing three Not Started rows here states that three more task groups
+remain before M22 closes; it does not assign Linux to D, macOS to E, or
+QA to F. That assignment, when made, is a roadmap-governance act under
+§19 below (documented, not silent) — not something this table
+pre-decides.
+
+### M22 is considered COMPLETE only when
+
+- TG-A: **Complete**
+- TG-B: **Complete**
+- TG-C: **Build Verification Passed** (i.e. its status has advanced
+  from Implementation Complete — Build Verification Pending, per
+  `ARCHITECTURE.md` §23.4, to Complete, per §23.5 — not merely
+  "the code looks done")
+- TG-D: **Complete**
+- TG-E: **Complete**
+- TG-F: **Complete**
+
+Every row above at **Complete** and nothing less is what this document
+means, everywhere else it says "M22 is complete." A partial reading —
+"TG-A through TG-C are done, call it complete" — is exactly the
+ambiguity this section exists to foreclose.
+
+---
+
+## 19. Roadmap Governance
+
+*(Added Aug 2026, as a permanent section — not a milestone-specific
+note, and not superseded by any future milestone's own governance
+text. Rules here apply to every milestone this document has ever
+described or will ever describe.)*
+
+- **The roadmap numbering represents architectural organization, not
+  a work schedule.** M9 being numbered before M22 records that M9's
+  scope was architecturally sequenced there when this document's
+  milestone numbers were assigned — it does not mean M9 is built
+  before M22. §2's Execution order is the work schedule; the numbers
+  are a stable index into the architecture, not a queue.
+- **The implementation order may differ from the numeric order, and
+  when it does, that must always be documented** — not left for a
+  reader to infer from which milestone's checkboxes happen to be
+  ticked. §2's Execution order section is where that documentation
+  lives for the current pass; it names which milestone is active and
+  states plainly why the numeric order was departed from (M22 owns
+  installation, and every later milestone needs something installable
+  to run on).
+- **This document — `MASTER_ROADMAP.md` — is the single source of
+  truth for planning and sequencing.** `ROADMAP.md` says as much about
+  itself already ("explicitly *not* the source of truth"); this rule
+  generalizes it to every document that describes status or order,
+  including `IMPLEMENTATION_ROADMAP.md`, `ARCHITECTURE.md`'s milestone
+  cross-references, and `README.md`'s roadmap summary. Where any of
+  them disagrees with this document about sequencing, this document is
+  correct and the other is drift to be fixed, not a second opinion to
+  be weighed.
+- **No milestone may be renumbered.** A milestone's number is assigned
+  once, when it is first added to this roadmap, and is permanent
+  regardless of when it is actually built, how its scope evolves, or
+  whether it is later merged with, or absorbs, another milestone's
+  content (as M22 absorbed Cross-Platform Distribution, Aug 2026 — the
+  content moved; the number M22 did not change and neither did the
+  numbers around it).
+- **No completed milestone may be silently redefined.** A milestone
+  marked Complete (`ARCHITECTURE.md` §23.5) keeps the scope it was
+  completed against. Extending or narrowing that scope later is a new
+  milestone, or an explicitly-labeled amendment to the old one's
+  entry in §3 — never an unlabeled edit that changes what "M4 is
+  complete" retroactively means.
+- **Historical CHANGELOG entries must never be rewritten.** A shipped
+  version's entry in `CHANGELOG.md` records what was true when it
+  shipped. If a later pass finds that entry was wrong or incomplete
+  (as happened with v0.34.0's host-bridge note — see its correction in
+  the v0.35.0 entry), the fix is a **new entry that says so**, not an
+  edit to the old one. `CHANGELOG.md`'s own v0.35.0 entry is the
+  worked example of this rule already in practice.
+- **Corrections must be clearly identified as corrections.** Whether
+  in a CHANGELOG entry, a milestone report, or this document, a
+  statement that fixes an earlier statement says so explicitly — "this
+  corrects §2's previous claim that…" — rather than quietly replacing
+  the old text with no trace that anything changed. A reader
+  comparing two versions of a claim needs to be able to tell a
+  correction from a contradiction.
+
+---
+
+## 20. Documentation Synchronization Policy
+
+*(Added Aug 2026, as a permanent section, prompted by M22 Task Group
+C's status having drifted across five documents before a single
+canonical status vocabulary existed — see `ARCHITECTURE.md` §23's own
+opening note. That drift was a process gap, not a one-off mistake;
+this section closes the gap rather than the mistake.)*
+
+**Every completed milestone must update all six of the following
+before it may be marked complete anywhere:**
+
+| Document | What it must reflect |
+|---|---|
+| `README.md` | Current version, current milestone, and status wording matching the canonical vocabulary (`ARCHITECTURE.md` §23) exactly. |
+| `CHANGELOG.md` | A new version-tagged entry — added, never edited into an old one (§19 above). |
+| `ARCHITECTURE.md` | Any new or changed standard the milestone introduced; any milestone cross-reference the milestone's status affects. |
+| `MASTER_ROADMAP.md` | §2 Current status, §3 (once genuinely complete) or the milestone's §8 entry, and — for a milestone with task groups — its own Acceptance Criteria section (§18 is M22's). |
+| `IMPLEMENTATION_ROADMAP.md` | The milestone's own checklist, task-group statuses, and Acceptance Criteria section, kept in the same terms as `MASTER_ROADMAP.md`'s. |
+| `MILESTONE_REPORT.md` | A report for the specific piece of work just completed — what was built, what was verified, what was not, in the vocabulary this policy requires everywhere else. |
+
+**No implementation may be considered complete until documentation is
+synchronized.** This is not a suggestion to update docs "when
+convenient" — it is a precondition of the Implementation Complete
+status itself (`ARCHITECTURE.md` §23.3's third bullet). Code that is
+finished, tested and merged, with any of the six documents above still
+describing the old state, has not met §23.3 and may not be reported as
+Implementation Complete until it does.
+
+**Terminology consistency is part of synchronization, not a
+separate, optional pass.** All six documents must use the exact
+status words defined in `ARCHITECTURE.md` §23 — Planned, In Progress,
+Implementation Complete, Build Verification Pending, Complete,
+Production Ready — and no synonym for any of them ("done", "finished",
+"shipped", "verified", "code complete", "fully complete") in a status
+declaration. Descriptive prose may still say a bridge "works" or a
+suite "passes"; the **status field** itself uses only the six words.
+This document's own M22 entries were found using "code complete but
+unbuilt" and "Fully Complete" — two synonyms this policy would have
+caught before they were ever written — and were corrected to the
+canonical vocabulary in the same pass that added this section. See
+`MILESTONE_REPORT.md`'s Governance Verification Report for the full
+list of what that correction touched.

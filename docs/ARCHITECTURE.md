@@ -55,6 +55,7 @@ mistakes a standard for a shipped guarantee.
 20. [Governance — how this document changes](#20-governance--how-this-document-changes)
 21. [Domain architecture map](#21-domain-architecture-map)
 22. [Approved architecture decisions (Aug 2026)](#22-approved-architecture-decisions-aug-2026)
+23. [Milestone Lifecycle](#23-milestone-lifecycle)
 
 ---
 
@@ -1718,9 +1719,10 @@ Assigned to **M22**. The OS abstraction layer is the load-bearing piece:
 it is what keeps §22.10's single installation flow honest across three
 platforms rather than three flows wearing one name.
 
-**Windows is in progress (M22 Task Group C, v0.36.0);** Linux, macOS,
-the portable edition, the enterprise installer, auto-update and code
-signing are not started.
+**Windows (M22 Task Group C, v0.36.0) is Implementation Complete —
+Build Verification Pending** (§23.4/§23.7 below govern exactly what
+that leaves open). Linux, macOS, the portable edition, the enterprise
+installer, auto-update and code signing are Planned — not started.
 
 *The host bridge* (`frontend/src-tauri/src/installer.rs`) is where the
 webview meets the operating system. It spawns
@@ -1777,3 +1779,163 @@ Until then the rule is: **do not build a competing design.** A feature
 that needs provider routing, cost control, voice-provider selection or
 hardware profiling before the Calibration Engine exists should raise that
 as a blocker, not solve it locally.
+
+---
+
+## 23. Milestone Lifecycle
+
+*(Added Aug 2026, after M22 Task Group C's status was described five
+different ways across five documents — "code complete but unbuilt",
+"code complete but unverified", "not verified", "unbuilt" — before
+this section existed to name it once. This is now the only vocabulary
+a milestone, task group, or phase status may use anywhere in this
+project's documentation. §20 governs how *this document* changes;
+this section governs what a *status word* is allowed to mean,
+everywhere it appears.)*
+
+A milestone, task group, or phase carries **exactly one** of the six
+statuses below at any time. A document that describes status in any
+other words is not more precise — it is drift waiting to be noticed by
+the next person who has to reconcile it, the way this section had to
+be written to reconcile M22 TG-C's five.
+
+Most work moves **Planned → In Progress → Implementation Complete →
+Complete**. **Build Verification Pending** is not a fifth stop on that
+line — it is what "Implementation Complete" is called for work that
+also has a platform-verification obligation under §23.5, until that
+obligation is discharged. Work with no such obligation (most backend
+and frontend milestones) never carries it and goes Implementation
+Complete → Complete directly. **Production Ready** applies only to
+work intended for an end-user release artifact, not to every
+milestone.
+
+### 23.1 Planned
+
+Work has not started. No code has been written for this scope.
+
+Status tables in this project's documents render this status as
+either **"Planned"** or **"Not Started"** — the two are the same
+status under two spellings in use before this section unified the
+vocabulary, and both remain valid display text. What is not valid is
+a third phrase (e.g. "pending", "queued", "TBD") standing in for this
+status; use one of the two.
+
+### 23.2 In Progress
+
+Implementation is actively being developed. Some functionality may
+work; none of it has been declared finished.
+
+### 23.3 Implementation Complete
+
+All four of the following hold:
+
+- All planned functionality for this milestone/task group has been
+  implemented.
+- Code has passed the required quality gates (§18 Testing standards,
+  §19 Performance standards, and this project's standard gate:
+  pytest, vitest, lint, typecheck, build).
+- Documentation has been updated, per the Documentation Synchronization
+  Policy (`MASTER_ROADMAP.md` §20).
+- The implementation has been merged.
+
+**Platform verification may still be pending.** This status alone does
+not claim a working, installable, end-user artifact exists — only that
+the code behind one is finished, gated, documented and merged. Whether
+that claim needs anything further depends on §23.5.
+
+### 23.4 Build Verification Pending
+
+Implementation is complete (§23.3 holds in full) but platform-specific
+verification has not yet been performed. This includes:
+
+- Packaging (building the actual installer/package artifact)
+- Installer verification (the artifact installs, and does what it
+  claims)
+- Platform validation (behavior confirmed on the real target platform,
+  not reasoned about)
+- Deployment verification (the built artifact runs where it is meant
+  to run)
+
+A milestone in this status has working, reviewed, tested source code
+and an **unverified** delivery mechanism for it. The two are not the
+same claim, and this status exists so that a document can make the
+first claim honestly without being read as also making the second.
+
+See §23.6 (Build Verification Policy) for what specifically must be
+checked, and `MILESTONE_REPORT.md`'s per-milestone reports for the
+worked example (M22 Task Group C, §9 there: ten named, numbered
+checks, none yet run).
+
+### 23.5 Complete
+
+All five of the following hold:
+
+- Implementation (§23.3's four conditions)
+- Testing
+- Documentation
+- Platform Verification (§23.4's four checks, where applicable — see
+  §23.6 for which milestones this applies to)
+- Acceptance Criteria (the milestone's own stated criteria — see
+  `MASTER_ROADMAP.md` §18 and `IMPLEMENTATION_ROADMAP.md`'s
+  Acceptance Criteria sections for the worked example, M22's)
+
+A milestone does not reach this status by having most of the five;
+it reaches this status by having all five, and a document claiming
+this status for a milestone that is missing one is the exact failure
+this section exists to prevent.
+
+### 23.6 Production Ready
+
+Verified on supported production platforms. Ready for release.
+
+This is the status furthest to the right, and it is not a synonym for
+Complete: Complete means the milestone's own scope and acceptance
+criteria are satisfied; Production Ready means the result has been
+checked against the platforms this project actually ships to. A
+milestone with no release artifact of its own (most backend-only
+milestones) has no meaningful path to this status and stops at
+Complete.
+
+### 23.7 Build Verification Policy
+
+Any milestone or task group whose deliverable includes a
+platform-specific artifact — a compiled binary, an installer, a
+packaged application — is **platform-specific work**, and platform
+verification is **mandatory** before it may carry the Complete status
+(§23.5), regardless of how thoroughly its source has been reviewed or
+unit-tested. Review and unit tests establish that the code is
+*correct*; only running the actual toolchain and the actual artifact
+establishes that it *builds and works*, and the two are not
+substitutes for each other. Categories this applies to:
+
+- **Rust** — the project's Tauri/desktop-shell code (`src-tauri/`)
+  must actually compile. No amount of text-level or unit-level
+  checking substitutes for `cargo build` succeeding.
+- **Windows Installer** — the NSIS/MSI artifact must actually be
+  produced and actually install, upgrade and uninstall cleanly on a
+  real Windows machine.
+- **Linux Packages** — AppImage, Flatpak, DEB, RPM: each format
+  verified on the distributions this project targets, not assumed
+  from the packaging config alone.
+- **macOS Packages** — DMG, PKG: verified on both Apple Silicon and
+  Intel where the project claims to support both.
+- **Code Signing** — a signed build verified to install without a
+  Gatekeeper/SmartScreen warning, not merely that the signing step
+  in a build script exits 0.
+- **Release Validation** — the built artifact exercised end to end
+  (install → run → the milestone's core user-facing flow → uninstall)
+  on the actual target platform.
+
+**What does *not* satisfy this policy:** reading a bundled schema to
+confirm a config key is spelled correctly; a test suite that reads
+source code as text rather than compiling it; reasoning through what a
+default template is documented to do. These are legitimate, valuable
+checks — M22 Task Group C used all three — and none of them is a
+substitute for the platform check itself. A document that reports
+these checks as if they closed the platform-verification gap is
+exactly the ambiguity this section exists to close off.
+
+A milestone in the Build Verification Pending status (§23.4) moves to
+Complete only once every applicable category above has been checked
+against a real build, on a real target platform, and the result
+recorded — not asserted from the implementation alone.

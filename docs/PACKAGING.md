@@ -36,11 +36,11 @@ Configured in `frontend/src-tauri/tauri.conf.json`:
   `jarvis-installer`. A release build is exactly where an install
   failure needs a log.
 
-### Build Verification Tasks — gate to Fully Complete
+### Build Verification Tasks — gate to Complete
 
 No Rust toolchain on the machine this was written on, so none of the
 ten tasks below has run. All ten must pass before this task group is
-Fully Complete, and Linux/macOS packaging (Task Groups D+) waits for
+Complete, and Linux/macOS packaging (Task Groups D+) waits for
 that plus explicit approval:
 
 1. Build the Windows installer with the Rust toolchain.

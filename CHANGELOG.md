@@ -20,7 +20,7 @@ shortcuts, replace Tauri's default logo with real JARVIS branding
 (unstarted, not just unverified), confirm installer metadata, the
 uninstall entry, Launch JARVIS, Open Installation Folder, and the
 provisioning bridge inside the packaged app — gate this task group to
-Fully Complete; none has run. See Notes and `MILESTONE_REPORT.md` §9
+Complete; none has run. See Notes and `MILESTONE_REPORT.md` §9
 for the full list.
 
 ### Added
