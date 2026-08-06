@@ -19,6 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { WorkspaceBinding } from "@/components/workspace/workspace-binding";
 import { panelRegistry } from "@/core/panel-registry";
 import { atLeast } from "@/core/user-mode";
 import { reportError, reportSuccess } from "@/services/error-reporting";
@@ -183,6 +184,11 @@ export function WorkspaceToolbar() {
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+
+      {/* Which backend workspace this layout's panels read from. Added
+          in M8 Phase 7: five dashboard widgets already told the user to
+          bind a workspace, and no control existed to do it. */}
+      <WorkspaceBinding />
 
       <div className="flex-1" />
 

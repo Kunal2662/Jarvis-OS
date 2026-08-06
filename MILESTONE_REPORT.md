@@ -1,245 +1,263 @@
-# Milestone Report — M8 Phase 5 + Phase 6
+# Milestone Report — M8 Phase 7: Production Readiness
 
-**Version:** 0.31.0
-**Branch:** `feature/m8-phase-5-6`
-**Baseline:** v0.30.0 (`daf387f` M8 Phase 3, `524a123` architecture docs)
+**Version:** 0.32.0
+**Branch:** `feature/m8-phase-7`
+**Baseline:** v0.31.0 (`6e2c636`)
 **Date:** 2026-08-06
 
 ---
 
 ## 1. Executive summary
 
-Phase 5 turned the workspace into the JARVIS operating environment:
-every backend module that has something real to show now reaches the
-user, through three audience-specific dashboards and eleven new
-dashboard widgets. Phase 6 hardened it — skeleton loaders, honest
-per-widget offline/empty/error states, automatic connection recovery,
-and the §22.12 audience gate.
+An audit milestone, run against a **live backend** rather than by reading
+code. I started the real FastAPI app with a real DI container and a real
+health poll, drove the React client against it, killed the backend
+mid-session, and brought it back.
 
-**The milestone began with an API audit, and that audit changed the
-plan.** I enumerated all 172 REST operations the frozen backend exposes
-before writing any UI. Three findings shaped everything after:
+That found **four defects that code review had missed**, including a
+version drift three releases deep and a status selector that reported a
+fault where none existed. All four are fixed, and three of them now have
+tests that would have caught them.
 
-1. **`GET /health` is a bare liveness probe** (`{status, version}`). The
-   rich subsystem data every "… Status" widget needs is published as the
-   `health.updated` **WebSocket** event, which nothing on the frontend
-   was reading. The dashboards subscribe rather than poll — no new
-   endpoint, and the numbers move on their own.
-2. **Seven of the Administrator Dashboard's thirteen panels have no
-   backend at all.** Users, budgets, provider priority, calibration
-   status, analytics and synchronization are all `ARCHITECTURE.md` §22
-   — approved and *not built*. They are named on screen, not mocked.
-3. **Two AI Dashboard widgets from the brief have no data source.**
-   Recent Conversations (no conversation-history route exists) and
-   Pinned Projects (`Project` has no `pinned` column; `Note` and
-   `Workspace` do).
-
-**Backend untouched.** No route, model, schema, event or contract
-changed. pytest, black, ruff and mypy are byte-identical to v0.30.0 —
-the evidence, not the assertion, that the freeze held.
+No new functionality. No backend change — pytest, black, ruff and mypy
+are unchanged from v0.31.0 apart from the version constant and its new
+test.
 
 ---
 
-## 2. Architecture decisions
+## 2. Defects found and fixed
 
-### 2.1 A single audience gate, not per-panel judgement
+### 2.1 Version drift — three releases deep 🔴
 
-`core/user-mode.ts` defines three modes and the seven classes of
-information §22.12 restricts. Every restricted surface asks it; none
-re-decides what "advanced" means. `stores/user-mode.store.ts` *derives*
-the mode from Developer Mode's existing session unlock rather than
-keeping a second flag — two flags that can disagree about whether
-provider names may be shown will eventually disagree permissively.
+`GET /api/v1/health` reported **`0.28.0`** while `pyproject.toml` said
+`0.31.0`. `src/jarvis/__version__.py` — whose own docstring calls itself
+*"single source of truth for the package version"* — had not been bumped
+since v0.28.0, because v0.29.0–v0.31.0 each only bumped
+`pyproject.toml`.
 
-Administrator is modelled and enforced now even though the backend
-account model does not exist (§22.11 is approved, not built). Nothing
-regresses if it never arrives; nothing leaks if it does.
-`resolveUserMode()` is the one function that changes on the day it ships.
+That constant is what the health endpoint returns, what
+`jarvis --version` prints, and what a support conversation starts from.
+An installation reporting a version three releases behind the artifact
+it was built from is a real diagnostic hazard.
 
-### 2.2 Two gates, because layouts travel
+**Fixed:** both set to `0.32.0`, plus
+`tests/unit/test_version_consistency.py` — three tests asserting they
+match, that the version is semver, and that the health route reads the
+constant rather than hardcoding a string. Nothing compared them before,
+which is exactly why it drifted.
 
-Restricted panels are filtered out of the panel *menu* **and** refused
-by the dashboard components themselves. The menu filter alone is not
-enough: a workspace layout exported from a developer's machine and
-imported on a personal one would otherwise render a Developer Dashboard.
+### 2.2 A dead-end user journey 🟠
 
-This is a *render* gate, not a security boundary — the routes behind it
-are session-authenticated like every other route. That division is
-correct: the backend authenticates, the frontend decides what to show.
-§22.12 is a product rule about what a personal user's JARVIS *contains*.
+M8 Phase 5 shipped five dashboard widgets whose empty state reads
+*"Bind this workspace to a JARVIS workspace to see its tasks."* — and
+**no control anywhere in the app could do that**. `bindBackendWorkspace`
+had only tests calling it; `workspacesApi` had no caller at all. Five
+widgets instructed the user to perform an action the UI did not offer.
 
-### 2.3 No new registries
+**Fixed:** `components/workspace/workspace-binding.tsx`, in the workspace
+toolbar. Every part already existed — the store action (Phase 3), the
+typed endpoint (Phase 2), the widgets that read the binding (Phase 5).
+This is the control that connects them, not a new feature. 10 tests,
+including that the layout stores an **id and never the backend's data**,
+and that a binding to a deleted workspace says "Unavailable" rather than
+rendering blank.
 
-Eleven AI Dashboard widgets joined the existing
-`dashboardWidgetRegistry`; four new panels joined the existing
-`panelRegistry`. Both are `ContributionRegistry` instances. The widget
-grid, panel container, persistence and import/export all work on them
-with no change, because there was nothing new to teach.
+### 2.3 A status selector reporting a fault that did not exist 🟠
 
-### 2.4 One fetch hook, one set of states
+Found against the live backend: Memory and Knowledge Graph showed
+**Degraded** amber on a perfectly healthy system.
 
-`useBackendResource` + `ResourceView` replace what would have been
-fifteen hand-rolled `useEffect`/`useState` triples — fifteen chances to
-forget the offline case and fifteen slightly different error strings. It
-also makes connection recovery free at the widget level: `isLive` is a
-dependency, so a widget refetches when the backend returns.
+`selectSourceStatus` treated "the `workspace_platform` collector is not
+reporting at all" the same as "it is reporting, and this source is
+missing from its list". The first is *unknown*; only the second is a
+degradation. A backend running without that collector — the API-only
+runtime, for instance — lit up amber for no reason.
+`selectServiceStatus` beside it already drew the distinction correctly.
 
-Deliberately not TanStack Query (which *is* a dependency): Query's value
-is its cache, and a live health snapshot wants the current answer.
+**Fixed**, and pinned by two tests covering both sides of the
+distinction.
 
----
+### 2.4 Two stories for one condition 🟡
 
-## 3. Implementation details
+While offline, the five health widgets said *"Waiting for the backend to
+report system health"* — implying a report was coming — while the
+REST-backed widgets beside them correctly said *"Offline"*. The health
+widgets read a store rather than issuing a request, so they never went
+through `ResourceView`.
 
-### 3.1 Phase 5 — modules and dashboards
+**Fixed:** `AwaitingBackend` now distinguishes *offline* from *connected
+but not yet reported*. Verified in the browser: 5 uniform offline
+messages, zero stale "waiting".
 
-**New:** `core/user-mode.ts`, `stores/user-mode.store.ts`,
-`stores/health.store.ts`, `hooks/use-backend-resource.ts`,
-`components/common/resource-view.tsx`,
-`components/common/skeleton.tsx`,
-`features/dashboard/ai-dashboard-widgets.tsx`,
-`features/dashboard/ai-dashboard-registration.ts`,
-`features/developer/developer-dashboard.tsx`,
-`features/admin/administrator-dashboard.tsx`,
-`features/plugins/plugins-panel.tsx`,
-`features/diagnostics/diagnostics-panel.tsx`.
+### 2.5 A footgun in the shared fetch hook 🟡
 
-**Extended:** `services/api/endpoints.ts` (calendar, knowledge,
-intelligence, plugins, devtools, MCP, gateway stats, audit log — every
-path verified against the 172-operation dump), `services/realtime-bridge.ts`
-(health snapshot + clear-on-disconnect), `core/panel-registry.ts`
-(`requiredMode`), `core/startup-orchestrator.ts`.
+`useBackendResource`'s default emptiness check did not understand the
+`Page<T>` shape (`{items, meta}`) that most endpoints return — a
+non-empty object whose `items` may be empty. Empty collections rendered
+as an empty list instead of an empty *state*. Three callers had already
+worked around it with their own `isEmpty`; a fourth forgot, which is how
+it surfaced.
 
-**AI Dashboard — 11 widgets, all on real data:** System Overview,
-Subsystem Status, Performance, Knowledge Graph, Suggestions (M10B's real
-engine), Recent Tasks, Projects, Pinned Notes, Recent Files, Upcoming
-Calendar, Notification Summary.
-
-Six of the brief's separate "… Status" widgets ship as one
-`SubsystemStatusWidget`: they share one data source and one
-presentation, and a user asking "is anything wrong?" is better served by
-one list than by hunting six cards.
-
-**Developer Dashboard — 7 panels:** providers & routing, outbound API
-counters, API inspector, performance metrics, agent trace, the relay's
-61-event vocabulary, runtime state.
-
-**Administrator Dashboard — 6 real panels + 1 honest gap panel:** AI
-health, API usage, provider health, voice providers, secrets status
-(configured-or-not, never values), audit log; plus "Not yet available"
-naming the seven §22 capabilities and why.
-
-### 3.2 Phase 6 — polish
-
-Skeleton loaders shaped like the content they replace; `ResourceView`'s
-four honest states per widget; automatic connection recovery
-(`installConnectionRecovery` — re-runs ping → session → socket, because
-the socket's own retry reuses a token a restarted backend will refuse
-forever); virtual lists on every unbounded list; lazy-loaded panels with
-`<Suspense>`; `memo` where it pays.
+**Fixed at the default**, and the three workarounds deleted. Fixing the
+trap beats patching the call site.
 
 ---
 
-## 4. Security notes
+## 3. Live verification
 
-**A real §22.12 leak I shipped in Phase 3 is fixed here.** The Activity
-Center rendered `agent.step`'s raw `node` field — `planner`,
-`tool_executor`, `critic` — to every audience. My Phase 3 report flagged
-it as a gating requirement; this is that gate. Personal users now see
-the mandated progress vocabulary; step count, ordering and status are
-identical in both modes, so it is fewer *words*, not less truth.
+Ran the real backend (`create_app` + real `Container` + real
+`HealthMonitor` poll) against the dev client:
 
-**A correction to that same Phase 3 report:** it also claimed the Status
-Bar's "AI Provider" item names a provider. It does not — it renders
-"Not configured" via `NotConfiguredItem`, and never leaked.
-
-**Secrets:** the Administrator Dashboard reports whether a secret is
-configured, never its value, and does no redaction of its own — the
-backend already redacts server-side (`public_snapshot()`, the Phase 2
-fix). A second redaction layer would imply the first might be
-incomplete.
-
-**No credentials, tokens or provider values are rendered anywhere.**
-
----
-
-## 5. Performance notes
-
-| Concern | Approach |
+| Verified | Result |
 |---|---|
-| Fast startup | Panels and dashboards lazy-loaded; the build emits 14 feature chunks |
-| Low memory | Virtual lists on notifications, activity, API calls, audit log, secrets |
-| Fast navigation | Route splitting; `memo` on `PanelFrame` |
-| Smooth panel movement | Fractional layout maths, no per-frame React state |
-| Fast search | Debounced, out-of-order-guarded, server-side |
-| Instant workspace switching | Layout is local state; switching is a store read |
-| No duplicated state | Health has one store; activity merges three live stores rather than copying them; user mode is derived |
+| Startup with no backend | Reveals correctly; explicit offline states; no fake data |
+| `health.updated` → store → widgets | Real values: 1% CPU, 108 MB memory, 150 GB disk free, uptime, service counts |
+| Backend killed mid-session | **No stale numbers survive** — the pre-outage snapshot is dropped, not shown as current |
+| Backend restarted | **Reconnected automatically, no page reload**; offline messages cleared |
+| Connected but no snapshot yet | Correctly distinguished from offline |
+| `/workspace` route, panel chrome | Collapse / options / close all present and operable |
 
-Bundle: largest app chunk 99 kB (29 kB gzipped), unchanged in shape from
-v0.30.0; new features arrive as their own chunks.
+The disconnect behaviour is the one I most wanted to confirm: "never
+fake data" has to hold *during* an outage, not just at startup.
+
+---
+
+## 4. Security review
+
+**`ARCHITECTURE.md` §22.12 now has an executable guard.**
+`core/__tests__/restricted-surface.test.ts` scans every source file: any
+module reading a restricted source (`mcpApi`, `devtoolsApi`, `auditApi`,
+`selectProviders`, `selectEgressStats`) must also consult the audience
+gate.
+
+The behavioural tests check *existing* surfaces. This catches the
+failure that actually worries me — a **new** surface added later that
+reads provider names and never gets a gate, where no existing test would
+fail because none knows about it. That is precisely how the Phase 3
+Activity Center leak survived a whole milestone.
+
+**I mutation-tested it**: removing the gate from the Diagnostics panel
+made it fail with the offending filename; restoring it made it pass. It
+also guards against passing vacuously (asserts it found >50 files).
+
+| Check | Result |
+|---|---|
+| Provider names leaked to personal users | None — 2 surfaces read them, both gated |
+| Secrets exposed | None — server-redacted; the admin panel reports *configured or not*, never values |
+| Debug data in personal mode | None — Developer Dashboard gated twice (menu filter + component) |
+| Developer panels visible in personal mode | No — verified by test |
+| Internal IDs exposed | Workspace/panel ids are client-generated and non-sensitive; backend ids appear only in Developer surfaces |
+
+---
+
+## 5. Code quality
+
+**Removed** (each verified as having zero importers first):
+`healthApi` (a stub documenting a decision a comment documents better),
+`useWideLayout` + `WIDE_MIN_WIDTH` (never called — the workspace has one
+breakpoint, not three tiers), and duplicated skeleton markup collapsed
+into one `StatShape`.
+
+**Deliberately kept**, with reasons:
+
+- `components/ui/{alert-dialog,context-menu,label,separator,tabs}.tsx` —
+  vendored shadcn primitives. Unused, but **already tree-shaken out of
+  the bundle**, so removal saves zero bytes; `context-menu` is named in
+  the roadmap as the primitive for the deferred Context Menu system.
+- `core/interfaces/{ai,automation}-integration.ts` — the documented
+  module contract surface. Removing them would be an architecture
+  change, which this milestone forbids.
+- `selectThreadSteps` — unused in production but tested, with a
+  documented near-term consumer.
+
+**Reported, not removed:** TanStack Query is mounted (`QueryProvider`)
+and **never used** — no `useQuery` anywhere — costing 24.5 kB (7.28 kB
+gzipped) in the initial bundle. `services/api/query-keys.ts` is its
+empty pattern file. Removing it would be an architecture change against
+an approved dependency, so it is flagged for a decision rather than
+taken unilaterally. **Recommendation:** either adopt it for paginated
+collections or drop it in a milestone empowered to change the stack.
 
 ---
 
 ## 6. Quality gate results
 
-| Gate | Result | vs. v0.30.0 |
+| Gate | Result | vs v0.31.0 |
 |---|---|---|
-| `pytest` | 2218 passed, 1 skipped | **unchanged** |
-| `npm test` | **530 passed, 67 files** | +41 tests, +3 files |
+| `pytest` | 2221 passed, 1 skipped | +3 (version consistency) |
+| `npm test` | **546 passed, 69 files** | +16, +2 files |
 | `npm run lint` | 16 warnings, 1 category | **unchanged** |
 | `npm run typecheck` | clean | unchanged |
 | `npm run build` | clean, no warnings | unchanged |
-| `black --check src tests` | 567 files unchanged | **unchanged** |
+| `black --check src tests` | 568 files clean | unchanged |
 | `ruff check src tests` | 21 categories | **unchanged** |
 | `mypy src` | 262 errors | **unchanged** |
 
-One lint warning appeared mid-build (an unused non-component export in
-`ai-dashboard-widgets.tsx`) and was removed rather than accepted.
-
-**41 tests added:** `user-mode.test.ts` (14), `health.store.test.ts`
-(13), `dashboard-gating.test.tsx` (10), plus the Activity Center suite
-rewritten to prove both modes (11, up from 7).
+`npm run typecheck` earned its keep again: the §22.12 guard originally
+used `node:fs`, which vitest accepts and the app's browser-targeted
+tsconfig does not. Rewritten with Vite's `import.meta.glob`.
 
 ---
 
-## 7. Remaining work
+## 7. Release readiness checklist
 
-**Not built because the frozen backend has no API** — all of it
-`ARCHITECTURE.md` §22, approved and not built:
-
-- Users & roles (§22.11) · Daily/monthly budgets (§22.3) · Provider
-  priority (§22.2) · Calibration status (§22.8) · Analytics and
-  Synchronization (§22.5).
-- Recent Conversations — no conversation-history route.
-- Vision status — M6 shipped an architecture layer; no vision service
-  reports to the health monitor and no `vision` search source exists.
-
-**Deliberate scope decisions:**
-
-- *Pinned Projects* → **Pinned Notes**. `Project` has no `pinned`
-  column; `Note` does. Projects surface by their real `status` field.
-- *Provider Status* moved off the AI Dashboard to the Developer
-  Dashboard — real data, but §22.12 restricts it.
-- Plugin install/uninstall omitted: `POST /plugins/install` takes a path
-  on the *backend's* filesystem, which a browser cannot supply.
-- Eleven placeholder modules (Chat, Memory, Browser, Coding, Finance,
-  Smart Home, Calendar, Gmail, Spotify…) still register no panel — they
-  have no real content, and a title bar around "not built yet" would
-  dress an unbuilt module up as a working one.
-
-**Phase 6 items still open:** image optimization (no images to
-optimise), window state persistence beyond the existing
-`@tauri-apps/plugin-window-state`, and DPI/multi-monitor — all blocked
-on the same Tauri window APIs as Phase 3's Window Management item.
+| Item | Status | Evidence |
+|---|---|---|
+| Backend frozen verified | ✅ | Zero backend changes but the version constant; all Python gates unchanged |
+| API contracts verified | ✅ | 172 operations enumerated in Phase 5; no route added or altered since |
+| Documentation updated | ✅ | README, CHANGELOG, both roadmaps, this report |
+| No mock data | ✅ | Verified live: real health numbers; nothing seeded |
+| No fake APIs | ✅ | Every client path checked against the OpenAPI dump |
+| Performance validated | ✅ | 15 chunks, largest app chunk 31.76 kB gzipped; virtual lists on all unbounded lists |
+| Accessibility reviewed | 🟡 | ARIA labels, roles, live regions, keyboard-operable splitters, focus order verified in the a11y tree. **No screen-reader or contrast-ratio audit run** — see §8 |
+| Security reviewed | ✅ | §22.12 guard, mutation-tested |
+| Workspace validated | ✅ | 36 store tests + 12 container + 13 toolbar + 10 binding; create/rename/delete/duplicate/reset/import/export/switch/restore/dock/float/collapse/resize/persist |
+| Dashboard validated | ✅ | Live data verified; gating tested |
+| Search validated | ✅ | 9 tests; real `POST /api/v1/search`; offline path asserted |
+| Voice validated | 🟡 | State machine and store tested; **no real voice backend exists** to validate against |
+| Memory validated | 🟡 | Status surfaced from the health snapshot; no dedicated memory UI exists |
+| Notifications validated | ✅ | 9 tests; real store; virtualised |
+| Developer Mode validated | ✅ | Gating tested both directions |
+| Admin Mode validated | ✅ | Gated; developer ≠ admin asserted |
+| Personal Mode validated | ✅ | 11 Activity Center tests + source-level guard |
+| Cross-browser verified | ❌ | **Not done** — Chromium only. See §8 |
+| Ready for M22 | ✅ | With §8 read first |
 
 ---
 
-## 8. Version, commit, push
+## 8. Remaining work — read before calling this shipped
 
-- **Application version:** 0.30.0 → **0.31.0** (`pyproject.toml`).
-- **Branch:** `feature/m8-phase-5-6`
-- **Commit:** see §9 below.
-- **Push:** confirmed to `origin`.
+Being accurate matters more here than being reassuring:
 
-Documentation is a **separate commit** per the brief, made after this
-one, touching no application code.
+- **Cross-browser testing was not performed.** Verification ran in the
+  in-app Chromium browser only. The Tauri shell uses the platform
+  webview — WebKit on macOS, WebView2 on Windows — and neither was
+  exercised. This is genuinely open, and M22 (cross-platform
+  distribution) is where it belongs.
+- **No screen-reader pass and no contrast-ratio measurement.** I verified
+  the accessibility *tree* — roles, names, live regions, focus order —
+  which is necessary but not sufficient. No NVDA/VoiceOver run, no
+  computed contrast check against WCAG AA.
+- **Eleven modules remain placeholders** — Chat, Memory, Knowledge Graph,
+  Automation, Projects, Calendar, Files, Browser, Vision, and others. The
+  brief asked to confirm "no placeholder routes for completed modules";
+  the accurate finding is that **these modules are not completed**, so
+  their placeholders are correct, not a regression. Only Dashboard,
+  Voice, Settings, Workspace, Plugins, Diagnostics and the three
+  dashboards have real UI.
+- **Voice and Memory cannot be meaningfully validated** — no voice
+  backend exists, and there is no memory UI. Their status rows come from
+  the health snapshot and are honest about being unknown.
+- **TanStack Query decision** — see §5.
+- Image optimization, window state persistence beyond the existing Tauri
+  plugin, DPI scaling and multi-monitor remain open, all blocked on Tauri
+  window APIs.
+
+---
+
+## 9. Version, commit, push
+
+- **Application version:** 0.31.0 → **0.32.0**, now consistent across
+  `pyproject.toml` and `jarvis/__version__.py` for the first time since
+  v0.28.0.
+- **Branch:** `feature/m8-phase-7` · **Push:** confirmed to `origin`.

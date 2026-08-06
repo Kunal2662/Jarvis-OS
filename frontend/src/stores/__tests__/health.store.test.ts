@@ -91,7 +91,30 @@ describe("selectors", () => {
   it("reads knowledge and memory from the search-source registry", () => {
     expect(selectSearchSources(state())).toEqual(["memory", "knowledge", "files"]);
     expect(selectSourceStatus("knowledge")(state())).toBe("healthy");
+    // Reporting, and this source is genuinely absent from the list.
     expect(selectSourceStatus("goals")(state())).toBe("degraded");
+  });
+
+  it("distinguishes an absent collector from an unregistered source", () => {
+    // A backend running without the `workspace_platform` collector (the
+    // API-only runtime, say) used to light up Memory and Knowledge
+    // Graph amber, which reads as a fault where there is none. Found
+    // against a live backend in the M8 Phase 7 pass.
+    state().apply({ status: "healthy" });
+
+    expect(selectSourceStatus("memory")(state())).toBe("unknown");
+    expect(selectSourceStatus("knowledge")(state())).toBe("unknown");
+  });
+
+  it("still reports degraded when the collector reports an empty list", () => {
+    // Reporting zero sources *is* a real degradation -- every source
+    // unregistered itself.
+    state().apply({
+      ...SNAPSHOT,
+      workspace_platform: { ...SNAPSHOT.workspace_platform, search_sources: [] },
+    });
+
+    expect(selectSourceStatus("memory")(state())).toBe("degraded");
   });
 
   it("distinguishes AI workspace disabled from degraded", () => {

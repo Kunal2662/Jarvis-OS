@@ -56,6 +56,18 @@ export interface BackendResource<T> {
 
 function defaultIsEmpty(data: unknown): boolean {
   if (Array.isArray(data)) return data.length === 0;
+
+  // A `Page<T>` from `apiList` is `{items, meta}` -- a *non-empty
+  // object* whose `items` may well be empty. Without this branch an
+  // empty collection reads as "ready" and renders an empty list where
+  // the empty state belongs, and every caller has to remember to pass
+  // its own `isEmpty`. Several already did; one forgot, which is how
+  // this was found (M8 Phase 7). Fixing the default removes the trap
+  // rather than patching the call site.
+  if (data && typeof data === "object" && "items" in data && Array.isArray((data as { items: unknown[] }).items)) {
+    return (data as { items: unknown[] }).items.length === 0;
+  }
+
   if (data && typeof data === "object") return Object.keys(data).length === 0;
   return data === null || data === undefined;
 }

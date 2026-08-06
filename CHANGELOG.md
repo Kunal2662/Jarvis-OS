@@ -3,6 +3,78 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.32.0] — M8 Phase 7: Production Readiness
+
+An audit milestone, run against a **live backend** rather than by
+reading code — the real FastAPI app with a real DI container and a real
+health poll, driven from the React client, with the backend killed
+mid-session and restarted.
+
+That found **four defects code review had missed**. No new
+functionality; no backend change beyond the version constant.
+
+### Fixed
+- **Version drift, three releases deep.** `GET /api/v1/health` reported
+  `0.28.0` while `pyproject.toml` said `0.31.0` —
+  `src/jarvis/__version__.py`, whose docstring calls itself "single
+  source of truth for the package version", had not been bumped since
+  v0.28.0. That constant is what the health endpoint returns and what
+  `jarvis --version` prints, so an installation was misreporting its own
+  version by three releases. Both now `0.32.0`, with
+  `tests/unit/test_version_consistency.py` asserting they can never
+  diverge again — nothing compared them before, which is why they drifted.
+- **A dead-end user journey.** Five dashboard widgets shipped in Phase 5
+  say "Bind this workspace to a JARVIS workspace to see its tasks", and
+  no control anywhere could do it: `bindBackendWorkspace` had only tests
+  calling it and `workspacesApi` had no caller at all. The binding
+  control now exists in the workspace toolbar, wiring the store action,
+  the typed endpoint and the widgets that were already built.
+- **A status selector reporting a fault that did not exist.** Memory and
+  Knowledge Graph showed Degraded amber on a healthy system:
+  `selectSourceStatus` conflated "the collector is not reporting at all"
+  with "it is reporting and this source is missing". Only the second is
+  a degradation.
+- **Two stories for one condition.** While offline the health widgets
+  said "Waiting for the backend to report…" — implying a report was
+  coming — beside REST-backed widgets correctly saying "Offline".
+- **A footgun in the shared fetch hook.** `useBackendResource`'s default
+  emptiness check did not understand the `Page<T>` shape most endpoints
+  return, so empty collections rendered as an empty list rather than an
+  empty state. Three callers had already worked around it; a fourth
+  forgot. Fixed at the default and the workarounds deleted.
+
+### Added
+- **An executable guard for `ARCHITECTURE.md` §22.12.**
+  `restricted-surface.test.ts` scans every source file: any module
+  reading provider names, routing or debug state must also consult the
+  audience gate. The behavioural tests check *existing* surfaces; this
+  catches a **new** one added later that never gets a gate — precisely
+  how the Phase 3 Activity Center leak survived a milestone.
+  Mutation-tested: removing a gate makes it fail by filename.
+
+### Removed
+- `healthApi` (a stub documenting a decision a comment documents
+  better), `useWideLayout`/`WIDE_MIN_WIDTH` (never called), and
+  duplicated skeleton markup. Each verified as having zero importers.
+
+### Notes
+- **Verified live:** real health values flowing over `health.updated`;
+  **no stale numbers survive a backend outage** (the pre-outage snapshot
+  is dropped, not shown as current); **automatic reconnection without a
+  page reload**; "connected but no snapshot yet" correctly distinguished
+  from offline.
+- **TanStack Query is mounted and never used** — no `useQuery` anywhere
+  — costing 24.5 kB (7.28 kB gzipped) in the initial bundle. Flagged
+  rather than removed: dropping an approved dependency is an
+  architecture change this milestone forbids.
+- **Not done, and it matters:** no cross-browser testing (Chromium
+  only — the Tauri shell uses WebKit/WebView2), no screen-reader pass,
+  no contrast-ratio measurement.
+- **Eleven modules remain placeholders.** The brief asked to confirm "no
+  placeholder routes for completed modules"; the accurate finding is
+  that those modules are *not completed*, so their placeholders are
+  correct rather than a regression.
+
 ## [0.31.0] — M8 Phase 5 + Phase 6: Module Integration & Production UX
 
 Phase 5 turned the workspace into the JARVIS operating environment;

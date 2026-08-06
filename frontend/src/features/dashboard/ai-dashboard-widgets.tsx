@@ -9,11 +9,13 @@ import {
   Mic,
   Network,
   Sparkles,
+  WifiOff,
   Workflow,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ResourceView } from "@/components/common/resource-view";
 import { useBackendResource } from "@/hooks/use-backend-resource";
+import { useBackendStatus } from "@/hooks/use-backend-status";
 import {
   calendarApi,
   filesApi,
@@ -99,9 +101,34 @@ function useHasSnapshot(): boolean {
   return useHealthStore((s) => s.snapshot !== null);
 }
 
+/**
+ * "No snapshot" has two causes and they are not the same message.
+ *
+ * The health widgets read a store rather than issuing a request, so they
+ * do not go through `ResourceView` and originally said "Waiting for the
+ * backend to report …" in both cases — including when the backend was
+ * unreachable and would never report. That left the dashboard telling
+ * the user two different stories about one condition: the REST-backed
+ * widgets beside them correctly said "Offline". Found in the M8 Phase 7
+ * production-readiness pass.
+ */
 function AwaitingBackend({ what }: { what: string }) {
+  const { isOffline } = useBackendStatus();
+
+  if (isOffline) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-1.5 p-4 text-center" role="status">
+        <WifiOff className="size-icon-md text-muted-foreground" aria-hidden="true" />
+        <p className="text-muted-foreground text-xs">
+          {what.charAt(0).toUpperCase() + what.slice(1)} needs the JARVIS backend, which isn&apos;t
+          reachable right now.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <p className="p-4 text-center text-muted-foreground text-xs">
+    <p className="p-4 text-center text-muted-foreground text-xs" role="status">
       Waiting for the backend to report {what}.
     </p>
   );
@@ -212,7 +239,7 @@ export function RecentTasksWidget() {
   const { state, refresh } = useBackendResource(
     () => tasksApi.list({ workspace_id: workspaceId ?? undefined, limit: 5 }),
     [workspaceId],
-    { enabled: workspaceId !== null, isEmpty: (page) => (page as { items: unknown[] }).items.length === 0 },
+    { enabled: workspaceId !== null },
   );
 
   if (!workspaceId) return <NoWorkspaceBound what="tasks" />;
@@ -239,7 +266,7 @@ export function ProjectsWidget() {
   const { state, refresh } = useBackendResource(
     () => projectsApi.list({ workspace_id: workspaceId ?? undefined, status: "active", limit: 5 }),
     [workspaceId],
-    { enabled: workspaceId !== null, isEmpty: (page) => (page as { items: unknown[] }).items.length === 0 },
+    { enabled: workspaceId !== null },
   );
 
   if (!workspaceId) return <NoWorkspaceBound what="projects" />;
@@ -306,7 +333,7 @@ export function RecentFilesWidget() {
   const { state, refresh } = useBackendResource(
     () => filesApi.list({ workspace_id: workspaceId ?? undefined, limit: 5 }),
     [workspaceId],
-    { enabled: workspaceId !== null, isEmpty: (page) => (page as { items: unknown[] }).items.length === 0 },
+    { enabled: workspaceId !== null },
   );
 
   if (!workspaceId) return <NoWorkspaceBound what="files" />;

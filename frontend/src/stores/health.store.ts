@@ -114,7 +114,20 @@ export function selectSearchSources(s: HealthState): string[] {
 export function selectSourceStatus(sourceType: string) {
   return (s: HealthState): SubsystemStatus => {
     if (!s.snapshot) return "unknown";
-    return selectSearchSources(s).includes(sourceType) ? "healthy" : "degraded";
+
+    // "The `workspace_platform` collector is not reporting at all" is
+    // not the same as "it is reporting, and this source is missing from
+    // its list". The first is *unknown*; only the second is a genuine
+    // degradation. Returning "degraded" for both made a backend running
+    // without that collector -- the API-only runtime, for instance --
+    // light up Memory and Knowledge Graph amber, which reads as a fault
+    // where there is none. Found against a live backend in the M8
+    // Phase 7 pass; `selectServiceStatus` already drew this distinction
+    // correctly and this now matches it.
+    const sources = s.snapshot.workspace_platform?.search_sources;
+    if (sources === undefined) return "unknown";
+
+    return sources.includes(sourceType) ? "healthy" : "degraded";
   };
 }
 

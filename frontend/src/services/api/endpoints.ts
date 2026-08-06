@@ -192,19 +192,23 @@ export const settingsApi = {
 };
 
 // --- Health (M0/M9) ---------------------------------------------------
+//
+// There is deliberately no `healthApi` here. `/health` is a flat
+// liveness probe (`{status, version}`) that sits outside the
+// `{data, meta}` envelope by design (`ARCHITECTURE.md` §5), so it cannot
+// go through `apiRequest`; `services/backend-connection.ts` calls it
+// with a direct `fetch` and explains why at the call site. M8 Phase 2
+// left a `healthApi = { path: "/health" }` stub here to document that,
+// which nothing ever imported — removed in the Phase 7 dead-code pass,
+// since a comment documents a decision better than an unused object.
+//
+// The *rich* health data is not REST at all: it arrives as the
+// `health.updated` WebSocket event (see `stores/health.store.ts`).
 
 export interface HealthResponse {
   status: string;
   version: string;
 }
-
-export const healthApi = {
-  /** Deliberately *not* enveloped -- `/health` is a flat liveness probe
-   *  by design (`ARCHITECTURE.md` section 5), so it bypasses
-   *  `apiRequest`'s envelope unwrapping via a direct fetch in
-   *  `connection.store.ts`. Declared here only for its type. */
-  path: "/health" as const,
-};
 
 // --- Calendar (M11 Task Group B) --------------------------------------
 

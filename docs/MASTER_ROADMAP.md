@@ -1520,11 +1520,46 @@ window state persistence beyond `@tauri-apps/plugin-window-state`; DPI
 scaling and multi-monitor, both blocked on the same Tauri window APIs as
 Phase 3's Window Management item.
 
-#### Phase 7 — Optimization & QA
+#### Phase 7 — Production Readiness 🟡 *(v0.32.0 — audit complete, cross-platform QA open)*
+
 Accessibility, performance, lazy loading, bundle optimization,
 responsive testing, regression testing, cross-platform testing. See
 `TECH_STACK.md` §6 for the testing-tool assignment (Vitest, React
 Testing Library, Playwright).
+
+**Shipped v0.32.0.** A production-readiness audit run **against a live
+backend** — the real `create_app` with a real DI container and a real
+`HealthMonitor` poll, driven from the React client, with the backend
+killed mid-session and restarted. Reading code would not have found what
+it found.
+
+Four defects, all fixed:
+
+1. **Version drift, three releases deep.** `GET /api/v1/health` reported
+   `0.28.0` while `pyproject.toml` said `0.31.0`; `__version__.py` had
+   not been bumped since v0.28.0. Now guarded by a test — nothing
+   compared the two before, which is why they drifted.
+2. **A dead-end journey.** Five Phase 5 widgets told the user to bind a
+   workspace; no control existed to do it.
+3. **A status selector reporting a fault that did not exist** — "the
+   collector is not reporting" conflated with "this source is missing".
+4. **Two stories for one condition** — health widgets said "waiting"
+   while their neighbours correctly said "offline".
+
+Also added an **executable guard for §22.12**: a source-level test that
+fails if any module reads provider names, routing or debug state without
+consulting the audience gate. The behavioural tests cover existing
+surfaces; this covers the *next* one somebody adds, which is how the
+Phase 3 Activity Center leak survived a whole milestone. Mutation-tested.
+
+Verified live: no stale numbers survive a backend outage, and the client
+reconnects automatically without a page reload.
+
+**Open, and stated plainly:** no cross-browser testing (Chromium only —
+the Tauri shell uses WebKit on macOS and WebView2 on Windows, neither
+exercised), no screen-reader pass, no contrast-ratio measurement.
+Cross-platform QA belongs with **M22**, which owns the platform
+abstraction those browsers sit behind.
 
 #### Deferred Backlog *(Aug 2026 — added by the roadmap reconciliation
 pass, see the changelog addendum)*

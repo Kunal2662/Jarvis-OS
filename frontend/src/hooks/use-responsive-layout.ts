@@ -15,15 +15,14 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 
 /** Tailwind's `md`. Below this, rails are dropped and `main` fills. */
 export const COMPACT_MAX_WIDTH = 768;
-/** Tailwind's `xl`. Below this, three simultaneous rails are too tight. */
-export const WIDE_MIN_WIDTH = 1280;
 
 /** Phone and small-tablet widths: the workspace shows `main` only. */
 export function useCompactLayout(): boolean {
   return useMediaQuery(`(max-width: ${COMPACT_MAX_WIDTH - 1}px)`);
 }
 
-/** Enough room for left and right rails at once. */
-export function useWideLayout(): boolean {
-  return useMediaQuery(`(min-width: ${WIDE_MIN_WIDTH}px)`);
-}
+// `useWideLayout()` (a `min-width: 1280px` companion) was exported here
+// by M8 Phase 3 and never called — the workspace only ever needed the
+// one breakpoint, since rails are dropped or kept, never re-tiered.
+// Removed in the Phase 7 dead-code pass; the constant it used went with
+// it. Re-add it when a layout genuinely has three tiers, not before.

@@ -20,8 +20,22 @@
 
 const BASE = "rounded bg-muted motion-safe:animate-pulse";
 
-export function SkeletonText({ className = "" }: { className?: string }) {
-  return <div className={`${BASE} h-3.5 ${className}`} aria-hidden="true" />;
+/**
+ * One stat's shape: a headline number and its caption.
+ *
+ * Presentational and `aria-hidden` — the live region belongs to whatever
+ * renders a group of these, so a grid of four announces "Loading
+ * performance" once rather than four times. M8 Phase 6 shipped this
+ * markup inline in `SkeletonStatGrid` *and* as a separate exported
+ * `SkeletonStat` nothing imported; the Phase 7 pass collapsed the two.
+ */
+function StatShape() {
+  return (
+    <div className="flex flex-col gap-1.5" aria-hidden="true">
+      <div className={`${BASE} h-6 w-16`} />
+      <div className={`${BASE} h-2.5 w-24`} />
+    </div>
+  );
 }
 
 /**
@@ -56,27 +70,13 @@ export function SkeletonRows({
   );
 }
 
-/** The shape of a single headline number plus its caption. */
-export function SkeletonStat({ label = "Loading" }: { label?: string }) {
-  return (
-    <div className="flex flex-col gap-1.5" role="status" aria-live="polite">
-      <span className="sr-only">{label}</span>
-      <div className={`${BASE} h-6 w-16`} aria-hidden="true" />
-      <div className={`${BASE} h-2.5 w-24`} aria-hidden="true" />
-    </div>
-  );
-}
-
 /** A grid of stat shapes — what most dashboard widgets are waiting for. */
 export function SkeletonStatGrid({ count = 4, label = "Loading" }: { count?: number; label?: string }) {
   return (
     <div className="grid grid-cols-2 gap-4 p-3" role="status" aria-live="polite">
       <span className="sr-only">{label}</span>
       {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="flex flex-col gap-1.5" aria-hidden="true">
-          <div className={`${BASE} h-6 w-16`} />
-          <div className={`${BASE} h-2.5 w-20`} />
-        </div>
+        <StatShape key={index} />
       ))}
     </div>
   );

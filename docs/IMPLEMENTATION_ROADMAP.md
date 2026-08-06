@@ -2005,7 +2005,37 @@ see §2 above. What remains is the visual-design pass.)*
 - [ ] The broader motion pass (hover, Sidebar, Dock, Cards,
       Notifications) — beyond what Task Group H–L already shipped.
 
-### M8 Phase 7 — Optimization & QA (in full)
+### M8 Phase 7 — Production Readiness ✅ *(v0.32.0)*
+- [x] Every screen reviewed for loading / skeleton / empty / offline /
+      error / reconnect / auth / permission states, theme, spacing,
+      typography, icons, transitions, panel and workspace behaviour.
+- [x] **Audited against a live backend**, not by reading code — real
+      `create_app` + real DI container + real `HealthMonitor` poll,
+      driven from the client, with the backend killed mid-session and
+      restarted.
+- [x] Workspace operations validated (create/rename/delete/duplicate/
+      reset/import/export/switch/restore/dock/float/collapse/resize/
+      persist) — 71 tests across four suites.
+- [x] Personal / Developer / Administrator modes validated, with a
+      **source-level guard** (`restricted-surface.test.ts`) that fails if
+      any module reads §22.12-restricted data without gating.
+      Mutation-tested.
+- [x] Dead code removed; each removal verified as having zero importers
+      first.
+
+**Four defects found and fixed** — version drift three releases deep
+(`/api/v1/health` reported `0.28.0`), a dead-end journey (five widgets
+told users to bind a workspace with no control to do it), a status
+selector reporting a fault that did not exist, and inconsistent offline
+messaging. See `CHANGELOG.md` 0.32.0.
+
+**Not done, and open:** cross-browser testing (Chromium only — the Tauri
+shell uses WebKit/WebView2), a screen-reader pass, and contrast-ratio
+measurement. **Eleven modules remain placeholders** — they are not
+completed modules, so their placeholder routes are correct rather than a
+regression.
+
+### M8 Phase 7A — Optimization & QA (remainder)
 - [ ] Accessibility audit, performance pass, lazy loading, bundle
       optimization, responsive testing, regression testing,
       cross-platform testing — see §2 above for the complete list.

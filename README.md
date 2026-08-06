@@ -277,12 +277,12 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.31.0` · **Current milestone:** M8 — React
+**Current version:** `0.32.0` · **Current milestone:** M8 — React
 Frontend & Desktop Experience (🟡 active; Phase 1 React Foundation,
 Phase 2 Universal Application Framework & Logic, Phase 3's Universal
 Workspace Framework, Phase 4 Voice Experience & Motion, Phase 5 AI
-Workspace & Module Integration, and Phase 6's production-UX half
-shipped).
+Workspace & Module Integration, Phase 6's production-UX half, and Phase
+7's Production Readiness audit shipped).
 
 M11 — Intelligent Workspace & Productivity completed across six task
 groups (A Workspace Foundation, B Productivity Core, C File Platform,
@@ -300,6 +300,14 @@ workspace framework the UI arranges itself in. `0.31.0` filled it: three
 audience-specific dashboards (AI, Developer, Administrator) on real
 backend data, and the §22.12 gate that keeps provider names, routing and
 internal agent names out of a personal user's JARVIS.
+
+`0.32.0` audited the result against a **live backend** — real container,
+real health poll, backend killed mid-session and restarted — and found
+four defects reading the code had missed, including
+`GET /api/v1/health` reporting a version three releases stale. Still
+open before a real release: cross-browser testing (Chromium only so far;
+the Tauri shell uses WebKit/WebView2), a screen-reader pass, and
+contrast measurement.
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source
