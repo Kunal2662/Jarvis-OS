@@ -29,6 +29,19 @@ built (Priority/Retry on the event bus, the WebSocket protocol, the
 FastAPI layer itself), it is marked **(new, M8+)** so no reader
 mistakes a standard for a shipped guarantee.
 
+> **Read §24 first.** [Project Development Principles](#24-project-development-principles)
+> is this document's highest-level policy — the twelve rules every
+> other section, and every implementation decision on this project,
+> operates under. Every numbered standard below (§1–§23) is a specific
+> instantiation of one or more of those twelve; where a standard and a
+> principle appear to disagree, the principle is correct and the
+> standard is drift to be fixed. It sits last in reading order (§24)
+> rather than first only because renumbering twenty-three
+> already-cross-referenced sections to make room for it at the front
+> would itself have violated principle #3 (Documentation is
+> Authoritative) by breaking every existing anchor this document and
+> its companions point to.
+
 ---
 
 ## Table of contents
@@ -56,6 +69,7 @@ mistakes a standard for a shipped guarantee.
 21. [Domain architecture map](#21-domain-architecture-map)
 22. [Approved architecture decisions (Aug 2026)](#22-approved-architecture-decisions-aug-2026)
 23. [Milestone Lifecycle](#23-milestone-lifecycle)
+24. [Project Development Principles](#24-project-development-principles) — **read this first; see the note above the table of contents**
 
 ---
 
@@ -1290,6 +1304,11 @@ ships and real measurements replace estimates.
 
 ## 20. Governance — how this document changes
 
+*(This section is the detailed, document-specific instantiation of
+§24's principle #1 Architecture First and principle #3 Documentation
+is Authoritative. Read §24 for the philosophy; this section for the
+mechanics of applying it to `ARCHITECTURE.md` specifically.)*
+
 - This document is updated in the same change that introduces a new
   standard, not after — mirroring `MASTER_ROADMAP.md` §4's
   documentation-discipline rule.
@@ -1898,6 +1917,11 @@ Complete.
 
 ### 23.7 Build Verification Policy
 
+*(This section is the detailed instantiation of §24's principle #11
+Platform Verification. Read §24 for the one-line rule; this section
+for exactly which categories it applies to and what does and does not
+satisfy it.)*
+
 Any milestone or task group whose deliverable includes a
 platform-specific artifact — a compiled binary, an installer, a
 packaged application — is **platform-specific work**, and platform
@@ -1939,3 +1963,223 @@ A milestone in the Build Verification Pending status (§23.4) moves to
 Complete only once every applicable category above has been checked
 against a real build, on a real target platform, and the result
 recorded — not asserted from the implementation alone.
+
+---
+
+## 24. Project Development Principles
+
+*(Added Aug 2026 as the final governance addition to this document.
+After this section, governance is considered stable: §1–§23 are the
+detailed standards; this section is the philosophy they all serve.
+Further governance restructuring — adding, removing, or renumbering a
+principle here — is out of scope for ordinary milestone work and
+requires an explicit request, the same way changing a standard
+elsewhere in this document does. Ordinary work applies these twelve
+principles; it does not add new ones.)*
+
+This is the highest-level engineering guidance in this project. Where
+any other document, standard, or specific instruction appears to
+conflict with a principle below, that conflict is drift to be raised
+and fixed, not a signal that the principle has an unstated exception.
+Twelve principles, not eleven or thirteen — each is stated once here;
+detailed sections elsewhere are pointed to rather than restated, so
+there is exactly one place each principle is explained and many places
+it is applied.
+
+### 1. Architecture First
+
+Architecture decisions always take precedence over implementation
+convenience. Implementations may evolve — a function can be
+rewritten, a library swapped, a query optimized — freely and often.
+Architecture should remain stable unless a change to it is explicitly
+approved; it is not something an implementation detail should be
+allowed to quietly erode. See §20 for how this applies specifically to
+keeping this document itself honest about what has and has not been
+approved.
+
+### 2. Roadmap First
+
+Only implement functionality that belongs to the approved roadmap.
+Do not introduce roadmap expansion. Do not introduce feature creep —
+including well-intentioned feature creep, the kind that looks like an
+obvious improvement while the surrounding code is already open. If a
+gap is found, it is raised as a roadmap question, not solved locally
+ahead of approval. See `MASTER_ROADMAP.md` §19 (Roadmap Governance) for
+the detailed rules this principle governs: no renumbering, no silent
+redefinition of a completed milestone, and `MASTER_ROADMAP.md` as the
+tie-breaker when a sequencing question arises.
+
+### 3. Documentation is Authoritative
+
+Documentation must accurately reflect implementation. Implementation
+must follow approved architecture. Documentation drift must be
+corrected **immediately** whenever discovered — not filed for a later
+pass, not left standing because the code itself is correct. A
+correct implementation described by a wrong document is still a
+project in an inconsistent state, because the document is what the
+next person — human or agent — will trust first. See
+`MASTER_ROADMAP.md` §20 (Documentation Synchronization Policy) for
+which documents this applies to and why synchronization is a
+precondition of completion, not a follow-up task.
+
+### 4. Verify Before Assuming
+
+Never assume:
+
+- APIs
+- Routes
+- Events
+- Contracts
+- Database fields
+- Platform capabilities
+- Existing functionality
+
+Verify using the implementation before making changes — read the
+route, run the query, call the CLI, open the file. This project's own
+history is the argument for this principle, not an abstract ideal: M22
+Task Group C's `launch_application` was written to take an argument no
+caller sent, compiling cleanly on both sides, because the assumption
+was never checked against the call site; M8 Phase 2 shipped eleven
+invented WebSocket event names because a client was written against a
+document instead of a running system. Both were caught by verification
+this principle now requires as standard practice, not as a
+lucky extra pass.
+
+### 5. Never Fake Functionality
+
+If functionality does not exist:
+
+- document the limitation
+- expose the limitation clearly
+- avoid simulated production behaviour
+
+Production features should never be represented by placeholder logic.
+A progress bar that moves without real progress behind it, a field
+that shows a plausible-looking default instead of `null` when nothing
+was actually measured, a button that appears to work and silently does
+nothing — each of these is worse than an honest "not available",
+because each one costs the next reader the time it takes to discover
+the deception. `src/jarvis/installer/`'s own governing rule — a field
+is either measured or `None`, never estimated or inferred — is this
+principle applied to one subsystem; it is not that subsystem's private
+rule, it is this one, locally instantiated.
+
+### 6. Evidence-Based Engineering
+
+Engineering decisions should be based on:
+
+- implementation
+- runtime verification
+- tests
+- architecture
+- documentation
+
+Never on assumptions. This is principle #4 applied to *decisions*
+rather than to individual facts: a design choice justified by "this
+should work" or "this is probably how it's structured" is not
+evidence, and a decision built on it inherits everything wrong with
+the guess underneath it. Where evidence cannot be gathered — no
+toolchain available, no production environment reachable — the
+decision is recorded as unverified (§23.4, Build Verification Pending)
+rather than treated as equivalent to a verified one.
+
+### 7. Backward Compatibility
+
+Preserve existing contracts whenever practical. Breaking changes
+require:
+
+- documentation
+- migration notes
+- explicit approval
+
+A contract — an API shape, an event name, a database column, a CLI
+flag — is a promise to whatever already depends on it. M22's own
+provisioning transport is the worked example: the contract was written
+before the host bridge existed specifically so the bridge's arrival
+would not force a UI change, and it did not (`MASTER_ROADMAP.md`'s
+M22 entry, Task Group C). Where breaking a contract is genuinely the
+right call, that call is made visibly — documented, with a migration
+note for whatever it displaces, and approved before it ships — not
+discovered by whatever broke downstream.
+
+### 8. Single Source of Truth
+
+| Document | Authoritative for |
+|---|---|
+| `MASTER_ROADMAP.md` | The roadmap — scope, sequencing, milestone status. Resolves roadmap disputes. |
+| `ARCHITECTURE.md` (this document) | Architecture and engineering standards. Resolves architectural disputes. |
+| `IMPLEMENTATION_ROADMAP.md` | Execution tracking — the active, checklist-level record of what a milestone's work actually involves. |
+| `CHANGELOG.md` | The historical record. Entries are added, never rewritten (`MASTER_ROADMAP.md` §19). |
+| `README.md` | The current project overview — a summary for a new reader, kept in sync with the four documents above rather than stating anything they do not already say. |
+
+If conflicts exist, `MASTER_ROADMAP.md` resolves roadmap disputes and
+`ARCHITECTURE.md` resolves architectural disputes. Neither document
+defers to a summary of itself: where `README.md` or any other document
+disagrees with one of the four above about something that document
+owns, the owning document is correct and the other is drift.
+
+### 9. Frontend / Backend Synchronization
+
+Frontend and backend should evolve together. Neither should
+permanently diverge from the approved architecture. A frontend built
+against a payload shape the backend no longer sends, or a backend
+change that silently stops satisfying a contract the frontend still
+assumes, is the same failure principle #7 names — the divergence is
+tolerable only as a documented, temporary, in-flight state, never as a
+permanent condition either side is simply expected to work around.
+
+### 10. Quality Before Completion
+
+Implementation alone does not complete a milestone. Completion
+requires:
+
+- implementation
+- testing
+- documentation
+- verification
+- acceptance criteria
+
+This is principle #3, #4, and #11 read together as a gate rather than
+as three separate checks: a milestone with finished code and nothing
+else is Implementation Complete (§23.3), not Complete (§23.5) — the
+distinction §23 draws exists specifically so "the code is done" and
+"the milestone is done" are never treated as the same claim.
+
+### 11. Platform Verification
+
+Platform-specific milestones require platform validation. Examples:
+
+- Windows
+- Linux
+- macOS
+- Installer
+- Packaging
+- Deployment
+
+Compilation alone is insufficient. Code that type-checks, lints, and
+passes every unit test can still fail the moment it is actually built
+and run on the target platform — M22 Task Group C's own inactivity
+timeout, written to look correct and checked entirely by static
+reading, silently could never fire in practice; only a real
+run would have shown it. See §23.7 for the full policy this principle
+governs, including exactly what does and does not count as platform
+verification.
+
+### 12. Continuous Synchronization
+
+Every completed milestone should finish with:
+
+- Implementation Review
+- Documentation Review
+- Architecture Review
+- Roadmap Review
+- Version Review
+- Acceptance Criteria Review
+
+Only after synchronization should a milestone be submitted for
+approval. This is the closing check that principles #3, #8, #9, and
+#10 were actually followed, not assumed to have been — the same role
+`MASTER_ROADMAP.md` §20's six-document table plays for documentation
+specifically, generalized here to cover architecture, roadmap status,
+version numbers, and acceptance criteria as one review, not four
+separate afterthoughts.

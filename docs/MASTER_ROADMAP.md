@@ -14339,7 +14339,11 @@ ambiguity this section exists to foreclose.
 *(Added Aug 2026, as a permanent section — not a milestone-specific
 note, and not superseded by any future milestone's own governance
 text. Rules here apply to every milestone this document has ever
-described or will ever describe.)*
+described or will ever describe. This section is the detailed
+instantiation of `ARCHITECTURE.md` §24's principle #2 Roadmap First
+and principle #8 Single Source of Truth — read §24 for the one-line
+philosophy, this section for the specific rules it expands into for
+this document.)*
 
 - **The roadmap numbering represents architectural organization, not
   a work schedule.** M9 being numbered before M22 records that M9's
@@ -14400,7 +14404,12 @@ described or will ever describe.)*
 C's status having drifted across five documents before a single
 canonical status vocabulary existed — see `ARCHITECTURE.md` §23's own
 opening note. That drift was a process gap, not a one-off mistake;
-this section closes the gap rather than the mistake.)*
+this section closes the gap rather than the mistake. This section is
+the detailed instantiation of `ARCHITECTURE.md` §24's principle #3
+Documentation is Authoritative and principle #12 Continuous
+Synchronization — read §24 for the one-line philosophy, this section
+for exactly which documents it applies to and what "synchronized"
+means in practice.)*
 
 **Every completed milestone must update all six of the following
 before it may be marked complete anywhere:**

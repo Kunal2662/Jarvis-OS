@@ -482,3 +482,118 @@ a decision and not an oversight:**
 that it start.** It requests approval to begin work on §9's Build
 Verification Tasks — the only thing standing between TG-C's current
 status and a Complete M22.
+
+---
+
+## 12. Governance Completion Report
+
+*(This section is the deliverable of a second, final documentation-only
+governance pass — not TG-C work, not a milestone-status change. No
+application code, no backend logic, no frontend logic, no version, and
+no milestone status changed in this pass. TG-C remains Implementation
+Complete — Build Verification Pending; TG-D remains Not Started.)*
+
+### Documentation updated
+
+| File | What changed |
+|---|---|
+| `docs/ARCHITECTURE.md` | New §24 Project Development Principles — twelve principles, positioned as this document's highest-level policy via a banner note ahead of the table of contents (added at §24 rather than §1, to avoid renumbering the 23 existing, already-cross-referenced sections). Cross-reference lines added to §20 and §23.7, pointing up to the principles they instantiate — no content removed from either. |
+| `docs/MASTER_ROADMAP.md` | Cross-reference lines added to §19 and §20's opening notes, pointing up to `ARCHITECTURE.md` §24 — no content removed from either section. |
+| `MILESTONE_REPORT.md` (this file) | This §12 added. |
+
+No other file needed a change: `README.md`, `CHANGELOG.md`,
+`docs/IMPLEMENTATION_ROADMAP.md`, and `docs/PACKAGING.md` contain
+status declarations and operational checklists, not governance-rule
+prose, so this pass — which added a philosophy layer above existing
+governance sections — had nothing to add to them.
+
+### Governance principles added
+
+Twelve, in `ARCHITECTURE.md` §24, each stated once and cross-referenced
+from wherever its detailed form already lived rather than restated:
+Architecture First, Roadmap First, Documentation is Authoritative,
+Verify Before Assuming, Never Fake Functionality, Evidence-Based
+Engineering, Backward Compatibility, Single Source of Truth, Frontend/
+Backend Synchronization, Quality Before Completion, Platform
+Verification, Continuous Synchronization.
+
+Each principle above its cross-referenced detail section: #2 → §19
+(Roadmap Governance), #3 and #12 → §20 (Documentation Synchronization
+Policy), #1 and #3 → §20 of this document (Governance — how this
+document changes), #11 → §23.7 (Build Verification Policy), #10 → §23
+(Milestone Lifecycle) as a whole. Principles #4 through #9 are new
+statements — this project had been *practicing* verify-before-assuming
+and never-fake-functionality all session (§22.11/§22.12's payload-level
+enforcement, the installer's "measured or `None`, never estimated"
+rule, the contract-first transport split) without ever naming them as
+project-wide policy in one place; §24 is that naming, not a change in
+practice.
+
+### Duplicate governance removed or cross-referenced
+
+**Nothing was removed.** On inspection, the existing governance
+sections (`ARCHITECTURE.md` §20, §23.7; `MASTER_ROADMAP.md` §19, §20)
+were not restatements of a single rule in different words — each
+carries specific operational detail (exactly which six documents
+Documentation Synchronization Policy covers, exactly which six
+categories Build Verification Policy names) that a short philosophical
+principle does not and should not duplicate. The applicable cleanup
+was therefore additive: a one- or two-sentence cross-reference at the
+top of each of those four sections, naming which of the new twelve
+principles it instantiates, so a reader lands on the philosophy first
+and the mechanics second rather than encountering four independent
+governance voices with no stated relationship between them.
+
+No milestone history was touched. No `CHANGELOG.md` entry was edited.
+
+### Remaining governance drift
+
+None found in this pass. The terminology sweep (below) turned up no
+new synonym for a canonical status word, no conflicting statement about
+sequencing or documentation ownership, and no principle whose detailed
+section disagreed with its one-line summary.
+
+**One thing intentionally left as a forward pointer, not drift:**
+TG-D/E/F's letter-to-scope assignment is still undecided
+(`MASTER_ROADMAP.md` §18's own note). That is real open work, not a
+governance inconsistency — §19's rule that "the implementation order
+must always be documented" is satisfied by documenting *that* it is
+undecided, not by prematurely deciding it here.
+
+### Verification performed
+
+- **Governance terminology consistent:** grepped `ARCHITECTURE.md` and
+  `MASTER_ROADMAP.md` for `Fully Complete` and the comma-separated
+  `Implementation Complete, Build Verification Pending` form after
+  adding §24 — the only matches are the intentional vocabulary list
+  and the intentional historical quote of the retired term in §20's
+  own explanatory prose (both already present before this pass).
+- **No conflicting governance statements:** §24's twelve principles and
+  the four detailed sections they point to were read together
+  side-by-side while writing the cross-references above; none
+  contradicts another.
+- **Milestone Lifecycle terminology remains canonical:** §23's six
+  statuses are unchanged by this pass — §24 references them by name
+  without redefining them.
+- **Roadmap Governance remains consistent:** §19's six rules are
+  unchanged; only a two-sentence pointer was prepended.
+- **Documentation Synchronization Policy remains consistent:** §20's
+  six-document table and its rules are unchanged; only a two-sentence
+  pointer was prepended.
+- **Markdown structure:** code-fence balance and table-row well-
+  formedness checked programmatically after every edit in this pass;
+  all TOC anchors (`#24-project-development-principles` included)
+  resolve to real headers.
+
+### Confirmation
+
+Governance is, per this task's own instruction, considered **stable**
+as of this commit. §1–§23 are the detailed standards; §24 is the
+philosophy they serve; §19–§20 in `MASTER_ROADMAP.md` are the
+roadmap-specific and documentation-specific instantiations of that
+philosophy. No further governance restructuring is planned, and none
+should occur in future milestone work unless explicitly requested —
+ordinary work applies these principles going forward; it does not
+revisit them.
+
+TG-D remains Not Started. This report does not request that it start.
