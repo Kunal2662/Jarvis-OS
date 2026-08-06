@@ -6848,6 +6848,33 @@ source while model downloads worked.
 download source, and the Tauri bridge from the wizard to the engine —
 all Task Group C.
 
+**Installer UI integration ✅ shipped v0.35.0.** Connects Task Group A's
+wizard to Task Group B's engine. The installation screen, per-item
+download view, resume, failure recovery and completion all render from
+the engine's own event stream, and `/install` is reachable for the first
+time -- Task Groups A and B had left the wizard mounted nowhere.
+
+*Three additive hooks*, leaving the existing path byte-identical: a
+`--stream` NDJSON mode (the events existed only as a Python callback, so
+a UI could not show live progress from a value delivered after the run),
+a `VERIFYING` per-item state, and `kind` for grouping. The engine itself
+is unchanged -- pytest, black, ruff and mypy identical to v0.34.0.
+
+*The backend stays authoritative.* Step, percent, per-item state and byte
+counts are stored as received; there is no client-side step machine to
+disagree with the engine. Speed and time remaining are the two derived
+values, computed in the UI because a rate is a property of an observer
+over an interval rather than a fact about a download.
+
+**The host bridge is intentionally deferred to Task Group C.**
+`@tauri-apps/plugin-shell` is not a dependency and no Rust command
+spawns the Python process. Rather than add a dependency so a screen
+looks finished, the transport *defines the contract* -- one command, one
+event -- and rejects with a readable reason when the host cannot supply
+it, which surfaces as friendly copy with a Retry. A stub that resolved
+quietly would make the installer look complete while installing nothing.
+See `IMPLEMENTATION_ROADMAP.md` for the five items TG-C must implement.
+
 *(Aug 2026 — **Cross-Platform Distribution added to this milestone** per
 the approved architecture decisions: Windows, Linux and macOS builds, a
 Portable edition, an Installer and an Enterprise installer, Auto-update,

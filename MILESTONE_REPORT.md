@@ -1,190 +1,187 @@
-# Milestone Report — M22 Task Group B: Runtime Provisioning
+# Milestone Report — M22: Installer UI & Provisioning Integration
 
-**Version:** 0.34.0
-**Branch:** `feature/m22-task-group-b`
-**Baseline:** v0.33.0 (`ce1f8a2`)
+**Version:** 0.35.0
+**Branch:** `feature/m22-installer-ui`
+**Baseline:** v0.34.0 (`424a1ef`, M22 Task Group B)
 **Date:** 2026-08-06
+
+> **Correction to the previous report.** v0.34.0's report stated *"No
+> installer UI changes. TG-A's wizard is unchanged; wiring its Install
+> step to this engine needs the Tauri command bridge, which belongs with
+> packaging in TG-C."* That was true when written and is now wrong in
+> its second half: the wiring shipped here **without** the Tauri bridge,
+> because the wizard reaches the engine through an injected transport.
+> Only the transport's *host implementation* waits on packaging. The
+> CHANGELOG's 0.34.0 entry carries the same correction.
 
 ---
 
 ## 1. Executive summary
 
-TG-A planned an installation. TG-B performs one: dependency detection, a
-resumable checksum-verified download manager, a durable provisioning
-journal, parallel verification, first-run preparation and an
-`installation.json` manifest — all driven by a single engine that is
-simultaneously *install*, *resume* and *repair*.
+The installer wizard now runs a real installation. Progress, per-item
+download state, resume, failure recovery and completion all render from
+the provisioning engine's own events, and `/install` is reachable for
+the first time.
 
-The success criterion was **planning → provisioning → downloading →
-verifying → recovering → preparing first launch, without touching the
-frozen backend**. That path runs end to end: a real provisioning against
-a `file://` mirror completes all eight steps, writes a manifest, and a
-second run skips all eight.
-
-Running it for real found **four defects** that the unit tests had not,
-including one that looked like it worked.
-
-**Backend untouched.** No route, model, schema, event or contract
-changed. `src/jarvis/installer/` still imports no service, repository or
-container.
+**The engine is unchanged.** pytest, black, ruff and mypy are identical
+to v0.34.0, and TG-B's 30 engine tests pass untouched. What changed on
+the Python side is three *additive* integration hooks that leave existing
+behaviour byte-identical.
 
 ---
 
-## 2. Defects found by running it end to end
+## 2. Status of M22
 
-### 2.1 A model id is not a filename 🔴
-
-`qwen2.5:14b` is a valid registry identifier and an **impossible Windows
-filename** — NTFS reads the colon as a drive qualifier and the write
-fails. Since Windows is this milestone's primary platform, every model
-download would have failed on it.
-
-Fixed by separating the two concepts: `Artifact.key` addresses the
-source, `Artifact.filename` is the sanitised on-disk name. Sources gained
-a `{filename}` placeholder alongside `{key}`, because a `file://` mirror
-*cannot* store a file named after the raw key.
-
-### 2.2 The same confusion, a second time 🔴
-
-Verification then looked artefacts up by `key` while the downloader had
-written them under `filename`, so a correctly-downloaded model was
-reported **missing**. Two places had to agree and did not.
-
-Fixed at the source of truth — `_expected_artifacts` keys by filename.
-
-### 2.3 A source spec that looked like it worked 🟠
-
-`JARVIS_DOWNLOAD_SOURCES` used commas both between entries *and* within
-`kinds`, so `mirror|url|model,voice|0` silently split into a model-only
-source plus an unparseable fragment. **Model downloads worked; voice
-downloads found no source.** A bug that half-works is worse than one that
-fails outright.
-
-Entries are now semicolon-separated.
-
-### 2.4 A §22.12 leak in my own progress payload 🟠
-
-`DownloadProgress.to_dict(include_source=False)` still carried `key` —
-the model id — into a personal user's progress. Caught by the test
-asserting no model name appears in a personal payload, which failed on
-`qwen2.5:14b`.
-
-Personal progress now carries `display_name` ("Local AI"); the id is
-administrator-only.
-
----
-
-## 3. What was built
-
-| Module | Responsibility |
+| Task group | Status |
 |---|---|
-| `sources.py` | Download-source abstraction. **No URL anywhere in the package.** Ships empty; with nothing configured it names the environment variable rather than falling back to a vendor host. |
-| `download.py` | Queued, **byte-level resumable** (HTTP `Range`), checksum-verified downloads with pause/cancel/retry and source failover. |
-| `dependencies.py` | Python, Git, Visual C++, CUDA, DirectML, ONNX Runtime. **No code path that writes** — "never silently overwrite" enforced structurally. |
-| `journal.py` | Durable, fsynced, atomically-replaced provisioning record. Only completions are written. |
-| `first_run.py` | Directory tree and configuration. Idempotent; never overwrites an existing config. |
-| `verification.py` | Nine checks, run in parallel. |
-| `manifest.py` | `installation.json` — the migration contract. |
-| `provisioning.py` | The engine: eight ordered, idempotent steps. |
-| `atomic.py` | The shared atomic-write helper the journal and manifest both need. |
+| **A — Universal Installer Foundation** | ✅ Complete (v0.33.0) |
+| **B — Runtime Provisioning** | ✅ **Complete** (v0.34.0) |
+| **Installer UI integration** | ✅ Complete (v0.35.0, this report) |
+| **C — Windows packaging & host bridge** | ⬜ Not started |
 
-CLI: `dependencies`, `provision`, `verify`, `repair <step>`, `status`.
-
----
-
-## 4. Design decisions worth stating
-
-**There is no separate `resume` command.** `provision` skips whatever the
-journal records as complete, so resuming *is* running it again. A resume
-that took a different code path would be the path least often exercised
-and most often broken.
-
-**Only completions are journalled.** An interrupted step leaves no entry
-and is re-run. That is the safe direction, because every step is
-idempotent — whereas skipping a step that did not finish leaves a broken
-installation that reports itself complete.
-
-**A file only exists once it is verified.** Downloads land in `.part`,
-are checksummed there, and are renamed last. So the presence of a file
-under its final name is itself proof it passed — recovery never has to
-ask whether what it found is trustworthy.
-
-**Unverifiable is not verified.** A source publishing no checksum yields
-`verified=False` with a reason, and verification reports it as a
-*warning*. Reporting a file as verified when nothing checked it would
-make every other guarantee here worthless.
-
-**Repair invalidates forward.** Repairing the model download also forgets
-verification and the manifest, because keeping a verification that ran
-against a previous file would leave the manifest asserting something
-untrue.
+TG-B is complete and unmodified by this work. Its engine — dependency
+detection, resumable checksum-verified downloads, the durable journal,
+parallel verification, first-run preparation and the manifest — is the
+authority the UI renders; nothing in it was redesigned to accommodate a
+screen.
 
 ---
 
-## 5. Security notes
+## 3. The gap the brief assumed away
 
-- **No credentials are read, written or logged.** The installer never
-  touches API keys; §22.11 reserves those to an administrator through the
-  application, not the installer.
-- **§22.12 enforced at the payload**: personal progress carries no model
-  id, source name, dependency path or attempt count. Asserted by a test
-  that scans a full personal provisioning run for `llama`, `qwen`,
-  `piper`, `whisper`, `http://` and `source`.
-- **Downloads are integrity-checked where a checksum exists** and
-  honestly reported as unverifiable where none does.
-- **`file://` sources are marked as not requiring internet**, which is
-  what makes a genuinely offline, air-gapped installation possible.
+The brief said *"support the provisioning events already emitted by the
+backend"*. Those events did not reach the frontend:
+
+| Required | Reality before this work |
+|---|---|
+| Live progress | `provision` emitted one document **after** the run |
+| Per-item `verifying` | No such state — verification was silent |
+| Speed / time remaining | Not emitted |
+| Models vs Voices grouping | `DownloadProgress` had no `kind` |
+| A reachable wizard | Mounted nowhere; no route |
+
+Three additive hooks closed it, each leaving the existing path
+untouched: `--stream` (NDJSON; the flagless output is byte-identical),
+`DownloadState.VERIFYING`, and `kind`.
 
 ---
 
-## 6. Quality gates
+## 4. Architecture decisions
 
-| Gate | Result | vs v0.33.0 |
+**The backend stays authoritative.** Step, percentage, per-item state and
+byte counts are stored exactly as received. There is no client-side step
+machine — a UI tracking its own idea of progress alongside the engine's
+would eventually disagree, and the engine would be right.
+
+**Two values are derived, deliberately.** Speed and time remaining are
+computed in the UI because a rate is a property of an observer over an
+interval, not a fact about a download; a stopwatch in the engine would
+report different numbers to two consumers. They derive from the
+authoritative byte counts, never from an independent tally.
+
+**Transport is injected, following TG-A's own pattern.** `loadPlan` was
+already a prop; `runProvisioning` is the same shape. The wizard has no
+opinion about how the host reaches the engine, which is exactly what
+lets TG-C supply a real transport without touching the UI.
+
+---
+
+## 5. The deferred host bridge — stated plainly
+
+**`provisioning-transport.ts` defines a contract that nothing implements
+yet, and this is deliberate.**
+
+`@tauri-apps/plugin-shell` is not a dependency of this project, and no
+Rust command exists to spawn `python -m jarvis.installer`. Adding either
+is packaging work and a dependency change; making it to have a screen
+look finished is not a call to take unilaterally.
+
+So the transport does two honest things rather than one dishonest one:
+
+1. **It writes down the contract** TG-C must satisfy —
+   command `run_provisioning`, event `provisioning://event`, NDJSON
+   payloads — so packaging implements against an interface rather than
+   inventing one, and the UI needs no change when it lands.
+2. **It rejects with a readable reason** when the host cannot provide it.
+   `classifyFailure` turns that into friendly copy with a Retry, which is
+   correct for a capability that may genuinely appear later in a session.
+
+A stub that resolved quietly, or emitted invented progress, would make
+the installer *look* complete while installing nothing.
+
+**Verified in a real browser:** `/install` renders full-screen, the
+wizard advances through licence, location and account, and the hardware
+scan reports *"needs the JARVIS desktop application"* — not a hang, and
+not fabricated progress.
+
+### What TG-C must build
+
+| Item | Contract |
+|---|---|
+| `run_provisioning` | Tauri command. Args `{ location, accountType }`. Spawns `python -m jarvis.installer provision --stream`, relays each stdout line, resolves on exit. |
+| `load_installation_plan` | Tauri command. Args `{ location, accountType }`. Returns the `plan` document. |
+| `provisioning://event` | Tauri event. Payload is one NDJSON line (string) or the parsed object; both are accepted. |
+| `launch_application`, `open_installation_folder` | Tauri commands, no args. |
+| `@tauri-apps/plugin-shell` | Dependency plus the Rust-side capability to spawn a process. |
+
+---
+
+## 6. Defects found and fixed
+
+1. **A React render loop.** `selectDownloadsByKind` built a new object
+   per call; zustand compares selector results by reference, so every
+   render looked like a state change until React aborted with "Maximum
+   update depth exceeded".
+2. **`defaultLocation=""`** permanently disabled Continue on the
+   Location step, with no explanation — the same class of bug TG-A's
+   flow test caught, in the one path that test could not reach because
+   it supplied a location itself.
+3. **The installer rendered inside the app shell**, with the sidebar and
+   header of the application it was installing.
+4. **A group headed "Local AI" containing an item also called "Local
+   AI".**
+5. **A test of my own that was too blunt** — it flagged the install
+   folder *the user typed themselves* as a leak. `manifest_path`,
+   dependency paths and download sources were verified admin-gated, and
+   the assertion was made precise rather than deleted.
+
+---
+
+## 7. Quality gates
+
+| Gate | Result | vs v0.34.0 |
 |---|---|---|
-| `pytest` | *(see below)* | +30 |
-| `npm test` | 577 passed, 71 files | **unchanged** |
+| `pytest` | 2291 passed, 1 skipped | **unchanged** |
+| `npm test` | **658 passed, 74 files** | +81, +3 files |
 | `npm run lint` | 16 warnings, 1 category | **unchanged** |
 | `npm run typecheck` | clean | unchanged |
 | `npm run build` | clean | unchanged |
-| `black --check src tests` | clean | unchanged |
-| `ruff check src tests` | **21 categories** | **unchanged** |
-| `mypy src` | **262 errors**, 414 files | **unchanged**, +9 files all clean |
-
-Ruff initially rose to **33 categories** on the new code — 12 new ones.
-All were fixed rather than suppressed: `StrEnum` instead of `str, Enum`,
-an `Error` suffix on the exception, a named opener instead of a lambda,
-`ClassVar` annotations, hoisted imports, and a shared `atomic.py` that
-removed two `SIM115` violations by removing the duplication that caused
-them.
+| `black --check src tests` | clean | **unchanged** |
+| `ruff check src tests` | 21 categories | **unchanged** |
+| `mypy src` | 262 errors | **unchanged** |
 
 ---
 
-## 7. Deliberately not built
+## 8. Remaining work
 
-- **No packaging** — no MSI, no EXE, no code signing. Explicitly out of
-  scope for this task group.
-- **No real download source is configured.** The registry ships empty by
+- **The host bridge** (§5) — TG-C.
+- **No packaging**: no MSI, EXE, portable edition, shortcuts, auto-start
+  or code signing.
+- **No configured download source.** The registry still ships empty by
   design; a concrete host would be the hardcoded URL the brief forbids.
-  Provisioning against a configured mirror is exercised end to end.
-- **No checksums are published**, because no upstream source is wired.
-  Verification reports downloads as *present but unverifiable* rather
-  than pretending otherwise — the honest state, and it becomes verified
-  the moment a source publishes digests.
-- **The installer does not create the database schema.** It prepares the
-  location and records it; the application's own `initialize()` creates
-  the schema on first launch, through the frozen code that owns it. An
-  installer writing tables would be a second definition guaranteed to
-  drift.
-- **No installer UI changes.** TG-A's wizard is unchanged; wiring its
-  Install step to this engine needs the Tauri command bridge, which
-  belongs with packaging in TG-C.
+- **No published checksums**, so downloads verify as *present but
+  unverifiable*. That becomes real verification when TG-C configures a
+  source publishing digests.
+- **Linux and macOS** remain detected-and-warned rather than supported.
 
 ---
 
-## 8. Version, commit, push
+## 9. Version, commit, push
 
-- **Version:** 0.33.0 → **0.34.0**, bumped in both `pyproject.toml` and
-  `jarvis/__version__.py` (the M8 Phase 7 consistency test enforces it).
-- **Branch:** `feature/m22-task-group-b` · **Push:** confirmed.
+- **Version:** 0.34.0 → **0.35.0**, both `pyproject.toml` and
+  `jarvis/__version__.py` (the consistency test enforces it).
+- **Commits:** `8308a31`, `6e2e465`, `de618af`, plus this
+  documentation commit.
+- **Branch:** `feature/m22-installer-ui` · **Push:** confirmed.
 
 Awaiting approval before Task Group C.

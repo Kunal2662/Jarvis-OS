@@ -277,10 +277,11 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.34.0` · **Current milestone:** M22 —
+**Current version:** `0.35.0` · **Current milestone:** M22 —
 Cross-Platform Distribution & Universal Installer (🟡 active; Task Group
-A, the Universal Installer Foundation, and Task Group B, Runtime
-Provisioning, shipped).
+A — Universal Installer Foundation — and Task Group B — Runtime
+Provisioning — are complete, and the installer UI is wired to the
+engine).
 
 M8 — React Frontend & Desktop Experience is 🟡 active with Phase 1
 (React Foundation), Phase 2 (Universal Application Framework & Logic),
@@ -319,7 +320,15 @@ would not have. `0.34.0` made it provision: a resumable,
 checksum-verified download manager, a durable journal that survives a
 power cut, parallel verification and an `installation.json` manifest —
 with no URL hardcoded anywhere, so an air-gapped mirror is a
-configuration change. Windows packaging is Task Group C. Also still open: cross-browser testing
+configuration change. `0.35.0` connected the wizard to that engine: live
+progress, per-item download state, resume, friendly failure recovery and
+completion, all rendered from the engine's own event stream.
+
+Windows packaging is Task Group C — and with it the **host bridge**, the
+one piece deliberately left unbuilt. Nothing spawns the installer's
+Python process from the desktop shell yet, so the frontend defines that
+boundary as a contract and reports honestly that it needs the desktop
+application, rather than simulating an installation. Also still open: cross-browser testing
 (Chromium only so far; the Tauri shell uses WebKit/WebView2), a
 screen-reader pass, and contrast measurement.
 

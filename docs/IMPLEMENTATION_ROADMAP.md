@@ -2115,11 +2115,60 @@ configured download source, and no installer-UI change — wiring the
 wizard's Install step to this engine needs the Tauri command bridge,
 which belongs with packaging.
 
-### Task Group C — Windows Packaging *(next)*
+### Installer UI integration ✅ *(v0.35.0)*
+*(Not a numbered task group -- it connects A's wizard to B's engine and
+was scoped as its own piece of work.)*
+- [x] Provisioning event stream: `provision --stream` emits NDJSON, one
+      `progress` event per engine callback then a final `result`.
+      Without the flag the output is byte-identical to v0.34.0.
+- [x] `DownloadState.VERIFYING` and `kind` on `DownloadProgress` -- the
+      two facts the UI needed that the engine did not previously report.
+- [x] Installation screen: phase, overall progress, steps, bytes, speed,
+      time remaining, and a per-item download list with all seven states,
+      each carried by text *and* an accessible label rather than colour.
+- [x] Resume, failure (seven friendly categories with Retry) and
+      completion screens.
+- [x] `/install` route, **outside** `DesktopShell` -- an installer
+      rendered inside the sidebar and header of the application it is
+      installing is incoherent and invites navigating away mid-run.
+- [x] 81 tests, including a contract suite driven by a captured real
+      stream.
+
+**Backend engine unchanged**: pytest, black, ruff and mypy identical to
+v0.34.0; TG-B's 30 engine tests pass untouched.
+
+**Speed and time remaining are derived in the UI**, not emitted. A rate
+is a property of an observer over an interval, not a fact about a
+download; a stopwatch in the engine would report different numbers to
+two consumers.
+
+### Task Group C — Windows Packaging & Host Bridge *(next)*
+
+**The host bridge is intentionally deferred to here.**
+`@tauri-apps/plugin-shell` is not a dependency and no Rust command
+exists to spawn the Python process. Rather than add a dependency to make
+a screen look finished, `provisioning-transport.ts` defines the contract
+and rejects with a readable reason when the host cannot satisfy it --
+which the failure classifier turns into friendly copy with a Retry. The
+UI needs no change when the bridge lands.
+
+- [ ] `run_provisioning` — Tauri command, args `{ location,
+      accountType }`. Spawns `python -m jarvis.installer provision
+      --stream`, relays each stdout line, resolves on exit.
+- [ ] `load_installation_plan` — Tauri command, same args, returns the
+      plan document.
+- [ ] `provisioning://event` — Tauri event carrying one NDJSON line or
+      the parsed object; the transport accepts both.
+- [ ] `launch_application` and `open_installation_folder` — Tauri
+      commands, no args. Until they exist the completion screen disables
+      those buttons *with a reason* rather than hiding them.
+- [ ] `@tauri-apps/plugin-shell` dependency plus the Rust-side
+      capability to spawn a process.
 - [ ] Installer executable, portable edition, desktop and Start Menu
       shortcuts, auto-start, native notifications.
-- [ ] The Tauri command bridge connecting the wizard to the provisioning
-      engine.
+- [ ] A configured download source publishing checksums. Until one
+      exists the registry ships empty by design, and downloads verify as
+      *present but unverifiable* rather than claiming to be verified.
 
 ### Task Groups D+ — Linux and macOS *(not started)*
 - [ ] AppImage, Flatpak, DEB, RPM, desktop integration.

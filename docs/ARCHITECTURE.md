@@ -1597,6 +1597,22 @@ the standard installation, not an optional extra — that is what makes
 >   variable to set rather than falling back to a vendor host. A silent
 >   fallback would defeat the abstraction on the default path, which is
 >   the only path most installations take.
+>
+> **Update (v0.35.0, installer UI).** The wizard is wired to the engine
+> and reachable at `/install`. The engine streams progress as NDJSON
+> (`provision --stream`); the UI stores what it receives and derives only
+> transfer speed and time remaining, since a rate is a property of an
+> observer rather than a fact about a download.
+>
+> The **host bridge remains unbuilt and is deferred to M22 Task Group C**
+> — nothing spawns the Python process from the desktop shell yet. The
+> frontend defines that boundary as a contract (command
+> `run_provisioning`, event `provisioning://event`) and fails with a
+> readable reason when the host cannot satisfy it. This is the same rule
+> as the two above, applied to a transport: **an unavailable capability
+> reports itself rather than being simulated.** A resolving stub, or
+> invented progress, would make an installer look complete while
+> installing nothing.
 
 ---
 

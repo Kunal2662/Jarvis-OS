@@ -3,6 +3,75 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.35.0] — M22: Installer UI & Provisioning Integration
+
+Connects the installer wizard to the provisioning engine. The engine
+itself is unchanged: pytest, black, ruff and mypy are identical to
+0.34.0, and TG-B's 30 engine tests pass untouched.
+
+### Added
+- **Provisioning event stream.** `provision --stream` emits
+  newline-delimited JSON — one `progress` event per engine callback, then
+  a final `result`. Without the flag the output is byte-identical to
+  0.34.0. The brief asked the UI to "support the provisioning events
+  already emitted by the backend"; those events existed only as a Python
+  callback, so a UI could not show live progress for a multi-gigabyte
+  download from a value it received once the download was over.
+- **`DownloadState.VERIFYING`**, emitted around the checksum pass.
+  Checksumming a large file takes long enough that leaving the state on
+  "running" reads as a hang.
+- **`kind` on `DownloadProgress`**, so the UI can group Models and Voices
+  without inspecting an id it is not permitted to display.
+- **Installation screen** — phase in the backend's own §22.12 wording,
+  overall progress, steps, bytes, speed, time remaining, and a per-item
+  download list with all seven states (waiting, downloading, checking,
+  ready, already installed, failed, cancelled), each carried by text
+  *and* an accessible label rather than by colour.
+- **Resume, failure and completion screens.** Failures map the engine's
+  own error text onto the seven required categories and show copy that
+  names no internal cause — "Connection lost", never "URLError". Retry
+  is worded "Continue installation" because the journal makes it a
+  resume.
+- **`/install` route.** TG-A and TG-B left the wizard mounted nowhere.
+  It sits *outside* `DesktopShell`: rendering an installer inside the
+  sidebar and header of the application it is installing is incoherent
+  and invites navigating away mid-run.
+- **Host-bridge contract** (`provisioning-transport.ts`) — see Notes.
+
+### Fixed
+- **A React render loop.** `selectDownloadsByKind` built a new object per
+  call, and zustand compares selector results by reference, so using it
+  as a hook selector made every render look like a state change until
+  React aborted with "Maximum update depth exceeded". Grouping is now a
+  `useMemo` over the stable array.
+- **`defaultLocation` defaulted to `""`**, permanently disabling
+  Continue on the Location step with no explanation. The route now
+  proposes `%LOCALAPPDATA%\JARVIS` (or `~/.jarvis`), and the step says
+  "Enter a folder to continue" while the field is blank.
+- **A group headed "Local AI" containing an item also called "Local
+  AI"** — groups renamed to Models / Voices / Assets.
+
+### Notes
+- **Speed and time remaining are derived in the UI, not emitted by the
+  engine.** A rate is a property of an observer over an interval, not a
+  fact about a download; a stopwatch in the engine would report
+  different numbers to two consumers. They are derived from the
+  authoritative byte counts, smoothed over 3s, and are `null` rather
+  than `0` until there is signal — "0 B/s" reads as stalled where "—"
+  reads as not yet known.
+- **The host bridge is intentionally deferred to Task Group C.**
+  `@tauri-apps/plugin-shell` is not a dependency and no Rust command
+  exists to spawn the Python process. Rather than adding a dependency to
+  make a screen look finished, the transport *defines the contract* — one
+  command (`run_provisioning`), one event (`provisioning://event`) — and
+  rejects with a readable reason when the host cannot provide it, which
+  the failure classifier turns into friendly copy with a Retry. A stub
+  that resolved quietly, or emitted invented progress, would make the
+  installer look complete while installing nothing.
+- **81 tests added**, including a contract suite driven by a *captured
+  real stream* rather than a hand-written approximation, and assertions
+  that no model id, registry key or URL reaches a personal payload.
+
 ## [0.34.0] — M22 Task Group B: Runtime Provisioning
 
 Task Group A planned an installation; this performs one. Dependency
@@ -71,9 +140,12 @@ container.
 - **The installer does not create the database schema.** It prepares the
   location; the application's `initialize()` creates the schema on first
   launch through the frozen code that owns it.
-- **No packaging** — no MSI, EXE or code signing, per the brief. The
-  wizard's Install step is unchanged: wiring it to this engine needs the
-  Tauri command bridge, which belongs with packaging.
+- **No packaging** — no MSI, EXE or code signing, per the brief.
+  *(Superseded by 0.35.0: this entry originally said the wizard's Install
+  step was unchanged and that wiring it required the Tauri bridge. The
+  wiring shipped in 0.35.0 without that bridge — the UI reaches the
+  engine through an injected transport, and only the transport's host
+  implementation waits on packaging.)*
 - Ruff rose to 33 categories on the new code and was brought back to the
   21-category baseline — `StrEnum`, an `Error` suffix, a named opener,
   `ClassVar` annotations, and a shared `atomic.py` that removed two
