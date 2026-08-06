@@ -21,6 +21,12 @@ pub fn run() {
             installer::load_installation_plan,
             installer::launch_application,
             installer::open_installation_folder,
+            // M22 Task Group D -- diagnostics, verification and repair.
+            installer::check_dependencies,
+            installer::get_installation_status,
+            installer::verify_installation,
+            installer::repair_installation,
+            installer::open_log_folder,
         ])
         .setup(|app| {
             // Logging is registered unconditionally, not only in debug.

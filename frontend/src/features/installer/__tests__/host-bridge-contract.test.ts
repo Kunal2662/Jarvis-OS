@@ -1,10 +1,28 @@
+/// <reference types="node" />
+//
+// The only file under `src/` that touches Node built-ins -- reading
+// `installer.rs` as text needs a filesystem, and this app otherwise
+// targets the browser, so `tsconfig.app.json`'s `types` array does not
+// include `node` globally. A file-scoped reference pulls in `@types/node`
+// (already a devDependency) for this one file rather than widening the
+// whole app's ambient types to add `process`/`Buffer`/etc. everywhere.
+// Fixes a real gap this task group found: `tsc -b --noEmit` -- the
+// project's actual `npm run typecheck` -- failed on this file before this
+// line existed, which `vitest run` alone never caught, since vite-node
+// resolves Node builtins at runtime independently of TypeScript's `types`
+// option.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CANCEL_COMMAND,
+  DEPENDENCIES_COMMAND,
+  OPEN_LOG_FOLDER_COMMAND,
   PROVISION_COMMAND,
   PROVISION_EVENT,
+  REPAIR_COMMAND,
+  STATUS_COMMAND,
+  VERIFY_COMMAND,
 } from "@/features/installer/provisioning-transport";
 
 /**
@@ -42,6 +60,12 @@ const INVOKED = [
   { name: "load_installation_plan", takesArgs: true },
   { name: "launch_application", takesArgs: false },
   { name: "open_installation_folder", takesArgs: false },
+  // M22 Task Group D.
+  { name: DEPENDENCIES_COMMAND, takesArgs: true },
+  { name: STATUS_COMMAND, takesArgs: true },
+  { name: VERIFY_COMMAND, takesArgs: true },
+  { name: REPAIR_COMMAND, takesArgs: true },
+  { name: OPEN_LOG_FOLDER_COMMAND, takesArgs: false },
 ] as const;
 
 const declaration = (name: string) => new RegExp(`pub (?:async )?fn ${name}\\s*\\(`);
@@ -114,6 +138,40 @@ describe("host bridge argument shapes", () => {
     const body = commandBody("load_installation_plan");
     expect(body).toContain("location: String");
     expect(body).toContain("account_type: String");
+  });
+
+  // --- M22 Task Group D ---------------------------------------------
+
+  it("check_dependencies accepts location and account type", () => {
+    const body = commandBody(DEPENDENCIES_COMMAND);
+    expect(body).toContain("location: String");
+    expect(body).toContain("account_type: String");
+  });
+
+  it("get_installation_status accepts location only -- status has no account-type flag in the CLI", () => {
+    const body = commandBody(STATUS_COMMAND);
+    expect(body).toContain("location: String");
+    expect(body).not.toContain("account_type");
+  });
+
+  it("verify_installation accepts location and account type", () => {
+    const body = commandBody(VERIFY_COMMAND);
+    expect(body).toContain("location: String");
+    expect(body).toContain("account_type: String");
+  });
+
+  /**
+   * The one place this bridge's arity is easy to get wrong a second
+   * time: `repair_installation` takes three arguments, and dropping any
+   * one of them compiles (Rust does not know the CLI needs all three)
+   * and fails only when a click reaches an unrepaired step or the wrong
+   * target.
+   */
+  it("repair_installation accepts location, account type and the step to repair", () => {
+    const body = commandBody(REPAIR_COMMAND);
+    expect(body).toContain("location: String");
+    expect(body).toContain("account_type: String");
+    expect(body).toContain("step: String");
   });
 
   /**

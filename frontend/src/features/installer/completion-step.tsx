@@ -1,7 +1,10 @@
-import { CircleAlert, CircleCheck, FolderOpen, Rocket } from "lucide-react";
+import { useState } from "react";
+import { CircleCheck, FolderOpen, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useProvisioningStore } from "@/features/installer/provisioning-store";
+import { VerificationPanel } from "@/features/installer/verification-panel";
 import type { InstallationPlan } from "@/features/installer/installer-types";
+import type { VerificationReport } from "@/features/installer/provisioning-types";
 
 /**
  * The completion screen -- M22 installer UI.
@@ -27,17 +30,35 @@ export interface CompletionStepProps {
    *  different. */
   onLaunch: (() => void) | null;
   onOpenFolder: (() => void) | null;
+  /**
+   * Repairs one step, then returns a **freshly re-verified** report --
+   * not the repair's own result, which can complete having failed a
+   * later step (a blocked download, say) without ever re-running the
+   * check that was repaired. Only a new verification pass can say
+   * whether the repaired check now passes.
+   *
+   * `null` when the host cannot repair, same rule as the two props
+   * above -- offered only when it can actually do something.
+   */
+  onRepair: ((step: string) => Promise<VerificationReport>) | null;
 }
 
-export function CompletionStep({ plan, version, onLaunch, onOpenFolder }: CompletionStepProps) {
+export function CompletionStep({
+  plan,
+  version,
+  onLaunch,
+  onOpenFolder,
+  onRepair,
+}: CompletionStepProps) {
   const result = useProvisioningStore((s) => s.result);
   const downloads = useProvisioningStore((s) => s.downloads);
 
-  // Warnings are worth surfacing: an installation can succeed while a
-  // component could not be integrity-checked, and saying so is the
-  // difference between "verified" and "we did not look".
-  const warnings =
-    result?.verification?.results.filter((entry) => entry.verdict === "warn") ?? [];
+  // Seeded from this run's own result and then owned locally: a repair
+  // replaces it with a fresh report, and the provisioning store's
+  // `result` is this screen's *input*, not something it should mutate.
+  const [verification, setVerification] = useState<VerificationReport | null>(
+    result?.verification ?? null,
+  );
 
   const components = [
     ...new Set([
@@ -87,18 +108,23 @@ export function CompletionStep({ plan, version, onLaunch, onOpenFolder }: Comple
         </div>
       </dl>
 
-      {warnings.length > 0 && (
-        <div className="flex flex-col gap-1 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
-          <p className="flex items-center gap-1.5 font-medium text-secondary">
-            <CircleAlert className="size-3.5 shrink-0 text-amber-500" aria-hidden="true" />
-            Worth knowing
-          </p>
-          {warnings.map((warning) => (
-            <p key={warning.key} className="text-muted-foreground text-xs">
-              {warning.detail}
-            </p>
-          ))}
-        </div>
+      {/* The full nine-check report, not just its warnings -- "verified"
+          and "we did not look" are different claims, and a pass deserves
+          to be shown as confidently as a warning. Repairable failures get
+          a Repair button; `onRepair` re-verifies afterward rather than
+          trusting the repair's own optimistic result. */}
+      {verification && (
+        <VerificationPanel
+          report={verification}
+          onRepair={
+            onRepair
+              ? async (step) => {
+                  const refreshed = await onRepair(step);
+                  setVerification(refreshed);
+                }
+              : null
+          }
+        />
       )}
 
       <div className="flex flex-col gap-2 sm:flex-row">

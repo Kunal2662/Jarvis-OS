@@ -1,0 +1,59 @@
+{
+  "satisfied": true,
+  "dependencies": [
+    {
+      "key": "python",
+      "label": "Python runtime",
+      "status": "present",
+      "version": "3.13.14",
+      "required": true,
+      "detail": "Python 3.13.14.",
+      "path": "C:\\Users\\DELL-5430\\Downloads\\jarvis-os-rc1-final_1\\2.0-main\\.venv\\Scripts\\python.exe"
+    },
+    {
+      "key": "visual_cpp",
+      "label": "Visual C++ runtime",
+      "status": "present",
+      "version": null,
+      "required": false,
+      "detail": "Installed.",
+      "path": "C:\\WINDOWS\\System32\\vcruntime140.dll"
+    },
+    {
+      "key": "git",
+      "label": "Git",
+      "status": "present",
+      "version": "2.55.0.windows.3",
+      "required": false,
+      "detail": "Git 2.55.0.windows.3.",
+      "path": "C:\\Program Files\\Git\\mingw64\\bin\\git.EXE"
+    },
+    {
+      "key": "cuda",
+      "label": "CUDA acceleration",
+      "status": "missing",
+      "version": null,
+      "required": false,
+      "detail": "No NVIDIA driver detected. JARVIS will run on the processor.",
+      "path": null
+    },
+    {
+      "key": "directml",
+      "label": "DirectML acceleration",
+      "status": "present",
+      "version": null,
+      "required": false,
+      "detail": "Available.",
+      "path": "C:\\WINDOWS\\System32\\DirectML.dll"
+    },
+    {
+      "key": "onnx_runtime",
+      "label": "ONNX Runtime",
+      "status": "present",
+      "version": null,
+      "required": false,
+      "detail": "Available.",
+      "path": "C:\\Users\\DELL-5430\\Downloads\\jarvis-os-rc1-final_1\\2.0-main\\.venv\\Lib\\site-packages\\onnxruntime\\__init__.py"
+    }
+  ]
+}

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import administratorDependencies from "./dependencies.administrator.fixture.json";
+import personalDependencies from "./dependencies.personal.fixture.json";
 import administratorPlan from "./plan.administrator.fixture.json";
 import personalPlan from "./plan.personal.fixture.json";
 import type { InstallationPlan } from "@/features/installer/installer-types";
+import type { DependencyReport } from "@/features/installer/provisioning-types";
 
 /**
  * The installer's Python/TypeScript contract -- M22 Task Group A.
@@ -136,5 +139,41 @@ describe("validation results", () => {
   it("can_install agrees with the individual results", () => {
     const anyBlocking = admin.validation.results.some((r) => r.blocking);
     expect(admin.validation.can_install).toBe(!anyBlocking);
+  });
+});
+
+/**
+ * `dependencies` payload -- M22 Task Group D. Both fixtures are real
+ * output (`python -m jarvis.installer dependencies --account-type …`
+ * against the same machine), captured while auditing this task group.
+ * Regenerate with:
+ *
+ *     python -m jarvis.installer dependencies --account-type administrator \
+ *       > src/features/installer/__tests__/dependencies.administrator.fixture.json
+ *     python -m jarvis.installer dependencies --account-type personal \
+ *       > src/features/installer/__tests__/dependencies.personal.fixture.json
+ */
+describe("dependency payload", () => {
+  const admin = administratorDependencies as unknown as DependencyReport;
+  const personal = personalDependencies as unknown as DependencyReport;
+
+  it("satisfies the TypeScript contract", () => {
+    for (const report of [admin, personal]) {
+      expect(report.dependencies.length).toBeGreaterThan(0);
+      expect(typeof report.satisfied).toBe("boolean");
+    }
+  });
+
+  it("§22.12: personal payload omits path, administrator payload carries it", () => {
+    expect(personal.dependencies.every((dependency) => dependency.path === undefined)).toBe(true);
+    // The administrator payload proves the field exists at all, so this
+    // is a real omission rather than a field the CLI never emits.
+    expect(admin.dependencies.some((dependency) => dependency.path !== undefined)).toBe(true);
+  });
+
+  it("carries identical findings otherwise, on the same machine", () => {
+    const stripPath = (report: DependencyReport) =>
+      report.dependencies.map(({ path: _path, ...rest }) => rest);
+    expect(stripPath(personal)).toEqual(stripPath(admin));
   });
 });

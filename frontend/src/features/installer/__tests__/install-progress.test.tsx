@@ -296,18 +296,36 @@ describe("completion UI", () => {
     completeRun();
 
     render(
-      <CompletionStep plan={personal} version="0.34.0" onLaunch={vi.fn()} onOpenFolder={vi.fn()} />,
+      <CompletionStep
+        plan={personal}
+        version="0.34.0"
+        onLaunch={vi.fn()}
+        onOpenFolder={vi.fn()}
+        onRepair={null}
+      />,
     );
 
     expect(screen.getByText("Installation complete")).toBeInTheDocument();
     expect(screen.getByText("0.34.0")).toBeInTheDocument();
-    expect(screen.getByText("Local AI")).toBeInTheDocument();
+    // Appears twice on this screen now: once as an installed-component
+    // pill, once as the verification panel's check label for the same
+    // component (the fixture's `models` check is also labelled "Local
+    // AI") -- both are real, both are correct, so this asserts there
+    // are two rather than picking one and making the query ambiguous.
+    expect(screen.getAllByText("Local AI").length).toBe(2);
   });
 
   it("surfaces a warning rather than implying everything was verified", () => {
     completeRun();
 
-    render(<CompletionStep plan={personal} version="0.34.0" onLaunch={null} onOpenFolder={null} />);
+    render(<CompletionStep
+        plan={personal}
+        version="0.34.0"
+        onLaunch={null}
+        onOpenFolder={null}
+        onRepair={null}
+      />,
+    );
 
     expect(screen.getByText(/could not be integrity-checked/)).toBeInTheDocument();
   });
@@ -324,6 +342,7 @@ describe("completion UI", () => {
         version="0.34.0"
         onLaunch={onLaunch}
         onOpenFolder={onOpenFolder}
+        onRepair={null}
       />,
     );
 
@@ -337,7 +356,14 @@ describe("completion UI", () => {
   it("disables an action the host cannot perform, with a reason", () => {
     completeRun();
 
-    render(<CompletionStep plan={personal} version="0.34.0" onLaunch={null} onOpenFolder={null} />);
+    render(<CompletionStep
+        plan={personal}
+        version="0.34.0"
+        onLaunch={null}
+        onOpenFolder={null}
+        onRepair={null}
+      />,
+    );
 
     const launch = screen.getByRole("button", { name: /Launch JARVIS/ });
     expect(launch).toBeDisabled();
@@ -347,7 +373,14 @@ describe("completion UI", () => {
   it("never shows an installation path", () => {
     completeRun();
 
-    render(<CompletionStep plan={personal} version="0.34.0" onLaunch={vi.fn()} onOpenFolder={vi.fn()} />);
+    render(<CompletionStep
+        plan={personal}
+        version="0.34.0"
+        onLaunch={vi.fn()}
+        onOpenFolder={vi.fn()}
+        onRepair={null}
+      />,
+    );
 
     expect(document.body.textContent).not.toContain("C:/JARVIS");
   });

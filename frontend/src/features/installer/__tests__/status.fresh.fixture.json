@@ -1,0 +1,19 @@
+{
+  "install_location": "C:\\Users\\DELL-5~1\\AppData\\Local\\Temp\\jarvis-tgd-fixtures",
+  "journal": {
+    "started_at": null,
+    "is_resume": false,
+    "completed": [],
+    "remaining": [
+      "dependencies",
+      "directories",
+      "configuration",
+      "model_download",
+      "voice_download",
+      "first_run",
+      "verification",
+      "manifest"
+    ]
+  },
+  "manifest": false
+}

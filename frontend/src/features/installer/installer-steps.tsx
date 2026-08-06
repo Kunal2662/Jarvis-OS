@@ -19,12 +19,9 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SkeletonRows } from "@/components/common/skeleton";
+import { CheckRow } from "@/features/installer/check-row";
 import { useInstallerStore } from "@/features/installer/installer-store";
-import type {
-  HardwareProfile,
-  InstallationPlan,
-  ValidationResult,
-} from "@/features/installer/installer-types";
+import type { HardwareProfile, InstallationPlan } from "@/features/installer/installer-types";
 
 /**
  * The installer's individual steps -- M22 Task Group A.
@@ -505,34 +502,6 @@ export function VoiceStep({ plan }: { plan: InstallationPlan }) {
   );
 }
 
-const VERDICT_ICON = {
-  pass: CircleCheck,
-  warn: CircleAlert,
-  fail: CircleX,
-} as const;
-
-const VERDICT_COLOUR = {
-  pass: "text-emerald-500",
-  warn: "text-amber-500",
-  fail: "text-destructive",
-} as const;
-
-function ValidationRow({ result }: { result: ValidationResult }) {
-  const Icon = VERDICT_ICON[result.verdict];
-  return (
-    <li className="flex items-start gap-3 py-1.5">
-      <Icon
-        className={`mt-0.5 size-4 shrink-0 ${VERDICT_COLOUR[result.verdict]}`}
-        aria-label={result.verdict}
-      />
-      <div className="min-w-0 flex-1">
-        <p className="font-medium text-secondary">{result.label}</p>
-        <p className="text-muted-foreground text-xs">{result.detail}</p>
-      </div>
-    </li>
-  );
-}
-
 export function SummaryStep({ plan }: { plan: InstallationPlan }) {
   const blocking = plan.validation.results.filter((result) => result.blocking);
 
@@ -564,7 +533,12 @@ export function SummaryStep({ plan }: { plan: InstallationPlan }) {
         </p>
         <ul>
           {plan.validation.results.map((result) => (
-            <ValidationRow key={result.key} result={result} />
+            <CheckRow
+              key={result.key}
+              label={result.label}
+              verdict={result.verdict}
+              detail={result.detail}
+            />
           ))}
         </ul>
       </div>

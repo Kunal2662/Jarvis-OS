@@ -1,11 +1,18 @@
 import { useCallback } from "react";
 import { InstallerWizard } from "@/features/installer/installer-wizard";
+import { useInstallerStore } from "@/features/installer/installer-store";
 import {
   cancelProvisioningViaHost,
+  checkDependenciesViaHost,
+  getInstallationStatusViaHost,
   isHostBridgeAvailable,
+  openLogFolderViaHost,
+  repairInstallationViaHost,
   runProvisioningViaHost,
+  verifyInstallationViaHost,
 } from "@/features/installer/provisioning-transport";
 import type { InstallationPlan } from "@/features/installer/installer-types";
+import type { VerificationReport } from "@/features/installer/provisioning-types";
 
 /**
  * The installer's route element -- M22 installer UI.
@@ -77,10 +84,30 @@ export function InstallerRoute({
 }: InstallerRouteProps) {
   const bridged = isHostBridgeAvailable();
   const location = defaultLocation || proposedLocation();
+  // Read, never written here: the Account step owns this choice.
+  // `onRepair` is only reachable from the completion screen, which every
+  // earlier step's `canAdvance` check already requires an account type
+  // to reach -- so this is `null` only in a state the repair action
+  // itself guards against below, not one the wizard flow can produce.
+  const accountType = useInstallerStore((s) => s.accountType);
 
   const onCancel = useCallback(() => {
     void cancelProvisioningViaHost();
   }, []);
+
+  const onRepair = useCallback(
+    async (step: string): Promise<VerificationReport> => {
+      if (!accountType) {
+        throw new Error("Repair needs an account type, and none has been chosen yet.");
+      }
+      await repairInstallationViaHost({ location, accountType, step });
+      // Re-verify rather than trust the repair's own result: a repair
+      // can complete having failed a *later* step (a blocked download)
+      // without the check that triggered it ever running again.
+      return verifyInstallationViaHost({ location, accountType });
+    },
+    [location, accountType],
+  );
 
   const onLaunch = useCallback(() => {
     const host = (globalThis as { __TAURI__?: { core?: { invoke?: (c: string) => Promise<unknown> } } })
@@ -92,6 +119,10 @@ export function InstallerRoute({
     const host = (globalThis as { __TAURI__?: { core?: { invoke?: (c: string) => Promise<unknown> } } })
       .__TAURI__;
     void host?.core?.invoke?.("open_installation_folder");
+  }, []);
+
+  const onOpenLogFolder = useCallback(() => {
+    void openLogFolderViaHost();
   }, []);
 
   return (
@@ -108,6 +139,14 @@ export function InstallerRoute({
       cancelProvisioning={bridged ? onCancel : null}
       onLaunch={bridged ? onLaunch : null}
       onOpenFolder={bridged ? onOpenFolder : null}
+      onRepair={bridged ? onRepair : null}
+      // Diagnostics is offered whenever the bridge exists; unlike the
+      // repair/launch/folder actions it needs no account type to be
+      // useful (the dialog itself skips verification without one).
+      getInstallationStatus={bridged ? getInstallationStatusViaHost : undefined}
+      verifyInstallation={bridged ? verifyInstallationViaHost : undefined}
+      checkDependencies={bridged ? checkDependenciesViaHost : undefined}
+      onOpenLogFolder={bridged ? onOpenLogFolder : null}
     />
   );
 }

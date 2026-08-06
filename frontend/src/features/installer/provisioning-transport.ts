@@ -1,4 +1,10 @@
-import type { ProvisioningEvent } from "@/features/installer/provisioning-types";
+import type {
+  DependencyReport,
+  InstallationStatus,
+  ProvisioningEvent,
+  RepairResult,
+  VerificationReport,
+} from "@/features/installer/provisioning-types";
 
 /**
  * How the installer UI reaches the provisioning engine -- M22 installer
@@ -137,6 +143,112 @@ export async function runProvisioningViaHost({
 export async function cancelProvisioningViaHost(): Promise<void> {
   try {
     await tauri()?.core?.invoke?.(CANCEL_COMMAND);
+  } catch {
+    // Intentionally swallowed; see above.
+  }
+}
+
+// --- M22 Task Group D: diagnostics, verification and repair -----------
+//
+// Five more commands, all non-streaming: the host runs an already-shipped
+// CLI subcommand to completion and returns its one JSON document. Each
+// rejects with a readable reason when the bridge is absent, same as
+// `runProvisioningViaHost` above and for the same reason -- a screen that
+// silently shows nothing is indistinguishable from one that is still
+// loading.
+
+/** The Rust commands Task Group D implements. */
+export const DEPENDENCIES_COMMAND = "check_dependencies";
+export const STATUS_COMMAND = "get_installation_status";
+export const VERIFY_COMMAND = "verify_installation";
+export const REPAIR_COMMAND = "repair_installation";
+export const OPEN_LOG_FOLDER_COMMAND = "open_log_folder";
+
+/**
+ * Shared by the five functions below.
+ *
+ * Extracted rather than left inline in each: this file has real test
+ * coverage (`provisioning-transport.test.ts`), so — unlike the Rust side
+ * of this same task group, which has none without a toolchain — a
+ * mistake introduced by sharing this logic would be caught here, which
+ * is what makes the same DRY move safe on this side and not on that one.
+ */
+async function invokeJson<T>(
+  command: string,
+  args: Record<string, unknown>,
+  unavailableMessage: string,
+): Promise<T> {
+  const host = tauri();
+  if (!host?.core?.invoke) {
+    throw new Error(unavailableMessage);
+  }
+  return (await host.core.invoke(command, args)) as T;
+}
+
+/** Detect runtime dependencies (Python, Git, CUDA, DirectML, ONNX
+ *  Runtime, Visual C++). Installs nothing. */
+export async function checkDependenciesViaHost(input: {
+  location: string;
+  accountType: "personal" | "administrator";
+}): Promise<DependencyReport> {
+  return invokeJson<DependencyReport>(
+    DEPENDENCIES_COMMAND,
+    input,
+    "Checking dependencies needs the JARVIS desktop application.",
+  );
+}
+
+/** What provisioning has completed at this location, and whether an
+ *  installation already exists here. */
+export async function getInstallationStatusViaHost(location: string): Promise<InstallationStatus> {
+  return invokeJson<InstallationStatus>(
+    STATUS_COMMAND,
+    { location },
+    "Checking installation status needs the JARVIS desktop application.",
+  );
+}
+
+/** Verify an existing installation: nine checks, each carrying a
+ *  verdict and, when repairable, a step `repairInstallationViaHost`
+ *  accepts directly. */
+export async function verifyInstallationViaHost(input: {
+  location: string;
+  accountType: "personal" | "administrator";
+}): Promise<VerificationReport> {
+  return invokeJson<VerificationReport>(
+    VERIFY_COMMAND,
+    input,
+    "Verifying this installation needs the JARVIS desktop application.",
+  );
+}
+
+/**
+ * Redo one step and everything after it.
+ *
+ * Not streamed — the CLI's `repair` subcommand has no `--stream` flag,
+ * so a repair that re-downloads a large artefact blocks with no live
+ * progress until it resolves. Callers show an honest, indeterminate
+ * busy state rather than a percentage this call cannot produce.
+ */
+export async function repairInstallationViaHost(input: {
+  location: string;
+  accountType: "personal" | "administrator";
+  step: string;
+}): Promise<RepairResult> {
+  return invokeJson<RepairResult>(REPAIR_COMMAND, input, "Repairing this installation needs the JARVIS desktop application.");
+}
+
+/**
+ * Reveal the installer's log folder.
+ *
+ * Resolves either way, same as `cancelProvisioningViaHost`: this is a
+ * convenience action on a diagnostics screen, and a failure to open a
+ * folder should not itself become a second error competing with
+ * whatever the user was already trying to diagnose.
+ */
+export async function openLogFolderViaHost(): Promise<void> {
+  try {
+    await tauri()?.core?.invoke?.(OPEN_LOG_FOLDER_COMMAND);
   } catch {
     // Intentionally swallowed; see above.
   }

@@ -30,6 +30,15 @@
 //! **It never fabricates progress.** If the process cannot start, the
 //! command returns an error naming the reason. No synthetic events are
 //! emitted under any failure path.
+//!
+//! # M22 Task Group D additions
+//!
+//! Five commands below the original four-plus-cancel surface:
+//! `check_dependencies`, `get_installation_status`, `verify_installation`,
+//! `repair_installation`, `open_log_folder`. Each is a thin, non-streaming
+//! wrapper around an already-shipped CLI subcommand -- no provisioning
+//! logic, no new Python code. See the "M22 Task Group D" section near the
+//! bottom of this file for the shared helper they use.
 
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -554,7 +563,181 @@ pub fn open_installation_folder(state: State<'_, ProvisioningState>) -> BridgeRe
     #[cfg(not(windows))]
     {
         // This task group is Windows-only by scope; other platforms are
-        // Task Group D. Saying so beats silently doing nothing.
+        // a future task group. Saying so beats silently doing nothing.
         Err("Opening the installation folder is only supported on Windows in this build.".to_string())
+    }
+}
+
+// --- M22 Task Group D: diagnostics, verification and repair -----------
+//
+// Five additive commands. None of the five above changed to add them:
+// same reasoning as `cancel_provisioning` in Task Group C -- the
+// documented four-command contract is a floor, not a ceiling, and a
+// host surface can grow without the growth being a change to what it
+// already promised.
+//
+// Every command here calls an **already-shipped, unmodified** CLI
+// subcommand (`dependencies`, `status`, `verify`, `repair` all existed
+// before this task group and are untouched by it). That is deliberate:
+// this task group's brief asks not to modify Task Group A/B code except
+// to fix a genuine defect, and none of the four needed one -- each was
+// run against a real target directory while auditing this task group
+// and behaved exactly as its own docstring says, including exit codes.
+
+/// Run a non-streaming installer subcommand and parse its JSON document.
+///
+/// Shared by the four read-only/action commands below, so "spawn,
+/// capture output, and treat exit code 2 as a valid document rather
+/// than an error" exists in one place for the commands that share it.
+///
+/// `load_installation_plan` (Task Group C) has its own, separate copy
+/// of this same shape rather than being refactored to call this one.
+/// That function already shipped and is untestable here -- there is no
+/// Rust toolchain on this machine, so a refactor of its body could
+/// introduce a mistake nothing here would catch before a real build
+/// does. A few duplicated lines is the safer trade against that risk;
+/// see `MILESTONE_REPORT.md`'s Task Group D entry for the same
+/// reasoning applied to the frontend, where a refactor of this shape
+/// *was* made because tests exist there to catch a mistake.
+async fn run_json_command(
+    app: &AppHandle,
+    subcommand: &str,
+    args: &[&str],
+) -> BridgeResult<serde_json::Value> {
+    let python = find_python(app).ok_or_else(python_unavailable)?;
+    let mut command = Command::new(&python);
+    command.arg("-m").arg("jarvis.installer").arg(subcommand).args(args);
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = command
+        .output()
+        .map_err(|err| format!("Could not run this check: {err}"))?;
+
+    // Same rule as `load_installation_plan`: exit code 2 means the
+    // command ran to completion and reported a real finding (missing
+    // dependency, failed verification, unhealthy repair target) -- the
+    // JSON on stdout is the answer, not an error.
+    let code = output.status.code().unwrap_or(-1);
+    if !output.status.success() && code != 2 {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let last = stderr.trim().lines().last().unwrap_or("no details").to_string();
+        log::error!("{subcommand} failed with {code}: {stderr}");
+        return Err(format!("Could not complete this check: {last}"));
+    }
+
+    serde_json::from_slice(&output.stdout)
+        .map_err(|err| format!("This check returned something unreadable: {err}"))
+}
+
+/// Detect runtime dependencies (Python, Git, CUDA, DirectML, ONNX
+/// Runtime, Visual C++). Installs nothing -- `dependencies.py`'s own
+/// governing rule, unchanged by this bridge.
+#[tauri::command]
+pub async fn check_dependencies(
+    app: AppHandle,
+    location: String,
+    account_type: String,
+) -> BridgeResult<serde_json::Value> {
+    log::info!("checking dependencies for {location}");
+    run_json_command(
+        &app,
+        "dependencies",
+        &["--target", location.as_str(), "--account-type", account_type.as_str()],
+    )
+    .await
+}
+
+/// What provisioning has completed so far at this location -- the
+/// journal's own state, plus whether a manifest exists. Doubles as
+/// both "installer diagnostics" (what happened) and "update
+/// preparation" (a manifest present means an installation already
+/// exists here).
+#[tauri::command]
+pub async fn get_installation_status(app: AppHandle, location: String) -> BridgeResult<serde_json::Value> {
+    log::info!("checking installation status at {location}");
+    run_json_command(&app, "status", &["--target", location.as_str()]).await
+}
+
+/// Verify an existing installation: nine checks, run in parallel by the
+/// engine, each carrying a verdict and -- when repairable -- a
+/// `repair_step` a caller can feed straight to `repair_installation`.
+#[tauri::command]
+pub async fn verify_installation(
+    app: AppHandle,
+    location: String,
+    account_type: String,
+) -> BridgeResult<serde_json::Value> {
+    log::info!("verifying installation at {location}");
+    run_json_command(
+        &app,
+        "verify",
+        &["--target", location.as_str(), "--account-type", account_type.as_str()],
+    )
+    .await
+}
+
+/// Redo one step and everything after it.
+///
+/// Not streamed: the CLI's `repair` subcommand has no `--stream` flag,
+/// and adding one would mean editing Task Group B's `__main__.py`,
+/// which this task group's brief reserves for a genuine defect --
+/// `repair` is not defective, only non-streaming. A repair that
+/// re-downloads a large file therefore blocks with an honest,
+/// indeterminate "Repairing…" state rather than a percentage this
+/// bridge cannot produce; showing a fabricated percentage would be the
+/// exact thing "never fake progress" rules out.
+#[tauri::command]
+pub async fn repair_installation(
+    app: AppHandle,
+    location: String,
+    account_type: String,
+    step: String,
+) -> BridgeResult<serde_json::Value> {
+    log::info!("repairing '{step}' at {location}");
+    run_json_command(
+        &app,
+        "repair",
+        &[step.as_str(), "--target", location.as_str(), "--account-type", account_type.as_str()],
+    )
+    .await
+}
+
+/// Reveal the installer's log folder.
+///
+/// Additive to the log directory Task Group C already writes to
+/// (`lib.rs`'s `setup` hook, `LogDir { file_name: "jarvis-installer" }`)
+/// -- that logging has existed since v0.36.0 with no user-facing way to
+/// reach it. This command is the way.
+#[tauri::command]
+pub fn open_log_folder(app: AppHandle) -> BridgeResult<()> {
+    let directory = app
+        .path()
+        .app_log_dir()
+        .map_err(|err| format!("Could not locate the log folder: {err}"))?;
+    log::info!("opening log folder {}", directory.display());
+
+    if !directory.is_dir() {
+        return Err("No logs have been written yet.".to_string());
+    }
+
+    #[cfg(windows)]
+    {
+        Command::new("explorer")
+            .arg(&directory)
+            .spawn()
+            .map_err(|err| format!("Could not open the folder: {err}"))?;
+        return Ok(());
+    }
+
+    #[cfg(not(windows))]
+    {
+        Err("Opening the log folder is only supported on Windows in this build.".to_string())
     }
 }

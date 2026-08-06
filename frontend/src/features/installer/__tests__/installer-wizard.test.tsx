@@ -6,6 +6,12 @@ import { useInstallerStore } from "@/features/installer/installer-store";
 import type { InstallationPlan } from "@/features/installer/installer-types";
 import administratorPlan from "./plan.administrator.fixture.json";
 import personalPlan from "./plan.personal.fixture.json";
+import statusFreshFixture from "./status.fresh.fixture.json";
+import statusResumableFixture from "./status.resumable.fixture.json";
+import type { InstallationStatus } from "@/features/installer/provisioning-types";
+
+const statusFresh = statusFreshFixture as unknown as InstallationStatus;
+const statusResumable = statusResumableFixture as unknown as InstallationStatus;
 
 const admin = administratorPlan as unknown as InstallationPlan;
 const personal = personalPlan as unknown as InstallationPlan;
@@ -16,12 +22,16 @@ const DEFAULT_LOCATION = "C:\\Users\\test\\AppData\\Local\\JARVIS";
  *  half of the wizard. `install-progress.test.tsx` covers the other. */
 const NEVER_RESOLVES = () => new Promise<void>(() => {});
 
-function renderWizard(loadPlan = vi.fn().mockResolvedValue(personal)) {
+function renderWizard(
+  loadPlan = vi.fn().mockResolvedValue(personal),
+  extraProps: Partial<React.ComponentProps<typeof InstallerWizard>> = {},
+) {
   render(
     <InstallerWizard
       loadPlan={loadPlan}
       defaultLocation={DEFAULT_LOCATION}
       runProvisioning={NEVER_RESOLVES}
+      {...extraProps}
     />,
   );
   return loadPlan;
@@ -295,5 +305,71 @@ describe("accessibility", () => {
 
     // Colour alone cannot carry pass/warn/fail.
     expect(screen.getAllByLabelText(/pass|warn|fail/).length).toBeGreaterThan(0);
+  });
+});
+
+describe("diagnostics (M22 Task Group D)", () => {
+  it("offers no Diagnostics trigger when the host cannot answer it", () => {
+    // Neither `getInstallationStatus` nor `verifyInstallation` supplied
+    // -- the default from `renderWizard()` -- same as every other
+    // host-shell action in this wizard: hidden, not shown disabled.
+    renderWizard();
+
+    expect(screen.queryByRole("button", { name: /Diagnostics/ })).toBeNull();
+  });
+
+  it("offers a Diagnostics trigger once the host can answer it", () => {
+    renderWizard(undefined, {
+      getInstallationStatus: vi.fn().mockResolvedValue(statusFresh),
+      verifyInstallation: vi.fn(),
+    });
+
+    expect(screen.getByRole("button", { name: /Diagnostics/ })).toBeInTheDocument();
+  });
+
+  it("opens the diagnostics dialog on click", async () => {
+    const user = userEvent.setup();
+    renderWizard(undefined, {
+      getInstallationStatus: vi.fn().mockResolvedValue(statusFresh),
+      verifyInstallation: vi.fn(),
+    });
+
+    await user.click(screen.getByRole("button", { name: /Diagnostics/ }));
+
+    expect(await screen.findByText("Installer diagnostics")).toBeInTheDocument();
+  });
+
+  it("shows no existing-installation notice for a fresh location", async () => {
+    renderWizard(undefined, { getInstallationStatus: vi.fn().mockResolvedValue(statusFresh) });
+
+    // Give the status effect a turn to resolve; absence is the
+    // assertion, so there is nothing to `findBy` -- confirmed instead by
+    // checking after the same instruction advancing steps elsewhere in
+    // this file already awaits.
+    await screen.findByText("Welcome to JARVIS");
+    expect(screen.queryByText(/already exists at this location/)).toBeNull();
+  });
+
+  it("proactively notices a partially-completed installation", async () => {
+    renderWizard(undefined, { getInstallationStatus: vi.fn().mockResolvedValue(statusResumable) });
+
+    expect(await screen.findByText(/already exists at this location/)).toBeInTheDocument();
+  });
+
+  it("does not repeat the notice on the progress or completion screens", async () => {
+    const user = userEvent.setup();
+    renderWizard(vi.fn().mockResolvedValue(personal), {
+      getInstallationStatus: vi.fn().mockResolvedValue(statusResumable),
+    });
+
+    await screen.findByText(/already exists at this location/);
+    await advanceTo("summary", user);
+    await screen.findByText("Ready to install");
+    expect(screen.getByText(/already exists at this location/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Install/ }));
+    // The progress screen already says "Resuming installation…" in its
+    // own words -- two messages for one fact would be noise, not help.
+    expect(screen.queryByText(/already exists at this location/)).toBeNull();
   });
 });

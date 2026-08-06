@@ -1,10 +1,17 @@
-import { useCallback, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Info, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CompletionStep } from "@/features/installer/completion-step";
+import { DiagnosticsDialog } from "@/features/installer/installer-diagnostics";
 import { InstallProgressStep } from "@/features/installer/install-progress-step";
 import { useProvisioningStore } from "@/features/installer/provisioning-store";
-import type { ProvisioningEvent } from "@/features/installer/provisioning-types";
+import { installationPresence } from "@/features/installer/provisioning-types";
+import type {
+  DependencyReport,
+  InstallationStatus,
+  ProvisioningEvent,
+  VerificationReport,
+} from "@/features/installer/provisioning-types";
 import {
   AccountStep,
   CalibrationStep,
@@ -79,6 +86,28 @@ export interface InstallerWizardProps {
    *  the button then explains itself rather than disappearing. */
   onLaunch?: (() => void) | null;
   onOpenFolder?: (() => void) | null;
+
+  /** Repairs one step and returns a freshly re-verified report. `null`
+   *  when the host cannot repair. See `CompletionStepProps.onRepair`. */
+  onRepair?: ((step: string) => Promise<VerificationReport>) | null;
+
+  /**
+   * The diagnostics dialog's data, injected for the same reason
+   * `loadPlan` is: this component has no opinion about how the host
+   * answers "what's at this location". `undefined` disables the
+   * Diagnostics trigger entirely rather than opening a dialog that can
+   * only ever show an error.
+   */
+  getInstallationStatus?: (location: string) => Promise<InstallationStatus>;
+  verifyInstallation?: (input: {
+    location: string;
+    accountType: "personal" | "administrator";
+  }) => Promise<VerificationReport>;
+  checkDependencies?: (input: {
+    location: string;
+    accountType: "personal" | "administrator";
+  }) => Promise<DependencyReport>;
+  onOpenLogFolder?: (() => void) | null;
 }
 
 export function InstallerWizard({
@@ -89,7 +118,13 @@ export function InstallerWizard({
   version = "",
   onLaunch = null,
   onOpenFolder = null,
+  onRepair = null,
+  getInstallationStatus,
+  verifyInstallation,
+  checkDependencies,
+  onOpenLogFolder = null,
 }: InstallerWizardProps) {
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const step = useInstallerStore((s) => s.step);
   const plan = useInstallerStore((s) => s.plan);
   const planError = useInstallerStore((s) => s.planError);
@@ -138,6 +173,49 @@ export function InstallerWizard({
    * invocation created the promise.
    */
   const scanId = useRef(0);
+
+  /**
+   * "Update preparation" -- M22 Task Group D. Detected automatically,
+   * as soon as a location is chosen, rather than only on request inside
+   * the Diagnostics dialog: a returning user re-running the installer
+   * over an install that already exists should not have to think to ask
+   * whether the wizard noticed.
+   *
+   * Needs no account type, unlike the Diagnostics dialog's dependency
+   * and verification checks -- `status` reports the journal and
+   * manifest for a location regardless of who is installing.
+   */
+  const [existingInstallation, setExistingInstallation] = useState<InstallationStatus | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!getInstallationStatus) return;
+    const location = installLocation ?? defaultLocation;
+    if (!location.trim()) return;
+
+    let cancelled = false;
+    getInstallationStatus(location)
+      .then((result) => {
+        if (!cancelled) setExistingInstallation(result);
+      })
+      .catch(() => {
+        // Silent: this is a proactive courtesy notice, not a step the
+        // wizard depends on. A location that cannot be checked yet (not
+        // created on disk, say) is not a failure worth surfacing here --
+        // the Location and Summary steps' own checks already cover
+        // whether the chosen folder is usable.
+        if (!cancelled) setExistingInstallation(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [installLocation, defaultLocation, getInstallationStatus]);
+
+  const hasExistingInstallation = Boolean(
+    existingInstallation && installationPresence(existingInstallation) !== "none",
+  );
 
   // Scan when the Hardware step is reached and there is no valid plan.
   // `setLocation`/`setAccountType` clear the plan, so changing either
@@ -220,9 +298,45 @@ export function InstallerWizard({
     if (step === "install" && provisioningPhase === "succeeded") next();
   }, [step, provisioningPhase, next]);
 
+  const diagnosticsAvailable = Boolean(getInstallationStatus && verifyInstallation);
+
   return (
     <div className="mx-auto flex h-svh max-w-3xl flex-col gap-6 p-8">
-      <ProgressRail currentIndex={stepIndex} />
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <ProgressRail currentIndex={stepIndex} />
+        </div>
+        {/* Reachable from every step, not just Welcome or a failure
+            screen: "does something already exist here, and is it
+            healthy" is useful at any point in a fresh install too, and
+            tying it to one screen would hide it from the rest. Hidden
+            entirely rather than shown disabled when the host cannot
+            answer it -- the same "offered only when actionable" rule
+            Cancel/Launch/Open Folder/Repair already follow. */}
+        {diagnosticsAvailable && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 gap-1.5 text-muted-foreground"
+            onClick={() => setDiagnosticsOpen(true)}
+          >
+            <Stethoscope className="size-4" aria-hidden="true" />
+            Diagnostics
+          </Button>
+        )}
+      </div>
+
+      {/* Automatic, wizard-wide notice -- not shown on the progress or
+          completion screens, which already say "Resuming installation…"
+          in their own words once a run is under way; showing both would
+          be two messages for one fact. */}
+      {hasExistingInstallation && step !== "install" && step !== "ready" && (
+        <p className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 p-3 text-secondary">
+          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          An installation already exists at this location. Continuing will update it —
+          anything already set up is kept.
+        </p>
+      )}
 
       {/* `key` on the step remounts it, which resets scroll position and
           focus to the top of each step — a wizard that keeps the
@@ -246,6 +360,7 @@ export function InstallerWizard({
             version={version}
             onLaunch={onLaunch}
             onOpenFolder={onOpenFolder}
+            onRepair={onRepair}
           />
         )}
       </main>
@@ -274,6 +389,20 @@ export function InstallerWizard({
           <ChevronRight className="size-4" aria-hidden="true" />
         </Button>
       </footer>
+
+      {getInstallationStatus && verifyInstallation && (
+        <DiagnosticsDialog
+          open={diagnosticsOpen}
+          onOpenChange={setDiagnosticsOpen}
+          location={installLocation ?? defaultLocation}
+          accountType={accountType}
+          getStatus={getInstallationStatus}
+          verify={verifyInstallation}
+          checkDependencies={checkDependencies ?? (() => Promise.reject(new Error("Dependency checks are unavailable.")))}
+          onRepair={onRepair}
+          onOpenLogFolder={onOpenLogFolder}
+        />
+      )}
     </div>
   );
 }

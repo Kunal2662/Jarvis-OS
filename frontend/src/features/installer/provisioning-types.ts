@@ -98,6 +98,25 @@ export interface VerificationResultEvent {
   repair_step: string | null;
 }
 
+/**
+ * `VerificationReport.to_dict()` from `jarvis/installer/verification.py`
+ * -- the nine post-install checks. Named rather than left as an inline
+ * literal on `ResultEvent` (M22 Task Group D) so `verify_installation`'s
+ * standalone result and a provisioning result's embedded verification
+ * are the same type instead of two independent shapes that happen to
+ * match.
+ *
+ * **Carries no personal/administrator split.** Confirmed by running
+ * `verify --account-type personal` and `--account-type administrator`
+ * against the same target and diffing the output: byte-identical. The
+ * dataclass has no path or provider-name field to restrict, so there is
+ * nothing for §22.11/§22.12 to filter here.
+ */
+export interface VerificationReport {
+  healthy: boolean;
+  results: VerificationResultEvent[];
+}
+
 export interface ResultEvent {
   event: "result";
   root: string;
@@ -106,13 +125,90 @@ export interface ResultEvent {
   completed_steps: string[];
   skipped_steps: string[];
   errors: string[];
-  verification?: {
-    healthy: boolean;
-    results: VerificationResultEvent[];
-  };
+  verification?: VerificationReport;
   /** Administrator only. */
   downloads?: Record<string, DownloadEvent>;
   manifest_path?: string | null;
+}
+
+/**
+ * `ProvisioningResult.to_dict()` returned by `repair <step>` -- the
+ * same shape a streamed provisioning run's final `ResultEvent` carries,
+ * minus the `event` discriminant a non-streamed call never sends.
+ *
+ * **Not streamed.** The CLI's `repair` subcommand has no `--stream`
+ * flag (`jarvis/installer/__main__.py`), so a repair that re-downloads
+ * a large artefact blocks with no live progress -- confirmed by running
+ * `repair directories` for real, which invalidated and re-ran every
+ * step after it, including a download attempt, as one blocking call.
+ */
+export type RepairResult = Omit<ResultEvent, "event">;
+
+/**
+ * `DependencyReport.to_dict()` from `jarvis/installer/dependencies.py`.
+ *
+ * **`path` is administrator-only**, confirmed by running
+ * `dependencies --account-type personal` and `--account-type
+ * administrator` against the same machine: every field matched except
+ * `path`, present only in the administrator payload -- the same
+ * "absent, not merely hidden" rule `installer-types.ts` documents for
+ * the plan payload.
+ */
+export type DependencyStatus = "present" | "missing" | "unknown";
+
+export interface Dependency {
+  key: string;
+  label: string;
+  status: DependencyStatus;
+  version: string | null;
+  required: boolean;
+  detail: string;
+  /** Administrator only. */
+  path?: string;
+}
+
+export interface DependencyReport {
+  satisfied: boolean;
+  dependencies: Dependency[];
+}
+
+/**
+ * `status` command output -- what `ProvisioningJournal.to_dict()` plus
+ * a manifest-existence check reports. Doubles as the data behind
+ * "installer diagnostics" and "update preparation": a `manifest` of
+ * `true` means an installation already exists at this location.
+ */
+export interface InstallationStatus {
+  install_location: string;
+  journal: {
+    started_at: string | null;
+    is_resume: boolean;
+    completed: ProvisioningStep[];
+    remaining: ProvisioningStep[];
+  };
+  manifest: boolean;
+}
+
+/**
+ * Whether *anything* exists at this location -- a manifest, or journal
+ * progress with no manifest yet (an install that was interrupted before
+ * finishing).
+ *
+ * A single, shared definition rather than each caller inventing its own
+ * -- the installer wizard's proactive "an installation already exists"
+ * notice and the diagnostics dialog's own "Existing installation" field
+ * used to check this differently (the notice looked at both manifest
+ * and journal progress; the dialog looked at manifest alone), so a
+ * partially-completed install read as "found" in one place and "none
+ * found" in the other for the exact same location. Found by testing the
+ * dialog against a real, partially-completed status fixture
+ * (`status.resumable.fixture.json`) rather than only against a fresh
+ * one.
+ */
+export function installationPresence(status: InstallationStatus): "none" | "partial" | "complete" {
+  if (status.manifest) return "complete";
+  if (status.journal.completed.length > 0) return "partial";
+  return "none";
 }
 
 export type ProvisioningEvent = ProgressEvent | ResultEvent;
