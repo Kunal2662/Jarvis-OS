@@ -161,7 +161,7 @@ generic failure rather than the cancelled state built for it.
 
 | Gate | Result |
 |---|---|
-| `pytest` (backend, full suite) | Exit 0; 1 skipped (a symlink the platform will not create) |
+| `pytest` (backend, full suite) | **2293 collected**, exit 0; 1 skipped (a symlink the platform will not create) |
 | `vitest` | 75 files, **675 tests** passing (658 at baseline + 17 new) |
 | `tsc -b --noEmit` | Clean |
 | `oxlint` | 16 warnings, **0 errors**; none in installer files |
@@ -176,7 +176,10 @@ unchanged by this work; the one finding in a file this task group
 touched (`PLC0415` in `test_version_consistency.py`) is present on the
 baseline too.
 
-The backend suite passed in full. The installer-specific subsets
+The backend suite passed in full, 2293 tests. TG-B's engine suite is
+30 of them — the number this project's docs have carried since v0.34.0,
+confirmed by collection rather than repeated from the last report. The
+installer-specific subsets
 (`test_installer_calibration.py`,
 `test_installer_provisioning_e2e.py`, `test_architecture.py`,
 `test_version_consistency.py` — 77 tests) were also run on their own and
