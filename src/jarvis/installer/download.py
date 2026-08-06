@@ -58,6 +58,11 @@ class DownloadState(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     PAUSED = "paused"
+    VERIFYING = "verifying"
+    """Transfer finished, checksum in progress. Emitted so the UI can
+    show a distinct state for a step that, on a multi-gigabyte file,
+    takes long enough that a frozen "downloading" bar looks like a
+    hang."""
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -74,7 +79,10 @@ class DownloadProgress:
     Emitted only when `include_source` is set."""
     display_name: str
     """Safe to show anyone: "Local AI", "Voice component"."""
-    state: DownloadState
+    kind: str = ""
+    """`model` or `voice`. Lets the UI group items without inspecting an
+    id it is not permitted to display."""
+    state: DownloadState = DownloadState.QUEUED
     downloaded_bytes: int = 0
     total_bytes: int | None = None
     """``None`` when the server sends no ``Content-Length``. The UI shows
@@ -99,6 +107,7 @@ class DownloadProgress:
             # what §22.12 forbids. Caught by a test asserting no model
             # name appears in a personal progress payload.
             "name": self.display_name,
+            "kind": self.kind,
             "state": self.state.value,
             "downloaded_bytes": self.downloaded_bytes,
             "total_bytes": self.total_bytes,
@@ -240,9 +249,7 @@ class DownloadManager:
 
     def _update(self, key: str, **changes: Any) -> DownloadProgress:
         with self._lock:
-            progress = self._progress.setdefault(
-                key, DownloadProgress(key=key, display_name=key, state=DownloadState.QUEUED)
-            )
+            progress = self._progress.setdefault(key, DownloadProgress(key=key, display_name=key))
             for name, value in changes.items():
                 setattr(progress, name, value)
             return progress
@@ -271,7 +278,7 @@ class DownloadManager:
         online: bool = True,
         on_progress: ProgressCallback | None = None,
     ) -> DownloadProgress:
-        self._update(artifact.key, display_name=artifact.display_name)
+        self._update(artifact.key, display_name=artifact.display_name, kind=artifact.kind)
         # `filename`, not `key`: a model id such as `qwen2.5:14b`
         # contains a colon, which Windows treats as a drive qualifier and
         # refuses to create. Windows is this milestone's primary
@@ -364,6 +371,12 @@ class DownloadManager:
                 if attempt < _ATTEMPTS_PER_SOURCE - 1:
                     time.sleep(_BACKOFF_SECONDS[min(attempt, len(_BACKOFF_SECONDS) - 1)])
                 continue
+
+            # Checksumming a multi-gigabyte file is slow enough that
+            # leaving the state on "running" reads as a hang.
+            verifying = self._update(artifact.key, state=DownloadState.VERIFYING)
+            if on_progress:
+                on_progress(verifying)
 
             verified, reason = verify_file(partial, artifact.checksum)
             if artifact.checksum and not verified:

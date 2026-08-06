@@ -570,47 +570,12 @@ export function SummaryStep({ plan }: { plan: InstallationPlan }) {
   );
 }
 
-export function InstallStep() {
-  return (
-    <div className="flex flex-col gap-4">
-      <StepHeading title="Installing" blurb="This will only take a moment." />
-      {/* Task Group A builds the flow and the calibration that drives
-          it; the file-copying installer engine is Task Group B. Rather
-          than animate a progress bar that measures nothing — which is
-          exactly the fake progress this project forbids — this step
-          states plainly where the work stops today. */}
-      <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
-        <p className="text-secondary">
-          The installation engine ships in the next task group. This build covers the installer
-          experience and the device calibration that drives it.
-        </p>
-      </div>
-    </div>
-  );
-}
+// `InstallStep` and `ReadyStep` lived here in M22 Task Group A as
+// honest placeholders -- one said the installation engine did not exist
+// yet, the other's buttons were disabled because nothing stood behind
+// them. Task Group B built the engine and this milestone wired it up, so
+// both are superseded by `install-progress-step.tsx` and
+// `completion-step.tsx`, which render real provisioning state. Removed
+// rather than left alongside: two components for one step is how a
+// wizard ends up rendering the wrong one.
 
-export function ReadyStep({ plan }: { plan: InstallationPlan }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <StepHeading title="JARVIS is ready" blurb="Here is how it has been set up for your device." />
-
-      <dl className="grid gap-2 sm:grid-cols-2">
-        <Fact icon={Gauge} label="Capability score" value={`${plan.calibration.score}/100`} />
-        <Fact
-          icon={Cpu}
-          label="Performance profile"
-          value={
-            plan.calibration.performance_profile.charAt(0).toUpperCase() +
-            plan.calibration.performance_profile.slice(1)
-          }
-        />
-        <Fact icon={Sparkles} label="Local AI" value={plan.recommended_model?.label ?? "Cloud only"} />
-        <Fact icon={MemoryStick} label="Memory" value={`${plan.hardware.memory.total_gb.toFixed(1)} GB`} />
-      </dl>
-
-      <Button size="lg" className="w-full" disabled title="Available once the installation engine ships">
-        Launch JARVIS
-      </Button>
-    </div>
-  );
-}

@@ -1,15 +1,17 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CompletionStep } from "@/features/installer/completion-step";
+import { InstallProgressStep } from "@/features/installer/install-progress-step";
+import { useProvisioningStore } from "@/features/installer/provisioning-store";
+import type { ProvisioningEvent } from "@/features/installer/provisioning-types";
 import {
   AccountStep,
   CalibrationStep,
   HardwareStep,
-  InstallStep,
   LicenseStep,
   LocationStep,
   ModelStep,
-  ReadyStep,
   SummaryStep,
   VoiceStep,
   WelcomeStep,
@@ -41,9 +43,41 @@ export interface InstallerWizardProps {
   loadPlan: (input: { location: string; accountType: "personal" | "administrator" }) => Promise<InstallationPlan>;
   /** Proposed default, from `default_install_location()`. */
   defaultLocation: string;
+
+  /**
+   * Runs provisioning, calling `onEvent` for each event the backend
+   * streams. The real implementation spawns
+   * `python -m jarvis.installer provision --stream` through Tauri and
+   * parses its NDJSON; tests inject a stub.
+   *
+   * Injected for the same reason `loadPlan` is: this component should
+   * have no opinion about how the host reaches the engine, which is what
+   * lets the packaging task group swap the transport without touching
+   * the UI.
+   */
+  runProvisioning: (input: {
+    location: string;
+    accountType: "personal" | "administrator";
+    onEvent: (event: ProvisioningEvent) => void;
+  }) => Promise<void>;
+
+  /** Application version, shown on completion. */
+  version?: string;
+
+  /** Host-shell actions. `null` when the shell cannot perform them --
+   *  the button then explains itself rather than disappearing. */
+  onLaunch?: (() => void) | null;
+  onOpenFolder?: (() => void) | null;
 }
 
-export function InstallerWizard({ loadPlan, defaultLocation }: InstallerWizardProps) {
+export function InstallerWizard({
+  loadPlan,
+  defaultLocation,
+  runProvisioning,
+  version = "",
+  onLaunch = null,
+  onOpenFolder = null,
+}: InstallerWizardProps) {
   const step = useInstallerStore((s) => s.step);
   const plan = useInstallerStore((s) => s.plan);
   const planError = useInstallerStore((s) => s.planError);
@@ -56,6 +90,11 @@ export function InstallerWizard({ loadPlan, defaultLocation }: InstallerWizardPr
   const setPlan = useInstallerStore((s) => s.setPlan);
   const setPlanError = useInstallerStore((s) => s.setPlanError);
   const advanceable = useInstallerStore(canAdvance);
+
+  const provisioningPhase = useProvisioningStore((s) => s.phase);
+  const beginProvisioning = useProvisioningStore((s) => s.begin);
+  const ingestProvisioningEvent = useProvisioningStore((s) => s.ingest);
+  const failProvisioning = useProvisioningStore((s) => s.fail);
 
   const stepIndex = INSTALLER_STEPS.indexOf(step);
   const setLocation = useInstallerStore((s) => s.setLocation);
@@ -122,6 +161,53 @@ export function InstallerWizard({ loadPlan, defaultLocation }: InstallerWizardPr
     setPlanError,
   ]);
 
+  /**
+   * Start (or resume) provisioning.
+   *
+   * Also the Retry handler, deliberately: a retry is a fresh
+   * `provision` call, and the engine's journal makes that resume from
+   * where it stopped rather than start over. A separate "resume"
+   * pathway would be the one least often exercised.
+   */
+  const startProvisioning = useCallback(() => {
+    if (!accountType) return;
+    const location = installLocation ?? defaultLocation;
+
+    beginProvisioning();
+    void runProvisioning({
+      location,
+      accountType,
+      onEvent: ingestProvisioningEvent,
+    }).catch((error: unknown) => {
+      // A rejection is a failure the stream never got to report -- the
+      // process could not start, or the transport broke. The store
+      // classifies the message into one of the friendly categories.
+      failProvisioning(error instanceof Error ? error.message : String(error));
+    });
+  }, [
+    accountType,
+    installLocation,
+    defaultLocation,
+    runProvisioning,
+    beginProvisioning,
+    ingestProvisioningEvent,
+    failProvisioning,
+  ]);
+
+  // Entering the Install step starts the run. Guarded on `idle` so a
+  // re-render — or coming back to the step — cannot start a second one
+  // over the top of a run already in progress.
+  useEffect(() => {
+    if (step === "install" && provisioningPhase === "idle") startProvisioning();
+  }, [step, provisioningPhase, startProvisioning]);
+
+  // Success advances by itself: there is nothing for the user to
+  // acknowledge on a progress screen that has finished, and leaving them
+  // to press Continue would make a completed install look stalled.
+  useEffect(() => {
+    if (step === "install" && provisioningPhase === "succeeded") next();
+  }, [step, provisioningPhase, next]);
+
   return (
     <div className="mx-auto flex h-svh max-w-3xl flex-col gap-6 p-8">
       <ProgressRail currentIndex={stepIndex} />
@@ -139,8 +225,15 @@ export function InstallerWizard({ loadPlan, defaultLocation }: InstallerWizardPr
         {step === "model" && plan && <ModelStep plan={plan} />}
         {step === "voice" && plan && <VoiceStep plan={plan} />}
         {step === "summary" && plan && <SummaryStep plan={plan} />}
-        {step === "install" && <InstallStep />}
-        {step === "ready" && plan && <ReadyStep plan={plan} />}
+        {step === "install" && <InstallProgressStep onRetry={startProvisioning} />}
+        {step === "ready" && plan && (
+          <CompletionStep
+            plan={plan}
+            version={version}
+            onLaunch={onLaunch}
+            onOpenFolder={onOpenFolder}
+          />
+        )}
       </main>
 
       <footer className="flex shrink-0 items-center justify-between gap-3">

@@ -12,8 +12,18 @@ const personal = personalPlan as unknown as InstallationPlan;
 
 const DEFAULT_LOCATION = "C:\\Users\\test\\AppData\\Local\\JARVIS";
 
+/** Provisioning never starts in these tests -- they cover the planning
+ *  half of the wizard. `install-progress.test.tsx` covers the other. */
+const NEVER_RESOLVES = () => new Promise<void>(() => {});
+
 function renderWizard(loadPlan = vi.fn().mockResolvedValue(personal)) {
-  render(<InstallerWizard loadPlan={loadPlan} defaultLocation={DEFAULT_LOCATION} />);
+  render(
+    <InstallerWizard
+      loadPlan={loadPlan}
+      defaultLocation={DEFAULT_LOCATION}
+      runProvisioning={NEVER_RESOLVES}
+    />,
+  );
   return loadPlan;
 }
 
@@ -185,7 +195,11 @@ describe("§22.11 — what each account type sees", () => {
   it("shows the breakdown to an administrator", async () => {
     const user = userEvent.setup();
     render(
-      <InstallerWizard loadPlan={vi.fn().mockResolvedValue(admin)} defaultLocation={DEFAULT_LOCATION} />,
+      <InstallerWizard
+        loadPlan={vi.fn().mockResolvedValue(admin)}
+        defaultLocation={DEFAULT_LOCATION}
+        runProvisioning={NEVER_RESOLVES}
+      />,
     );
 
     const order = ["welcome", "license", "location", "account", "hardware", "calibration"];

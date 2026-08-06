@@ -132,6 +132,28 @@ def _provision(args: argparse.Namespace) -> int:
         online=profile.internet is not False,
     )
 
+    if args.stream:
+        # NDJSON: one `{"event": "progress", ...}` line per callback,
+        # then a final `{"event": "result", ...}`. A stream rather than
+        # one document at the end because a UI cannot show live progress
+        # for a multi-gigabyte download from a value it receives once the
+        # download is over.
+        #
+        # `flush=True` on every line: without it the pipe buffers, and a
+        # progress stream that arrives all at once at the end is exactly
+        # the thing it exists not to be.
+        def _emit_line(payload: dict[str, Any]) -> None:
+            json.dump(payload, sys.stdout, default=str)
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+
+        def _stream(progress: Any) -> None:
+            _emit_line({"event": "progress", **progress.to_dict(include_detail=is_admin)})
+
+        result = engine.provision(on_progress=_stream)
+        _emit_line({"event": "result", **result.to_dict(include_detail=is_admin)})
+        return _EXIT_OK if result.succeeded else _EXIT_BLOCKED
+
     result = engine.provision()
     _emit(result.to_dict(include_detail=is_admin))
     return _EXIT_OK if result.succeeded else _EXIT_BLOCKED
@@ -235,6 +257,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     provision.add_argument(
         "--cloud-voice", action="store_true", help="Administrator only; ignored otherwise."
+    )
+    provision.add_argument(
+        "--stream",
+        action="store_true",
+        help=(
+            "Emit newline-delimited progress events, then a final result. "
+            "Without it the output is a single document, unchanged."
+        ),
     )
     provision.set_defaults(handler=_provision)
 
