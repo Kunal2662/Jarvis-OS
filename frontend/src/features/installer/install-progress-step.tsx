@@ -12,12 +12,13 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useMemo } from "react";
 import {
   DOWNLOAD_STATE_LABEL,
   formatBytes,
   formatDuration,
   formatSpeed,
-  selectDownloadsByKind,
+  groupByKind,
   selectIsResuming,
   useProvisioningStore,
   type DownloadItem,
@@ -144,7 +145,18 @@ export function InstallProgressStep({ onRetry }: InstallProgressStepProps) {
   const eta = useProvisioningStore((s) => s.etaSeconds);
   const failure = useProvisioningStore((s) => s.failure);
   const resuming = useProvisioningStore(selectIsResuming);
-  const { models, voices, other } = useProvisioningStore(selectDownloadsByKind);
+  const downloads = useProvisioningStore((s) => s.downloads);
+
+  // Grouped here rather than in a store selector. `selectDownloadsByKind`
+  // builds a new object on every call, and zustand compares selector
+  // results by reference -- using it as a hook selector made every render
+  // look like a state change and looped until React gave up with
+  // "Maximum update depth exceeded". The store keeps `downloads` as a
+  // stable array; shaping it for display is the component's job.
+  const { models, voices, other } = useMemo(
+    () => groupByKind(downloads),
+    [downloads],
+  );
 
   const anyDownloads = models.length + voices.length + other.length > 0;
 
@@ -164,9 +176,9 @@ export function InstallProgressStep({ onRetry }: InstallProgressStepProps) {
             completed items are on screen. */}
         {anyDownloads && (
           <div className="flex flex-col gap-3 rounded-lg border border-border/60 p-3">
-            <DownloadGroup title="Local AI" items={models} />
-            <DownloadGroup title="Voice" items={voices} />
-            <DownloadGroup title="Other" items={other} />
+            <DownloadGroup title="Models" items={models} />
+            <DownloadGroup title="Voices" items={voices} />
+            <DownloadGroup title="Assets" items={other} />
           </div>
         )}
 
@@ -229,9 +241,9 @@ export function InstallProgressStep({ onRetry }: InstallProgressStepProps) {
 
       {anyDownloads && (
         <div className="flex flex-col gap-3 rounded-lg border border-border/60 p-3">
-          <DownloadGroup title="Local AI" items={models} />
-          <DownloadGroup title="Voice" items={voices} />
-          <DownloadGroup title="Other" items={other} />
+          <DownloadGroup title="Models" items={models} />
+          <DownloadGroup title="Voices" items={voices} />
+          <DownloadGroup title="Assets" items={other} />
         </div>
       )}
 

@@ -4,7 +4,7 @@ import {
   formatBytes,
   formatDuration,
   formatSpeed,
-  selectDownloadsByKind,
+  groupByKind,
   selectIsResuming,
   setProvisioningClockForTesting,
   useProvisioningStore,
@@ -70,7 +70,7 @@ describe("real backend stream", () => {
     store().begin();
     for (const event of REAL_EVENTS) store().ingest(event);
 
-    const { models, voices } = selectDownloadsByKind(store());
+    const { models, voices } = groupByKind(store().downloads);
     expect(models.length).toBeGreaterThan(0);
     expect(voices.length).toBeGreaterThan(0);
   });

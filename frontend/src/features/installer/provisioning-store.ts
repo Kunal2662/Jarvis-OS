@@ -245,17 +245,27 @@ export function setProvisioningClockForTesting(source: (() => number) | null): v
 
 // --- Selectors --------------------------------------------------------
 
-/** Items grouped for the download view. Dependencies are not downloads
- *  and appear via the result's own checks, not here. */
-export function selectDownloadsByKind(state: ProvisioningState): {
+/**
+ * Items grouped for the download view.
+ *
+ * **Not a zustand selector.** It builds a new object on every call, and
+ * zustand compares selector results by reference, so passing this to
+ * `useProvisioningStore` makes every render look like a state change and
+ * loops until React aborts with "Maximum update depth exceeded". Call it
+ * from a `useMemo` over the stable `downloads` array instead.
+ *
+ * Dependencies are not downloads and appear via the result's own checks,
+ * not here.
+ */
+export function groupByKind(downloads: DownloadItem[]): {
   models: DownloadItem[];
   voices: DownloadItem[];
   other: DownloadItem[];
 } {
   return {
-    models: state.downloads.filter((item) => item.kind === "model"),
-    voices: state.downloads.filter((item) => item.kind === "voice"),
-    other: state.downloads.filter((item) => item.kind !== "model" && item.kind !== "voice"),
+    models: downloads.filter((item) => item.kind === "model"),
+    voices: downloads.filter((item) => item.kind === "voice"),
+    other: downloads.filter((item) => item.kind !== "model" && item.kind !== "voice"),
   };
 }
 
