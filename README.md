@@ -277,12 +277,15 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.32.0` · **Current milestone:** M8 — React
-Frontend & Desktop Experience (🟡 active; Phase 1 React Foundation,
-Phase 2 Universal Application Framework & Logic, Phase 3's Universal
-Workspace Framework, Phase 4 Voice Experience & Motion, Phase 5 AI
-Workspace & Module Integration, Phase 6's production-UX half, and Phase
-7's Production Readiness audit shipped).
+**Current version:** `0.33.0` · **Current milestone:** M22 —
+Cross-Platform Distribution & Universal Installer (🟡 active; Task
+Group A, the Universal Installer Foundation, shipped).
+
+M8 — React Frontend & Desktop Experience is 🟡 active with Phase 1
+(React Foundation), Phase 2 (Universal Application Framework & Logic),
+Phase 3 (Universal Workspace Framework), Phase 4 (Voice Experience &
+Motion), Phase 5 (AI Workspace & Module Integration), Phase 6's
+production-UX half and Phase 7's Production Readiness audit shipped.
 
 M11 — Intelligent Workspace & Productivity completed across six task
 groups (A Workspace Foundation, B Productivity Core, C File Platform,
@@ -304,10 +307,17 @@ internal agent names out of a personal user's JARVIS.
 `0.32.0` audited the result against a **live backend** — real container,
 real health poll, backend killed mid-session and restarted — and found
 four defects reading the code had missed, including
-`GET /api/v1/health` reporting a version three releases stale. Still
-open before a real release: cross-browser testing (Chromium only so far;
-the Tauri shell uses WebKit/WebView2), a screen-reader pass, and
-contrast measurement.
+`GET /api/v1/health` reporting a version three releases stale.
+
+`0.33.0` began M22 with the Universal Installer Foundation: an
+eleven-step wizard, real hardware detection and an AI Capability Score
+that picks a local model tier to suit the machine. Its governing rule is
+that a field is either measured or `null` — never estimated — and
+running it on real hardware found three defects that reading the code
+would not have. Nothing downloads and nothing installs yet; Windows
+packaging is Task Group B. Also still open: cross-browser testing
+(Chromium only so far; the Tauri shell uses WebKit/WebView2), a
+screen-reader pass, and contrast measurement.
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source

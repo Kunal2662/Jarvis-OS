@@ -2048,3 +2048,48 @@ to M9's Runtime Core (which had zero real dependency on any of it).
 **M8 is not 100% complete** and should not be treated as shipped —
 this backlog is the explicit record of what remains, so none of it
 silently disappears from the roadmap.
+
+---
+
+## M22 — Cross-Platform Distribution & Universal Installer
+
+### Task Group A — Universal Installer Foundation ✅ *(v0.33.0)*
+- [x] Eleven-step installer flow: Welcome → License → Location →
+      Personal/Administrator → Hardware → Calibration → Local AI →
+      Voice → Summary → Install → First launch.
+- [x] Hardware detection — CPU, RAM, storage, GPU/VRAM, battery,
+      temperature, internet, NPU. Every probe bounded and non-fatal.
+- [x] AI Capability Score with an explainable breakdown, performance
+      profile, resource limits and cloud-usage preference.
+- [x] Local model recommendation across four tiers (Tiny / Small /
+      Standard / Advanced). **Recommendation only — nothing downloads.**
+- [x] Voice component plan with one persistent voice identity.
+- [x] Seven pre-installation checks (OS, runtime, architecture, memory,
+      disk, permissions, internet) with pass / warn / fail.
+- [x] Personal and Administrator account types, enforced **at the
+      payload**: a personal plan does not contain model ids, score
+      components, resource limits or provider names.
+- [x] `python -m jarvis.installer` — the JSON CLI the wizard reads.
+      Chosen over a REST route because an installer cannot call the API
+      of the application it is installing, and the contract is frozen.
+
+**Governing rule:** a field is either measured or `null`, never
+estimated. Running on real hardware found three defects — free space
+measured on the wrong drive, a 16 GB machine that could never reach the
+16 GB tier, and a scan effect that cancelled every scan it started.
+
+**Not in this task group:** no downloads, no installation engine, no
+Windows packaging (MSI, shortcuts, auto-start, portable edition, code
+signing). Linux and macOS are detected and warned about.
+
+### Task Group B — Windows Packaging *(next)*
+- [ ] Installer executable, portable edition, desktop and Start Menu
+      shortcuts, auto-start, native notifications.
+- [ ] The installation engine the Install step currently describes.
+- [ ] Model and voice-component provisioning.
+
+### Task Groups C+ — Linux and macOS *(not started)*
+- [ ] AppImage, Flatpak, DEB, RPM, desktop integration.
+- [ ] DMG, PKG, Apple Silicon and Intel, native menu.
+- [ ] Cross-browser QA for the Tauri webviews (WebKit, WebView2) —
+      carried over from M8 Phase 7, which tested Chromium only.

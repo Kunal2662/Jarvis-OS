@@ -3,6 +3,70 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.33.0] — M22 Task Group A: Universal Installer Foundation
+
+The installer experience and the hardware calibration that drives it.
+Eleven-step wizard, real hardware detection, an AI Capability Score, a
+local-model recommendation, a voice plan and seven pre-installation
+checks — verified against this machine's actual hardware.
+
+**Backend untouched.** The installer is a new, isolated package that
+imports no service, no repository and no container. It has to be: it
+runs *before* JARVIS is installed, on a machine where none of those
+exist yet. No route, model, schema or contract changed.
+
+### Added
+- **`src/jarvis/installer/`** — hardware detection (CPU, RAM, storage,
+  GPU/VRAM, battery, temperature, internet, NPU), AI calibration,
+  model tiers, voice planning and pre-flight validation. Zero mypy
+  errors across seven new modules.
+- **`python -m jarvis.installer`** — a JSON-emitting CLI (`detect`,
+  `plan`, `validate`). **A CLI rather than a REST route**: an installer
+  cannot call an API served by the application it is installing, and
+  adding a route would have modified a frozen contract.
+- **`src/features/installer/`** — the eleven-step wizard, its store, and
+  types pinned against real CLI output by a contract test.
+
+### Fixed *(all three found by running on real hardware)*
+- **Free space was measured on the wrong drive.** `detect_storage` fell
+  back to the current working directory when the target did not exist —
+  which is the *normal* case during installation. On Windows the
+  installer is routinely launched from a different volume, so a machine
+  with a full target drive would have passed the disk-space check.
+- **A 16 GB machine could never reach the 16 GB tier.** RAM is sold in
+  decimal GB: a "16 GB" machine has 16 × 10⁹ bytes = 15.7 *GiB*.
+  Comparing against a binary threshold meant every 16 GB machine missed
+  its tier and was offered the 8 GB one. Detection on this laptop
+  returned 15.7 and recommended Small.
+- **The wizard's scan effect cancelled every scan it started.**
+  `beginScan()` sets `scanning`, which was an effect dependency, so
+  starting a scan re-ran the effect, whose cleanup cancelled the request
+  it had just started — and the guard then refused to retry. Replaced
+  with a request-id ref.
+- The Location step's Continue was dead unless the user retyped the path
+  already shown; each account card's accessible name was ~40 words and
+  ambiguous between the two options.
+
+### Notes
+- **The governing rule:** a field is either measured or `null` — never
+  estimated or defaulted to something plausible. The UI renders "Not
+  detected", `notes` explains why, and `missing_inputs` records what the
+  recommendation did not know. On this machine three fields came back
+  `null` (no temperature sensors on Windows, no probeable GPU) and the
+  installer says so rather than showing zeros.
+- **§22.11/§22.12 are enforced at the payload**, not in the UI: a
+  personal plan genuinely does not contain model ids, score components,
+  resource limits or provider names. A test asserts the serialised
+  personal payload contains none of `piper`, `whisper`, `elevenlabs`,
+  `llama`, `qwen`, `openai`, `gemini`, `groq` — and that it still
+  carries everything that affects the user.
+- **Nothing is downloaded, and no installation is performed.** The
+  modules know no download URL at all. The Install step says so on
+  screen rather than animating a progress bar that measures nothing;
+  Test Voice and Launch JARVIS are disabled with a reason on hover.
+  Windows packaging (MSI, shortcuts, auto-start, portable, signing) is
+  Task Group B.
+
 ## [0.32.0] — M8 Phase 7: Production Readiness
 
 An audit milestone, run against a **live backend** rather than by

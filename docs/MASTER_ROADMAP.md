@@ -6792,6 +6792,33 @@ milestone — extending the existing Ollama local-first story to real
 edge deployment — into a complete enterprise-grade platform. See the
 changelog addendum at the end of this document.)*
 
+**Task Group A — Universal Installer Foundation 🟡 shipped v0.33.0.**
+The installer experience and the hardware calibration that drives it:
+an eleven-step wizard, real hardware detection (CPU, RAM, storage,
+GPU/VRAM, battery, temperature, internet, NPU), an AI Capability Score,
+a local-model recommendation across four tiers, a voice plan, and seven
+pre-flight checks.
+
+*Architecture note.* The installer reaches its Python detection through
+a **JSON-emitting CLI** (`python -m jarvis.installer`), not a REST
+route: an installer cannot call an API served by the application it is
+installing, and adding a route would have modified a frozen contract.
+`src/jarvis/installer/` imports no service, repository or container —
+it runs before any of them exist.
+
+*Its governing rule.* A field is either measured or `null`, never
+estimated. The UI renders "Not detected" and records why. Running it on
+real hardware found three defects reading the code would not have —
+free space measured on the wrong drive, a 16 GB machine that could never
+reach the 16 GB tier (RAM is sold in decimal GB; 16 GB = 15.7 GiB), and
+a React effect that cancelled every scan it started.
+
+*Not built here, by design:* nothing is downloaded, no installation is
+performed, and there is no Windows packaging (MSI, shortcuts,
+auto-start, portable edition, code signing) — all Task Group B. Linux
+and macOS are detected and warned about, per "Windows is the primary
+platform".
+
 *(Aug 2026 — **Cross-Platform Distribution added to this milestone** per
 the approved architecture decisions: Windows, Linux and macOS builds, a
 Portable edition, an Installer and an Enterprise installer, Auto-update,
