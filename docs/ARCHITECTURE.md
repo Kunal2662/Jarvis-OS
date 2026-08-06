@@ -1738,16 +1738,21 @@ Assigned to **M22**. The OS abstraction layer is the load-bearing piece:
 it is what keeps §22.10's single installation flow honest across three
 platforms rather than three flows wearing one name.
 
-**Windows (M22 Task Group C, v0.36.0) is Implementation Complete —
-Build Verification Pending** (§23.4/§23.7 below govern exactly what
-that leaves open). Linux, macOS, the portable edition, the enterprise
-installer, auto-update and code signing are Planned — not started.
+**Windows (M22 Task Groups C and D, v0.36.0/v0.37.0) is Implementation
+Complete — Build Verification Pending** (§23.4/§23.7 below govern
+exactly what that leaves open). Linux, macOS, the portable edition, the
+enterprise installer, auto-update and code signing are Planned — not
+started.
 
 *The host bridge* (`frontend/src-tauri/src/installer.rs`) is where the
 webview meets the operating system. It spawns
 `python -m jarvis.installer provision --stream` and relays its NDJSON
-stdout to the UI as `provisioning://event`. Two boundaries are worth
-recording here because they generalise past Windows:
+stdout to the UI as `provisioning://event`; Task Group D added five
+more commands (`check_dependencies`, `get_installation_status`,
+`verify_installation`, `repair_installation`, `open_log_folder`), each
+a non-streaming wrapper around an already-shipped CLI subcommand. Two
+boundaries are worth recording here because they generalise past
+Windows:
 
 - **stdout is data, stderr is diagnostics.** The installer CLI reserves
   stdout for JSON so a log line can never be parsed as a progress

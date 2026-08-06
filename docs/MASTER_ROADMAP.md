@@ -132,7 +132,8 @@ Current
     TG-B  Complete
     TG-C  Implementation Complete
           Build Verification Pending
-    TG-D  Not Started
+    TG-D  Implementation Complete
+          Build Verification Pending
     TG-E  Not Started
     TG-F  Not Started
 
@@ -149,16 +150,24 @@ Until it ships there is no way to *deliver* M1–M8 to a machine that is
 not a development checkout, so every milestone after it would be built
 on top of software nobody can install.
 
-**TG-C does not yet unblock TG-D.** Its code is Implementation
-Complete: written, reviewed, gated and merged. It is not Complete: ten
-Build Verification Tasks — build the installer, confirm both
-shortcuts, replace Tauri's placeholder branding with real JARVIS
-artwork, and five more — have not been run on this machine for want of
-a Rust toolchain. See §18 (M22 Acceptance Criteria) for the exact gate,
-TG-C's own entry in §8 for the narrative, and `MILESTONE_REPORT.md` §9
-for the full task list. TG-D starts only once all ten pass **and**
-that is explicitly approved — the second condition is not implied by
-the first.
+**Neither TG-C nor TG-D has reached Complete.** Both are Implementation
+Complete — written, reviewed, gated and merged — and both are waiting
+on the same thing: TG-C's ten Build Verification Tasks (build the
+installer, confirm both shortcuts, replace Tauri's placeholder branding
+with real JARVIS artwork, and five more) have not been run on this
+machine for want of a Rust toolchain, and TG-D's five new Rust commands
+live in the same `installer.rs` file, so they are proven or not proven
+together, by the same build. See §18 (M22 Acceptance Criteria) for the
+exact gate and `MILESTONE_REPORT.md` for both task groups' reports.
+
+**TG-D began before the condition its own predecessor's report
+named.** TG-C's report said TG-D would not start until TG-C's Build
+Verification Tasks passed and that was explicitly approved. Neither
+had happened when TG-D's brief arrived — it was issued anyway, by the
+authority that report was deferring to in the first place. Recorded as
+a deviation because the earlier plan said otherwise, not because
+proceeding was wrong; see `MILESTONE_REPORT.md`'s Task Group D entry
+§8 for the full account.
 
 Numbering is unchanged — this is a sequencing decision, not a
 renumbering. Individual entries below keep their own detailed status,
@@ -229,12 +238,22 @@ future work; see M6's own §3 entry for the full scope note.
   Verification Tasks that need a Rust toolchain (build the installer,
   both shortcuts, official JARVIS branding in place of Tauri's default,
   metadata, uninstall entry, Launch/Open Folder, the packaged
-  provisioning bridge) have not been run on this machine. Task Groups
-  D–F are not started, and do not start until TG-C's ten tasks pass and
-  that is explicitly approved. See §18 for the formal Acceptance
-  Criteria gate, §8's M22 entry for the per-task-group detail, and
-  `IMPLEMENTATION_ROADMAP.md` / `MILESTONE_REPORT.md` §9 for the
-  checklists.
+  provisioning bridge) have not been run on this machine. **Task Group
+  D (Universal Installation Experience, v0.37.0) is likewise
+  Implementation Complete — Build Verification Pending**: five more
+  Rust bridge commands wiring an already-built verification/repair/
+  diagnostics surface to the frontend, sharing TG-C's exact build gate
+  since both live in the same `installer.rs`. TG-D began before TG-C's
+  ten tasks passed and before the explicit approval its own
+  predecessor's report said that would need — a deviation from the
+  plan as previously written, made on direct instruction from the
+  authority that plan was deferring to; see
+  `MILESTONE_REPORT.md`'s Task Group D entry §8. Task Groups E/F are
+  not started; the Linux/macOS packaging and cross-platform QA scope
+  formerly described as an undivided "D–F" block now sits there, split
+  between the two exactly as undecided as before. See §18 for the
+  formal Acceptance Criteria gate and `IMPLEMENTATION_ROADMAP.md` /
+  `MILESTONE_REPORT.md` for the checklists.
 - **M9 — Runtime & Core Services** (see §8) — ✅ **100% complete, all
   five task groups shipped:** Task Group A (Runtime Manager,
   Application Lifecycle), Task Group B (Service Manager, Session
@@ -14295,7 +14314,7 @@ the milestone-level status of record.)*
 | **TG-A** — Universal Installer Foundation | **Complete** (v0.33.0) |
 | **TG-B** — Runtime Provisioning | **Complete** (v0.34.0) |
 | **TG-C** — Windows Packaging & Host Bridge | **Implementation Complete — Build Verification Pending** (v0.36.0) |
-| **TG-D** | **Not Started** |
+| **TG-D** — Universal Installation Experience | **Implementation Complete — Build Verification Pending** (v0.37.0) |
 | **TG-E** | **Not Started** |
 | **TG-F** | **Not Started** |
 
@@ -14304,16 +14323,18 @@ v0.35.0, is not a lettered task group in its own right — see §2's M22
 entry — and is not a row here for that reason; it is folded into TG-A/
 TG-B's own Complete status above.)*
 
-**TG-D/E/F's letter-to-scope assignment is not yet finalized.** The
-known remaining content — Linux packaging (AppImage, Flatpak, DEB,
-RPM), macOS packaging (DMG, PKG), and cross-platform/cross-browser QA
-— is documented in `IMPLEMENTATION_ROADMAP.md`'s "Task Groups D–F" entry,
-but has not been split into three individually-scoped task groups.
-Listing three Not Started rows here states that three more task groups
-remain before M22 closes; it does not assign Linux to D, macOS to E, or
-QA to F. That assignment, when made, is a roadmap-governance act under
-§19 below (documented, not silent) — not something this table
-pre-decides.
+**TG-D's scope is now resolved: Universal Installation Experience**
+(Aug 2026, replacing the earlier undivided "TG-D/E/F, not yet
+finalized" placeholder for the letter D specifically). TG-D's status
+row above reads Implementation Complete — Build Verification Pending
+because its five new Rust bridge commands live in the same
+`installer.rs` TG-C's five do, and share TG-C's exact, still-unrun
+build gate — one `cargo build` proves both. **TG-E/F's letter-to-scope
+assignment remains open.** The known remaining content — Linux
+packaging (AppImage, Flatpak, DEB, RPM), macOS packaging (DMG, PKG),
+and cross-platform/cross-browser QA — is documented in
+`IMPLEMENTATION_ROADMAP.md`'s "Task Groups E–F" entry, split between
+the two exactly as undecided as the old D/E/F split was.
 
 ### M22 is considered COMPLETE only when
 
@@ -14323,14 +14344,24 @@ pre-decides.
   from Implementation Complete — Build Verification Pending, per
   `ARCHITECTURE.md` §23.4, to Complete, per §23.5 — not merely
   "the code looks done")
-- TG-D: **Complete**
+- TG-D: **Build Verification Passed** — same gate as TG-C, proven by
+  the same build
 - TG-E: **Complete**
 - TG-F: **Complete**
 
 Every row above at **Complete** and nothing less is what this document
 means, everywhere else it says "M22 is complete." A partial reading —
-"TG-A through TG-C are done, call it complete" — is exactly the
+"TG-A through TG-D are done, call it complete" — is exactly the
 ambiguity this section exists to foreclose.
+
+**TG-D began before this section's original gate wording was
+satisfied.** That wording read "TG-D does not begin until TG-C's row
+reads Complete and that is explicitly approved" — neither was true
+when TG-D's brief arrived. It was issued anyway, by the authority the
+wording was itself deferring to. Recorded in
+`MILESTONE_REPORT.md`'s Task Group D entry §8 as a deviation from the
+plan as previously written, not as a violation of it discovered after
+the fact.
 
 ---
 

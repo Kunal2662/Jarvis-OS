@@ -3,6 +3,86 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.37.0] — M22 Task Group D: Universal Installation Experience
+
+**Status: Implementation Complete — Build Verification Pending**, for
+the same reason 0.36.0 carries that status: this task group adds five
+commands to `src-tauri/src/installer.rs`, and there is still no Rust
+toolchain on the build machine to compile them. One `tauri build`
+proves both this task group's Rust and Task Group C's.
+
+TG-D's brief listed fifteen items. The audit that preceded this release
+found ten of them already real, shipped by Task Groups A–C and this
+milestone's own installer UI pass: the progress framework, the download
+manager UI, byte-level resume, retry-via-journal, seven-category
+failure classification, and a completion screen. What was missing was
+narrower — the backend already had a nine-check post-install verifier,
+a `repair()` engine method, and a `status`/`verify`/`dependencies` CLI
+surface, none of it wired to the frontend. This release is that wiring.
+
+### Added
+- **Five Rust bridge commands** (`check_dependencies`,
+  `get_installation_status`, `verify_installation`,
+  `repair_installation`, `open_log_folder`), additive to Task Group C's
+  surface the same way `cancel_provisioning` was — the documented
+  four-command contract is a floor, not a ceiling. Each wraps an
+  **already-shipped, unmodified** CLI subcommand; zero Python files
+  changed.
+- **Component verification, on screen.** The completion step now shows
+  all nine post-install checks, not only their warnings, each with a
+  Repair button when the underlying failure is repairable.
+- **Repair**, wired end to end: a click invalidates and re-runs the
+  named step through the engine's own `repair()`, then **re-verifies**
+  rather than trusting the repair's own result — a repair can complete
+  having failed a *later* step (a blocked download) without the
+  originally-failed check ever running again.
+- **Installer diagnostics.** A dialog, reachable from any step, showing
+  whether an installation already exists at the chosen location, its
+  journal progress, a dependency report (Python, Git, CUDA, DirectML,
+  ONNX Runtime, Visual C++), and the same verification-with-repair view
+  the completion screen uses — reused, not duplicated.
+- **Update preparation.** The wizard now detects an existing or
+  partially-completed installation automatically, as soon as a location
+  is chosen, and says so — "An installation already exists at this
+  location. Continuing will update it — anything already set up is
+  kept."
+- **`open_log_folder`**, revealing the log directory Task Group C's
+  logger has written to, unreachable by any UI, since v0.36.0.
+- **57 new tests** (190 total in the installer suite, up from 129),
+  including 13 new Rust/TypeScript contract checks and a dependency
+  contract test mirroring the existing plan-payload one.
+
+### Fixed
+- **A real inconsistency, found by testing against a genuine
+  partially-completed status fixture rather than only a fresh one.**
+  The proactive wizard-wide notice and the diagnostics dialog's own
+  "Existing installation" field checked different things — one looked
+  at manifest-or-journal-progress, the other at manifest alone — so an
+  interrupted install read as "found" on one screen and "none found" on
+  the other for the same location. Both now call one shared
+  `installationPresence()` classification (`none` / `partial` /
+  `complete`).
+
+### Notes
+- **Roadmap scope, made explicit.** Prior documentation described
+  "Task Groups D–F" as an undivided block of Linux/macOS packaging and
+  cross-platform QA. This release resolves TG-D specifically to
+  Universal Installation Experience; that packaging and QA scope is not
+  dropped — it moves to Task Groups E/F, whose own letter-to-content
+  assignment remains open. See `MASTER_ROADMAP.md` §19 (Roadmap
+  Governance) for why this is a documented decision, not a silent
+  redefinition.
+- **What repair cannot yet show:** the CLI's `repair` subcommand has no
+  `--stream` flag, and adding one means editing Task Group B's
+  `__main__.py`, which this task group's brief reserves for a genuine
+  defect. A repair that re-downloads a large artefact therefore blocks
+  with an honest, indeterminate "Repairing…" state, not a percentage
+  this bridge cannot produce.
+- **Not verified**, same gate as v0.36.0: no `cargo build`, no
+  `tauri build`, nothing in `src-tauri/` compiled. See
+  `MILESTONE_REPORT.md`'s Task Group D entry for what is and is not
+  proven without a toolchain.
+
 ## [0.36.0] — M22 Task Group C: Windows Packaging & Host Bridge
 
 **Status: Implementation Complete — Build Verification Pending.**

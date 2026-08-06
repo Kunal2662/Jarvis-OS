@@ -277,19 +277,20 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.36.0` · **Current milestone:** M22 —
+**Current version:** `0.37.0` · **Current milestone:** M22 —
 Cross-Platform Distribution & Universal Installer (🟡 active; Task Groups
-A and B complete, the installer UI wired to the engine, and Task Group C
-— Windows Packaging & Host Bridge — **Implementation Complete — Build
-Verification Pending**, see below). Status vocabulary throughout this
-README is the six terms `docs/ARCHITECTURE.md` §23 defines.
+A and B complete, the installer UI wired to the engine, and Task Groups
+C and D — Windows Packaging & Host Bridge, and Universal Installation
+Experience — both **Implementation Complete — Build Verification
+Pending**, see below). Status vocabulary throughout this README is the
+six terms `docs/ARCHITECTURE.md` §23 defines.
 
 **Work is not proceeding in numeric order.** M1–M8 are complete; M22
 runs next because it owns installation and packaging, and until it ships
 there is no way to deliver the first eight milestones to a machine that
 is not a development checkout. Within M22: TG-A and TG-B are Complete,
-TG-C is Implementation Complete — Build Verification Pending, and
-TG-D/E/F are Not Started. Development resumes at M9 once **all** of
+TG-C and TG-D are Implementation Complete — Build Verification Pending,
+and TG-E/F are Not Started. Development resumes at M9 once **all** of
 M22 reaches Complete (`docs/MASTER_ROADMAP.md` §18's Acceptance
 Criteria state the exact gate), then runs M9 → M21 in order. M23 —
 Core Intelligence is deferred. This is a sequencing decision, not a
@@ -345,8 +346,8 @@ configuration. No payload, command name or event name changed — the
 contract was written first so the UI would need no edit when the host
 arrived, and it needed none.
 
-**Status: Implementation Complete — Build Verification Pending.** This
-machine has no Rust toolchain, so none of it has been compiled, no
+**TG-C status: Implementation Complete — Build Verification Pending.**
+This machine has no Rust toolchain, so none of it has been compiled, no
 installer has been produced, and no shortcut or icon has been observed.
 The Rust/TypeScript contract *is* tested — by a suite that reads the
 Rust as text and needs no compiler, which caught a command written to
@@ -356,8 +357,29 @@ the desktop and Start Menu shortcuts, **replace Tauri's default logo
 with real JARVIS branding** (unstarted, not just unverified), confirm
 installer metadata, the uninstall entry, Launch JARVIS, Open
 Installation Folder, and the provisioning bridge inside the packaged
-app. `CHANGELOG.md` and `MILESTONE_REPORT.md` §9 carry the full list and
-current state of each; TG-D waits for all ten plus explicit approval.
+app. `CHANGELOG.md` and `MILESTONE_REPORT.md` §9 carry the full list.
+
+`0.37.0` wired what TG-A–C's own backends had already built and no
+frontend ever called: **component verification with repair** (the
+completion screen now shows all nine post-install checks, not only
+warnings, each with a Repair button when fixable — repair re-verifies
+afterward rather than trusting its own result), an **installer
+diagnostics dialog** reachable from any step (existing-installation
+detection, journal progress, a dependency report, log-folder access),
+and **proactive update detection** (the wizard notices an existing or
+partially-completed installation as soon as a location is chosen).
+Deliberately not built: a fourth "rollback" mechanism — the journal's
+resume, NSIS's own uninstaller, and repair already cover that three
+ways.
+
+**TG-D status: Implementation Complete — Build Verification Pending**,
+for the same reason as TG-C: its five new Rust commands live in the
+same `installer.rs` file, so one `cargo build` proves both task
+groups' Rust together. TG-D began before TG-C's ten tasks passed and
+before the explicit approval TG-C's own report said that would need —
+a deviation from the plan as it read before this milestone, made on
+direct instruction; see `MILESTONE_REPORT.md`'s Task Group D entry §8.
+
 Also still open: cross-browser testing (Chromium only so far; the Tauri
 shell uses WebKit/WebView2), a screen-reader pass, and contrast
 measurement.

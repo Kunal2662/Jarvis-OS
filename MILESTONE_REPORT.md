@@ -597,3 +597,391 @@ ordinary work applies these principles going forward; it does not
 revisit them.
 
 TG-D remains Not Started. This report does not request that it start.
+
+---
+---
+
+# Milestone Report — M22 Task Group D: Universal Installation Experience
+
+**Version:** 0.37.0
+**Branch:** `feature/m22-task-group-c`
+**Baseline:** v0.36.0 (TG-C, Implementation Complete — Build Verification Pending)
+**Date:** 2026-08-07
+
+> **This is a second, separate report appended to the same file, not a
+> rewrite of the one above.** Nothing above this divider was edited:
+> TG-C's report — including §9's ten still-unrun Build Verification
+> Tasks, cross-referenced from `MASTER_ROADMAP.md`, `IMPLEMENTATION_
+> ROADMAP.md` and `README.md` — remains exactly as it was. TG-D's own
+> report follows, with its own §1 onward.
+
+## 1. Executive summary
+
+TG-C's report closed by saying TG-D would not begin until its ten
+Build Verification Tasks passed, with explicit approval. **That did
+not happen here, by explicit instruction.** The user approved TG-C's
+implementation, left its Build Verification Tasks outstanding, and
+directed this task group to begin anyway. That is the user's call to
+make and is recorded here as the deviation it is, not silently folded
+into "business as usual" — §8 covers it in full alongside every other
+deviation this task group made from the roadmap as previously
+documented.
+
+**Status: Implementation Complete — Build Verification Pending.** Same
+status as TG-C, for the same reason: this task group added five
+commands to `src-tauri/src/installer.rs`, and there is still no Rust
+toolchain on this machine to compile them. One `tauri build`, once
+available, proves both task groups' Rust at once — see §7.
+
+**The audit that preceded implementation found most of the brief
+already built.** TG-D's brief listed fifteen items. Ten were already
+real: the progress framework, download manager UI, resume, retry,
+failure classification and a completion screen all shipped in TG-A
+through TG-C and the installer UI pass. What remained was narrower —
+the backend already had a nine-check verifier, a `repair()` method and
+a `status`/`dependencies` CLI surface with zero frontend exposure. This
+report is about that wiring, not about fifteen features built from
+nothing.
+
+---
+
+## 2. Status of M22
+
+| Task group | Status |
+|---|---|
+| **A — Universal Installer Foundation** | ✅ Complete (v0.33.0) |
+| **B — Runtime Provisioning** | ✅ Complete (v0.34.0) |
+| **Installer UI integration** | ✅ Complete (v0.35.0) |
+| **C — Windows Packaging & Host Bridge** | 🟡 Implementation Complete — Build Verification Pending (v0.36.0) |
+| **D — Universal Installation Experience** | 🟡 **Implementation Complete — Build Verification Pending** (v0.37.0, this report) |
+| **E, F** | ⬜ Not started; scope (Linux/macOS packaging, cross-platform QA) reassigned from the old "D–F" block — see §8 |
+
+TG-A, TG-B and TG-C are unmodified by this work: `git diff --stat
+src/jarvis/` against this task group's start is empty, and TG-C's own
+five Rust commands were extended, not edited — see §4.
+
+---
+
+## 3. What was built
+
+| Piece | File |
+|---|---|
+| Five additive Rust bridge commands, shared JSON-command helper | `frontend/src-tauri/src/installer.rs` |
+| Command registration | `frontend/src-tauri/src/lib.rs` |
+| Five transport functions, three new types (`DependencyReport`, `InstallationStatus`, `RepairResult`), `installationPresence()` | `frontend/src/features/installer/provisioning-transport.ts`, `provisioning-types.ts` |
+| Shared check-row component (extracted from `installer-steps.tsx`) | `frontend/src/features/installer/check-row.tsx` |
+| Verification-with-repair panel, reused by two screens | `frontend/src/features/installer/verification-panel.tsx` |
+| Diagnostics dialog (status, dependencies, verification, log folder) | `frontend/src/features/installer/installer-diagnostics.tsx` |
+| Full verification report + repair wiring on the completion screen | `frontend/src/features/installer/completion-step.tsx` |
+| Diagnostics trigger, existing-installation notice, prop threading | `frontend/src/features/installer/installer-wizard.tsx` |
+| Real transport implementations composed | `frontend/src/features/installer/installer-route.tsx` |
+| 8 real fixtures (`dependencies.*`, `status.*`, `verify`, `repair.*`) + 57 new tests across 4 new and 5 extended test files | `frontend/src/features/installer/__tests__/` |
+
+### The five Rust commands, and why none of TG-C's changed
+
+`check_dependencies`, `get_installation_status`, `verify_installation`,
+`repair_installation`, `open_log_folder` — each a thin, non-streaming
+wrapper around an **already-shipped, unmodified** Python CLI
+subcommand. Confirmed by running all four subcommands for real during
+the audit (`dependencies`, `status`, `verify`, `repair`), against a
+real temporary target, before writing a line of Rust against them —
+including the exit-code edge cases (`verify` on an unhealthy target
+exits 2; `repair` on an unknown step exits 2 with `{"error": …}`).
+
+A shared `run_json_command` helper backs four of the five (`open_log_
+folder` needs no CLI call). `load_installation_plan` — TG-C's own
+non-streaming command — was **not** refactored to use it, despite being
+the same shape: that function already shipped, this machine cannot
+compile a change to verify it still works, and a small amount of
+duplicated Rust is the safer trade against a mistake nothing here would
+catch before a real build does. The equivalent React-side duplication
+(`ValidationRow`, §4) *was* refactored away, because that side has
+tests to catch a mistake and the Rust side does not — the same
+principle, opposite conclusion, because the two sides have different
+safety nets.
+
+### Component verification and repair, reachable for the first time
+
+Nine post-install checks (`jarvis/installer/verification.py`) existed
+since TG-B with `repairable`/`repair_step` fields designed, per that
+module's own docstring, for exactly this UI to exist — and nothing
+called them. The completion screen now shows all nine, not only
+warnings, each with a Repair button when repairable. Repair invalidates
+and re-runs the named step through the engine's own `repair()`, then
+**re-verifies** rather than trusting the repair's own result: a repair
+can complete having failed a *later* step (a blocked download) without
+the check that triggered it ever running again, so only a fresh
+verification pass can say whether it actually worked.
+
+### Diagnostics and update preparation
+
+A dialog, reachable from any step via a persistent trigger, showing:
+whether an installation already exists at the chosen location and its
+journal progress (`status`), a dependency report (`dependencies`), and
+the same verification-with-repair panel the completion screen uses —
+one component, two mount points, not two implementations. Existing-
+installation detection is also proactive: the wizard checks
+automatically as soon as a location is chosen and shows a notice
+without the user having to open anything.
+
+---
+
+## 4. Defects found and fixed
+
+Two, both in code written during this task group, both found by tests
+rather than by re-reading.
+
+**Existing-installation detection disagreed with itself.** The
+wizard's proactive notice checked `manifest || journal progress`; the
+diagnostics dialog's own "Existing installation" field checked
+`manifest` alone. A partially-completed install (dependencies and
+directories done, nothing else) read as "an installation exists" on
+one screen and "none found" on the other, for the same location. Found
+by testing the dialog against `status.resumable.fixture.json` — a real,
+partially-completed status — rather than only against a fresh one,
+which is exactly the case the narrower check silently mishandled.
+Fixed by extracting one shared `installationPresence()` classification
+(`none` / `partial` / `complete`) that both now call, and by making the
+label itself more honest in the process — "Partially installed" rather
+than folding a partial and a complete install into the same "Found".
+
+**A stale-closure race in the diagnostics dialog's own first draft.**
+The effect that decides whether to run verification read the `status`
+*state variable* inside a `.then()` chained off the status fetch — but
+`setStatus` had not re-rendered yet at that point, so the check ran
+against the previous render's `null`, not the value `getStatus` had
+just returned. Caught while writing the effect, before it was ever
+tested against a real interaction, by re-reading the promise chain
+rather than trusting it worked because the shape looked right. Fixed by
+restructuring the effect as a single `async` function using the
+resolved value directly, which also removed an `eslint-disable` the
+first draft needed and the corrected version does not.
+
+---
+
+## 5. Judgment calls: what "do not modify TG-A/B/C" was taken to mean
+
+The brief allowed touching TG-A/B/C only "to fix a genuine defect". Five
+decisions turned on how that was read, stated here so the reasoning is
+inspectable rather than assumed:
+
+- **Additive props with defaults, verified by tests, were treated as
+  in-scope.** `onRepair`, `getInstallationStatus`,
+  `verifyInstallation`, `checkDependencies`, `onOpenLogFolder` were
+  added to `InstallerWizardProps`/`CompletionStepProps` as new,
+  optional-or-defaulted fields — the same shape Task Group C used to
+  add `cancelProvisioning` without controversy. Every existing call
+  site continued to compile and pass without changes beyond adding the
+  new field.
+- **`ValidationRow` was extracted, not left duplicated**, because this
+  task group's own brief explicitly requires "no duplicated widgets"
+  for its own new UI, and `installer-wizard.test.tsx` /
+  `installer-contract.test.ts` exercise `SummaryStep`'s continued use
+  of it — a regression fails an existing test rather than shipping
+  silently. Confirmed unchanged by running both suites immediately
+  after the move.
+- **The Rust side's equivalent duplication was *not* removed** — see
+  §3's `run_json_command` note. Same underlying question, opposite
+  answer, because there is no compiler here to catch a mistake in
+  `load_installation_plan` the way there is for `SummaryStep`.
+- **Zero Python files were touched.** Every one of `dependencies`,
+  `status`, `verify`, `repair` already existed, unmodified, doing
+  exactly what this task group needed. This is why "reuse existing
+  architecture" and "do not modify TG-A/B" turned out not to conflict
+  in practice — the honest answer to "does this need a defect
+  exception" was "no" in every case, because nothing needed changing.
+- **A pre-existing, unrelated defect was fixed anyway.** `tsc -b
+  --noEmit` — the project's actual `npm run typecheck` — was already
+  failing at `HEAD`, before this task group's first edit, because
+  `host-bridge-contract.test.ts` (TG-C) imports Node builtins the app's
+  `tsconfig.app.json` does not globally type. Confirmed by stashing
+  this task group's changes and re-running typecheck against the
+  unmodified branch. This is squarely "a genuine defect discovered
+  during implementation" — fixed with a one-file `/// <reference
+  types="node" />`, not by widening the whole app's ambient types.
+
+---
+
+## 6. Quality gates
+
+| Gate | Result |
+|---|---|
+| `vitest` (installer suite) | 190 tests passing (129 at TG-C baseline + 61 net new) |
+| `vitest` (full frontend suite) | 732 tests, 78 files, all passing |
+| `tsc -b --noEmit` | Clean (including the pre-existing failure fixed in §5) |
+| `oxlint` | 0 errors; 16 pre-existing warnings, none in installer files, none new |
+| `vite build` | Clean |
+| `pytest` (backend) | Not re-run in full for this pass — **zero Python files changed**, confirmed by `git diff --stat src/jarvis/` returning empty, so TG-B/TG-C's own suites are untouched by construction, not merely by testing |
+| `cargo build` / `tauri build` | ⛔ Not run — no Rust toolchain, same as TG-C |
+
+### New tests, by kind
+
+- **Unit:** `check-row.test.tsx` (5 tests) — the extracted shared
+  component in isolation, including the `fail` verdict and the
+  `action` slot `SummaryStep` never exercised.
+- **Unit/contract:** `installationPresence()` tested directly against
+  its three branches (`provisioning-transport.test.ts`), since a real
+  `manifest: true` fixture needs a full network-dependent provisioning
+  run this environment cannot produce.
+- **Integration:** `verification-panel.test.tsx` (5 tests) — repair
+  targets the clicked row's own step, not a fixed one; busy state
+  disables every button, not only the clicked one.
+- **Integration:** `installer-diagnostics.test.tsx` (12 tests) — parallel
+  status/dependency/verification fetches, the "nothing to verify yet"
+  skip, the "no account type yet" skip, error handling, and the full
+  repair-then-refresh cycle.
+- **Integration:** `installer-wizard.test.tsx` extended (+6 tests) —
+  trigger visibility, notice visibility and its absence on the
+  progress/completion screens, dialog opening.
+- **Contract:** `host-bridge-contract.test.ts` extended (+11 tests) —
+  the five new commands' names, registration and argument shapes,
+  including the specific check that `get_installation_status` takes no
+  `account_type` (the CLI's `status` subcommand has no such flag).
+- **Contract:** `installer-contract.test.ts` extended (+3 tests) — the
+  dependency payload's personal/administrator `path` split, verified
+  against two real captured fixtures rather than one hand-written pair.
+- **Accessibility:** every verdict icon carries `aria-label`
+  (unchanged, now shared across three consumers instead of one); the
+  diagnostics dialog inherits Radix's own focus trap, `Escape`-to-close
+  and `aria-modal` semantics rather than a hand-rolled overlay.
+- **Regression:** the full pre-existing installer suite (129 tests)
+  re-run after every structural change in this task group, not only at
+  the end — zero failures at any point except the two self-inflicted
+  ones in §4, both fixed before moving on.
+
+---
+
+## 7. What is proven, and what is not
+
+**Proven:**
+- All four CLI subcommands this task group's Rust wraps (`dependencies`,
+  `status`, `verify`, `repair`) were run for real, against a real
+  temporary target, including their exit-code edge cases, before any
+  Rust was written against them.
+- The TypeScript side of every new command — argument shapes, return
+  types, error paths — is exercised by 57 new tests against real
+  captured fixtures.
+- The Rust/TypeScript contract for all five new commands (names, arity,
+  `invoke_handler` registration) is checked by the same text-reading
+  approach that caught a real defect in TG-C.
+- The frontend builds, typechecks and lints clean.
+
+**Not proven, and for the same reason as TG-C:**
+- Nothing in `src-tauri/installer.rs` has been compiled. The five new
+  functions are syntactically plausible Rust, reviewed carefully, but
+  unverified by a compiler.
+- The full path — a click on a real Repair button reaching a real
+  packaged Python process and the UI updating from its real response —
+  has not run.
+- The diagnostics dialog has never been opened in a real webview.
+
+**TG-C's and TG-D's Rust are proven together, not separately.** Both
+live in the same `installer.rs`; one `cargo build` (or `npm run tauri
+build`) either compiles all of it or names exactly where it does not.
+There is no scenario where one task group's Rust builds and the
+other's does not.
+
+---
+
+## 8. Deviations from the roadmap, with justification
+
+**TG-D began before TG-C's Build Verification Tasks passed, and
+without the "explicit approval" TG-C's own report said this would
+need.** TG-C's §9 states plainly: "TG-D does not begin until then, and
+only with explicit approval." Neither condition was met before this
+task group's brief arrived. This is recorded as a deviation because it
+is one — the report that preceded this one said something different —
+not because it was wrong. The user directing this session is the
+authority TG-C's own report was deferring to, and the instruction to
+begin TG-D was explicit, direct, and aware that TG-C's status was
+Implementation Complete — Build Verification Pending (the brief states
+that status for TG-C in its own preamble). Proceeding on that
+instruction is the correct response to it.
+
+**TG-D's scope was redefined from "Linux/macOS packaging and
+cross-platform QA" to "Universal Installation Experience."** Prior
+documentation (`IMPLEMENTATION_ROADMAP.md`, `MASTER_ROADMAP.md` §18)
+described "Task Groups D–F" as an undivided block covering AppImage/
+Flatpak/DEB/RPM, DMG/PKG, and cross-browser QA, with the letter-to-
+content split explicitly left undecided. TG-D is now resolved to
+Universal Installation Experience specifically. This is a legitimate
+roadmap decision, not a silent one: TG-D had **Not Started** status
+before this task group, so nothing completed is being redefined
+(`MASTER_ROADMAP.md` §19's rule against that governs *completed*
+milestones), the packaging/QA scope is not dropped — it moves to E/F,
+whose own split remains open exactly as before — and this report,
+plus §9's documentation updates, is the record required for the
+decision to count as documented rather than assumed.
+
+**Two extra features beyond the brief's fifteen-item list:**
+`open_log_folder` and the `installationPresence()` shared
+classification. Both are narrowly load-bearing for items the brief did
+name ("installation logging" needs a way to reach the log; "update
+preparation" needs one consistent definition of "installed") rather
+than scope added for its own sake.
+
+No other deviations. Every other item in the brief's list — progress
+framework, download manager UI, resume, retry, failure classification,
+installation logging, component verification, disk space verification,
+dependency verification, installation summary, completion experience,
+rollback planning, recovery planning, update preparation, installer
+diagnostics — is accounted for in §3 or in §9 below (rollback
+planning, specifically, which this task group deliberately did not
+build new code for).
+
+---
+
+## 9. On "rollback planning" specifically
+
+No new rollback mechanism was built, and that is a decision, not an
+omission. Three things already cover the failure mode "rollback" would
+address, each already documented:
+
+- **Every provisioning step is idempotent and journal-tracked**
+  (`jarvis/installer/journal.py`, TG-B). An interrupted or failed
+  installation resumes from its last completed step rather than
+  needing to be undone and restarted.
+- **A full uninstall is NSIS's own generated uninstaller** (TG-C,
+  `installMode: "currentUser"`), which is TG-C's Build Verification
+  Task #7 — not a mechanism the installer wizard should reimplement
+  alongside it.
+- **`repair()`** (this task group) is the targeted, partial form of
+  rollback that is actually useful mid-install: redo one step and
+  everything after it, without touching what already succeeded.
+
+Building a fourth, in-app "rollback" mechanism layered on top of these
+three would have been exactly the "no duplicate service layers"
+violation this task group's own brief warns against — a second way to
+undo work that already has two honest ways to be undone. "Rollback
+planning" is satisfied by this paragraph existing and being accurate,
+not by new code.
+
+---
+
+## 10. Documentation updated
+
+`CHANGELOG.md` (new 0.37.0 entry), `IMPLEMENTATION_ROADMAP.md` (Task
+Group D section replacing the old "D–F, not started" stub; M22
+Acceptance Criteria table updated; D–F reassignment noted),
+`MASTER_ROADMAP.md` (§2 execution order, §8 M22 entry, §18 Acceptance
+Criteria table — same updates, mirrored), `ARCHITECTURE.md` (§22.15,
+noting the host bridge's command surface grew), `README.md` (current
+version and milestone status; the wizard gained user-visible screens —
+diagnostics, repair, the existing-installation notice — so this is a
+real user-visible change, not a documentation-only bump). This file.
+
+No historical record was rewritten: this section is appended after
+TG-C's report, not merged into it, and `CHANGELOG.md`'s 0.36.0 entry is
+untouched — the 0.37.0 entry is new, per `MASTER_ROADMAP.md` §19's
+rule that corrections and additions are new entries, never edits.
+
+---
+
+## 11. Recommended next step
+
+Unchanged from TG-C's own §10: get access to a machine with the Rust
+toolchain. One `npm run tauri build` there proves TG-C's five commands
+and TG-D's five together, and is the only thing that turns either task
+group's status from Implementation Complete to Complete. This report
+does not request that TG-E begin; the brief that produced it asked
+explicitly to stop after TG-D and await approval, which this is.

@@ -2275,11 +2275,75 @@ Not in this task group, independent of the verification gate above:
       exists the registry ships empty by design, and downloads verify as
       *present but unverifiable* rather than claiming to be verified.
 
-### Task Groups D–F *(not started)*
+### Task Group D — Universal Installation Experience 🟡 *(v0.37.0 — Implementation Complete — Build Verification Pending)*
 
-Remaining M22 scope. The D/E/F split is named in `MASTER_ROADMAP.md`
-§2's execution order but not yet broken down here; these are the known
-contents, not an assignment to a particular letter.
+*(Resolved Aug 2026 from the earlier "Task Groups D–F, letter-to-scope
+undecided" placeholder — see the note at the end of this section for
+where that undivided scope went.)*
+
+An audit before implementation found ten of the brief's fifteen items
+already shipped by TG-A–C and the installer UI pass (progress
+framework, download manager UI, resume, retry, failure classification,
+completion screen). This task group wired what was missing: the
+backend's already-built verification, repair and diagnostics surface
+had no frontend caller at all.
+
+- [x] Five additive Rust bridge commands — `check_dependencies`,
+      `get_installation_status`, `verify_installation`,
+      `repair_installation`, `open_log_folder` — each a thin wrapper
+      around an **unmodified** CLI subcommand (`dependencies`,
+      `status`, `verify`, `repair`, all TG-A/B code, zero Python files
+      changed).
+- [x] Component verification, shown in full (not warnings only) with a
+      Repair action on repairable failures. Repair re-verifies after
+      running rather than trusting its own result.
+- [x] Installer diagnostics — a dialog reachable from any step:
+      existing-installation detection, journal progress, dependency
+      report, and the same verification-with-repair panel the
+      completion screen uses.
+- [x] Update preparation — proactive existing-installation detection as
+      soon as a location is chosen, using one shared
+      `installationPresence()` classification after an inconsistency
+      between two independent checks was found by testing.
+- [x] Installation logging reachable — `open_log_folder` surfaces the
+      log directory TG-C's logger had written to since v0.36.0 with no
+      UI path to it.
+- [x] Rollback planning — deliberately no new mechanism. The journal's
+      idempotent resume, NSIS's own generated uninstaller, and this
+      task group's `repair()` wiring already cover it three ways; a
+      fourth would have been the "no duplicate service layers"
+      violation this task group's own brief warns against. See
+      `MILESTONE_REPORT.md`'s Task Group D entry, §9, for the full
+      reasoning.
+- [x] 57 new tests (190 in the installer suite, up from 129), including
+      11 more Rust/TypeScript contract checks and a dependency-payload
+      contract test against real captured fixtures.
+
+**Not verified — no Rust toolchain on this machine.** Same gate as
+TG-C: `check_dependencies` through `open_log_folder` live in the same
+`installer.rs` TG-C's five commands do, so one `cargo build` proves
+both task groups' Rust together. See `MILESTONE_REPORT.md`'s Task Group
+D entry §7 for the full proven/unproven split.
+
+**Deviation, recorded plainly:** this task group began before TG-C's
+Build Verification Tasks passed and before the "explicit approval"
+TG-C's own report said starting TG-D would need. Both were true when
+this task group's brief arrived; it was issued anyway, by the same
+authority TG-C's report was deferring to. See
+`MILESTONE_REPORT.md`'s Task Group D entry §8 for the full account.
+
+**Where the old "D–F" scope went:** Linux packaging (AppImage, Flatpak,
+DEB, RPM), macOS packaging (DMG, PKG), and cross-browser QA are not
+dropped — they move to Task Groups E/F below, whose own letter-to-content
+split remains undecided, exactly as the D/E/F split was before this
+resolution.
+
+### Task Groups E–F *(not started)*
+
+The scope previously described as an undivided "Task Groups D–F"
+block, now that D has its own name and section above. The split
+between E and F is not yet decided — these are the known contents, not
+an assignment to a particular letter.
 
 - [ ] AppImage, Flatpak, DEB, RPM, desktop integration.
 - [ ] DMG, PKG, Apple Silicon and Intel, native menu.
@@ -2302,14 +2366,15 @@ as two independent claims that happen to agree.)*
 | **TG-A** — Universal Installer Foundation | **Complete** (v0.33.0) — all checklist items above checked |
 | **TG-B** — Runtime Provisioning | **Complete** (v0.34.0) — all checklist items above checked |
 | **TG-C** — Windows Packaging & Host Bridge | **Implementation Complete — Build Verification Pending** (v0.36.0) — implementation checklist above fully checked; all ten Build Verification Tasks unchecked |
-| **TG-D** | **Not Started** |
+| **TG-D** — Universal Installation Experience | **Implementation Complete — Build Verification Pending** (v0.37.0) — implementation checklist above fully checked; shares TG-C's outstanding Rust build gate |
 | **TG-E** | **Not Started** |
 | **TG-F** | **Not Started** |
 
-TG-D/E/F's letter-to-scope mapping is not yet decided — see the "Task
-Groups D–F" note immediately above this section. Three Not Started rows
-means three task groups' worth of remaining scope, not a committed
-Linux/macOS/QA assignment.
+TG-D's scope is now resolved (Universal Installation Experience,
+Aug 2026); TG-E/F's letter-to-scope mapping remains open — the
+Linux packaging, macOS packaging and cross-browser QA scope previously
+described as an undivided "D–F" block now sits under E/F, split
+between the two exactly as undecided as it was before TG-D was named.
 
 ### M22 is considered COMPLETE only when
 
@@ -2320,11 +2385,17 @@ Linux/macOS/QA assignment.
   meaning every row in TG-C's own Build Verification Tasks table above
   is checked, not merely that its implementation checklist is
   checked
-- TG-D: Complete
+- TG-D: Build Verification Passed — same gate as TG-C, and in practice
+  the same build: TG-D's five Rust commands live in the same
+  `installer.rs` TG-C's five do
 - TG-E: Complete
 - TG-F: Complete
 
-TG-D does not begin until TG-C's row reads Complete **and** that is
-explicitly approved (`MASTER_ROADMAP.md` §19's implementation-order
-documentation rule — the order is not self-authorizing just because
-it is written down).
+**TG-D began before this gate's original wording ("TG-D does not begin
+until TG-C's row reads Complete and that is explicitly approved") was
+satisfied.** That wording described the plan as understood when TG-C's
+report was written; it was superseded by an explicit instruction to
+begin TG-D anyway, from the same authority the wording was deferring
+to. See `MILESTONE_REPORT.md`'s Task Group D entry, §8, for the full
+account — recorded there as a deviation because the earlier plan said
+otherwise, not because proceeding was wrong.
