@@ -1399,3 +1399,350 @@ looks right once Windows is the one rendering it rather than a PNG
 viewer. This report does not request that TG-F begin; the brief that
 produced it asked explicitly to stop after TG-E and await approval,
 which this is.
+
+---
+---
+
+# Milestone Report — M22 Task Group F: Final Build Verification, Cross-Platform Readiness & Release Validation
+
+**Version:** 0.38.0 (unchanged — see §1)
+**Branch:** `feature/m22-task-group-c`
+**Baseline:** v0.38.0 (TG-E, Implementation Complete — Build Verification Pending)
+**Date:** 2026-08-07
+
+> **A fourth report, appended to the same file.** Nothing above this
+> divider was edited — TG-C's, TG-D's and TG-E's reports stand exactly
+> as written. TG-F's own report follows, with its own §1 onward.
+
+## 1. Executive summary
+
+TG-F's brief was explicit about what it is and is not: verification,
+validation and release readiness, not new features, and — separately
+— an audit of cross-platform readiness without implementing Linux or
+macOS. Both halves were done for real. The verification half split
+cleanly into two kinds of evidence: things provable without a Rust
+toolchain (the Python provisioning engine, run for real against a
+scratch install target — fresh install, resume, a deliberately induced
+failure, repair, re-verification) and things that are not (everything
+downstream of `tauri build`, which still has not run on this machine,
+same root cause as TG-C, TG-D and TG-E). The cross-platform half
+produced a genuine, evidence-based migration checklist in
+`docs/PACKAGING.md`, built by reading every `#[cfg(windows)]`, `wmic`
+call and Windows-only path assumption in the codebase, not by
+guessing what a new platform would typically need.
+
+One genuine defect was found and fixed: `docs/PACKAGING.md` still
+described Task Group E's own icon work as unstarted — a documentation
+regression from the fact that Task Group E's own documentation pass
+did not touch this file. No application code defect was found. **No
+version bump** — consistent with this project's own established rule
+that a documentation/verification pass with no shipped application
+change does not bump the version (the same call `11a8f6f`'s governance
+pass made).
+
+**Status: Implementation Complete — Build Verification Pending.** TG-F
+is, by its own brief, the task group whose job is closing M22's
+build-verification gate — and it cannot close what it cannot run. Every
+item that needs a compiled `.exe` remains exactly where TG-C left it.
+What TG-F adds is real evidence for everything that *doesn't* need one,
+and an honest, itemized account of what still does.
+
+---
+
+## 2. Audit findings
+
+Fresh, not reused from TG-E's own audit:
+
+- **Rust toolchain:** still absent — `cargo`, `rustc`, `rustup`,
+  `~/.cargo` all re-checked and still missing.
+- **TG-E's own deliverables:** every icon file TG-E's report claims to
+  exist was re-checked on disk (`master-logo.png`, `small-icon-
+  source.svg`, `icon.ico` at its reported 60,057 bytes, the four new
+  small PNG sizes) — all present, all matching.
+- **Version consistency:** `pyproject.toml`, `src/jarvis/__version__.py`
+  and `tauri.conf.json` all independently re-read — all `0.38.0`,
+  agreeing with each other and with `test_version_consistency.py`.
+- **`docs/PACKAGING.md` found stale** (§4 below) — the one genuine
+  defect this task group found, by reading the file rather than
+  trusting its own table of contents.
+- **The legacy PyInstaller/Inno Setup packaging path**
+  (`packaging/jarvis.spec`, `packaging/jarvis_installer.iss`,
+  `packaging/build_windows.ps1`) confirmed still correctly labeled
+  superseded in `PACKAGING.md`'s own header — not a second live
+  packaging system to reconcile with the Tauri one, and not touched.
+- **No `frontend/src-tauri/Cargo.lock`** — does not exist anywhere in
+  the repository, because `cargo` has never run against it. A real
+  build-reproducibility gap, not fixable without the toolchain this
+  environment lacks; recorded as a new Build Verification Task rather
+  than silently noted and dropped.
+
+---
+
+## 3. Verification summary
+
+### What a Rust toolchain gates (not performed, honestly)
+
+Windows installer verification, NSIS verification (beyond static
+config parsing, already done in TG-C), desktop/Start Menu shortcut
+verification, Add/Remove Programs verification, icon-as-rendered-by-
+Windows verification, uninstall verification, launch-after-install
+against a real packaged `.exe`, open-installation-folder against a
+real install, and the provisioning bridge end to end inside a packaged
+webview. All twelve items in `docs/PACKAGING.md`'s Build Verification
+Tasks list (ten from TG-C, two added by this task group — see §4 of
+that document) remain unchecked. Fresh installation and upgrade
+installation *as NSIS itself performs them* are in this category too
+— `allowDowngrades: false` and the fixed `identifier` are config
+this environment can read but not exercise.
+
+### What was actually run, for real, in this environment
+
+The Python provisioning engine (`python -m jarvis.installer`) needs no
+Rust toolchain — it is what the eventual Rust bridge spawns, but it
+runs standalone identically either way. Rather than trust TG-B's and
+TG-D's own unit tests a second time, this task group exercised it
+directly against a scratch target directory it created and destroyed
+for this purpose:
+
+- **Fresh installation:** `provision --target <scratch> --account-type
+  personal` on an empty directory genuinely created `data/`, `models/`,
+  `voice/`, `logs/`, `cache/`, `config/` on disk, wrote a real
+  `jarvis.config.json`, and completed the `dependencies`,
+  `directories` and `configuration` steps for real (each entry in the
+  resulting journal carries this machine's actual detected Python,
+  Git, DirectML and CUDA state). It then failed at `model_download`
+  with `"1 download(s) did not complete"` — expected and by design:
+  TG-B's source registry ships empty (§4 "No hardcoded URLs"), so a
+  real download was never going to succeed in this environment, and
+  the engine correctly reported that as a real failure rather than
+  papering over it.
+- **Existing installation detection:** `status` against that same
+  target reported `is_resume: true`, `completed: [dependencies,
+  directories, configuration]`, `manifest: false` — exactly the shape
+  `provisioning-types.ts`'s `installationPresence()` reads (`manifest`
+  → complete, non-empty `journal.completed` → partial, neither →
+  none). Read side-by-side, the real CLI's field names and the
+  frontend's classification function agree exactly; this was not
+  assumed from both having been written once, it was checked against
+  a real payload.
+- **Resume installation:** re-running the identical `provision`
+  command against the same target reported `resumed: true` and
+  `skipped_steps: [dependencies, directories, configuration]` — the
+  three already-done steps were not redone, only `model_download` was
+  attempted again (and failed the same, expected way).
+- **Interrupted installation recovery:** the journal file
+  (`config/provisioning.journal.json`) was deliberately truncated
+  mid-object to simulate a crash during the durable write it is
+  designed to survive. `status` against the corrupted file reported a
+  clean, fresh-install state (`is_resume: false`, nothing completed) —
+  read as a possible defect at first, then traced to
+  `journal.py`'s own `_load()`, whose docstring already reasons through
+  exactly this case: *"A journal truncated by the very crash it
+  records is unreadable, not authoritative. Starting over is correct;
+  every step is idempotent."* This is confirmed-correct, deliberate
+  behavior, not a defect — restoring the journal from a backup taken
+  before the corruption immediately returned `status` to reporting the
+  real partial progress, proving nothing was actually lost on disk,
+  only the journal's own record of it was transiently unreadable.
+- **Repair workflow and verification workflow, together:** the real
+  `config/jarvis.config.json` written by the fresh install above was
+  deleted outright. `verify` correctly reported `"configuration":
+  {"verdict": "fail", "repairable": true, "repair_step":
+  "configuration"}` (exit code 2, the documented "real finding"
+  convention `installer.rs`'s own `run_json_command` already relies
+  on). `repair configuration` against the same target recreated the
+  file for real; a second `verify` immediately after reported
+  `"configuration": {"verdict": "pass", "detail": "Valid."}` — repair
+  re-verifying after acting, not trusting its own success, exactly as
+  TG-D's report described and as tested here against a real induced
+  failure rather than only a mocked one.
+- **Dependency verification:** `dependencies --account-type personal`
+  returned this machine's real, live-probed dependency report (Python
+  3.13.14, Git 2.55.0, DirectML present, CUDA missing — "No NVIDIA
+  driver detected. JARVIS will run on the processor") — not a fixture.
+- **Installer diagnostics verification:** the diagnostics dialog's
+  underlying data sources (`dependencies`, `status`, `verify`) were
+  each independently confirmed correct above; what remains unverified
+  is only the Rust bridge's relay of that same data into the dialog,
+  which needs the same toolchain everything else in this section does.
+
+Upgrade installation specifically — a second `provision` run against
+an already-*complete* installation (one that reached the `manifest`
+step) — could not be exercised even at the CLI level: reaching a
+complete installation requires a real model download to succeed, which
+this environment's empty source registry makes structurally
+impossible here, by the same design TG-B documented rather than a gap
+this task group introduced.
+
+---
+
+## 4. Defects discovered
+
+One, in documentation, not application code.
+
+**`docs/PACKAGING.md` claimed Task Group E's icon work was unstarted,
+after Task Group E had shipped it.** The "Current: Tauri + NSIS"
+section's icon paragraph and Build Verification Task 5 both still read
+as TG-C originally wrote them — "Icons are wired but are still Tauri's
+defaults... Replacing the set requires real artwork" — a claim that
+was true when TG-C wrote it and false by the time this task group
+read it, because TG-E's own documentation pass updated
+`MILESTONE_REPORT.md`, `CHANGELOG.md`, both roadmap files, `README.md`
+and `ARCHITECTURE.md` but not `PACKAGING.md`, which was outside its
+own stated sync list. Found by reading the file directly as part of
+this task group's audit, not flagged by any test — `PACKAGING.md` is
+prose, not something a test suite checks against the repo's real
+state.
+
+---
+
+## 5. Defects fixed
+
+The one above. `docs/PACKAGING.md`'s icon paragraph now describes the
+real, current two-variant/hybrid-ICO state and cites TG-E's own report
+and `ARCHITECTURE.md` §22.15; Build Verification Task 5 is now struck
+through and marked done, with a note that what remains under items 3,
+4 and 6 is *observing* the real branding render correctly in a build,
+not the branding work itself. Verified by re-reading the corrected
+section against `MILESTONE_REPORT.md`'s TG-E entry and the real files
+on disk, the same way the original staleness was found.
+
+No code defect was found in TG-A through TG-E during this pass. The
+journal-corruption behavior investigated in §3 was a candidate and was
+ruled out as intentional, documented, verified-correct design, not a
+defect — recorded here so the investigation itself is not lost, even
+though it did not conclude with a fix.
+
+---
+
+## 6. Quality gate results
+
+Run fresh, not reused from TG-E's own run:
+
+- **Backend:** `pytest tests/` — full suite, run twice (once with this
+  project's default coverage reporting, once without, to get a clean
+  pass/fail summary past the coverage table); both runs exit 0, no
+  failures, one pre-existing skip (`test_file_domain.py`'s symlink
+  case, which this platform does not permit). ~78% overall coverage,
+  unchanged in character from prior task groups' runs.
+- **Frontend:** `tsc --noEmit` clean; `oxlint` — zero errors (the same
+  pre-existing Fast-Refresh-only warnings TG-E's own run reported,
+  none new); `vitest run` — **750 of 750 passing**, unchanged count
+  from TG-E, confirming this task group's one documentation edit
+  introduced no regression; `npm run build` — clean, `dist/branding/`
+  confirmed present in the output.
+- **Version consistency:** re-confirmed by direct read (§2), not only
+  by the test that enforces it.
+
+---
+
+## 7. Platform readiness
+
+Full detail, including the concrete migration checklist, now lives in
+`docs/PACKAGING.md`'s new "Cross-platform readiness" section — kept
+there rather than duplicated here, since that document is what a
+future Linux/macOS task group will actually open. Summary:
+
+**Already generalises:** a real `PlatformInfo` OS-detection module
+(`src/jarvis/infrastructure/platform/platform_detector.py`) is used
+consistently across hardware and dependency detection, with every
+Windows-only probe degrading to an honest, documented fallback on
+other platforms rather than failing or lying. The provisioning
+engine's eight steps are plain, OS-agnostic `pathlib` Python. The
+frontend's installer copy is already platform-neutral. The Tauri
+command contract is deliberately argument-free specifically so a
+platform difference does not have to grow into it.
+
+**Genuinely Windows-only today**, each found by reading the real
+source rather than assumed: `find_python()`'s `.venv/Scripts/
+python.exe` search path; `launch_application()`'s hardcoded `"JARVIS
+OS.exe"`; `open_installation_folder()` / `open_log_folder()`'s
+`explorer`-only implementation (already structured as an honest
+"unsupported on this platform" stub elsewhere, which is the right
+shape to extend rather than redesign); GPU/NPU detection's `wmic`
+fallback with no Linux/macOS equivalent; `tauri.conf.json`'s
+`nsis`-only bundle target.
+
+**Nothing here was implemented** — TG-F's own brief was explicit that
+this is an audit-and-document pass, not a Linux/macOS build.
+
+---
+
+## 8. Documentation updated
+
+`docs/PACKAGING.md` (the stale-icon-paragraph fix, the Build
+Verification Tasks list extended to twelve items, and the new
+Cross-platform readiness section with its migration checklist),
+`CHANGELOG.md` (new entry, no version bump — see §1), this file.
+`IMPLEMENTATION_ROADMAP.md` and `MASTER_ROADMAP.md` updated to record
+TG-F's own status and the real verification evidence from §3.
+`README.md` not changed — no user-visible behavior changed this pass.
+`ARCHITECTURE.md` not changed — no architecture decision changed;
+§22.15 already carries the icon-variant pattern this task group's
+checklist points back to rather than repeating.
+
+No historical record was rewritten: this section is appended after
+TG-E's, not merged into it; TG-C's, TG-D's and TG-E's reports are
+untouched above the divider; `CHANGELOG.md`'s 0.36.0, 0.37.0 and 0.38.0
+entries are untouched.
+
+---
+
+## 9. Remaining risks
+
+- **Everything gated on the Rust toolchain remains gated.** This is
+  not a new risk TG-F introduced; it is the same one TG-C named first,
+  now inherited by four task groups at once, all provable together by
+  one real build.
+- **`Cargo.lock` does not exist.** The first real build will generate
+  it; it should be committed at that point, not left generated-but-
+  ignored, so the exact dependency set a release was built against is
+  reproducible afterward.
+- **Upgrade installation specifically cannot be exercised even at the
+  CLI level** in this environment, because reaching a *complete*
+  installation to upgrade over requires a real model download, and
+  this environment's download-source registry ships empty by design.
+  This is a narrower, more specific gap than "no Rust toolchain" and
+  is worth naming on its own so it is not assumed closed once a
+  toolchain is eventually available — a real source will also need to
+  be configured before this specific scenario is provable.
+- **Accessibility verification remains static.** Role/`aria-*`-based
+  test coverage exists and passes (44 assertions across five installer
+  test files, confirmed in this task group's fresh run), but no
+  automated contrast or axe-based scan tool exists in this project,
+  and no screen-reader pass has been performed — both remain open,
+  unchanged from what TG-C/D/E's own reports already said.
+- **Runtime performance and memory cannot be measured** without a
+  compiled, running, packaged application — the production bundle's
+  static composition was reviewed (code-split, ~3.5 MB total `dist/`,
+  dominated by one variable-weight font file) but this is not a
+  substitute for measuring a real running process.
+
+---
+
+## 10. Recommendation: can M22 be marked Complete?
+
+**No.** Per `MASTER_ROADMAP.md` §18's own Acceptance Criteria, M22 is
+Complete only when TG-A and TG-B read Complete (they do) *and* TG-C,
+TG-D, TG-E and TG-F each read Build Verification Passed — meaning
+every row in the (now twelve-item) Build Verification Tasks table is
+checked, not merely that each task group's implementation checklist
+is. None of the twelve is checked. This is not a new blocker this
+task group introduced; it is the same one TG-C named in the first
+report this milestone produced, now confirmed to still be the single
+blocking factor across all four Windows-packaging task groups at once
+— nothing found during this pass changed that, and nothing found
+during this pass was a substitute for it.
+
+**What TG-F adds to the case for Complete, once a toolchain exists:**
+real, run-for-real evidence that the Python provisioning engine
+itself — the part every Rust command in `installer.rs` is a thin
+wrapper around — behaves exactly as documented under fresh install,
+resume, corruption-recovery, repair and re-verification, on this
+actual machine, today. What remains is proving the Rust layer around
+it faithfully relays that same behavior into a real packaged
+application, which was true before this task group and remains true
+after it.
+
+This report does not request that M23 begin, and TG-F's own brief
+asked explicitly to stop after it and await approval, which this is.

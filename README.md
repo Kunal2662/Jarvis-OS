@@ -280,8 +280,9 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 **Current version:** `0.38.0` · **Current milestone:** M22 —
 Cross-Platform Distribution & Universal Installer (🟡 active; Task Groups
 A and B complete, the installer UI wired to the engine, and Task Groups
-C, D and E — Windows Packaging & Host Bridge, Universal Installation
-Experience, and Windows Packaging & Installer Distribution — all
+C, D, E and F — Windows Packaging & Host Bridge, Universal Installation
+Experience, Windows Packaging & Installer Distribution, and Final Build
+Verification & Cross-Platform Readiness — all
 **Implementation Complete — Build Verification Pending**, see below).
 Status vocabulary throughout this README is the six terms
 `docs/ARCHITECTURE.md` §23 defines.
@@ -290,8 +291,8 @@ Status vocabulary throughout this README is the six terms
 runs next because it owns installation and packaging, and until it ships
 there is no way to deliver the first eight milestones to a machine that
 is not a development checkout. Within M22: TG-A and TG-B are Complete,
-TG-C, TG-D and TG-E are Implementation Complete — Build Verification
-Pending, and TG-F is Not Started. Development resumes at M9 once **all**
+TG-C through TG-F are Implementation Complete — Build Verification
+Pending, and TG-G is Not Started. Development resumes at M9 once **all**
 of M22 reaches Complete (`docs/MASTER_ROADMAP.md` §18's Acceptance
 Criteria state the exact gate), then runs M9 → M21 in order. M23 —
 Core Intelligence is deferred. This is a sequencing decision, not a
@@ -404,6 +405,26 @@ not composite frames at all (confirmed directly: a bare
 `requestAnimationFrame` loop never fired), so nothing built on Framer
 Motion could be watched running in it. See `MILESTONE_REPORT.md`'s Task
 Group E entry §7 for the full proven/unproven account.
+
+**TG-F (no version bump — a verification pass, not a shipped change)
+is the task group named to close the shared Rust build gate above, and
+its own report concludes it cannot be closed here.** Everything
+provable without a Rust toolchain was run for real rather than
+re-trusted from unit tests: `python -m jarvis.installer` against a real
+scratch install target — a fresh install that genuinely created the
+directory tree and completed real steps, a resumed run that correctly
+skipped what was already done, a deliberately truncated provisioning
+journal (confirmed, by reading `journal.py`, to fail safe by design
+rather than being a defect), an induced configuration failure that
+`verify` caught and `repair` then fixed, re-verified immediately after.
+One genuine documentation defect was found and fixed:
+`docs/PACKAGING.md` still described TG-E's branding work as unstarted
+after TG-E had shipped it. TG-F also audited, without implementing, the
+codebase's Windows-specific assumptions and produced a concrete
+migration checklist in `docs/PACKAGING.md` for a future Linux/macOS
+task group. See `MILESTONE_REPORT.md`'s Task Group F entry for the
+full evidence — its own conclusion is that **M22 cannot yet be marked
+Complete.**
 
 Also still open: cross-browser testing (Chromium only so far; the Tauri
 shell uses WebKit/WebView2), a screen-reader pass, and contrast

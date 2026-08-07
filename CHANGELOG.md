@@ -3,6 +3,74 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M22 Task Group F: Final Build Verification, Cross-Platform Readiness & Release Validation
+
+**No version bump.** Consistent with this project's own precedent
+(the governance documentation pass, `11a8f6f`): a verification and
+documentation pass with no shipped application change does not bump
+the version. Version remains `0.38.0`.
+
+**Status: Implementation Complete — Build Verification Pending**, for
+the same reason 0.36.0 through 0.38.0 carry it: no Rust toolchain
+exists on this build machine, so nothing gated on a real `tauri build`
+has been proven. What this pass adds is everything that *doesn't* need
+one, run for real rather than assumed.
+
+### Verified for real (no Rust toolchain required)
+- **Fresh installation, resume, and existing-installation detection**
+  — `python -m jarvis.installer provision` run against a real scratch
+  directory: genuinely created the directory tree, wrote a real
+  config file, completed three real steps, then failed at
+  `model_download` exactly as expected (this environment's download
+  source registry ships empty by design). Re-running the same command
+  correctly skipped the three completed steps rather than redoing
+  them.
+- **Interrupted installation recovery** — the provisioning journal was
+  deliberately truncated mid-write to simulate a crash. Confirmed
+  correct, intentional behavior (`journal.py`'s own documented
+  design: an unreadable journal is treated as absent, and every step
+  is idempotent, so starting over is safe) rather than a defect.
+- **Repair and verification workflows, together** — a real
+  installation's config file was deleted; `verify` correctly reported
+  it failed and repairable; `repair configuration` recreated it; a
+  second `verify` immediately confirmed the fix, re-verifying after
+  acting rather than trusting its own result.
+- **Dependency verification** — ran against this machine's real,
+  live-probed state (Python, Git, DirectML, CUDA), not a fixture.
+
+### Fixed
+- **`docs/PACKAGING.md`'s icon paragraph and Build Verification Task 5
+  were stale**, still describing Task Group E's branding work as
+  unstarted after Task Group E had shipped it — a documentation
+  regression from that file being outside Task Group E's own
+  documentation sync list. Corrected to describe the real, current
+  two-variant/hybrid-ICO state.
+
+### Added
+- **`docs/PACKAGING.md` "Cross-platform readiness" section** — an
+  evidence-based audit of every Windows-specific assumption in the
+  codebase (found by reading every `#[cfg(windows)]`, `wmic` call and
+  hardcoded path, not by guessing) and a concrete migration checklist
+  for a future Linux/macOS task group. Nothing in it was implemented —
+  this task group's own brief was explicit that it audits and
+  documents, and does not build Linux or macOS support.
+- **Two new Build Verification Tasks** (now twelve total, in
+  `docs/PACKAGING.md`): watching the startup animation actually run in
+  a real compositing browser (still not possible in this session's
+  sandboxed preview pane), and generating and committing
+  `frontend/src-tauri/Cargo.lock`, which does not exist yet because
+  `cargo` has never run against this repository.
+
+### Notes
+- **M22 cannot be marked Complete.** Per `MASTER_ROADMAP.md` §18, all
+  of TG-C, TG-D, TG-E and TG-F must reach Build Verification Passed —
+  none of the twelve Build Verification Tasks is checked. This is the
+  same blocker TG-C's own first report named, now confirmed to still
+  be the single blocking factor across four task groups at once.
+- Full audit findings, the complete real-CLI verification evidence,
+  and the itemized remaining-risk list are in `MILESTONE_REPORT.md`'s
+  Task Group F entry.
+
 ## [0.38.0] — M22 Task Group E: Windows Packaging & Installer Distribution
 
 **Status: Implementation Complete — Build Verification Pending**, for
