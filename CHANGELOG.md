@@ -3,6 +3,126 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.38.0] — M22 Task Group E: Windows Packaging & Installer Distribution
+
+**Status: Implementation Complete — Build Verification Pending**, for
+the same reason 0.36.0 and 0.37.0 carry that status: no Rust toolchain
+exists on the build machine, so nothing new in `src-tauri/` has been
+compiled.
+
+An audit before implementation found most of this task group's
+nineteen-item brief already built by Task Groups A–D: NSIS
+configuration, installer/uninstaller/Add-Remove-Programs registration,
+version metadata, installation logging, launch-after-install, and
+open-installation-folder are all real, shipped capability, not new
+work. What was genuinely missing was the application's actual branding
+— every icon in the repository was still Tauri's own placeholder logo
+— and that gap became directly actionable mid-task-group when the
+user supplied and approved the official JARVIS master logo.
+
+### Added
+- **The approved master logo**, integrated as the project's brand
+  identity: `frontend/src-tauri/icons/master-logo.png` (the source of
+  truth), a full production icon set (16 through 1024px PNG, `.ico`,
+  `.icns`), and `frontend/public/branding/premium/` for future in-app
+  use (About, Settings, notifications — none of which exist yet in
+  this codebase; nothing was invented to house them early).
+- **A second, simplified icon variant**, hand-authored specifically
+  for the sizes where the master's metallic gradients stop reading —
+  confirmed empirically: the master rasterized to plain 32×32 renders
+  as a near-illegible dark blur. `frontend/src-tauri/icons/small-icon-
+  source.svg` is a bold, high-contrast reinterpretation of the same
+  ring-and-blade silhouette, used for 16–48px contexts (taskbar, system
+  tray, Explorer, window title bar) and `frontend/public/branding/
+  small-icon/`.
+- **A hybrid multi-resolution `icon.ico`**, built by a small
+  hand-written PNG-in-ICO packer (no Pillow/ImageMagick available):
+  small frames (16/24/32/48) from the simplified variant, large frames
+  (128/256) from the master, so the one file Windows actually reads is
+  legible at every size it gets asked to render, not just the large
+  ones.
+- **The startup animation's logo recreated as SVG** (`components/
+  startup/jarvis-logo.tsx`), replacing the earlier hexagon placeholder
+  with the approved logo's own geometry, animated with Framer Motion
+  across the existing `assembling`/`pulsing` phases — ring channels
+  drawing, the outer ring fading in, the center blade rising, the side
+  blades sliding up, a glow igniting, a pulse travelling outward, one
+  soft breathing cycle. Every animated property is opacity, a
+  transform translate/scale, or SVG `pathLength` — never a
+  layout-triggering property — so this composites on the GPU without
+  forcing layout.
+- **The browser-tab favicon replaced** (`public/favicon.svg`) — was an
+  unrelated purple abstract mark (a Vite/template-era placeholder, not
+  even the same shape family as the hexagon logo elsewhere), found only
+  by checking `index.html` directly rather than assuming the favicon
+  was already covered by the icon work.
+- **`packaging/verify_tauri_build.ps1`**, a new build-verification
+  script that turns part of Task Group C's manual Build Verification
+  Tasks list into mechanical pass/fail checks: the installer artifact
+  exists, its version metadata matches this project's single source of
+  truth, its product/publisher fields are real, and the shipped icon is
+  provably not Tauri's placeholder. Run for real against this
+  project's current (unbuilt) state — correctly reports the one
+  failure that should exist (no installer yet) and passes every check
+  that does not depend on a build existing.
+- **11 new packaging/branding contract tests** plus a rewritten
+  `jarvis-logo.tsx` test suite (7 tests, up from 4) — 750 tests total
+  in the frontend suite, up from 736.
+
+### Fixed
+- **A verification heuristic that broke on its own first real input.**
+  The build-verification script's original icon check asserted "small
+  enough to be the real icon" against an early placeholder; Task Group
+  E's actual hybrid `.ico` is a multi-resolution file that ended up
+  *larger* than the Tauri placeholder it replaced, not smaller,
+  immediately failing that heuristic against genuinely correct output.
+  Replaced with a negative match against the placeholder's own known,
+  fixed byte size — a check that does not need updating every time this
+  project's real artwork does.
+- **A double hyphen inside an SVG comment**, twice, while authoring
+  `small-icon-source.svg` — XML forbids `--` inside comment text and
+  Tauri's icon generator enforces it strictly, panicking with a parse
+  error rather than a readable message. Found by actually running the
+  generator against the file before treating it as done, not by
+  inspecting the SVG source and assuming it would parse.
+- **A compounding double-opacity animation** in `jarvis-logo.tsx`'s
+  first draft — a parent group and its child paths each independently
+  animated `opacity` toward 1, which compose multiplicatively rather
+  than additively, producing a slower, muddier fade than either
+  animation alone intended. Found on review, not by observation (see
+  Notes); fixed by leaving opacity solely to the paths that actually
+  need it and letting the group own only the shared translate.
+
+### Notes
+- **Roadmap scope, resolved further.** Prior documentation described
+  "Task Groups E–F" as an undivided Linux/macOS-packaging-and-QA block
+  with the letter split undecided. Task Group E is now resolved
+  specifically to Windows Packaging & Installer Distribution; that
+  packaging/QA scope moves entirely to Task Group F, which absorbs
+  what would have been split between the two.
+- **Live browser animation verification was not possible in this
+  session's environment.** The sandboxed Browser pane used for
+  UI verification does not composite frames at all —
+  `requestAnimationFrame` was confirmed, directly, to never fire in
+  that tab — which explains why `computer.screenshot` also failed
+  independent of timing. This is a property of that specific pane, not
+  evidence the animation code is broken: Framer Motion's engine is
+  itself driven by `requestAnimationFrame`, so nothing animated in that
+  session regardless of which component was involved. What *was*
+  verified without a working compositor: correct DOM/SVG structure,
+  Framer Motion correctly initializing every element's `initial` state
+  (including SVG-specific `transform-box`/`transform-origin` handling),
+  zero console errors across several real mounts, and a careful manual
+  review that found and fixed the compounding-opacity bug above. See
+  `MILESTONE_REPORT.md`'s Task Group E entry for the full account.
+- **Two deviations from what a strict reading of "Windows Packaging &
+  Installer Distribution" would cover**, both directly instructed:
+  integrating branding into the startup animation and favicon reaches
+  slightly beyond "installer distribution" into general app branding;
+  and file associations were evaluated and found not applicable — this
+  project has no custom file format — documented as N/A rather than
+  invented to fill a checklist item.
+
 ## [0.37.0] — M22 Task Group D: Universal Installation Experience
 
 **Status: Implementation Complete — Build Verification Pending**, for

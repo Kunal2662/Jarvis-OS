@@ -277,21 +277,22 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.37.0` · **Current milestone:** M22 —
+**Current version:** `0.38.0` · **Current milestone:** M22 —
 Cross-Platform Distribution & Universal Installer (🟡 active; Task Groups
 A and B complete, the installer UI wired to the engine, and Task Groups
-C and D — Windows Packaging & Host Bridge, and Universal Installation
-Experience — both **Implementation Complete — Build Verification
-Pending**, see below). Status vocabulary throughout this README is the
-six terms `docs/ARCHITECTURE.md` §23 defines.
+C, D and E — Windows Packaging & Host Bridge, Universal Installation
+Experience, and Windows Packaging & Installer Distribution — all
+**Implementation Complete — Build Verification Pending**, see below).
+Status vocabulary throughout this README is the six terms
+`docs/ARCHITECTURE.md` §23 defines.
 
 **Work is not proceeding in numeric order.** M1–M8 are complete; M22
 runs next because it owns installation and packaging, and until it ships
 there is no way to deliver the first eight milestones to a machine that
 is not a development checkout. Within M22: TG-A and TG-B are Complete,
-TG-C and TG-D are Implementation Complete — Build Verification Pending,
-and TG-E/F are Not Started. Development resumes at M9 once **all** of
-M22 reaches Complete (`docs/MASTER_ROADMAP.md` §18's Acceptance
+TG-C, TG-D and TG-E are Implementation Complete — Build Verification
+Pending, and TG-F is Not Started. Development resumes at M9 once **all**
+of M22 reaches Complete (`docs/MASTER_ROADMAP.md` §18's Acceptance
 Criteria state the exact gate), then runs M9 → M21 in order. M23 —
 Core Intelligence is deferred. This is a sequencing decision, not a
 renumbering — see `docs/MASTER_ROADMAP.md` §19, Roadmap Governance,
@@ -379,6 +380,30 @@ groups' Rust together. TG-D began before TG-C's ten tasks passed and
 before the explicit approval TG-C's own report said that would need —
 a deviation from the plan as it read before this milestone, made on
 direct instruction; see `MILESTONE_REPORT.md`'s Task Group D entry §8.
+
+`0.38.0` closed the branding gap TG-C's own report had flagged and left
+unstarted: **every icon in the project was still Tauri's own
+placeholder.** The user supplied and approved an official JARVIS master
+logo mid-task-group, which is now the single source of truth across the
+installer, the application icon, the taskbar, and the startup animation.
+Rendering it directly at 32×32 was tested and found near-illegible, so
+two deliberate variants exist — the master logo as-is above 128px, and a
+hand-simplified, high-contrast form built specifically for 16–48px —
+combined into one hand-packed hybrid `icon.ico` (Tauri's own generator
+cannot mix two source images into one multi-resolution file). The
+startup animation was recreated as a scalable, Framer-Motion-driven SVG
+using the same master geometry, fitted into the existing choreography's
+phase window rather than changing that system's own API.
+
+**TG-E status: Implementation Complete — Build Verification Pending**,
+for the same underlying reason as TG-C/TG-D — the new icons are real
+inputs to a `tauri build` that has not run on this machine — plus one
+item specific to this task group: the startup animation's actual motion
+has never been observed. This session's sandboxed browser preview does
+not composite frames at all (confirmed directly: a bare
+`requestAnimationFrame` loop never fired), so nothing built on Framer
+Motion could be watched running in it. See `MILESTONE_REPORT.md`'s Task
+Group E entry §7 for the full proven/unproven account.
 
 Also still open: cross-browser testing (Chromium only so far; the Tauri
 shell uses WebKit/WebView2), a screen-reader pass, and contrast

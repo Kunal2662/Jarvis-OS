@@ -1738,11 +1738,11 @@ Assigned to **M22**. The OS abstraction layer is the load-bearing piece:
 it is what keeps §22.10's single installation flow honest across three
 platforms rather than three flows wearing one name.
 
-**Windows (M22 Task Groups C and D, v0.36.0/v0.37.0) is Implementation
-Complete — Build Verification Pending** (§23.4/§23.7 below govern
-exactly what that leaves open). Linux, macOS, the portable edition, the
-enterprise installer, auto-update and code signing are Planned — not
-started.
+**Windows (M22 Task Groups C, D and E, v0.36.0/v0.37.0/v0.38.0) is
+Implementation Complete — Build Verification Pending** (§23.4/§23.7
+below govern exactly what that leaves open). Linux, macOS, the portable
+edition, the enterprise installer, auto-update and code signing are
+Planned — not started.
 
 *The host bridge* (`frontend/src-tauri/src/installer.rs`) is where the
 webview meets the operating system. It spawns
@@ -1768,6 +1768,34 @@ No JavaScript-facing process-spawning capability is granted. Spawning
 happens in Rust, behind named commands with fixed shapes — a webview
 that could spawn arbitrary processes is a larger capability than an
 installer needs, on the surface with the largest attack area.
+
+**Branding at small raster sizes (M22 Task Group E, v0.38.0).** A
+single master brand asset does not automatically survive downscaling.
+JARVIS OS's master logo, rendered directly at 32×32, was tested and
+found near-illegible — its detail is real evidence for a rule worth
+generalising, not an assumption: **a platform's icon pipeline needs two
+variants, not one.** A *premium* form (the master asset, unmodified)
+for sizes where its detail actually resolves — 128px and above, and any
+large in-app placement — and a *small-icon* form, deliberately
+simplified for legibility (flatter colour, thicker strokes, less or no
+gradient/blur) for the 16–48px range a taskbar, system tray or Explorer
+actually renders at. The simplification is a reinterpretation of the
+same silhouette, not a redesign and not an automated trace — no vector-
+tracing tool was available in this environment, and none is assumed to
+be available on a future platform's build machine either.
+
+Where a target format needs one multi-resolution file combining both
+(Windows' `.ico`) and the platform's own icon-generation tooling cannot
+mix two source images into a single output, the fallback is to hand-pack
+the container format directly rather than compromise on one variant for
+every size — `.ico` specifically is an `ICONDIR` header plus one
+`ICONDIRENTRY` and one already-rasterized PNG per frame (PNG-in-ICO,
+valid since Windows Vista), which any platform's build step can
+construct with a general-purpose language's standard library alone.
+Whichever concrete technique macOS's `.icns` or a Linux desktop's icon
+theme needs, the two-variant *decision* — verify legibility at the
+smallest real target size before trusting one asset everywhere — is the
+part that generalises and is recorded here for that reason.
 
 ---
 

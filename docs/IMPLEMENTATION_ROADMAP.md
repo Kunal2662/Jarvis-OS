@@ -131,8 +131,10 @@ Current:    M22
               TG-B  Complete
               TG-C  Implementation Complete
                     Build Verification Pending
-              TG-D  Not Started
-              TG-E  Not Started
+              TG-D  Implementation Complete
+                    Build Verification Pending
+              TG-E  Implementation Complete
+                    Build Verification Pending
               TG-F  Not Started
 
 After M22, resume with M9 → M10 → M11 → M12 → M13 → M14 → M15
@@ -2334,16 +2336,83 @@ authority TG-C's report was deferring to. See
 
 **Where the old "D–F" scope went:** Linux packaging (AppImage, Flatpak,
 DEB, RPM), macOS packaging (DMG, PKG), and cross-browser QA are not
-dropped — they move to Task Groups E/F below, whose own letter-to-content
-split remains undecided, exactly as the D/E/F split was before this
-resolution.
+dropped. TG-E's own scope resolved to Windows Packaging & Installer
+Distribution (below), not this block, so all of it now moves to
+Task Group F alone — no longer split between two undecided letters.
 
-### Task Groups E–F *(not started)*
+### Task Group E — Windows Packaging & Installer Distribution 🟡 *(v0.38.0 — Implementation Complete — Build Verification Pending)*
 
-The scope previously described as an undivided "Task Groups D–F"
-block, now that D has its own name and section above. The split
-between E and F is not yet decided — these are the known contents, not
-an assignment to a particular letter.
+*(Resolved Aug 2026 from the earlier "Task Groups E–F, letter-to-scope
+undecided" placeholder — see the note above for where the displaced
+scope went.)*
+
+An audit before implementation found fifteen of the brief's nineteen
+items already real, inherited from TG-C/TG-D (installer generation,
+NSIS config, shortcuts, uninstaller, Add/Remove Programs, metadata,
+upgrade path, logging, launch-after-install, open-folder). The
+genuine gap, already flagged by TG-C's own report: every icon in the
+project was still Tauri's placeholder. That became actionable when the
+user supplied and approved the official JARVIS master logo mid-task-
+group.
+
+- [x] Official master logo integrated as the single source of truth
+      (`src-tauri/icons/master-logo.png`).
+- [x] Full icon set regenerated via `npx tauri icon` — 16 through
+      1024px PNGs, `icon.ico`, `icon.icns`, plus a
+      `public/branding/{premium,small-icon}/` tree for future in-app
+      use.
+- [x] Two deliberate variants, not one: **Premium** (master logo as-is,
+      128px and above, where its gradients read correctly) and
+      **Small Icon** (`small-icon-source.svg`, hand-simplified —
+      flatter colour, thicker strokes, no blur — for 16-48px, where
+      the master was tested and found near-illegible).
+- [x] Hybrid multi-resolution `icon.ico`, hand-packed (small frames
+      from the Small Icon variant, large frames from Premium) since
+      `tauri icon` cannot mix two source images into one file.
+- [x] Startup animation recreated as scalable SVG
+      (`components/startup/jarvis-logo.tsx`) using the master logo's
+      own geometry, animated via Framer Motion within the existing
+      `assembling`/`pulsing` phase window — the phase API itself
+      unchanged.
+- [x] Browser favicon replaced (`public/favicon.svg`) — found during
+      audit to still be an unrelated Vite-template placeholder, not
+      just unbranded.
+- [x] `packaging/verify_tauri_build.ps1` — new mechanical build-
+      verification script (installer produced, version/product/
+      publisher metadata correct, icon is not the known placeholder
+      size).
+- [x] 11 new packaging/branding contract tests plus a rewritten
+      `jarvis-logo.tsx` suite (750 total frontend tests, up from 736).
+- [x] File associations evaluated and confirmed not applicable — no
+      custom file format exists in this project.
+
+**Not verified — no Rust toolchain on this machine.** Same gate as
+TG-C/TG-D: the new icons are real inputs to a `tauri build` that has
+not run. **Also not verified: the startup animation's actual visual
+motion.** The sandboxed browser pane available for this work does not
+composite frames — confirmed directly (a bare `requestAnimationFrame`
+loop never fired) rather than assumed — so nothing built on Framer
+Motion could be watched running, in this pane, this session. What
+stands in its place: correct DOM structure and Framer Motion
+initialization confirmed live, zero console errors across real mounts,
+and one real defect (compounding parent/child opacity) found and fixed
+by manual review despite that limitation. See `MILESTONE_REPORT.md`'s
+Task Group E entry §7 for the full proven/unproven split.
+
+**Deviation, recorded plainly:** branding integration reached slightly
+past a strict reading of "installer distribution" — the startup
+animation and browser favicon are general application branding, not
+installer-specific surfaces. Done on direct instruction, treating "no
+placeholder logos remain anywhere in the project" as the operative
+line once a real master asset existed. Settings, About, Notifications
+and an Update Dialog were **not** touched — audited and confirmed not
+to exist yet in this codebase, and not invented solely to place a
+logo. See `MILESTONE_REPORT.md`'s Task Group E entry §9.
+
+### Task Group F *(not started)*
+
+The scope previously described as an undivided "Task Groups E–F"
+block, now that E has its own name and section above.
 
 - [ ] AppImage, Flatpak, DEB, RPM, desktop integration.
 - [ ] DMG, PKG, Apple Silicon and Intel, native menu.
@@ -2367,14 +2436,14 @@ as two independent claims that happen to agree.)*
 | **TG-B** — Runtime Provisioning | **Complete** (v0.34.0) — all checklist items above checked |
 | **TG-C** — Windows Packaging & Host Bridge | **Implementation Complete — Build Verification Pending** (v0.36.0) — implementation checklist above fully checked; all ten Build Verification Tasks unchecked |
 | **TG-D** — Universal Installation Experience | **Implementation Complete — Build Verification Pending** (v0.37.0) — implementation checklist above fully checked; shares TG-C's outstanding Rust build gate |
-| **TG-E** | **Not Started** |
+| **TG-E** — Windows Packaging & Installer Distribution | **Implementation Complete — Build Verification Pending** (v0.38.0) — implementation checklist above fully checked; shares TG-C/TG-D's outstanding Rust build gate, plus its own unverified startup-animation visual check (see above) |
 | **TG-F** | **Not Started** |
 
-TG-D's scope is now resolved (Universal Installation Experience,
-Aug 2026); TG-E/F's letter-to-scope mapping remains open — the
-Linux packaging, macOS packaging and cross-browser QA scope previously
-described as an undivided "D–F" block now sits under E/F, split
-between the two exactly as undecided as it was before TG-D was named.
+TG-D's and TG-E's scopes are now resolved (Universal Installation
+Experience and Windows Packaging & Installer Distribution, both Aug
+2026); the Linux packaging, macOS packaging and cross-browser QA scope
+previously described as an undivided "D–F" block now sits entirely
+under TG-F, no longer split across two letters.
 
 ### M22 is considered COMPLETE only when
 
@@ -2388,7 +2457,10 @@ between the two exactly as undecided as it was before TG-D was named.
 - TG-D: Build Verification Passed — same gate as TG-C, and in practice
   the same build: TG-D's five Rust commands live in the same
   `installer.rs` TG-C's five do
-- TG-E: Complete
+- TG-E: Build Verification Passed — same Rust build gate as TG-C/TG-D,
+  plus the startup animation actually observed running in a real
+  compositing browser (not possible in this session's sandboxed
+  preview pane — see TG-E's own section above)
 - TG-F: Complete
 
 **TG-D began before this gate's original wording ("TG-D does not begin

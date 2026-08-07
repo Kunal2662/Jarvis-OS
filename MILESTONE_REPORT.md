@@ -985,3 +985,417 @@ and TG-D's five together, and is the only thing that turns either task
 group's status from Implementation Complete to Complete. This report
 does not request that TG-E begin; the brief that produced it asked
 explicitly to stop after TG-D and await approval, which this is.
+
+---
+---
+
+# Milestone Report — M22 Task Group E: Windows Packaging & Installer Distribution
+
+**Version:** 0.38.0
+**Branch:** `feature/m22-task-group-c`
+**Baseline:** v0.37.0 (TG-D, Implementation Complete — Build Verification Pending)
+**Date:** 2026-08-07
+
+> **A third, separate report appended to the same file.** Nothing above
+> this divider was edited — TG-C's and TG-D's reports, including TG-C's
+> own still-unrun Build Verification Tasks table, stand exactly as
+> written. TG-E's own report follows, with its own §1 onward.
+
+## 1. Executive summary
+
+The brief listed nineteen items under "Windows Packaging & Installer
+Distribution." An audit before writing anything found most of them
+already real: NSIS configuration, the installer/uninstaller/Add-Remove-
+Programs machinery, version metadata, installation logging, launch-
+after-install and open-installation-folder are all Task Group C/D
+capability, not gaps. What was genuinely missing was narrower and more
+consequential than any single checklist item — **every icon in this
+project was still Tauri's own placeholder logo**, a fact Task Group C's
+own report had already found and flagged as unstarted work.
+
+That gap became directly actionable mid-task-group: the user supplied
+and approved the official JARVIS master logo (a commissioned image,
+provided as a chat attachment) partway through this task group's work.
+This report covers both halves honestly — the packaging-config audit
+that came first, and the branding integration that followed once a
+real asset existed to integrate.
+
+**Status: Implementation Complete — Build Verification Pending**, the
+same status TG-C and TG-D carry, for the same reason: this task group
+touched no `src-tauri/` Rust logic, but the icon files it replaced are
+part of what a real `tauri build` packages, so it inherits the same
+unverified-without-a-toolchain gate.
+
+---
+
+## 2. Status of M22
+
+| Task group | Status |
+|---|---|
+| **A — Universal Installer Foundation** | ✅ Complete (v0.33.0) |
+| **B — Runtime Provisioning** | ✅ Complete (v0.34.0) |
+| **Installer UI integration** | ✅ Complete (v0.35.0) |
+| **C — Windows Packaging & Host Bridge** | 🟡 Implementation Complete — Build Verification Pending (v0.36.0) |
+| **D — Universal Installation Experience** | 🟡 Implementation Complete — Build Verification Pending (v0.37.0) |
+| **E — Windows Packaging & Installer Distribution** | 🟡 **Implementation Complete — Build Verification Pending** (v0.38.0, this report) |
+| **F** | ⬜ Not started; absorbs the Linux/macOS packaging and cross-platform QA scope previously split between E/F — see §9 |
+
+TG-A through TG-D are unmodified by this work: `git diff --stat
+src/jarvis/` is empty (zero Python files touched, same as TG-D), and no
+existing Rust command, transport function, or React component's
+behavior changed — only icon *content* and one animated component's
+internals changed, both additive/replacement, not behavioral edits to
+anything TG-C/D built.
+
+---
+
+## 3. Audit findings
+
+Performed before any code changed, per this task group's own brief:
+
+- **Rust toolchain:** confirmed absent, fresh (not assumed from
+  memory) — `cargo`, `rustc`, `rustup`, and `~/.cargo` all checked
+  directly and found missing.
+- **TG-D implementation:** verified intact against its own
+  documentation — all 5 Rust commands present and registered in
+  `lib.rs`, all frontend files present, transport wired, matching
+  `MILESTONE_REPORT.md`'s own TG-D entry exactly.
+- **Quality gates, fresh:** tsc clean, oxlint 0 errors, 736/736 vitest
+  passing, build clean, before this task group's first edit.
+- **One false alarm, resolved by checking rather than assuming:** the
+  scratchpad directory contained files named with a "tgf"/"tge"
+  pattern. `git log --all --oneline` across every branch confirmed
+  these were unrelated leftovers from M11 Task Group F (v0.28.0, a
+  different, already-merged milestone earlier in this session) — not
+  evidence of undocumented M22 work.
+- **TG-E's nineteen-item brief cross-referenced against reality:** see
+  §4 for what was already built vs. genuinely missing.
+- **Real JARVIS branding assets, searched for before assuming none
+  existed:** found `components/startup/jarvis-logo.tsx`, an original
+  (if simple) animated emblem, not Tauri's placeholder — this became
+  the starting point for the icon work before the master logo arrived
+  and superseded it.
+- **`npx tauri icon` (the CLI's own icon-generation subcommand),
+  tested rather than assumed to work:** confirmed functional in this
+  environment (no native dependencies missing), and confirmed *how*
+  it behaves — accepts SVG or PNG input, defaults to generating a
+  broader cross-platform set (including iOS/Android artifacts this
+  project does not target) unless custom sizes are requested.
+
+---
+
+## 4. The nineteen-item brief against reality
+
+| Item | Status before this task group | What this task group did |
+|---|---|---|
+| Windows installer generation | Config exists (TG-C) | Unchanged; gated on Build Verification |
+| NSIS configuration | Complete (TG-C) | Unchanged |
+| Installer branding | **Unstarted** — TG-C's own flagged gap | **Built** — see §5 |
+| Installer icon | Tauri placeholder | **Replaced** |
+| Application icon | Tauri placeholder | **Replaced** |
+| File associations | N/A | Evaluated, confirmed not applicable — no custom file format exists |
+| Start Menu shortcut | Relies on NSIS default template (TG-C) | Unchanged; still gated on a real build to observe |
+| Desktop shortcut | Same | Unchanged |
+| Uninstaller | NSIS auto-generates (TG-C) | Unchanged |
+| Add/Remove Programs | Automatic via NSIS + TG-C metadata | Unchanged |
+| Installer metadata | Set (TG-C) | Unchanged |
+| Product information | Set (TG-C) | Unchanged |
+| Version metadata | Enforced by `test_version_consistency.py` | Unchanged; version bumped to 0.38.0 per the established per-task-group precedent |
+| Upgrade path | `allowDowngrades: false` + fixed identifier (TG-C) | Unchanged; NSIS's own in-place-upgrade default, not additional config |
+| Silent installation support | NSIS's own `/S` flag, no config surface exists for it | Unchanged; documented, not built, since there is nothing to configure |
+| Installation logging | Complete (TG-C logger + TG-D `open_log_folder`) | Unchanged |
+| Launch after installation | Complete (TG-C `launch_application`) | Unchanged |
+| Open installation folder | Complete (TG-C) | Unchanged |
+| Installer verification | TG-C's own 10-item Build Verification Tasks gate | **Extended** with a new mechanical script — see §5 |
+| Packaging diagnostics | Nothing existed | **Built** — `verify_tauri_build.ps1`'s pass/fail output |
+
+Fifteen of nineteen items were already real capability inherited from
+TG-C/TG-D. Four were genuine gaps, and all four are now closed to the
+extent achievable without a Rust toolchain.
+
+---
+
+## 5. What was built
+
+| Piece | File |
+|---|---|
+| Master logo (source of truth) | `frontend/src-tauri/icons/master-logo.png` |
+| Full premium icon set (16–1024px, `.ico`, `.icns`) | `frontend/src-tauri/icons/`, `frontend/public/branding/premium/` |
+| Simplified small-icon variant, hand-authored | `frontend/src-tauri/icons/small-icon-source.svg`, `frontend/public/branding/small-icon/` |
+| Hybrid multi-resolution `icon.ico` | Built by a one-off Python PNG-in-ICO packer (see §6) |
+| Browser favicon, replaced | `frontend/public/favicon.svg` |
+| Startup animation, recreated as SVG | `frontend/src/components/startup/jarvis-logo.tsx` |
+| Build-verification script | `packaging/verify_tauri_build.ps1` |
+| 11 packaging/branding contract tests | `frontend/src/features/installer/__tests__/packaging-contract.test.ts` |
+| `jarvis-logo.tsx` test suite, rewritten | `frontend/src/components/startup/__tests__/jarvis-logo.test.tsx` |
+
+### Two variants, not one, and why
+
+The master logo rasterized directly to 32×32 was tested for real and
+found near-illegible — a dark, low-contrast blur, confirmed by
+rendering and looking at it, not assumed from the artwork's general
+busyness. This is the empirical justification for the brief's own
+"two official variants" requirement, not just a instruction followed
+on faith:
+
+- **Variant A (premium):** the master logo, used as-is, for sizes
+  where its metallic gradients and glow read clearly — 128px and
+  above, and anywhere in the running app that eventually shows a large
+  mark (About, splash, marketing).
+- **Variant B (small icon):** a hand-authored, high-contrast
+  simplification — flat colours instead of gradients, no blur filter,
+  thicker strokes, a darker outer tone chosen so the shape holds up on
+  both light and dark Windows themes rather than the master's paler
+  mid-tones. Not a vector trace (no tracing tool was available in this
+  environment) — a deliberate reinterpretation of the same silhouette,
+  verified by rendering it at 16/32/48px and looking at the result
+  before finalizing.
+
+### The hybrid `.ico`
+
+`tauri icon` generates a multi-resolution `.ico` from one source image
+uniformly — it cannot mix two different source images into one file's
+frames. Since Windows reads a single `icon.ico` for the taskbar,
+Explorer, and the large-icon view alike, using only Variant A would
+make the small frames illegible again, and using only Variant B would
+throw away the premium detail everywhere large. Built instead: a small,
+self-contained Python script using only the standard library (`struct`)
+to hand-write a valid ICONDIR/ICONDIRENTRY header embedding
+already-rasterized PNGs directly (PNG-in-ICO, valid since Windows
+Vista) — small frames (16/24/32/48) from Variant B, large frames
+(128/256) from Variant A. Verified structurally sound by reading the
+file back and confirming every directory entry's claimed dimensions
+match its embedded PNG's own `IHDR` — not merely "the script ran
+without an error."
+
+### The startup animation
+
+`jarvis-logo.tsx` mounts for exactly two of `startup-sequence.tsx`'s
+eight already-choreographed phases (~1.3s of a ~4.2s total sequence).
+Rather than widen that component's own phase API — which would mean
+changing a separate, already-tuned system out of scope for a branding
+task group — the richer nine-beat sequence the brief described was
+built *inside* the existing `assembling`/`pulsing` window via staggered
+Framer Motion animations, using the master logo's own geometry (the
+same paths `small-icon-source.svg` uses, so the startup mark and the
+taskbar icon are visibly one identity). Every animated property is
+`opacity`, a transform, or SVG `pathLength` — never a layout-triggering
+property — which is what the brief's "60 FPS, GPU accelerated, no
+layout shifts" requirement actually depends on structurally, not
+something to assert as true separately from which properties are
+touched.
+
+---
+
+## 6. Defects found and fixed
+
+Three, all in code written during this task group, all found by
+actually running something rather than by re-reading it.
+
+**A verification heuristic that broke on its own first real input.**
+`verify_tauri_build.ps1`'s original icon check asserted "the file is
+small enough to be the real icon" (a magnitude heuristic against an
+early placeholder size). The moment the real hybrid `.ico` existed —
+larger than the Tauri placeholder it replaced, not smaller, because it
+now embeds six frames instead of Tauri's own smaller default set — that
+heuristic failed against genuinely correct output. Replaced with a
+negative match against the placeholder's own exact, fixed byte size
+(37,710 bytes), which does not need updating as this project's real
+icon content continues to change. The same fix was made in
+`packaging-contract.test.ts`, kept deliberately consistent with the
+script rather than inventing a second technique for the same question.
+
+**A double hyphen inside an SVG comment, found twice.** Tauri's icon
+generator panics on a parse error if an SVG comment contains `--`
+anywhere in its body — valid, common Markdown/prose style in this
+project's own documentation, invalid XML. First occurrence: the
+comment itself, describing the design. Second, more subtle occurrence:
+inside a sentence *about* the rule, which quoted the literal
+forbidden string while explaining it. Both found by actually running
+`npx tauri icon` against the file and reading the panic, not by
+proofreading the SVG source and assuming it would parse — confirmed by
+also testing an intentionally-reduced isolated case (a comment with no
+double hyphen at all) to prove the double hyphen specifically was the
+cause before accepting the fix.
+
+**A compounding double-opacity animation.** `jarvis-logo.tsx`'s first
+draft had a parent `motion.g` and its child `motion.path` elements each
+independently animate their own `opacity` toward 1. Opacity composes
+multiplicatively down the DOM, not additively, so this produced a
+slower, muddier fade than either animation alone intended — a real
+defect, though a subtle one that live visual inspection might well have
+missed even with a working browser compositor (see §7). Found on a
+careful manual re-read of the component specifically prompted by not
+being able to verify it visually; fixed by leaving opacity entirely to
+the children's own draw-on animation and having the group own only the
+shared upward translate.
+
+---
+
+## 7. What is proven, and what is not
+
+**Proven:**
+- `npx tauri icon` runs successfully in this environment and produces
+  the documented output for both SVG and PNG input.
+- The generated icon files are structurally valid: `icon.ico`'s own
+  ICONDIR header, directory entries, and embedded PNG payloads were
+  read back and cross-checked against each other, not just assumed
+  correct because the packer script exited 0.
+- The master logo rasterized at 32×32 is genuinely close to illegible
+  — confirmed by rendering and inspecting it, which is *why* Variant B
+  exists rather than being a precaution taken on faith.
+- Variant B is legible at 16, 32, and 48px — confirmed the same way.
+- `jarvis-logo.tsx` mounts with the correct DOM structure (5 paths, 2
+  groups, 1–3 circles depending on phase) in a real, running dev
+  server — confirmed via direct DOM inspection through the browser
+  tooling.
+- Framer Motion correctly recognizes and initializes every animated
+  SVG element, including setting `transform-box: fill-box` and
+  `transform-origin: 50% 50%` automatically for the `motion.g`
+  elements — confirmed by reading the actual inline styles the library
+  applied, not assumed from documentation.
+- Zero console errors or warnings across several real mounts of the
+  full startup sequence.
+- `verify_tauri_build.ps1` runs correctly against this project's real,
+  current, unbuilt state: correctly fails the one check that should
+  fail (no installer produced yet) and passes every check that does
+  not depend on a build existing, including the icon check against the
+  real generated file.
+- Zero Python files changed; the full backend version-consistency
+  suite passes.
+- 750 frontend tests pass (up from 736 at this task group's start),
+  tsc clean, oxlint 0 new errors, production build clean, and
+  `public/branding/` assets confirmed present in the actual `dist/`
+  output.
+
+**Not proven, honestly:**
+- **The startup animation's actual visual motion was never observed.**
+  This is the significant gap in this task group's verification, and
+  it is a genuine one, not a formality. The sandboxed Browser pane
+  available in this session does not composite frames at all —
+  confirmed directly, not inferred: a bare `requestAnimationFrame`
+  loop was run in that tab and never fired within a full second.
+  `computer.screenshot` failing independent of timing (even against
+  already-loaded, static content) is the same root cause. Since Framer
+  Motion's engine is itself driven by `requestAnimationFrame`, nothing
+  animates in that pane regardless of which component is involved —
+  this is a property of the tooling in this session, not evidence
+  specific to `jarvis-logo.tsx`. What stands in its place: correct
+  structure, correct Framer Motion initialization, zero errors across
+  real mounts, and a careful manual review that *did* find and fix a
+  real bug (§6's compounding-opacity defect) without ever seeing a
+  frame render. The choreography's actual feel — timing, overlap,
+  whether the "breathing" reads as breathing rather than a flicker —
+  needs a real compositor to judge, and should be watched once one is
+  available, before calling this piece finished rather than merely
+  built.
+- **Nothing in `src-tauri/` has been compiled**, same gate as TG-C and
+  TG-D. The icon files are real inputs to a real build that has not
+  run.
+- **Desktop/Start Menu shortcuts, the uninstaller, and Add/Remove
+  Programs** were not newly verified here — they remain exactly where
+  TG-C's own Build Verification Tasks table left them.
+
+---
+
+## 8. Architecture decisions
+
+- **Two icon variants, not one, with a hand-written hybrid `.ico`
+  rather than picking a single compromise size/style.** Reasoned
+  through in §5; the alternative (one icon, one size class) would have
+  meant either an illegible taskbar icon or a premium mark nobody ever
+  sees at its intended size.
+- **`jarvis-logo.tsx`'s phase API left unchanged.** The richer
+  animation was built to fit the existing `assembling`/`pulsing`
+  window rather than widening `startup-sequence.tsx`'s own
+  choreography — see §5. This is the same "do not change architecture
+  without justification" discipline applied to a component boundary,
+  not just to backend services.
+- **Branding assets split by role, not merged into one folder.**
+  `src-tauri/icons/` holds build *inputs* (what `tauri icon` and the
+  bundle config consume); `public/branding/` holds runtime-servable
+  *outputs* (what a future React component would `<img src>`). The
+  master logo and small-icon source exist in both roles deliberately —
+  same file, two purposes — documented in each location's own comments
+  rather than left to look like accidental duplication.
+- **No new UI surfaces invented.** About Window, Settings branding,
+  Notifications branding, Navigation branding, and an Update Dialog
+  were all searched for and confirmed absent from this codebase before
+  concluding there was nothing to update there. Building any of them
+  now, solely to give the new logo a home, would have been exactly the
+  roadmap expansion this project's own governance rules (`ARCHITECTURE
+  .md` §24, principle #2) exist to prevent.
+
+---
+
+## 9. Deviations from the roadmap, with justification
+
+**TG-E's scope was redefined from an undivided "Linux/macOS packaging
+and QA" placeholder (shared, split undecided, with TG-F) to Windows
+Packaging & Installer Distribution specifically.** TG-E had **Not
+Started** status beforehand, so nothing completed is being redefined
+(`MASTER_ROADMAP.md` §19's rule governs *completed* milestones). The
+displaced scope is not dropped — it moves entirely to Task Group F,
+which now absorbs what would previously have been split between the
+two letters.
+
+**Branding integration reached slightly beyond a strict reading of
+"installer distribution."** The startup animation and the browser
+favicon are general application branding, not installer-specific
+surfaces. Both were done on direct, explicit instruction, and both
+serve the same underlying identity the installer icon does — the
+judgment call was to treat "no placeholder logos remain anywhere in
+the project" as the operative instruction once the master logo
+existed, rather than drawing an artificial line at the installer's own
+boundary. Settings/Notifications/About/Navigation were *not* extended
+to, per §8, because nothing there exists yet to extend to.
+
+**File associations were evaluated as out of scope for a different
+reason: not applicable, not merely deferred.** JARVIS OS has no custom
+file format (searched for directly — no `.jarvis`-extension project
+file, no custom document type anywhere in the codebase). The brief's
+own "(if applicable)" qualifier covers this; nothing was built, and
+nothing should be.
+
+---
+
+## 10. Documentation updated
+
+`CHANGELOG.md` (new 0.38.0 entry), `IMPLEMENTATION_ROADMAP.md` (Task
+Group E section, Acceptance Criteria table, Task Group F scope note),
+`MASTER_ROADMAP.md` (§2 execution order, §8 M22 entry, §18 Acceptance
+Criteria — same updates, mirrored), `README.md` (current version and
+milestone status; the running app's own visible identity changed, so
+this is a real user-visible update, not paperwork), `ARCHITECTURE.md`
+(a short §22.15 note on the icon-variant/hybrid-ICO pattern, since a
+future platform's own icon work will hit the same small-size
+legibility problem). This file.
+
+No historical record was rewritten: this section is appended after
+TG-D's report, not merged into it; TG-C's and TG-D's reports are
+untouched above the divider; `CHANGELOG.md`'s 0.36.0 and 0.37.0
+entries are untouched — 0.38.0 is a new entry, per `MASTER_ROADMAP.md`
+§19.
+
+---
+
+## 11. Remaining work for TG-E
+
+- **Watch the startup animation in a real, compositing browser** once
+  one is available in this session or a future one, and confirm the
+  choreography actually reads as intended — see §7's honest account of
+  why this could not be done here.
+- Everything TG-C's own Build Verification Tasks table already lists
+  remains open, now additionally covering whether the new icon
+  actually renders correctly once embedded in a real build (shortcuts,
+  taskbar, Explorer, Add/Remove Programs).
+
+## 12. Recommended next step
+
+Same as TG-C's and TG-D's: get access to a machine with the Rust
+toolchain. `npm run tauri build` there proves all three task groups'
+`src-tauri/` content at once, including whether the new icon actually
+looks right once Windows is the one rendering it rather than a PNG
+viewer. This report does not request that TG-F begin; the brief that
+produced it asked explicitly to stop after TG-E and await approval,
+which this is.

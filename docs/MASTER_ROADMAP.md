@@ -134,7 +134,8 @@ Current
           Build Verification Pending
     TG-D  Implementation Complete
           Build Verification Pending
-    TG-E  Not Started
+    TG-E  Implementation Complete
+          Build Verification Pending
     TG-F  Not Started
 
 After M22, resume with
@@ -150,15 +151,21 @@ Until it ships there is no way to *deliver* M1–M8 to a machine that is
 not a development checkout, so every milestone after it would be built
 on top of software nobody can install.
 
-**Neither TG-C nor TG-D has reached Complete.** Both are Implementation
-Complete — written, reviewed, gated and merged — and both are waiting
-on the same thing: TG-C's ten Build Verification Tasks (build the
-installer, confirm both shortcuts, replace Tauri's placeholder branding
-with real JARVIS artwork, and five more) have not been run on this
-machine for want of a Rust toolchain, and TG-D's five new Rust commands
-live in the same `installer.rs` file, so they are proven or not proven
-together, by the same build. See §18 (M22 Acceptance Criteria) for the
-exact gate and `MILESTONE_REPORT.md` for both task groups' reports.
+**None of TG-C, TG-D or TG-E has reached Complete.** All three are
+Implementation Complete — written, reviewed, gated and merged — and
+all three are waiting on the same thing: TG-C's ten Build Verification
+Tasks (build the installer, confirm both shortcuts, replace Tauri's
+placeholder branding with real JARVIS artwork, and five more) have not
+been run on this machine for want of a Rust toolchain. TG-D's five new
+Rust commands live in the same `installer.rs` file, and TG-E's real
+icon assets are inputs to that same build, so all three are proven or
+not proven together. TG-E carries one further open item beyond the
+shared Rust gate: its startup-animation SVG has never been watched
+running in a real compositing browser — this session's sandboxed
+preview pane does not fire `requestAnimationFrame` at all, confirmed
+directly rather than assumed, so nothing built on Framer Motion could
+be observed in it. See §18 (M22 Acceptance Criteria) for the exact gate
+and `MILESTONE_REPORT.md` for all three task groups' reports.
 
 **TG-D began before the condition its own predecessor's report
 named.** TG-C's report said TG-D would not start until TG-C's Build
@@ -248,11 +255,25 @@ future work; see M6's own §3 entry for the full scope note.
   predecessor's report said that would need — a deviation from the
   plan as previously written, made on direct instruction from the
   authority that plan was deferring to; see
-  `MILESTONE_REPORT.md`'s Task Group D entry §8. Task Groups E/F are
-  not started; the Linux/macOS packaging and cross-platform QA scope
-  formerly described as an undivided "D–F" block now sits there, split
-  between the two exactly as undecided as before. See §18 for the
-  formal Acceptance Criteria gate and `IMPLEMENTATION_ROADMAP.md` /
+  `MILESTONE_REPORT.md`'s Task Group D entry §8. **Task Group E
+  (Windows Packaging & Installer Distribution, v0.38.0) is likewise
+  Implementation Complete — Build Verification Pending**: the official
+  JARVIS master logo, supplied and approved by the user mid-task-group,
+  replaced Tauri's placeholder across the full icon set (two
+  deliberate variants — a premium form for 128px and above, a
+  hand-simplified high-contrast form for 16-48px, combined into one
+  hybrid `icon.ico`), and the startup animation was recreated as a
+  scalable, Framer-Motion-driven SVG using the same master geometry.
+  Shares TG-C/TG-D's Rust build gate, plus its own open item: the
+  startup animation's actual motion has never been observed, since
+  this session's sandboxed browser pane does not composite frames at
+  all (confirmed directly, not assumed). See
+  `MILESTONE_REPORT.md`'s Task Group E entry §7 for the full
+  proven/unproven split. Task Group F is not started; the Linux/macOS
+  packaging and cross-platform QA scope formerly split between an
+  undecided "E/F" now sits there in full, since TG-E's own scope
+  resolved to Windows packaging specifically. See §18 for the formal
+  Acceptance Criteria gate and `IMPLEMENTATION_ROADMAP.md` /
   `MILESTONE_REPORT.md` for the checklists.
 - **M9 — Runtime & Core Services** (see §8) — ✅ **100% complete, all
   five task groups shipped:** Task Group A (Runtime Manager,
@@ -14315,7 +14336,7 @@ the milestone-level status of record.)*
 | **TG-B** — Runtime Provisioning | **Complete** (v0.34.0) |
 | **TG-C** — Windows Packaging & Host Bridge | **Implementation Complete — Build Verification Pending** (v0.36.0) |
 | **TG-D** — Universal Installation Experience | **Implementation Complete — Build Verification Pending** (v0.37.0) |
-| **TG-E** | **Not Started** |
+| **TG-E** — Windows Packaging & Installer Distribution | **Implementation Complete — Build Verification Pending** (v0.38.0) |
 | **TG-F** | **Not Started** |
 
 *(The Installer UI integration that connected TG-A to TG-B, shipped at
@@ -14323,18 +14344,24 @@ v0.35.0, is not a lettered task group in its own right — see §2's M22
 entry — and is not a row here for that reason; it is folded into TG-A/
 TG-B's own Complete status above.)*
 
-**TG-D's scope is now resolved: Universal Installation Experience**
-(Aug 2026, replacing the earlier undivided "TG-D/E/F, not yet
-finalized" placeholder for the letter D specifically). TG-D's status
+**TG-D's and TG-E's scopes are now resolved: Universal Installation
+Experience and Windows Packaging & Installer Distribution** (both
+Aug 2026, replacing the earlier undivided "TG-D/E/F, not yet
+finalized" placeholder for those letters specifically). TG-D's status
 row above reads Implementation Complete — Build Verification Pending
 because its five new Rust bridge commands live in the same
 `installer.rs` TG-C's five do, and share TG-C's exact, still-unrun
-build gate — one `cargo build` proves both. **TG-E/F's letter-to-scope
-assignment remains open.** The known remaining content — Linux
-packaging (AppImage, Flatpak, DEB, RPM), macOS packaging (DMG, PKG),
-and cross-platform/cross-browser QA — is documented in
-`IMPLEMENTATION_ROADMAP.md`'s "Task Groups E–F" entry, split between
-the two exactly as undecided as the old D/E/F split was.
+build gate — one `cargo build` proves all three task groups. TG-E's
+row reads the same for the same underlying reason (its real icon
+assets are inputs to that same unbuilt `tauri build`), plus one item
+specific to TG-E: its startup-animation SVG has never been observed
+running, since this session's sandboxed browser preview does not
+composite frames at all — confirmed directly, not assumed. **TG-F's
+scope is now the entire remaining Linux/macOS/cross-platform-QA
+block**, no longer split with TG-E — Linux packaging (AppImage,
+Flatpak, DEB, RPM), macOS packaging (DMG, PKG), and cross-platform/
+cross-browser QA, documented in `IMPLEMENTATION_ROADMAP.md`'s "Task
+Group F" entry.
 
 ### M22 is considered COMPLETE only when
 
@@ -14346,7 +14373,10 @@ the two exactly as undecided as the old D/E/F split was.
   "the code looks done")
 - TG-D: **Build Verification Passed** — same gate as TG-C, proven by
   the same build
-- TG-E: **Complete**
+- TG-E: **Build Verification Passed** — same Rust gate as TG-C/TG-D,
+  plus the startup animation actually watched running in a real
+  compositing browser, which this session's sandboxed preview pane
+  cannot do
 - TG-F: **Complete**
 
 Every row above at **Complete** and nothing less is what this document
