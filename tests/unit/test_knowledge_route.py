@@ -91,6 +91,9 @@ def test_search_returns_envelope(client, auth_headers) -> None:
         "files",
         "folders",
         "attachments",
+        # Milestone 12 Task Group A
+        "homes",
+        "devices",
     }
 
 

@@ -822,3 +822,33 @@ class IntegrationCallCompletedEvent(Event):
     ok: bool = True
     from_cache: bool = False
     detail: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Milestone 12 Task Group A -- Smart Home Core
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class HomeUpdatedEvent(Event):
+    """Published by
+    :class:`~jarvis.services.smart_home_service.SmartHomeService` on
+    home create/update/archive/delete. One event class carrying an
+    ``action`` field, same convention as ``WorkspaceUpdatedEvent``."""
+
+    home_id: str = ""
+    action: str = "created"  # created|updated|archived|deleted
+
+
+@dataclass(frozen=True, slots=True)
+class DeviceUpdatedEvent(Event):
+    """Published on device create/update/status-change/delete.
+
+    ``action="status_changed"`` is its own value distinct from
+    ``"updated"`` -- a subscriber watching for a device going
+    ``offline``/``unreachable`` (a future Device Health Monitoring
+    consumer) cares about that transition specifically, not every
+    field edit."""
+
+    device_id: str = ""
+    home_id: str = ""
+    action: str = "created"  # created|updated|status_changed|deleted
+    status: str = ""

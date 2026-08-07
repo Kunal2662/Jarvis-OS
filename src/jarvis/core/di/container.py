@@ -198,6 +198,7 @@ def _build_search_service(
     file_service: Any,
     folder_service: Any,
     attachment_service: Any,
+    smart_home_service: Any,
 ) -> Any:
     """Wires the Search Provider Registry (Milestone 10A, Additional
     Requirement #1): resolves the *existing* Tool Registry and Plugin
@@ -211,9 +212,11 @@ def _build_search_service(
         AttachmentSearchSource,
         CalendarSearchSource,
         CommandSearchSource,
+        DeviceSearchSource,
         FileSearchSource,
         FolderSearchSource,
         GoalSearchSource,
+        HomeSearchSource,
         KnowledgeSearchSource,
         MemorySearchSource,
         NoteSearchSource,
@@ -256,6 +259,13 @@ def _build_search_service(
     service.register_source(FileSearchSource(file_service))
     service.register_source(FolderSearchSource(folder_service))
     service.register_source(AttachmentSearchSource(attachment_service))
+    # Milestone 12 Task Group A -- two more, same registry, still no
+    # change to SearchService. Zones/rooms/device groups are not
+    # registered as their own sources: they are organizing units found
+    # by browsing a home, not the kind of thing a global search query
+    # is likely to name directly, unlike a device or a home itself.
+    service.register_source(HomeSearchSource(smart_home_service))
+    service.register_source(DeviceSearchSource(smart_home_service))
     return service
 
 
@@ -479,6 +489,12 @@ def _build_workspace_manager(
         memory_service=memory_service,
         knowledge_links=workspace_knowledge_service,
     )
+
+
+def _build_smart_home_service(*, database: Any, event_bus: Any) -> Any:
+    from jarvis.services.smart_home_service import SmartHomeService
+
+    return SmartHomeService(database=database, event_bus=event_bus)
 
 
 def _build_task_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
@@ -1062,6 +1078,13 @@ class Container(containers.DeclarativeContainer):
         event_bus=event_bus,
     )
 
+    # ---- Milestone 12 Task Group A -- Smart Home Core ----------------------
+    smart_home_service = providers.Singleton(
+        _build_smart_home_service,
+        database=database,
+        event_bus=event_bus,
+    )
+
     # ---- Milestone 11 Task Group B -- Productivity Core -------------------
     task_service = providers.Singleton(
         _build_task_service,
@@ -1320,6 +1343,7 @@ class Container(containers.DeclarativeContainer):
         file_service=file_service,
         folder_service=folder_service,
         attachment_service=attachment_service,
+        smart_home_service=smart_home_service,
     )
 
     # Declared after `search_service` because it composes it -- the

@@ -71,11 +71,13 @@ from jarvis.core.events.events import (
     ConfigurationUpdatedEvent,
     CrashRecoveredEvent,
     DailyBriefingGeneratedEvent,
+    DeviceUpdatedEvent,
     Event,
     FileUpdatedEvent,
     FolderUpdatedEvent,
     GoalUpdatedEvent,
     HealthUpdatedEvent,
+    HomeUpdatedEvent,
     IntegrationCallCompletedEvent,
     KnowledgeCorrectionAppliedEvent,
     KnowledgeEntityUpdatedEvent,
@@ -228,6 +230,14 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     # `mcp.auth_changed` rather than through a second set of names for
     # the same transitions.
     IntegrationCallCompletedEvent: "integration.call_completed",
+    # Milestone 12 Task Group A -- Smart Home Core. Same one-name-
+    # per-entity-with-an-action-field shape M11's Workspace/Project/
+    # Note relay entries already established. Zone/Room/DeviceGroup
+    # publish no event of their own in this task group and so have no
+    # relay entry -- a Home or a Device is what a dashboard actually
+    # watches; a room rename has no real-time subscriber yet.
+    HomeUpdatedEvent: "home.updated",
+    DeviceUpdatedEvent: "device.updated",
 }
 
 #: Declared but never published, so deliberately absent from the relay

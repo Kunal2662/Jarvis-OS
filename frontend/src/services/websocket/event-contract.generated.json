@@ -40,6 +40,12 @@
     "configuration.updated": [
       "keys"
     ],
+    "device.updated": [
+      "action",
+      "device_id",
+      "home_id",
+      "status"
+    ],
     "file.updated": [
       "action",
       "file_id",
@@ -61,6 +67,10 @@
     ],
     "health.updated": [
       "snapshot"
+    ],
+    "home.updated": [
+      "action",
+      "home_id"
     ],
     "integration.call_completed": [
       "detail",

@@ -108,6 +108,9 @@ export const RELAYED_EVENTS = [
   "workspace.knowledge_linked",
   "workspace.assisted",
   "integration.call_completed",
+  // Smart Home platform (M12 Task Group A)
+  "home.updated",
+  "device.updated",
 ] as const;
 
 export type RelayedEvent = (typeof RELAYED_EVENTS)[number];
