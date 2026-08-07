@@ -2223,3 +2223,146 @@ Commit Phase 1 as two commits (implementation, documentation), matching
 Task Group A's own precedent. Do not begin Phase 2 (Home Assistant
 connector) without a separate, explicit approval — this task group's
 own brief requires it.
+
+# Milestone Report — M12 Task Group B, Phase 2: Home Assistant Connector
+
+**Version:** 0.38.0 (unchanged — no version bump, matching Task Group A
+and Phase 1's own precedent)
+**Branch:** `feature/m22-task-group-c`
+**Baseline:** Task Group A committed (`d99a984`, `b0a531b`); Phase 1
+committed
+**Date:** 2026-08-07
+
+## 1. Executive summary
+
+Phase 1's own report recommended not beginning Phase 2 without a
+separate, explicit approval. That approval was given the same day,
+naming Phase 2 specifically. This report covers Phase 2 alone: the
+first real `IDeviceConnector` implementation, closing the "no protocol
+code" gap Phase 1 deliberately left open.
+
+## 2. What Phase 2 builds
+
+- **`HomeAssistantConnector`** (`core/connectivity/connectors/
+  home_assistant.py`) — speaks Home Assistant's REST API over `httpx`
+  (already this project's HTTP client everywhere else), not the
+  WebSocket API: every `IDeviceConnector` operation (reachability,
+  entity listing, single-entity state, service calls) has a stateless
+  REST endpoint, and the WebSocket API exists for push-style
+  subscriptions this port does not ask for.
+  - `connect()`/`disconnect()` — a pooled `httpx.AsyncClient` with a
+    real reachability probe (`GET /api/`), the same "fail at connect,
+    not at first use" discipline `HttpTransport` established for MCP's
+    own stateless transport. Both idempotent.
+  - `discover()` — lists `/api/states`, maps each entity onto a
+    `DiscoveredDevice` through a closed allowlist of eighteen
+    physical-device domains onto Task Group A's own `DEVICE_TYPES`. A
+    domain outside the allowlist (`automation`, `script`, `scene`,
+    `zone`, `person`, ...) is skipped outright, never registered as a
+    device under a fallback category — deliberately distinct from the
+    Logic Contract's "unrecognized type maps to `other`" rule, which
+    governs a domain the connector already treats as a device but
+    cannot categorize precisely. One malformed entity record does not
+    abort the batch.
+  - `read_state()` — `GET /api/states/{entity_id}`; an unknown entity
+    raises a named `ConnectivityError` rather than returning an empty
+    state that looks real.
+  - `send_command()` — `POST /api/services/{domain}/{service}`. A
+    device-level rejection is `CommandResult.success=False`, not a
+    raised exception, per the port's own contract; a malformed entity
+    id (no domain prefix) does raise, since that is a caller error.
+  - Manufacturer/model left blank — not present in the REST `/api/
+    states` response; that data lives behind the WebSocket-only Device
+    Registry, out of scope for this phase. An honest empty string.
+- **`core/connectivity/connectors/factory.py`** — `build_home_assistant_
+  connector` (fails at construction, naming the missing key, if
+  `base_url`/`token` are absent) and `build_default_connector_
+  registry()`, mirroring `build_default_transport_registry()` exactly.
+  Registers `home_assistant` only.
+- **DI** — `_build_connectivity_registry` (`core/di/container.py`) now
+  calls `build_default_connector_registry()` instead of constructing an
+  empty `ConnectorFactoryRegistry` directly. No other provider changed.
+
+**Still no MQTT code.** `CONNECTOR_TYPES` continues to name `mqtt`;
+nothing in this phase registers it — `ConnectorFactoryRegistry.
+create("mqtt", ...)` correctly still raises. Phase 3 (MQTT) remains a
+separate, later, individually-approved pass this report does not
+request starting.
+
+**No frontend or event changes.** Phase 1 wired
+`ConnectivityStatusChangedEvent` into the WebSocket relay and all four
+sync surfaces; this phase reuses it unchanged and adds no REST route
+— `ConnectivityService` still has no HTTP caller, by design (a later
+M12 module's job, per the Logic Contract).
+
+## 3. Tests
+
+`tests/unit/test_home_assistant_connector.py` — against a **real**
+local `http.server.HTTPServer` standing in for Home Assistant's REST
+API (the same convention `test_mcp_transports_live.py` established for
+MCP's own network transports), not a mocked `httpx` client: connect/
+disconnect lifecycle, wrong-token and unreachable-host failure, entity
+discovery with domain-allowlist mapping and fault isolation on a
+malformed record, `read_state` including the unknown-entity path, and
+`send_command` including a device-level rejection and a malformed
+entity id. `tests/unit/test_connectivity_connector_factory.py` covers
+the factory/registration surface (only `home_assistant` registered,
+required-config validation, timeout passthrough, base-URL
+normalization). **26 new tests**, all passing.
+
+## 4. Quality gates
+
+- **black** — 2 files needed reformatting; auto-applied, all clean.
+- **ruff** — zero new findings of any kind other than `PLC0415`
+  (lazy `import httpx` inside each async method, mirroring
+  `core/mcp/transports/http.py`'s and `websocket.py`'s own identical,
+  pre-existing pattern — confirmed by diffing those files, which carry
+  the same finding). Advisory (`continue-on-error: true`) in this
+  project's own CI, matching Phase 1's own gate.
+- **mypy** (`src/` only, matching CI's own scope) — zero new errors.
+  The same 22 pre-existing errors Phase 1's report recorded remain, all
+  in unrelated `container.py` sections untouched by this phase's one
+  changed function.
+- **pytest, scoped** — 101/101 tests pass across every connectivity/
+  smart-home suite (26 new + the 75 Phase 1/Task Group A tests they sit
+  beside).
+- **pytest, full regression** (`tests/unit tests/integration`) —
+  **2405 passed, 1 skipped, 0 failed, 0 errors** (2406 collected).
+  Confirmed two ways after the first run's trailing summary line was
+  clipped by output-redirection buffering (the same failure mode Phase
+  1's own report recorded): a rerun with `--junit-xml` produced a
+  `<testsuite errors="0" failures="0" skipped="1" tests="2406">` header
+  cross-checked against a raw tag count (2406 `<testcase>`, 0
+  `<failure>`, 0 `<error>`, 1 `<skipped>`) — both agree exactly. Exit
+  code `0`. The one skip is the same pre-existing platform-specific
+  symlink skip Task Group A's and Phase 1's own reports recorded.
+- **frontend** — not run; this phase touched no frontend file, no
+  event, no generated contract. Confirmed by diff scope (`git status`
+  shows five modified files, all backend/docs, plus three new backend
+  files) and a direct check that `connectivity.status_changed` remains
+  identical across `runtime_ws_hub.py`, `event-contract.generated.json`
+  and `types.ts`'s `RELAYED_EVENTS` — unchanged by this phase, still in
+  sync.
+
+## 5. Defects found
+
+None. New, additive code with no existing behavior to regress; the
+full-suite re-run above is the regression check, and it is clean.
+
+## 6. Documentation updated
+
+After implementation was complete and the full regression suite
+confirmed green: `MASTER_ROADMAP.md` (§2 status note, Active-milestone
+list, §8 M12 section — new Phase 2 paragraph, Connectivity Layer
+feature-list scope note), `IMPLEMENTATION_ROADMAP.md` (§5H header, new
+Phase 2 subsection under Task Group B), `MILESTONE_REPORT.md` (this
+section), `CHANGELOG.md` (new entry). `docs/ARCHITECTURE.md` §21's
+Domain Architecture Map's `Smart Home Architecture` row updated to name
+`HomeAssistantConnector` and note `mqtt` still unregistered.
+
+## 7. Recommendation
+
+Commit Phase 2 as two commits (implementation, documentation), matching
+Task Group A's and Phase 1's own precedent. Do not begin Phase 3 (MQTT
+connector) without a separate, explicit approval — the same
+phase-gating discipline this task group has followed throughout.

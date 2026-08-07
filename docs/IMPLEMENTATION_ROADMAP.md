@@ -1975,7 +1975,7 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phase 1 shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–2 shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
@@ -1983,11 +1983,15 @@ out of the M9→M21 resumption order, on direct instruction while M22
 remained open, and is now committed -- implementation `d99a984`,
 documentation `b0a531b`. Task Group B (Connectivity Layer) Phase 1
 followed, also Aug 2026, also out of order, on direct instruction --
-see its own section below. **Not Complete**: Smart Home Core and
-Connectivity Layer's own foundation are two of fifteen modules in
-M12's own feature list, and thirteen remain entirely unstarted.
-Full milestone definition — Objective, Dependencies, Complexity,
-15-module feature list, Acceptance Criteria — lives in
+see its own section below. Phase 2 (Home Assistant connector) followed
+Phase 1 the same day, also on direct, separate instruction, per Phase
+1's own "not without a separate, explicit approval" recommendation.
+**Not Complete**: Smart Home Core and Connectivity Layer are two of
+fifteen modules in M12's own feature list -- Connectivity Layer now has
+one of its two approved protocol adapters (Home Assistant), with MQTT
+(Phase 3) still unbuilt -- and thirteen modules remain entirely
+unstarted. Full milestone definition — Objective, Dependencies,
+Complexity, 15-module feature list, Acceptance Criteria — lives in
 `MASTER_ROADMAP.md` §8/§9.)*
 
 ### Task Group A — Smart Home Core (✅ shipped, Aug 2026 — commits `d99a984`, `b0a531b`, no version bump)
@@ -2059,7 +2063,7 @@ and M11 (cloud-vendor OAuth) — both come later or are not closed; this
 task group needed neither, since it stores no real credential and
 talks to no real cloud vendor.
 
-### Task Group B — Connectivity Layer (🟡 Phase 1 of 3 shipped, Aug 2026 — no version bump)
+### Task Group B — Connectivity Layer (🟡 Phases 1–2 of 3 shipped, Aug 2026 — no version bump)
 
 An approved implementation plan (five-step audit → connectivity
 analysis → architecture design → phased plan → risk analysis, delivered
@@ -2127,6 +2131,83 @@ separate, later, individually-approved passes; BLE/Matter/Thread/
 Zigbee/Z-Wave/vendor adapters are named in `MASTER_ROADMAP.md`'s own
 Connectivity Layer feature list but are not this task group's approved
 scope at all.
+
+#### Phase 2 — Home Assistant connector (✅ shipped, Aug 2026 — no version bump)
+
+Approved the same day as Phase 1, on direct, separate instruction, per
+Phase 1's own recommendation not to begin Phase 2 without one. Builds
+the first real `IDeviceConnector` — everything else in the port/
+adapter chain (registry, credential store, `ConnectivityService`) is
+Phase 1's, unchanged.
+
+- [x] `HomeAssistantConnector` (`core/connectivity/connectors/
+      home_assistant.py`) — speaks Home Assistant's REST API over
+      `httpx`, not the WebSocket API: every operation
+      `IDeviceConnector` requires (reachability, entity listing,
+      single-entity state, service calls) has a stateless REST
+      endpoint, and the WebSocket API exists for push-style
+      subscriptions this port does not ask for.
+  - [x] `connect()` — opens a pooled `httpx.AsyncClient` and performs a
+        real reachability probe (`GET /api/`, Home Assistant's own
+        health/auth-check endpoint) rather than optimistically
+        reporting success, the same discipline `HttpTransport`
+        established for MCP's stateless transport. An unreachable host
+        or a rejected token fails here, not silently at first use.
+        `disconnect()` closes the pool; both are idempotent.
+  - [x] `discover()` — lists `/api/states` and maps each entity onto a
+        `DiscoveredDevice` through a **closed allowlist** of
+        physical-device domains (`light`, `switch`, `lock`, `climate`,
+        `camera`, `binary_sensor`, `sensor`, `fan`, `cover`,
+        `media_player`, `vacuum`, `water_heater`, `humidifier`,
+        `siren`, `select`, `number`, `valve`,
+        `alarm_control_panel`) onto Task Group A's own closed
+        `DEVICE_TYPES` — a domain outside that set (`automation`,
+        `script`, `scene`, `zone`, `person`, ...) is skipped outright,
+        never registered as a device under a fallback category. A
+        domain inside the allowlist but without a precise category
+        (`select`, `number`, `valve`, `siren`,
+        `alarm_control_panel`) still maps to `"other"`, per the Logic
+        Contract's own validation rule. One malformed entity record
+        does not abort the discovery batch — the same fault isolation
+        `ConnectorCredentialStore` already applies to its own records.
+  - [x] `read_state()` — `GET /api/states/{entity_id}`; a 404 raises a
+        named `ConnectivityError` rather than surfacing an empty state
+        that looks like a real reading.
+  - [x] `send_command()` — `POST /api/services/{domain}/{service}`,
+        domain derived from the entity id's own prefix. A device-level
+        rejection (HTTP 4xx) is `CommandResult.success=False`, not a
+        raised exception — a real, expected outcome per the port's own
+        contract; a malformed entity id (no domain prefix) does raise,
+        since that is a caller error, not a device response.
+  - [x] Manufacturer/model are left blank — Home Assistant's REST
+        `/api/states` response carries neither; that data lives in the
+        Device Registry, reachable only over the WebSocket API's
+        `config/device_registry/list` command, which this phase does
+        not build. An honest empty string, not a guess.
+- [x] `core/connectivity/connectors/factory.py` — `build_home_assistant_
+      connector` (validates `base_url`/`token` at construction, the
+      same "fail loudly at construction, not at first use" discipline
+      `core/mcp/transports/factory.py` established) and
+      `build_default_connector_registry()`, mirroring
+      `build_default_transport_registry()` exactly. Registers
+      `home_assistant` only — `mqtt` stays unregistered, Phase 3's own
+      later, separately-approved entry point.
+- [x] DI — `_build_connectivity_registry` (`core/di/container.py`) now
+      calls `build_default_connector_registry()` instead of
+      constructing an empty `ConnectorFactoryRegistry` directly; no
+      other provider changed.
+- [x] Tests — `tests/unit/test_home_assistant_connector.py` against a
+      **real** local `http.server.HTTPServer` standing in for Home
+      Assistant (the same pattern `test_mcp_transports_live.py`
+      already established for MCP's own network transports, not a
+      mocked `httpx` client), plus
+      `tests/unit/test_connectivity_connector_factory.py` for the
+      factory/registration surface. 26 new tests.
+
+**Governing rule for this phase, honored: still no MQTT code.**
+`CONNECTOR_TYPES` continues to name `mqtt`; nothing in this phase
+registers it. Phase 3 (MQTT) remains a separate, later,
+individually-approved pass this report does not request starting.
 
 ---
 

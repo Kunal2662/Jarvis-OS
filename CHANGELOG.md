@@ -3,6 +3,57 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12 Task Group B, Phase 2: Home Assistant Connector
+
+**No version bump**, matching Task Group A and Phase 1's own
+precedent; `0.38.0` is unchanged.
+
+Phase 1 shipped the port/adapter foundation with no protocol code
+behind it. Phase 2, approved the same day on direct, separate
+instruction per Phase 1's own recommendation, builds the first real
+`IDeviceConnector`: a Home Assistant connector speaking REST over
+`httpx`.
+
+### Added
+- **`HomeAssistantConnector`** (`core/connectivity/connectors/
+  home_assistant.py`) — `connect()`/`disconnect()` manage a pooled
+  `httpx.AsyncClient` with a real reachability probe (`GET /api/`),
+  the same "fail at connect, not at first use" discipline
+  `HttpTransport` established for MCP. `discover()` lists
+  `/api/states` and maps each entity onto a `DiscoveredDevice` through
+  a closed allowlist of eighteen physical-device domains (onto Task
+  Group A's own `DEVICE_TYPES`); a domain outside the allowlist
+  (`automation`, `script`, `scene`, `zone`, `person`, ...) is skipped,
+  never registered as a device. `read_state()` reads
+  `/api/states/{entity_id}`. `send_command()` posts to
+  `/api/services/{domain}/{service}`, reporting a device-level
+  rejection as `CommandResult.success=False` rather than raising.
+- **`core/connectivity/connectors/factory.py`** — `build_home_assistant_
+  connector` (validates `base_url`/`token` at construction) and
+  `build_default_connector_registry()`, mirroring
+  `build_default_transport_registry()`. Registers `home_assistant`
+  only; `mqtt` stays unregistered.
+- **DI wiring** — `_build_connectivity_registry` now calls
+  `build_default_connector_registry()` instead of constructing an
+  empty registry directly.
+- **26 new tests** — `test_home_assistant_connector.py` against a real
+  local `http.server.HTTPServer` (no mocked `httpx` client, matching
+  `test_mcp_transports_live.py`'s own convention for MCP's network
+  transports) and `test_connectivity_connector_factory.py` for the
+  factory/registration surface.
+
+### Notes
+- **Still no MQTT code.** `CONNECTOR_TYPES` continues to name `mqtt`;
+  Phase 3 (MQTT) remains a separate, later, individually-approved
+  pass.
+- **No frontend or event changes.** Phase 1 wired
+  `ConnectivityStatusChangedEvent` into the WebSocket relay; this phase
+  reuses it unchanged and adds no REST route — `ConnectivityService`
+  still has no HTTP caller, by design (a later M12 module's job).
+- **M12 is still 🟡 Active, not Complete** — Connectivity Layer now has
+  one of its two approved protocol adapters; thirteen of fifteen
+  modules remain entirely unstarted.
+
 ## M12 Task Group B, Phase 1: Connectivity Layer Foundation
 
 **No version bump**, matching Task Group A's own precedent; `0.38.0`

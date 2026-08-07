@@ -200,19 +200,27 @@ Group B (Connectivity Layer) has since started: **Phase 1 (foundation)
 shipped** — the port/adapter contract (`IDeviceConnector`), the
 connector factory registry, the encrypted credential store, and
 `ConnectivityService` orchestration, with no protocol adapter behind
-any of it yet. **M12 is recorded here as 🟡 Active, not Complete**:
+any of it yet. **Phase 2 (Home Assistant connector) has since shipped**
+— `HomeAssistantConnector` (`core/connectivity/connectors/
+home_assistant.py`), the first real `IDeviceConnector`, speaking Home
+Assistant's REST API over `httpx`; registered into
+`ConnectorFactoryRegistry` at the DI composition root
+(`build_default_connector_registry`). `mqtt` remains named in
+`CONNECTOR_TYPES` but unregistered — Phase 3's own later, separately-
+approved pass. **M12 is recorded here as 🟡 Active, not Complete**:
 Smart Home Core is one of fifteen modules in M12's own feature list,
-Connectivity Layer is a second, its own foundation only, and thirteen
-modules remain entirely unstarted (Smart Lighting, Smart Locks,
-Sensors, Smart Cameras, Energy Management, Appliance Control, Home
-Automation, AI Home Assistant, Security & Safety, Remote Access, Smart
-Home Memory, Smart Home Analytics, Developer Tools). **No version bump
-accompanied either task group** -- unlike M22's own task groups (each
-of which shipped real code and bumped the version in turn), both ship
-real code at `0.38.0` unchanged. Recorded here as a deliberate
-exception to this project's usual pattern, not a claim that the pattern
-changed. See `MILESTONE_REPORT.md`'s M12 Task Group A and Task Group B
-Phase 1 entries for the full implementation account.
+Connectivity Layer is a second, still without its MQTT connector, and
+thirteen modules remain entirely unstarted (Smart Lighting, Smart
+Locks, Sensors, Smart Cameras, Energy Management, Appliance Control,
+Home Automation, AI Home Assistant, Security & Safety, Remote Access,
+Smart Home Memory, Smart Home Analytics, Developer Tools). **No version
+bump accompanied any of the three task-group passes** -- unlike M22's
+own task groups (each of which shipped real code and bumped the
+version in turn), all three ship real code at `0.38.0` unchanged.
+Recorded here as a deliberate exception to this project's usual
+pattern, not a claim that the pattern changed. See
+`MILESTONE_REPORT.md`'s M12 Task Group A and Task Group B Phase 1/
+Phase 2 entries for the full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -444,9 +452,11 @@ future work; see M6's own §3 entry for the full scope note.
   Pairing modeled as domain status transitions. Task Group B
   (Connectivity Layer) Phase 1 shipped: `IDeviceConnector` port,
   `ConnectorFactoryRegistry`, encrypted `ConnectorCredentialStore`,
-  `ConnectivityService` orchestration — no protocol adapter (Home
-  Assistant, MQTT) yet; those are Phases 2 and 3. **Not Complete**:
-  thirteen of fifteen modules remain entirely unstarted.
+  `ConnectivityService` orchestration. Phase 2 shipped:
+  `HomeAssistantConnector`, the first real protocol adapter (REST over
+  `httpx`), registered into `ConnectorFactoryRegistry` — `mqtt` remains
+  unregistered pending Phase 3. **Not Complete**: thirteen of fifteen
+  modules remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -3452,12 +3462,29 @@ protocol plugs into (`IDeviceConnector`, mirroring MCP's own
 `ConnectorCredentialStore` (Fernet, sibling to MCP's own credential
 store), and `ConnectivityService` orchestration (idempotent connect/
 discover/refresh-state/send-command), wired into DI and the WebSocket
-relay (`ConnectivityStatusChangedEvent`). **No protocol adapter
-exists yet** — `CONNECTOR_TYPES` names `home_assistant` and `mqtt`,
-but both are unimplemented; Phase 2 (Home Assistant) and Phase 3
-(MQTT) are separate, later, individually-approved passes. See
-`MILESTONE_REPORT.md`'s M12 Task Group B, Phase 1 entry and
-`docs/CONNECTIVITY_LAYER_LOGIC_CONTRACT.md` for the full account.
+relay (`ConnectivityStatusChangedEvent`).
+
+**Task Group B — Phase 2 (Home Assistant connector) shipped, Aug
+2026**, no version bump. The first real `IDeviceConnector`:
+`HomeAssistantConnector` (`core/connectivity/connectors/
+home_assistant.py`) speaks Home Assistant's REST API over `httpx`
+(reachability probe on `connect`, entity listing via `/api/states`,
+per-entity state via `/api/states/{entity_id}`, commands via `POST
+/api/services/{domain}/{service}`). Entity-to-`Device` mapping is a
+closed allowlist of physical-device domains (light/switch/lock/
+climate/camera/binary_sensor/sensor/fan/cover/media_player/vacuum/
+water_heater/humidifier/siren/select/number/valve/
+alarm_control_panel) onto Task Group A's own `DEVICE_TYPES` — a
+domain outside that set (`automation`, `script`, `scene`, `zone`,
+`person`, ...) is skipped, never registered as a device. Registered
+into `ConnectorFactoryRegistry` at the DI composition root
+(`core/connectivity/connectors/factory.py`'s
+`build_default_connector_registry`). **`mqtt` remains unregistered**
+— `CONNECTOR_TYPES` still names it, but Phase 3 (MQTT) is a separate,
+later, individually-approved pass this phase does not request
+starting. See `MILESTONE_REPORT.md`'s M12 Task Group B, Phase 1 and
+Phase 2 entries and `docs/CONNECTIVITY_LAYER_LOGIC_CONTRACT.md` for
+the full account.
 
 **Not Complete**: thirteen of this milestone's fifteen modules remain
 entirely unstarted (Smart Lighting, Smart Locks, Sensors, Smart
@@ -3501,8 +3528,8 @@ Analytics, Developer Tools.
 - Device Status Dashboard
 
 #### Connectivity Layer
-*(Phase 1 — the port/adapter foundation only — shipped Aug 2026; none
-of the items below are implemented yet. See this section's own Task
+*(Phase 1 — the port/adapter foundation — and Phase 2 — the Home
+Assistant connector — shipped Aug 2026. See this section's own Task
 Group B status note above.)*
 - ESP32
 - MQTT
@@ -3512,7 +3539,7 @@ Group B status note above.)*
 - Z-Wave
 - Matter
 - Thread
-- Home Assistant Integration
+- Home Assistant Integration ✅ *(Phase 2 — `HomeAssistantConnector`, REST over `httpx`)*
 - Local Network Discovery
 - Secure Device Provisioning
 
