@@ -2054,3 +2054,38 @@ fix the four real gaps, then re-run the full suite before any commit
 is considered** — not discard and restart. This report does not
 request that those fixes happen automatically; per the instruction
 that paused this task group, they are diagnosed here, not applied.
+
+---
+
+## 11. Outcome: approved and committed
+
+The four real gaps §10 diagnosed were fixed (two pinned search-source
+literals, two pinned relay-vocabulary literals, plus the WebSocket
+contract regeneration and frontend `RELAYED_EVENTS` update those relay
+fixes required in turn — found the same way, by actually running the
+full suite rather than assuming the fix was complete). The full
+backend suite (2330 passed, 1 pre-existing skip, 0 failed) and full
+frontend suite (750/750) both ran clean from the fix, and a pre-commit
+audit found the working tree scoped to exactly this task group with
+no debug code, stray files, or roadmap/version drift.
+
+**Approved and committed:**
+- `d99a984` — `feat(m12-a): add Smart Home Core domain, service, REST and relay wiring`
+- `b0a531b` — `docs(m12-a): record Task Group A, reconcile roadmap inconsistencies, establish single source of truth`
+
+No version bump; `0.38.0` unchanged, by explicit instruction — unlike
+M22's own task groups, each of which bumped the version for its own
+shipped code, this one did not, recorded here as a deliberate
+exception rather than a change to that pattern.
+
+**M12 is now 🟡 Active, not Complete** — Task Group A is one module
+of fifteen in this milestone's own feature list; Connectivity Layer
+and thirteen others remain unstarted. §1 and §5H's own status lines
+above were written before commit and went stale the moment these two
+commits landed; a same-day documentation-only pass corrected every
+M12 status reference across `MASTER_ROADMAP.md` and
+`IMPLEMENTATION_ROADMAP.md` to reflect this. Not committed here, per
+that pass's own instruction not to edit historical report sections —
+this section is the record of what changed and why, the same
+append-only discipline every earlier correction in this report has
+followed.

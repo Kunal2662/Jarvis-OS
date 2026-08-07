@@ -176,6 +176,10 @@ After M22, resume with
   the two genuinely still-open items in this line -- see the Active
   list below.)
 
+Also active (deliberate exception -- see below)
+  M12 — Smart Home & IoT Platform
+    TG-A  Shipped (Smart Home Core -- commits d99a984, b0a531b)
+
 Deferred
   M23 — Core Intelligence
 ```
@@ -185,19 +189,25 @@ Until it ships there is no way to *deliver* M1–M8 to a machine that is
 not a development checkout, so every milestone after it would be built
 on top of software nobody can install.
 
-**M12 status, as of this reconciliation pass (Aug 2026):** a roadmap
-audit found M12 is the next milestone in the sequence above genuinely
-marked Not Started (M10 is Partial and M11 is Active, so neither
-qualifies). A Task Group A implementation (Smart Home Core) was built
-and tested against it, but **is not committed and is not part of this
-project's shipped state** — it remains a paused, pending-approval
-piece of work. Per this section's own Single Source of Truth rule,
-M12 is recorded here as **Not Started**, matching the real, committed
-repository; the paused implementation is described in
-`MILESTONE_REPORT.md`'s M12 Task Group A entry, not represented as
-shipped fact in this status table. Whether it proceeds is a decision
-still pending, not reflected in a status marker anywhere in this
-document until it is.
+**M12 status (Aug 2026):** a roadmap audit found M12 is the next
+milestone in the sequence above genuinely marked Not Started (M10 is
+Partial and M11 is Active, so neither qualifies). Task Group A (Smart
+Home Core) was built, tested, and **is now committed** — implementation
+in `d99a984`, documentation in `b0a531b` — a second deliberate
+exception to "one active milestone at a time," the same kind this
+document's introduction records for M8/M9 running in parallel. **M12 is
+recorded here as 🟡 Active, not Complete**: Task Group A is one of
+fifteen modules in M12's own feature list, and fourteen remain
+unstarted (Connectivity Layer, Smart Lighting, Smart Locks, Sensors,
+Smart Cameras, Energy Management, Appliance Control, Home Automation,
+AI Home Assistant, Security & Safety, Remote Access, Smart Home Memory,
+Smart Home Analytics, Developer Tools). **No version bump accompanied
+this task group, by explicit instruction** -- unlike M22's own task
+groups (each of which shipped real code and bumped the version in
+turn), this one ships real code at `0.38.0` unchanged. Recorded here
+as a deliberate exception to this project's usual pattern, not a claim
+that the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A
+entry for the full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -421,6 +431,14 @@ future work; see M6's own §3 entry for the full scope note.
   paired backend integration with a React/Tauri UI half that belongs
   to M8, which remains deferred — see M11's own §8 entry for the full
   account.
+- **M12 — Smart Home & IoT Platform** (see §8) — 🟡 **Active, not
+  Complete.** *(Added to this list Aug 2026 on commit — see this
+  section's own "M12 status" note above for the full account.)* Task
+  Group A (Smart Home Core) shipped: Home/Zone/Room/Device/DeviceGroup
+  CRUD, Multi-Home Support, derived health/status metadata, Discovery/
+  Pairing modeled as domain status transitions. **Not Complete**:
+  fourteen of fifteen modules remain unstarted, starting with
+  Connectivity Layer.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -3412,17 +3430,17 @@ M11's own complexity reasoning)*.
 
 ### M12 — Smart Home & IoT Platform
 
-**Status: 🔴 Not Started**, per §2's Single Source of Truth record —
-this is the real, committed state of the repository. *(A Task Group A
-implementation — Smart Home Core: Home/Zone/Room/Device/DeviceGroup
+**Status: 🟡 Active — Task Group A (Smart Home Core) shipped, Aug
+2026** (implementation `d99a984`, documentation `b0a531b`; no version
+bump, version remains `0.38.0`). Home/Zone/Room/Device/DeviceGroup
 CRUD, Multi-Home Support, derived Device Health Monitoring/Status
 Dashboard metadata, and Device Discovery/Pairing modeled as domain
-status transitions with no real hardware behind them — was built and
-tested against this milestone, Aug 2026. It is paused, uncommitted,
-and pending approval; it is not reflected in this status line because
-it is not yet part of this project's shipped state. See
+status transitions with no real hardware behind them yet. **Not
+Complete**: fourteen of this milestone's fifteen modules remain
+unstarted, beginning with Connectivity Layer — the module the "real
+hardware" half of Discovery/Pairing depends on. See
 `IMPLEMENTATION_ROADMAP.md` §5H and `MILESTONE_REPORT.md`'s M12 Task
-Group A entry for the full account of what was built.)*
+Group A entry for the full account of what was built.
 
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
 single-bus device bridge into a complete enterprise-grade Smart Home

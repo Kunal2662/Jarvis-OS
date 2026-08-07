@@ -125,7 +125,7 @@ if the two ever disagree, `MASTER_ROADMAP.md` §2 is right.)*
 | **M10.5 – MCP & Integration Platform** | ✅ **Completed (`0.20.0`) — all five task groups.** Capability Registry, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*` (A); all four transports (stdio/websocket/http/ipc), transport factory, discovery/query, heartbeat (B); provider interface, registry with filtered discovery, lifecycle manager, health collection (C); credential model, encrypted store, auth strategies, provider sessions, permission bridge (D); SDK builders, validation framework, `jarvis mcp` CLI, self-contained examples, `MCPDiagnostics`, `/api/v1/mcp/diagnostics` + `/validate` (E). Generic infrastructure throughout — real providers, the OAuth flow, a server-side listener and vendor integrations are M11's scope. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
 | **M11 – Intelligent Workspace & Productivity** | 🟡 **Active — Task Groups A–F shipped (backend); not closed.** *(Corrected Aug 2026 — this row previously read "M11 onward: Planned, not started," which contradicted §5G below and had gone stale as M11's own six task groups shipped without this table being updated alongside them.)* Task Group F's backend integration audit is complete; its React/Tauri UI half is M8's, which remains deferred, so M11 itself is not closed. See §5G below and `MASTER_ROADMAP.md` §8/§14. |
 | M11A – SEO Intelligence, M11B – Productivity Suite | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
-| **M12 – Smart Home & IoT Platform** | 🔴 **Not Started**, per `MASTER_ROADMAP.md` §2's Single Source of Truth record — the real, committed repository state. *(A Task Group A implementation was built and tested against this milestone, Aug 2026, but is paused, uncommitted and pending approval — not reflected in this status marker because it is not yet shipped. See §5H below and `MILESTONE_REPORT.md`'s M12 Task Group A entry for the full account.)* |
+| **M12 – Smart Home & IoT Platform** | 🟡 **Active — Task Group A (Smart Home Core) shipped, Aug 2026** (implementation `d99a984`, documentation `b0a531b`; no version bump, `0.38.0` unchanged). *(Corrected same day — this row previously read Not Started, accurate before commit and stale the moment `d99a984`/`b0a531b` landed.)* **Not Complete**: fourteen of fifteen modules remain unstarted, starting with Connectivity Layer. See §5H below and `MILESTONE_REPORT.md`'s M12 Task Group A entry for the full account. |
 | M13 – Computer Control, M13A – AI Sandbox | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 | **M13B – Self-Healing & Observability** | 🔴 Planned, not started. *(New lettered companion to M13, added Aug 2026 — the foundational subset of M18/M20A, which remain their full-scale realizations.)* See `MASTER_ROADMAP.md` §8 and §14. |
 | M14 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
@@ -168,18 +168,21 @@ After M22, resume with M9 → M10 → M11 → M12 → M13 → M14 → M15
               (M9, M10A, M10B, M10.5 already fully shipped; M10 and
               M11 are the two still-open items in this line.)
 
+Also active: M12 — Smart Home & IoT Platform
+              TG-A  Shipped (Smart Home Core -- d99a984, b0a531b)
+
 Deferred:   M23 — Core Intelligence
 ```
 
-**M12 status, as of this reconciliation pass (Aug 2026):** a roadmap
-audit found M12 is the next milestone in the sequence above genuinely
-marked Not Started (M10 is Partial and M11 is Active, so neither
-qualifies). A Task Group A implementation (Smart Home Core) was built
-and tested against it, but **is not committed and is not part of this
-project's shipped state** — recorded here as Not Started, matching the
-real repository, per `MASTER_ROADMAP.md` §2's own Single Source of
-Truth rule. See `MILESTONE_REPORT.md`'s M12 Task Group A entry for
-the paused implementation's full account.
+**M12 status (Aug 2026):** a roadmap audit found M12 is the next
+milestone in the sequence above genuinely marked Not Started (M10 is
+Partial and M11 is Active, so neither qualifies). Task Group A (Smart
+Home Core) was built, tested, and **is now committed**
+(implementation `d99a984`, documentation `b0a531b`) — recorded here as
+🟡 **Active, not Complete**: it is one of fifteen modules in M12's own
+feature list, and fourteen remain unstarted. No version bump
+accompanied it, by explicit instruction; `0.38.0` is unchanged. See
+`MILESTONE_REPORT.md`'s M12 Task Group A entry for the full account.
 
 M22 is the current milestone because it owns installation and
 packaging; M9 onward resumes once it reaches Complete (see the M22
@@ -1972,19 +1975,19 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🔴 Not Started — see note)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped)
 
-*(Milestone status is 🔴 Not Started, per `MASTER_ROADMAP.md` §2's
-Single Source of Truth record — nothing here is committed. A Task
-Group A implementation was built and tested Aug 2026, out of the
-M9→M21 resumption order, on direct instruction while M22 remained
-open; it is **paused and pending approval**, described below for what
-it is — real, tested, uncommitted work — not represented as shipped
-status anywhere in this document. Full milestone definition —
-Objective, Dependencies, Complexity, 15-module feature list,
-Acceptance Criteria — lives in `MASTER_ROADMAP.md` §8/§9.)*
+*(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
+Source of Truth record. Task Group A was built and tested Aug 2026,
+out of the M9→M21 resumption order, on direct instruction while M22
+remained open, and is now committed -- implementation `d99a984`,
+documentation `b0a531b`. **Not Complete**: this is one of fifteen
+modules in M12's own feature list, and fourteen remain unstarted.
+Full milestone definition — Objective, Dependencies, Complexity,
+15-module feature list, Acceptance Criteria — lives in
+`MASTER_ROADMAP.md` §8/§9.)*
 
-### Task Group A — Smart Home Core (implemented and tested, Aug 2026 — paused, not committed)
+### Task Group A — Smart Home Core (✅ shipped, Aug 2026 — commits `d99a984`, `b0a531b`, no version bump)
 
 An audit before implementation found nothing real behind this
 milestone yet: only `MockSmartHomeProvider` (an M5-era mock in

@@ -3,15 +3,64 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
-*(An entry describing an M12 Task Group A implementation briefly stood
-here, versioned `0.39.0`. That version was never committed and has
-been reverted to `0.38.0` — the last real, shipped version — so the
-entry was removed rather than left describing a release that does not
-exist. The paused implementation itself is not lost: it is described
-in `MILESTONE_REPORT.md`'s M12 Task Group A entry, correctly framed
-there as implemented-and-tested-but-not-committed rather than shipped.
-A changelog records what happened to the shipped product; nothing has,
-yet.)*
+## M12 Task Group A: Smart Home Core
+
+**No version bump, by explicit instruction.** Unlike M22's own task
+groups (each of which bumped the version for its own shipped code),
+this one did not; `0.38.0` is unchanged. An earlier draft of this
+entry briefly described a `0.39.0` bump that was reverted before
+commit — this entry describes what actually shipped, at the real,
+unchanged version.
+
+A roadmap audit (`MASTER_ROADMAP.md`, `IMPLEMENTATION_ROADMAP.md`)
+found M12 — Smart Home & IoT Platform is the next milestone actually
+marked Not Started in the M9→M21 resumption order: M10 is Partial and
+M11 is Active (Task Groups A–F shipped, not closed), so neither
+qualifies even though both precede M12 numerically. Started while M22
+remains open — a second deliberate exception to "one active milestone
+at a time," on direct instruction.
+
+### Added
+- **Smart Home domain** (`domain/smart_home/models.py`) — closed
+  vocabularies for home status, device status and device type, plus
+  derived `HomeMetadata` (never stored, computed on read).
+- **Five ORM models** (`infrastructure/database/models.py`) — `Home`
+  → `Zone` → `Room` → `Device`, plus `DeviceGroup` /
+  `DeviceGroupMember` as a cross-cutting grouping independent of that
+  hierarchy.
+- **`SmartHomeService`** — lifecycle CRUD for all five entities,
+  derived home metadata (Device Health Monitoring / Status Dashboard),
+  event publishing, search hooks. Device Discovery and Pairing are
+  modeled as domain status transitions
+  (`register_discovered_device` / `pair_device`) — neither talks to
+  real hardware; no Connectivity Layer exists yet.
+- **REST** — `/api/v1/homes`, `/api/v1/devices`,
+  `/api/v1/smart-home/{zones,rooms,device-groups}`, plus
+  `/homes/{id}/metadata`, device-group membership routes, and
+  `POST /devices/{id}/pair`.
+- **Two new search sources** (`homes`, `devices`) registered on M10A's
+  existing provider registry.
+- **Two new WebSocket relay events** (`home.updated`,
+  `device.updated`), wired into `runtime_ws_hub.py`'s relay mapping
+  and both sides of the WebSocket contract (backend
+  `event-contract.generated.json` regenerated; frontend
+  `RELAYED_EVENTS` updated to match).
+- **89 tests** across service, repository, REST and contract-
+  consistency layers, all against real (temp-file) SQLite — no mocked
+  repository.
+
+### Fixed
+- Two pinned search-source-vocabulary tests
+  (`test_platform_integration.py`, `test_knowledge_route.py`) and two
+  pinned relay-vocabulary tests (`test_platform_integration.py`,
+  `test_runtime_ws_hub.py`) hadn't been extended for the new sources
+  and events — found by actually running the full suite, not assumed.
+- `IMPLEMENTATION_ROADMAP.md`'s top-level milestone status table
+  incorrectly read "M11 onward: Planned, not started," contradicting
+  its own §5G section. M11 is Active (backend shipped across six task
+  groups; not closed — the React/Tauri UI half waits on M8).
+
+### Notes
 - **Scope boundary, drawn the same way M11 Task Group B drew one
   around `Reminder`:** this task group builds the domain layer only.
   No real device talks to it. Fourteen of M12's fifteen modules
@@ -20,6 +69,8 @@ yet.)*
 - M10 and M11's own open status is reported, not resolved, by this
   entry — see `MILESTONE_REPORT.md`'s M12 Task Group A entry for the
   full roadmap audit.
+- **M12 is now 🟡 Active, not Complete** — Task Group A is one module
+  of fifteen; fourteen remain unstarted.
 
 ## M22 Task Group F: Final Build Verification, Cross-Platform Readiness & Release Validation
 
