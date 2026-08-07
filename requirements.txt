@@ -73,6 +73,16 @@ pynput>=1.7,<2.0
 # ---------- HTTP / networking ------------------------------------------------
 httpx>=0.27,<1.0
 websockets>=13.1,<14.0
+# M12 Task Group B, Phase 3 -- MQTT connector. aiomqtt (wraps paho-mqtt) was
+# the initial choice but empirically fails on Windows' default
+# ProactorEventLoop with NotImplementedError (paho-mqtt's async bridge needs
+# loop.add_reader/add_writer, which only SelectorEventLoop implements on
+# Windows -- and SelectorEventLoop cannot run MCP's subprocess-based
+# StdioTransport, which this project already depends on). gmqtt is built on
+# asyncio.Protocol/create_connection instead, which works on ProactorEventLoop
+# with no workaround -- verified directly against a real local broker before
+# committing to it.
+gmqtt>=0.7,<1.0
 
 # ---------- Security ---------------------------------------------------------
 # Upgraded from >=43.0,<44.0 -- 43.0.3 carried 4 known advisories, all
