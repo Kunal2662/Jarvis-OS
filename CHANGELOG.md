@@ -3,6 +3,66 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12 Task Group B, Phase 3: MQTT Connector
+
+**No version bump**, matching Task Group A and Phases 1-2's own
+precedent; `0.38.0` is unchanged.
+
+Phase 2 shipped the first real `IDeviceConnector` (Home Assistant, REST
+over `httpx`). Phase 3, approved the same day on direct, separate
+instruction preceded by its own 17-point read-only architectural
+audit, builds the second: an MQTT connector, closing this task group's
+three-phase implementation plan.
+
+### Added
+- **Library selection, corrected during implementation** — the audit's
+  originally-preferred `aiomqtt` (wraps `paho-mqtt`) was replaced with
+  `gmqtt` after connecting each against a real local broker found
+  `aiomqtt` raises `NotImplementedError` on Windows' default
+  `ProactorEventLoop` (needs `loop.add_reader`/`add_writer`, which only
+  `SelectorEventLoop` implements on Windows -- and `SelectorEventLoop`
+  cannot run this project's existing subprocess-based MCP
+  `StdioTransport`). `gmqtt` connected cleanly on the same loop with no
+  workaround. `requirements.txt`/`requirements-lock.txt`/`pyproject.toml`
+  updated to `gmqtt>=0.7,<1.0`, zero `aiomqtt`/`paho-mqtt` remnants.
+- **JARVIS-native message envelope** (`core/connectivity/connectors/
+  mqtt_envelope.py`) -- the canonical protocol for future JARVIS-native
+  devices (ESP32 and similar): one JSON shape (`schema_version`,
+  `device_id`, `type`, `timestamp`, `payload`) covering state/command/
+  discovery/availability/error, with explicit schema versioning.
+- **`MqttConnector`** (`core/connectivity/connectors/mqtt.py`) -- the
+  second real `IDeviceConnector`. Speaks Home Assistant MQTT Discovery
+  (interoperating with Zigbee2MQTT/zwave-js-to-mqtt/Tasmota/ESPHome
+  with no dedicated connector for any of them) and the JARVIS-native
+  envelope. State is push-based and cached, not pulled. Commands
+  publish at QoS 1, never retained. Reconnection is `gmqtt`'s own
+  automatic retry paired with unconditional resubscription on every
+  `on_connect`.
+- **`build_mqtt_connector`** (`core/connectivity/connectors/factory.py`)
+  -- registered into `build_default_connector_registry()` alongside
+  Home Assistant. Both `CONNECTOR_TYPES` entries are now registered.
+- **`tests/fakes/fake_mqtt_broker.py`** -- a real, hand-written,
+  in-process MQTT 3.1.1 broker (no stdlib broker exists to reuse,
+  unlike Phases 1-2's `http.server`/`websockets`), supporting
+  CONNECT/CONNACK auth, SUBSCRIBE/UNSUBSCRIBE with wildcards, PUBLISH
+  at QoS 0/1 with PUBACK, retained-message replay, and Last Will and
+  Testament.
+- **68 new tests** -- envelope round-trip/validation (26), connector
+  coverage across connect/disconnect, auth, TLS config, HA + native
+  discovery, state cache, availability, retained-message handling, QoS,
+  commands, and automatic reconnect-with-resubscription (42), plus MQTT
+  factory tests -- all against the real fake broker, no mocked `gmqtt`
+  client.
+
+### Notes
+- **`CONNECTOR_TYPES` fully realized.** `home_assistant` and `mqtt` are
+  both registered; Task Group B's three-phase plan is closed.
+- Full backend regression: **2477 passed, 1 skipped (pre-existing), 0
+  failed.** Full frontend: **750/750**, plus a clean `tsc`/`oxlint`.
+- **M12 is still 🟡 Active, not Complete** -- Smart Home Core and
+  Connectivity Layer are two modules of fifteen; thirteen remain
+  entirely unstarted.
+
 ## M12 Task Group B, Phase 2: Home Assistant Connector
 
 **No version bump**, matching Task Group A and Phase 1's own

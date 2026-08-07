@@ -200,27 +200,42 @@ Group B (Connectivity Layer) has since started: **Phase 1 (foundation)
 shipped** — the port/adapter contract (`IDeviceConnector`), the
 connector factory registry, the encrypted credential store, and
 `ConnectivityService` orchestration, with no protocol adapter behind
-any of it yet. **Phase 2 (Home Assistant connector) has since shipped**
-— `HomeAssistantConnector` (`core/connectivity/connectors/
+any of it yet. **Phase 2 (Home Assistant connector) shipped** —
+`HomeAssistantConnector` (`core/connectivity/connectors/
 home_assistant.py`), the first real `IDeviceConnector`, speaking Home
 Assistant's REST API over `httpx`; registered into
 `ConnectorFactoryRegistry` at the DI composition root
-(`build_default_connector_registry`). `mqtt` remains named in
-`CONNECTOR_TYPES` but unregistered — Phase 3's own later, separately-
-approved pass. **M12 is recorded here as 🟡 Active, not Complete**:
-Smart Home Core is one of fifteen modules in M12's own feature list,
-Connectivity Layer is a second, still without its MQTT connector, and
-thirteen modules remain entirely unstarted (Smart Lighting, Smart
-Locks, Sensors, Smart Cameras, Energy Management, Appliance Control,
-Home Automation, AI Home Assistant, Security & Safety, Remote Access,
-Smart Home Memory, Smart Home Analytics, Developer Tools). **No version
-bump accompanied any of the three task-group passes** -- unlike M22's
-own task groups (each of which shipped real code and bumped the
-version in turn), all three ship real code at `0.38.0` unchanged.
-Recorded here as a deliberate exception to this project's usual
-pattern, not a claim that the pattern changed. See
-`MILESTONE_REPORT.md`'s M12 Task Group A and Task Group B Phase 1/
-Phase 2 entries for the full implementation account.
+(`build_default_connector_registry`). **Phase 3 (MQTT connector) has
+since shipped** — `MqttConnector` (`core/connectivity/connectors/
+mqtt.py`), the second real `IDeviceConnector`, built on `gmqtt` (not
+the originally-approved `aiomqtt`: empirically verified during
+implementation to fail on Windows' default `ProactorEventLoop`, which
+this project already depends on for MCP's subprocess-based
+`StdioTransport` — `gmqtt` connects cleanly on the same loop with no
+workaround; see `MILESTONE_REPORT.md`'s Phase 3 entry for the full
+comparison). Speaks both Home Assistant MQTT Discovery (interoperating
+with Zigbee2MQTT/zwave-js-to-mqtt/Tasmota/ESPHome with no dedicated
+connector for any of them) and a new JARVIS-native envelope
+(`core/connectivity/connectors/mqtt_envelope.py`) for bespoke firmware.
+State is push-based and cached rather than pulled; reconnection is
+automatic (`gmqtt`'s own retry, this connector's own unconditional
+resubscribe on every `on_connect`). `CONNECTOR_TYPES` now has both
+approved names registered — `home_assistant` and `mqtt` — closing
+Connectivity Layer's three-phase implementation plan. **M12 is
+recorded here as 🟡 Active, not Complete**: Smart Home Core is one of
+fifteen modules in M12's own feature list, Connectivity Layer is a
+second, now with both its approved connectors, and thirteen modules
+remain entirely unstarted (Smart Lighting, Smart Locks, Sensors, Smart
+Cameras, Energy Management, Appliance Control, Home Automation, AI
+Home Assistant, Security & Safety, Remote Access, Smart Home Memory,
+Smart Home Analytics, Developer Tools). **No version bump accompanied
+any of the four task-group passes** -- unlike M22's own task groups
+(each of which shipped real code and bumped the version in turn), all
+four ship real code at `0.38.0` unchanged. Recorded here as a
+deliberate exception to this project's usual pattern, not a claim that
+the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A and
+Task Group B Phase 1/Phase 2/Phase 3 entries for the full
+implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -454,9 +469,14 @@ future work; see M6's own §3 entry for the full scope note.
   `ConnectorFactoryRegistry`, encrypted `ConnectorCredentialStore`,
   `ConnectivityService` orchestration. Phase 2 shipped:
   `HomeAssistantConnector`, the first real protocol adapter (REST over
-  `httpx`), registered into `ConnectorFactoryRegistry` — `mqtt` remains
-  unregistered pending Phase 3. **Not Complete**: thirteen of fifteen
-  modules remain entirely unstarted.
+  `httpx`), registered into `ConnectorFactoryRegistry`. Phase 3
+  shipped: `MqttConnector` (`gmqtt`, chosen over the originally-planned
+  `aiomqtt` after it failed empirically on Windows' `ProactorEventLoop`
+  — see this task group's own Phase 3 milestone report), speaking both
+  Home Assistant MQTT Discovery and a new JARVIS-native envelope —
+  both `CONNECTOR_TYPES` entries are now registered, closing this task
+  group's three-phase plan. **Not Complete**: thirteen of fifteen
+  M12 modules remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -3479,12 +3499,48 @@ domain outside that set (`automation`, `script`, `scene`, `zone`,
 `person`, ...) is skipped, never registered as a device. Registered
 into `ConnectorFactoryRegistry` at the DI composition root
 (`core/connectivity/connectors/factory.py`'s
-`build_default_connector_registry`). **`mqtt` remains unregistered**
-— `CONNECTOR_TYPES` still names it, but Phase 3 (MQTT) is a separate,
-later, individually-approved pass this phase does not request
-starting. See `MILESTONE_REPORT.md`'s M12 Task Group B, Phase 1 and
-Phase 2 entries and `docs/CONNECTIVITY_LAYER_LOGIC_CONTRACT.md` for
-the full account.
+`build_default_connector_registry`).
+
+**Task Group B — Phase 3 (MQTT connector) shipped, Aug 2026**, no
+version bump. The second real `IDeviceConnector`: `MqttConnector`
+(`core/connectivity/connectors/mqtt.py`). **Library choice corrected
+during implementation, not assumed**: the approved plan named
+`aiomqtt` (wraps `paho-mqtt`, the same client Home Assistant's own
+core integration uses); connecting it against a real local broker
+before writing any connector logic — required by this project's
+"audit before implementing" discipline — found it raises
+`NotImplementedError` on Windows' default `ProactorEventLoop`, since
+`paho-mqtt`'s asyncio bridge needs `loop.add_reader`/`add_writer`,
+which only `SelectorEventLoop` implements on Windows, and
+`SelectorEventLoop` cannot run `core/mcp/transports/stdio.py`'s
+subprocess-based `StdioTransport`, which this project already depends
+on. `gmqtt` (built on `asyncio.Protocol`/`create_connection`, not
+`add_reader`/`add_writer`) connected cleanly on the same
+`ProactorEventLoop` with zero workaround, verified the same way — this
+module uses `gmqtt`. Speaks two discovery conventions: **Home
+Assistant MQTT Discovery** (`<prefix>/<component>/[<node_id>/]
+<object_id>/config`, retained) — the convention Zigbee2MQTT,
+zwave-js-to-mqtt, Tasmota and ESPHome already speak, so those
+ecosystems become reachable with no dedicated connector for any of
+them — and a new **JARVIS-native envelope**
+(`core/connectivity/connectors/mqtt_envelope.py`: one JSON shape,
+`{schema_version, device_id, type, timestamp, payload}`, covering
+state/command/discovery/availability/error) for bespoke firmware, the
+canonical protocol a future JARVIS ESP32 sketch targets. State is
+push-based and cached (`read_state()` returns the last received value,
+or raises — genuinely weaker than Phase 2's live REST pull, documented
+rather than hidden); `send_command()`'s success means "handed to
+`gmqtt` for delivery," not "device executed," since MQTT 3.1.1's QoS-1
+PUBACK carries no application-level outcome. Reconnection is
+`gmqtt`'s own automatic retry, paired with this connector's own
+unconditional resubscribe on every `on_connect` (including automatic
+reconnects) — silent to the event bus by deliberate, documented scope
+boundary, not an oversight. Registered into `ConnectorFactoryRegistry`
+alongside Home Assistant — **both of `CONNECTOR_TYPES`' approved names
+are now registered**, closing this task group's three-phase
+implementation plan. See `MILESTONE_REPORT.md`'s M12 Task Group B,
+Phase 1/Phase 2/Phase 3 entries and
+`docs/CONNECTIVITY_LAYER_LOGIC_CONTRACT.md` for the full account.
 
 **Not Complete**: thirteen of this milestone's fifteen modules remain
 entirely unstarted (Smart Lighting, Smart Locks, Sensors, Smart
@@ -3528,15 +3584,20 @@ Analytics, Developer Tools.
 - Device Status Dashboard
 
 #### Connectivity Layer
-*(Phase 1 — the port/adapter foundation — and Phase 2 — the Home
-Assistant connector — shipped Aug 2026. See this section's own Task
-Group B status note above.)*
-- ESP32
-- MQTT
+*(Phase 1 — the port/adapter foundation — Phase 2 — the Home Assistant
+connector — and Phase 3 — the MQTT connector — all shipped Aug 2026,
+closing this module's three-phase implementation plan. See this
+section's own Task Group B status note above.)*
+- ESP32 *(no dedicated code — reachable through `MqttConnector`'s
+  JARVIS-native envelope once real firmware exists; see Phase 3)*
+- MQTT ✅ *(Phase 3 — `MqttConnector`, `gmqtt`; HA MQTT Discovery +
+  JARVIS-native envelope)*
 - Wi-Fi
 - Bluetooth LE
-- Zigbee
-- Z-Wave
+- Zigbee *(no dedicated code — reachable via Zigbee2MQTT through
+  `MqttConnector`'s HA-discovery support; see Phase 3)*
+- Z-Wave *(no dedicated code — reachable via zwave-js-to-mqtt through
+  `MqttConnector`'s HA-discovery support; see Phase 3)*
 - Matter
 - Thread
 - Home Assistant Integration ✅ *(Phase 2 — `HomeAssistantConnector`, REST over `httpx`)*
@@ -9311,8 +9372,8 @@ lives inside one of the 15 module rows that follow.)*
 
 | Feature                       | Status | Milestone |
 |-------------------------------|--------|-----------|
-| Home Assistant integration    | 🟡     | M12       |
-| MQTT                          | 🟡     | M12       |
+| Home Assistant integration    | ✅ *(Phase 2 — `HomeAssistantConnector`)* | M12 |
+| MQTT                          | ✅ *(Phase 3 — `MqttConnector`, `gmqtt`)*  | M12 |
 | Matter (read-only)            | 🟡     | M12       |
 | Zigbee (via Z2M)              | 🟡     | M12       |
 | Shelly                        | 🟡     | M12       |
