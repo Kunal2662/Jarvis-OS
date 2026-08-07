@@ -498,13 +498,15 @@ def _build_smart_home_service(*, database: Any, event_bus: Any) -> Any:
 
 
 def _build_connectivity_registry() -> Any:
-    """Milestone 12 Task Group B, Phase 1. Empty of real connectors --
-    a later phase calls ``register("home_assistant", ...)`` here at
-    this composition root, the same pattern
-    ``_build_mcp_transport_registry`` already established for MCP."""
-    from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
+    """Milestone 12 Task Group B. Phase 1 shipped this empty and
+    documented that a later phase would populate it here -- Phase 2 is
+    that call: the real Home Assistant connector, registered the same
+    way ``_build_mcp_transport_registry`` populates MCP's own registry.
+    ``mqtt`` stays unregistered pending Phase 3's own separately-
+    approved pass."""
+    from jarvis.core.connectivity.connectors.factory import build_default_connector_registry
 
-    return ConnectorFactoryRegistry()
+    return build_default_connector_registry()
 
 
 def _build_connectivity_credential_store(*, settings: Settings) -> Any:
