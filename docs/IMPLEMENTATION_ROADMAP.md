@@ -56,10 +56,23 @@
 > Phase 6) — **M10B is complete.** See §5C below.
 
 **Document owner:** project lead
-**Status:** Aug 2026 — tracks M8 (React Frontend & Desktop Experience)
-and, as of Task Group A, M9 (Runtime & Core Services) as well, both
-active in parallel. M8 Phase 1 (React Foundation) and Phase 4 (Voice
-Experience & Motion, in full — the Premium UI & Voice Experience
+
+> **Not authoritative — see `MASTER_ROADMAP.md` §2's Single Source of
+> Truth note** (added Aug 2026, during a roadmap reconciliation pass
+> that found this exact "Status:" line frozen since early in this
+> document's life, describing only M8+M9 running in parallel long
+> after M10, M10A, M10B, M10.5, M11 and M22 had all gained their own
+> detailed sections here without this line ever being revisited). If
+> this line ever again disagrees with `MASTER_ROADMAP.md` §2, §2 is
+> right.
+
+**Status:** Aug 2026 — this document's actively-tracked set has grown
+past its original M8+M9 scope as later milestones gained their own
+detailed sections: M7 (§2), M8 (§2, still the primary subject), M9
+(§5, complete), M10/M10A/M10B/M10.5 (§5A–§5D), M11 (§5G, active, not
+closed), and M22 (its own section, current). M8 Phase 1 (React
+Foundation) and Phase 4 (Voice Experience & Motion, in full — the
+Premium UI & Voice Experience
 initiative's five task groups H–L) shipped; Phases 2–3 and 5–7 remain
 pending, each its own separately-approved implementation pass. M9's
 Runtime Core module is now fully shipped across Task Group A (Runtime
@@ -95,7 +108,10 @@ across §2 — nothing in it blocks M9.
 ## 1. Where things stand
 
 *(Reconciled Aug 2026 — every milestone below carries exactly one of
-four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
+four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned. **Not
+authoritative — see `MASTER_ROADMAP.md` §2's Single Source of Truth
+note.** This table is a narrower, day-to-day mirror of that section;
+if the two ever disagree, `MASTER_ROADMAP.md` §2 is right.)*
 
 | Milestone | Status |
 |---|---|
@@ -107,8 +123,12 @@ four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned.)*
 | **M10A – Universal Search & Knowledge Platform** | ✅ **Completed — File Search deferred pending M11B. See §5B below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10B – Intelligence Layer** | ✅ **Completed — automatic scheduled Daily Briefing delivery deferred pending M7's Scheduler (Phase 6). See §5C below and `MASTER_ROADMAP.md` §8/§14.** |
 | **M10.5 – MCP & Integration Platform** | ✅ **Completed (`0.20.0`) — all five task groups.** Capability Registry, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*` (A); all four transports (stdio/websocket/http/ipc), transport factory, discovery/query, heartbeat (B); provider interface, registry with filtered discovery, lifecycle manager, health collection (C); credential model, encrypted store, auth strategies, provider sessions, permission bridge (D); SDK builders, validation framework, `jarvis mcp` CLI, self-contained examples, `MCPDiagnostics`, `/api/v1/mcp/diagnostics` + `/validate` (E). Generic infrastructure throughout — real providers, the OAuth flow, a server-side listener and vendor integrations are M11's scope. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
-| **M13B – Self-Healing & Observability** | 🔴 Planned, not started. *(New lettered companion to M13, added Aug 2026 — the foundational subset of M18/M20A, which remain their full-scale realizations. M13A "AI Sandbox" is unchanged.)* See `MASTER_ROADMAP.md` §8 and §14. |
-| M11 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
+| **M11 – Intelligent Workspace & Productivity** | 🟡 **Active — Task Groups A–F shipped (backend); not closed.** *(Corrected Aug 2026 — this row previously read "M11 onward: Planned, not started," which contradicted §5G below and had gone stale as M11's own six task groups shipped without this table being updated alongside them.)* Task Group F's backend integration audit is complete; its React/Tauri UI half is M8's, which remains deferred, so M11 itself is not closed. See §5G below and `MASTER_ROADMAP.md` §8/§14. |
+| M11A – SEO Intelligence, M11B – Productivity Suite | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
+| **M12 – Smart Home & IoT Platform** | 🔴 **Not Started**, per `MASTER_ROADMAP.md` §2's Single Source of Truth record — the real, committed repository state. *(A Task Group A implementation was built and tested against this milestone, Aug 2026, but is paused, uncommitted and pending approval — not reflected in this status marker because it is not yet shipped. See §5H below and `MILESTONE_REPORT.md`'s M12 Task Group A entry for the full account.)* |
+| M13 – Computer Control, M13A – AI Sandbox | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
+| **M13B – Self-Healing & Observability** | 🔴 Planned, not started. *(New lettered companion to M13, added Aug 2026 — the foundational subset of M18/M20A, which remain their full-scale realizations.)* See `MASTER_ROADMAP.md` §8 and §14. |
+| M14 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 
 **M22 is not a row in the table above** — this table predates M22 and
 was never extended to include it, since this document's own scope
@@ -121,7 +141,10 @@ Distribution & Universal Installer") is where its status lives.
 
 *(Added alongside `ARCHITECTURE.md` §23 and `MASTER_ROADMAP.md` §18–20,
 so this document states the same execution order rather than requiring
-a reader to cross-check `MASTER_ROADMAP.md` §2 for it.)*
+a reader to cross-check `MASTER_ROADMAP.md` §2 for it. **Not
+authoritative in its own right — see that section's Single Source of
+Truth note; this is a mirror, kept in sync by hand, not a second
+independent record.**)*
 
 ```
 Completed:  M1  M2  M3  M4  M5  M6  M7  M8
@@ -142,8 +165,21 @@ Current:    M22
 After M22, resume with M9 → M10 → M11 → M12 → M13 → M14 → M15
                       → M16 → M17 → M18 → M19 → M20 → M21
 
+              (M9, M10A, M10B, M10.5 already fully shipped; M10 and
+              M11 are the two still-open items in this line.)
+
 Deferred:   M23 — Core Intelligence
 ```
+
+**M12 status, as of this reconciliation pass (Aug 2026):** a roadmap
+audit found M12 is the next milestone in the sequence above genuinely
+marked Not Started (M10 is Partial and M11 is Active, so neither
+qualifies). A Task Group A implementation (Smart Home Core) was built
+and tested against it, but **is not committed and is not part of this
+project's shipped state** — recorded here as Not Started, matching the
+real repository, per `MASTER_ROADMAP.md` §2's own Single Source of
+Truth rule. See `MILESTONE_REPORT.md`'s M12 Task Group A entry for
+the paused implementation's full account.
 
 M22 is the current milestone because it owns installation and
 packaging; M9 onward resumes once it reaches Complete (see the M22
@@ -1933,6 +1969,89 @@ with a reason.
 "UI Integration" with "Platform Closure". The frontend half is M8's,
 which is deferred, so this task group delivered the backend integration
 only and **M11 is not closed**.
+
+---
+
+## 5H. M12 — Smart Home & IoT Platform (🔴 Not Started — see note)
+
+*(Milestone status is 🔴 Not Started, per `MASTER_ROADMAP.md` §2's
+Single Source of Truth record — nothing here is committed. A Task
+Group A implementation was built and tested Aug 2026, out of the
+M9→M21 resumption order, on direct instruction while M22 remained
+open; it is **paused and pending approval**, described below for what
+it is — real, tested, uncommitted work — not represented as shipped
+status anywhere in this document. Full milestone definition —
+Objective, Dependencies, Complexity, 15-module feature list,
+Acceptance Criteria — lives in `MASTER_ROADMAP.md` §8/§9.)*
+
+### Task Group A — Smart Home Core (implemented and tested, Aug 2026 — paused, not committed)
+
+An audit before implementation found nothing real behind this
+milestone yet: only `MockSmartHomeProvider` (an M5-era mock in
+`features/integrations/mocks.py`) and an `ISmartHomeProvider` Protocol
+existed, both placeholders. This task group builds Smart Home Core, the
+first of M12's 15 modules and the one every later module needs
+somewhere to hang its data — the same reasoning M11 Task Group A
+applied to Workspace.
+
+- [x] Smart Home domain — `Home`/`Zone`/`Room`/`Device`/`DeviceGroup`
+      ORM models (`Home` → `Zone` → `Room` → `Device`, plus
+      `DeviceGroup` as a cross-cutting grouping independent of that
+      hierarchy) and the closed vocabularies (`domain/smart_home/
+      models.py`): home status, device status, device type.
+- [x] `HomeRepository` / `ZoneRepository` / `RoomRepository` /
+      `DeviceRepository` / `DeviceGroupRepository`, following
+      `WorkspaceRepository`'s shape exactly.
+- [x] `SmartHomeService` — lifecycle, project-shaped CRUD for all five
+      entities, derived `HomeMetadata`, event publishing, search hooks.
+- [x] DI — `smart_home_service` singleton.
+- [x] REST — `/api/v1/homes`, `/api/v1/devices`,
+      `/api/v1/smart-home/zones`, `/api/v1/smart-home/rooms`,
+      `/api/v1/smart-home/device-groups`, plus `/homes/{id}/metadata`,
+      device-group membership routes, and `POST /devices/{id}/pair`.
+- [x] WebSocket — `HomeUpdatedEvent`, `DeviceUpdatedEvent` on the
+      existing relay. Zones/rooms/device groups do not get their own
+      event classes in this task group — see below.
+- [x] Search — two sources (`homes`, `devices`) through M10A's provider
+      registry, no `SearchService` change.
+- [x] 38 tests across service / repository / REST.
+
+**Governing rule for this task group: no talking to real hardware.**
+Device Discovery and Device Pairing (two of Smart Home Core's own
+module items) are represented as domain-level status transitions —
+`register_discovered_device` records a discovery result as a `Device`
+row in `status="discovered"`; `pair_device` transitions it to
+`"paired"` directly, with no handshake. Nothing here produces a
+discovery result by talking to ESP32/MQTT/Zigbee/Z-Wave/Matter/
+Thread/Home Assistant — that is M12's own **Connectivity Layer**
+module, a later task group this one does not attempt. The same honest
+boundary M11 Task Group B drew around `Reminder` ("scheduling metadata
+and status transitions... **No execution**").
+
+**Scope boundary — what Smart Home Core's own module list names but
+this task group did not build a special mechanism for:**
+- Zone Management is a real, separate entity (`Zone`), not folded into
+  `Room` — a zone spans rooms ("Downstairs"), a room is physical.
+- Device Groups is a real join table (`DeviceGroupMember`), independent
+  of the Home/Zone/Room hierarchy — a group is "what devices have in
+  common," not "where they are."
+- Device Health Monitoring and the Device Status Dashboard are one
+  derived `HomeMetadata` read (room/zone/device counts, paired/
+  offline/unreachable counts), computed on read and never stored —
+  same reasoning as `WorkspaceMetadata`. There is no background health
+  check yet to actually mark a device `offline`/`unreachable`; that
+  needs Connectivity Layer to have something to poll.
+
+**Not in this task group, and not this milestone's other 14 modules
+either — those are separate, later task groups:** Connectivity Layer,
+Smart Lighting, Smart Locks, Sensors, Smart Cameras, Energy Management,
+Appliance Control, Home Automation, AI Home Assistant, Security &
+Safety, Remote Access, Smart Home Memory, Smart Home Analytics,
+Developer Tools. M12's own Dependencies note (`MASTER_ROADMAP.md`)
+names M14 (Security Platform, for device-pairing credential storage)
+and M11 (cloud-vendor OAuth) — both come later or are not closed; this
+task group needed neither, since it stores no real credential and
+talks to no real cloud vendor.
 
 ---
 

@@ -3,6 +3,24 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+*(An entry describing an M12 Task Group A implementation briefly stood
+here, versioned `0.39.0`. That version was never committed and has
+been reverted to `0.38.0` — the last real, shipped version — so the
+entry was removed rather than left describing a release that does not
+exist. The paused implementation itself is not lost: it is described
+in `MILESTONE_REPORT.md`'s M12 Task Group A entry, correctly framed
+there as implemented-and-tested-but-not-committed rather than shipped.
+A changelog records what happened to the shipped product; nothing has,
+yet.)*
+- **Scope boundary, drawn the same way M11 Task Group B drew one
+  around `Reminder`:** this task group builds the domain layer only.
+  No real device talks to it. Fourteen of M12's fifteen modules
+  (starting with Connectivity Layer, which real discovery/pairing
+  depends on) are separate, later task groups.
+- M10 and M11's own open status is reported, not resolved, by this
+  entry — see `MILESTONE_REPORT.md`'s M12 Task Group A entry for the
+  full roadmap audit.
+
 ## M22 Task Group F: Final Build Verification, Cross-Platform Readiness & Release Validation
 
 **No version bump.** Consistent with this project's own precedent

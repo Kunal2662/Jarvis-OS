@@ -1746,3 +1746,311 @@ after it.
 
 This report does not request that M23 begin, and TG-F's own brief
 asked explicitly to stop after it and await approval, which this is.
+
+---
+---
+
+# Milestone Report — M12 Task Group A: Smart Home Core
+
+**Version:** 0.38.0 (unchanged — see §10; this task group's own
+`0.39.0` was reverted, not committed)
+**Branch:** `feature/m22-task-group-c`
+**Baseline:** v0.38.0 (M22 Task Group F, Implementation Complete — Build Verification Pending)
+**Date:** 2026-08-07
+
+> **A fifth report, appended to the same file — the first one not
+> filed under M22.** Nothing above this divider was edited; the four
+> M22 task-group reports stand exactly as written. This report covers
+> a different milestone, started while M22 remains open (see §2).
+> **Updated same-day, before any commit:** a stop instruction paused
+> this task group immediately after implementation and before commit.
+> A follow-up roadmap-reconciliation pass found real gaps (§10) and
+> reverted the version bump this report originally described — the
+> paragraphs below describing "Implementation Complete" and `0.39.0`
+> are left as first-written, with §10 appended as the accurate,
+> current status rather than silently edited in place.
+
+## 1. Executive summary
+
+The brief was explicit: read both roadmap documents completely,
+determine the next milestone officially marked "Not Started," verify
+against evidence rather than assume, then begin only that milestone's
+first task group and stop.
+
+**M12 — Smart Home & IoT Platform is that milestone.** A fresh audit
+found M10 (AI Orchestrator) Partial and M11 (Intelligent Workspace &
+Productivity) Active — both have real, shipped work and neither
+qualifies as "Not Started," even though both precede M12 numerically
+in the stated M9→M21 resumption order. M12 carries no shipped task
+group, no `IMPLEMENTATION_ROADMAP.md` §5-equivalent section (before
+this report), and only an M5-era mock provider in the codebase. This
+task group builds M12's first slice: **Smart Home Core** — the
+domain layer every one of M12's other fourteen modules needs
+somewhere to hang its data, the same role Workspace Foundation played
+for M11.
+
+**Status: Implementation Complete.** Unlike every M22 task group this
+session produced, this one needed no Rust toolchain and nothing in it
+is gated on one — it is pure Python/FastAPI, verified for real against
+a live SQLite database and a real FastAPI app, not merely typed
+against an interface.
+
+---
+
+## 2. Roadmap audit (Step 1–2 of the brief)
+
+Read in full: `MASTER_ROADMAP.md` (§1–§2 status framing, §8/§9 M9–M14
+milestone catalogue and Dependencies notes, §14 Version Timeline) and
+`IMPLEMENTATION_ROADMAP.md` (§1 status table, §2 execution order, §5
+through §5G per-milestone detail, §6 Deferred Backlog).
+
+**Completed:** M0–M6, M9 (all five task groups), M10A, M10B, M10.5.
+
+**Active, real work shipped, not "Not Started":**
+- M7 — Phases 1–2 shipped, Phase 3 deferred, 4–6 pending.
+- M8 — Phases 1+4 shipped, Phase 3 partial, rest in its own Deferred
+  Backlog.
+- M10 — buildable-now scope shipped; M14/M16-dependent remainder
+  deferred.
+- **M11 — Task Groups A–F all shipped (backend). Explicitly "not
+  closed":** Task Group F's own brief paired backend integration with
+  a React/Tauri UI half deferred to M8, and M8 itself remains
+  incomplete.
+
+**A genuine documentation defect found during this audit, not
+invented:** `IMPLEMENTATION_ROADMAP.md`'s top-level status table read
+"M11 onward: Planned, not started" — flatly contradicted by that same
+document's own §5G section, which documents six shipped task groups
+in detail. The table had gone stale when M11's implementation
+sections were added and was never revisited. Corrected as part of
+this task group's documentation sync (§8 below), not silently ignored
+and not silently left for a future pass.
+
+**M12 — Smart Home & IoT Platform: 🔴 Planned** in
+`MASTER_ROADMAP.md` §14's Version Timeline, no shipped task group
+anywhere, and the only trace in the codebase was `MockSmartHomeProvider`
+(`features/integrations/mocks.py`, M5-era) and an `ISmartHomeProvider`
+Protocol — both placeholders, neither a real implementation. This is
+the first milestone in the stated M9→M21 resumption order that
+genuinely matches "Not Started."
+
+**M12's own documented Dependencies** (`MASTER_ROADMAP.md`) name M14
+(Security Platform, for device-pairing credential storage) and M11
+(cloud-vendor OAuth) — both come later in the sequence or are not
+themselves closed. This project's own established pattern (M10's
+buildable-now scope, M11 Task Group B's unfired reminders) is to build
+what is genuinely buildable now and defer, honestly, whatever needs an
+unbuilt dependency — applied here in §3.
+
+---
+
+## 3. Implementation summary (Step 3 of the brief)
+
+**Smart Home Core**, mirroring M11 Task Group A's shape file-for-file:
+domain value objects and closed vocabularies
+(`domain/smart_home/models.py`), five ORM models
+(`Home` → `Zone` → `Room` → `Device`, plus `DeviceGroup` /
+`DeviceGroupMember`), five repositories, one service
+(`SmartHomeService`), REST routes under `/api/v1/homes`,
+`/api/v1/devices` and `/api/v1/smart-home/*`, DI wiring, two new
+`SearchService` sources (`homes`, `devices`), and two new event
+classes (`HomeUpdatedEvent`, `DeviceUpdatedEvent`).
+
+**The governing scope decision:** nothing in this task group talks to
+real hardware. Device Discovery and Device Pairing — two of Smart Home
+Core's own listed module items — are modeled as domain-level status
+transitions (`register_discovered_device` records a discovery result
+as a `Device` row in `status="discovered"`; `pair_device` transitions
+it straight to `"paired"`, no handshake). M12's Connectivity Layer
+module (ESP32/MQTT/Zigbee/Z-Wave/Matter/Thread/Home Assistant) is a
+separate, later task group; this one models the shape a real scan will
+eventually populate, the same honest boundary M11 Task Group B drew
+around `Reminder`'s scheduling metadata with "No execution."
+
+**Zone Management and Device Groups were built as real entities**, not
+deferred, because M12's own module-list one-liner for Smart Home Core
+names both explicitly ("device manager/registry/discovery/pairing,
+rooms, zones, groups, multi-home") — unlike Connectivity Layer or the
+other fourteen modules, which are separate list entries with their own
+task groups. Deferring an explicitly-named sub-item without a real
+dependency reason would have been an unjustified cut, not a scope
+boundary.
+
+**Device Health Monitoring and the Device Status Dashboard** are one
+derived `HomeMetadata` read (room/zone/device counts,
+paired/offline/unreachable counts) — computed on every read, never
+stored, same reasoning as `WorkspaceMetadata`: a stored count drifts
+the first time a device is deleted through a path that forgot to
+decrement it. There is no background health check driving a device to
+`offline`/`unreachable` yet; that needs Connectivity Layer to have
+something to poll.
+
+---
+
+## 4. Defects discovered
+
+One, in documentation, not application code — the stale
+`IMPLEMENTATION_ROADMAP.md` status-table row described in §2. No code
+defect was found; this task group's own new code was tested before any
+defect could be reported against it (see §5).
+
+## 5. Defects fixed
+
+The one above. `IMPLEMENTATION_ROADMAP.md`'s top-level table now
+reads M11 correctly (Active, not closed) and gains a new M12 row.
+
+One near-defect worth recording even though it never shipped: an
+early draft of `SmartHomeService.update_device`'s test reached into
+the service's own private `_db` attribute to fabricate an "offline"
+device for a metadata test, rather than going through a public method.
+Caught on review before committing — there is no public way to mark a
+device offline yet (no Connectivity Layer to drive one), so the test
+was rewritten to only assert what the public API actually produces
+(a `"discovered"` device counted correctly as neither paired nor
+offline), rather than reaching around the service boundary to fake
+a state nothing in this task group can really produce.
+
+---
+
+## 6. Quality gates
+
+- **pytest** — 38 new tests (service + repository + REST, all against
+  real temp-file SQLite, no mocked repository), all passing on first
+  run. Full suite re-run afterward for regression; see the
+  implementation commit for the exact count.
+- **black** — clean after one formatting pass on the five new/modified
+  Python files.
+- **ruff** — new files checked against the project's real configured
+  ruleset (`pyproject.toml`), not a bare default invocation. Two
+  categories fired: `PLC0415` (import-outside-top-level) and `B008`
+  (function-call-in-default-argument) — both confirmed, by checking
+  the same rule against `workspace_service.py`/`workspaces.py`
+  directly, to be pre-existing, accepted baseline patterns in this
+  codebase (lazy event-bus imports; FastAPI's own `Depends(...)`
+  default-argument idiom), not new violations. One genuine new-code
+  hit, `PLR0917` (too-many-positional-arguments) on `list_devices`'s
+  four query filters, fixed by making them keyword-only — a real,
+  zero-risk fix, since FastAPI resolves route parameters by name and
+  never calls a handler positionally.
+- **mypy** — zero errors in all five new files; zero new errors
+  introduced in the modified files (`models.py`, `container.py`,
+  `events.py`, `search_sources.py`, `fastapi_server.py`). Confirmed by
+  running mypy across the full `src/jarvis` tree and checking that
+  none of the pre-existing 262 errors falls inside a file this task
+  group touched.
+
+---
+
+## 7. Documentation updated
+
+`MASTER_ROADMAP.md` (M12's own status line, §2's execution-order
+diagram and its new note on the M22/M12 concurrent-milestone
+exception), `IMPLEMENTATION_ROADMAP.md` (the corrected M11 table row,
+a new M12 table row, §2's diagram and note, a new §5H section), this
+file, `CHANGELOG.md`. `README.md` and `ARCHITECTURE.md` not changed —
+no user-visible behavior and no architecture decision changed; this is
+new backend capability behind an unauthenticated-by-default-off REST
+surface with no frontend yet calling it.
+
+No historical record was rewritten: this section is appended after
+the M22 Task Group F report, not merged into it; every earlier
+report — TG-C through TG-F — stands untouched above the divider;
+`CHANGELOG.md`'s earlier entries are untouched.
+
+---
+
+## 8. Remaining work for M12
+
+Fourteen of fifteen modules: Connectivity Layer (the real-hardware
+half of Discovery/Pairing depends on this existing first), Smart
+Lighting, Smart Locks, Sensors, Smart Cameras, Energy Management,
+Appliance Control, Home Automation, AI Home Assistant, Security &
+Safety, Remote Access, Smart Home Memory, Smart Home Analytics,
+Developer Tools — all separate, later task groups, none started.
+
+M10 and M11 remain open work, unrelated to and unresolved by this
+task group starting — see §2. This report does not claim otherwise.
+
+## 9. Recommendation
+
+M12 Task Group A is genuinely done — real code, real tests run against
+real infrastructure, no external gate blocking it the way every M22
+task group this session produced was blocked on a missing Rust
+toolchain. The brief's own stop condition applies: this report does
+not request that Task Group B begin, and does not request that M22's
+own remaining work resume either. Both wait on explicit approval.
+
+---
+
+## 10. Correction, same day, before commit
+
+§1's "Status: Implementation Complete" was written before this task
+group's own quality gates finished running. **It was premature.** A
+full background regression run (started before commit, per this
+project's own established discipline) completed after this report's
+first draft and found real gaps this report had not yet accounted
+for. A stop instruction arrived at the same time, before commit —
+this section is the correction, appended rather than silently edited
+into §1 above, per this document's own append-only convention.
+
+**What the regression run found (6 failures, none pre-existing —
+all trace to this task group):**
+
+1–2. `test_platform_integration.py::test_the_expected_search_sources_
+   are_all_present` and `test_knowledge_route.py::
+   test_search_returns_envelope` — both pin an exact expected set of
+   search-source type strings. This task group registered two new
+   sources (`homes`, `devices`) — confirmed, via the captured log,
+   to register correctly — but never updated either pinned literal to
+   include them. A real, small gap: two test files, one line each.
+3–4. `test_platform_integration.py::
+   test_every_declared_event_is_relayed_or_documented_as_absent` and
+   `test_runtime_ws_hub.py::
+   test_only_unpublished_events_are_absent_from_the_relay` — both
+   guard that every `Event` subclass is either wired into the
+   WebSocket relay or explicitly declared as intentionally absent.
+   `HomeUpdatedEvent` and `DeviceUpdatedEvent` are neither — a real
+   gap, not a stale test: these two events are published via the
+   `EventBus` (confirmed by this task group's own passing unit tests)
+   but were never registered in `runtime_ws_hub.py`'s relay mapping,
+   nor declared in `UNPUBLISHED_EVENT_TYPES` as a deliberate
+   exclusion. This needs a decision (relay them, matching
+   `WorkspaceUpdatedEvent`'s precedent, or explicitly exclude them),
+   not just a test update.
+5–6. `test_version_consistency.py::
+   test_package_version_matches_pyproject` and
+   `::test_desktop_bundle_matches_the_package_version` — **not a real
+   defect.** Diagnosed as a process-timing artifact: the full
+   regression suite was launched before this task group's version
+   bump landed on disk; Python's `sys.modules` caching meant that
+   long-running process kept reading `jarvis.__version__` as its
+   value at import time (`0.38.0`) for its entire ~15-minute run,
+   while `pyproject.toml` was read fresh and correctly showed the
+   just-written `0.39.0` — a mismatch produced by this session's own
+   process sequencing, not by the version files actually disagreeing
+   on disk. Confirmed by direct re-reads of all three files (fully
+   consistent) and by a fresh, isolated re-run of just this test file
+   passing cleanly both before and after the version revert below.
+
+**Version reverted.** Per instruction, since this task group is not
+being committed, `pyproject.toml`, `src/jarvis/__version__.py` and
+`frontend/src-tauri/tauri.conf.json` were restored to `0.38.0` — the
+last real, committed version (confirmed against `git show HEAD`) —
+rather than left at the never-shipped `0.39.0`. §1's version line
+above is now stale in the same way the rest of §1 is; this section
+is the accurate record.
+
+**Readiness re-evaluation.** M12's own documented Dependencies (M14
+for credential storage, M11 for cloud-vendor OAuth) do not block this
+specific slice — Smart Home Core stores no real credential and calls
+no real cloud vendor, so the architectural dependency is real but not
+yet triggered. The actual remaining blockers are narrow and concrete,
+not architectural: (1) two pinned-invariant test literals need two
+new strings each; (2) `HomeUpdatedEvent`/`DeviceUpdatedEvent` need a
+deliberate relay decision, wired or explicitly excluded. Both are
+small, well-understood, same-day fixes, not a sign the task group
+needs re-scoping or a redo. **Recommendation: keep the implementation,
+fix the four real gaps, then re-run the full suite before any commit
+is considered** — not discard and restart. This report does not
+request that those fixes happen automatically; per the instruction
+that paused this task group, they are diagnosed here, not applied.

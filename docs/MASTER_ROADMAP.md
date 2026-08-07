@@ -104,17 +104,42 @@ Implementation Complete — Build Verification Pending underneath it;
 the two vocabularies describe different granularities, not competing
 answers to the same question.)*
 
-**Current version:** `0.36.0`
+**Current version:** `0.38.0`
 
-*(Corrected Aug 2026. This line read `0.25.0` while the package was at
-`0.35.0` — ten releases of drift, in the one field a reader checks
-first. `pyproject.toml` and `src/jarvis/__version__.py` are the source
-of truth, and as of `0.36.0` `frontend/src-tauri/tauri.conf.json` is
-held to the same number by `tests/unit/test_version_consistency.py`.
-This document is not machine-checked; when it disagrees with those
-files, they are right.)*
+*(Corrected a second time, Aug 2026. This line read `0.25.0` while the
+package was at `0.35.0` (ten releases of drift), was corrected to
+`0.36.0`, and then drifted again to the same stale value while real
+work shipped three more releases past it — found during a full
+roadmap audit, not by design. `pyproject.toml` and
+`src/jarvis/__version__.py` are the source of truth, and
+`frontend/src-tauri/tauri.conf.json` is held to the same number by
+`tests/unit/test_version_consistency.py`. This document is not
+machine-checked; when it disagrees with those files, they are right.
+Given this line has now drifted twice, it is being **removed as a
+narrative claim** in favor of the single authoritative table
+immediately below — see the Single Source of Truth note there.)*
 
 ### Execution order — Current Project Status
+
+> **Single Source of Truth (governance rule, added Aug 2026 after a
+> roadmap audit found six independently-drifting status surfaces
+> across this document and `IMPLEMENTATION_ROADMAP.md`).** The
+> diagram and "Active (🟡)" list immediately below are **the one
+> authoritative milestone-status record for this entire project.**
+> Every other status summary — this section's own now-removed
+> "Current version" narrative line above, §14's Version Timeline
+> table, `IMPLEMENTATION_ROADMAP.md`'s own "Status:" line and its §1
+> table — is a **secondary, non-authoritative view**, kept for a
+> different purpose (a historical shipped-version log; a narrower
+> day-to-day checklist) and **explicitly marked as deferring to this
+> section** wherever it appears. If any of them ever disagrees with
+> what is written here, this section is right and the other one is
+> stale. This rule exists because the six-way drift an Aug 2026 audit
+> found was not one document disagreeing with another — it was
+> multiple summaries *within the same document* narrating the same
+> fact independently and going out of sync with each other on
+> different schedules. The fix is structural: stop narrating the same
+> fact in more than one place that claims authority.
 
 The order work is actually being done in, which is **not** ascending
 numeric order. Status words below are the six defined in
@@ -144,6 +169,13 @@ After M22, resume with
   M9 → M10 → M11 → M12 → M13 → M14 → M15
      → M16 → M17 → M18 → M19 → M20 → M21
 
+  (M9, M10A, M10B and M10.5 -- the lettered milestones that sit
+  between M9 and M11 in this sequence -- are already fully shipped;
+  they are named in this line only to keep the numeric sequence
+  readable, not because any of them is still waiting. M10 and M11 are
+  the two genuinely still-open items in this line -- see the Active
+  list below.)
+
 Deferred
   M23 — Core Intelligence
 ```
@@ -152,6 +184,20 @@ Deferred
 Until it ships there is no way to *deliver* M1–M8 to a machine that is
 not a development checkout, so every milestone after it would be built
 on top of software nobody can install.
+
+**M12 status, as of this reconciliation pass (Aug 2026):** a roadmap
+audit found M12 is the next milestone in the sequence above genuinely
+marked Not Started (M10 is Partial and M11 is Active, so neither
+qualifies). A Task Group A implementation (Smart Home Core) was built
+and tested against it, but **is not committed and is not part of this
+project's shipped state** — it remains a paused, pending-approval
+piece of work. Per this section's own Single Source of Truth rule,
+M12 is recorded here as **Not Started**, matching the real, committed
+repository; the paused implementation is described in
+`MILESTONE_REPORT.md`'s M12 Task Group A entry, not represented as
+shipped fact in this status table. Whether it proceeds is a decision
+still pending, not reflected in a status marker anywhere in this
+document until it is.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -355,6 +401,26 @@ future work; see M6's own §3 entry for the full scope note.
   (`GoalSearchSource`). One key feature explicitly deferred: automatic
   scheduled Daily Briefing delivery (needs M7's Scheduler Phase 6, not
   started) — see M10B's own entry for the full Deferred list.
+- **M10.5 — MCP & Integration Platform** (see §8) — ✅ **Completed
+  (`0.20.0`), all five task groups.** *(Added to this list Aug 2026,
+  during the roadmap reconciliation pass — it had shipped in full but
+  was missing from this specific list, one of the drift points that
+  pass found.)* Capability Registry, all four transports, provider
+  framework, authentication foundation, SDK/developer experience —
+  see §14 rows `0.16`–`0.20` for the full task-group breakdown.
+- **M11 — Intelligent Workspace & Productivity** (see §8) — 🟡
+  **Active, not closed.** *(Added to this list Aug 2026, same
+  reconciliation pass — six real shipped task groups were missing
+  from this list entirely.)* Task Groups A–F shipped (`0.23.0`–
+  `0.28.0`): Workspace Foundation, Productivity Core, File Platform,
+  AI Workspace, Integration Platform (OAuth2, API Gateway, Google
+  Workspace Phase 1), and a Task Group F cross-cutting audit that
+  found and fixed four real defects (a session-id-as-Bearer-token
+  security gap, silent pagination truncation, a duplicate DI binding,
+  missing health reporting). **Not closed**: Task Group F's own brief
+  paired backend integration with a React/Tauri UI half that belongs
+  to M8, which remains deferred — see M11's own §8 entry for the full
+  account.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -3345,6 +3411,18 @@ M11's own complexity reasoning)*.
    golden-file smoke test.
 
 ### M12 — Smart Home & IoT Platform
+
+**Status: 🔴 Not Started**, per §2's Single Source of Truth record —
+this is the real, committed state of the repository. *(A Task Group A
+implementation — Smart Home Core: Home/Zone/Room/Device/DeviceGroup
+CRUD, Multi-Home Support, derived Device Health Monitoring/Status
+Dashboard metadata, and Device Discovery/Pairing modeled as domain
+status transitions with no real hardware behind them — was built and
+tested against this milestone, Aug 2026. It is paused, uncommitted,
+and pending approval; it is not reflected in this status line because
+it is not yet part of this project's shipped state. See
+`IMPLEMENTATION_ROADMAP.md` §5H and `MILESTONE_REPORT.md`'s M12 Task
+Group A entry for the full account of what was built.)*
 
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
 single-bus device bridge into a complete enterprise-grade Smart Home
@@ -9928,6 +10006,17 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 
 ## 14. Version timeline
 
+> **Not authoritative — see §2's Single Source of Truth note.** This
+> table is a historical log of what shipped under which version
+> number, kept for that purpose. It is not the current-status record;
+> §2's execution-order diagram and Active list are. Two rows below
+> were found stale during the Aug 2026 reconciliation pass (pre-
+> redesign milestone names/statuses, contradicted by real shipped
+> rows for the same milestone under its current name a few rows
+> above) and are marked accordingly rather than silently corrected —
+> the *(next)* placeholder section below this table's real-shipped
+> rows was never meant to assert current status in the first place.
+
 | Version | Milestone | Theme                          | Status  |
 |---------|-----------|---------------------------------|---------|
 | **0.1** | M0 · M1   | Foundation + Chat Engine        | ✅ Shipped |
@@ -9960,7 +10049,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.26** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group D (AI Workspace) shipped: a pure `domain/ai_workspace/` (context value objects, character-budget packing, prompt construction), one table (`WorkspaceKnowledgeLink`), one repository, `WorkspaceKnowledgeService` (links + on-demand ingestion) and `WorkspaceAssistantService` (grounded summarize/ask/next-actions), `WorkspaceContextManager` and `WorkspaceRetriever`, five agent tools on the existing registry, two relay events, DI, and `/api/v1/workspace-ai/*` + `/api/v1/knowledge-links`. **No second anything**: retrieval narrows M10A's `SearchService`, extraction is `KnowledgeService.learn_from_text`, and the agent is M10's `AgentOrchestrator` reached as tools. **Nothing is scheduled** (ingestion is on demand — M7 Phase 6 owns scheduling) and **no assist call is persisted** (`ConversationService` owns transcripts). **No embeddings over workspace content.** Task Groups E–F not started. |
 | **0.27** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group E (Integration Platform) shipped: OAuth2 authorization-code with mandatory PKCE and the client-credentials grant (closing M10.5 Task Group D's explicit deferral, registered into the *existing* `AuthStrategyRegistry`); one audited API gateway (single pool, retry for idempotent methods only, `Retry-After`, account-keyed response cache); connectors as declarative `IntegrationSpec` data executed by `RestIntegrationProvider`, an `IMCPProvider` in the *same* `MCPProviderRegistry` with the same lifecycle, events, capability registry and permission gates; Google Workspace Phase 1 (11 integrations, 65 operations); per-integration search sources on M10A's registry; four agent tools; and `/api/v1/integrations/*` including the one deliberately session-free route in the application, the OAuth callback, protected by a single-use `state`. **Phases 2–6 (Microsoft 365, GitHub/GitLab, Slack/Discord/Teams, Notion/Jira/Trello/ClickUp/Linear/Asana, Dropbox/Box) are catalogue entries against this engine and are not built** — deliberately not written from memory, because a subtly wrong endpoint ships a connector that fails at the first real call. **No two-way sync** (needs a conflict policy and M7's Scheduler), no webhooks, no durable outbound queue, no resumable upload. Task Group F not started. |
 | **0.28** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group F (Platform Integration) shipped: a cross-cutting audit of 170 REST routes, 66 event classes, 88 DI providers, 13 search sources and 37 settings sections, plus the four defects it found. **Security:** `GET`/`DELETE /sessions/{id}` required no token although a session id *is* the Bearer token, so anyone who learned one could confirm it live or close it; both now require that session's own token and answer `404` for another's. **Pagination:** every repository already capped at 200/500 but nothing exposed the cap and `meta` reported only `count`, so a 250-note workspace silently returned 200 — all nine M11 collections now take `limit`/`offset` and report `has_more` through one shared helper. **DI:** `memory_recall_hook` was bound twice; the dead binding removed. **Health:** M11's subsystems reported nothing to `HealthMonitor`; one collector on the existing extension point now carries the storage root, AI switches, egress counters and live search sources. Everything else audited was already consistent and is recorded as verified. **The React/Tauri UI half is not built** — it is M8's, which is deferred, so M11 is not closed. |
-| *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
+| *(superseded)* | M11 | ~~Integrations & Cloud Platform~~ | Stale leftover — M11 was retitled "Intelligent Workspace & Productivity" and is 🟡 Active (see rows `0.23`–`0.28` above and §2); this row predates that redesign and was never removed |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
 | *(next)* | M12       | Smart Home                      | 🔴 Planned |
@@ -9978,7 +10067,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | *(next)* | M20       | Predictive Intelligence Platform | 🔴 Planned |
 | *(next)* | M20A      | Analytics & Observability Platform | 🔴 Planned |
 | *(next)* | M21       | Mobile Platform                 | 🔴 Planned |
-| *(next)* | M22       | Edge AI Platform                | 🔴 Planned |
+| *(superseded)* | M22 | ~~Edge AI Platform~~ | Stale leftover — M22 was redefined "Cross-Platform Distribution & Universal Installer" and is 🟡 Active (shipped `0.33.0`–`0.38.0`; see §2 and §18); this row predates that redefinition and was never removed |
 | *(next)* | M23       | Distributed JARVIS              | 🔴 Planned |
 | *(next)* | M23A      | Robotics & Hardware Control Platform | 🔴 Planned |
 | *(next)* | M23B      | Autonomous Planning & Decision Engine | 🔴 Planned |
