@@ -24,7 +24,8 @@ unknown workspace status.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+from typing import TYPE_CHECKING, Any
 
 from jarvis.core.exceptions import ServiceError
 from jarvis.core.interfaces.search import SearchResult
@@ -291,6 +292,7 @@ class SmartHomeService:
         manufacturer: str = "",
         model: str = "",
         external_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Device:
         """Records a discovery result as a real ``Device`` row in
         ``status="discovered"``.
@@ -301,6 +303,22 @@ class SmartHomeService:
         task group calls this once a real scan finds something; a
         manual "add a device I already know about" flow can call it
         too, since the shape does not care which.
+
+        ``metadata`` (Milestone 12 Task Group B) is written to
+        ``Device.metadata_json`` -- the column Task Group A built
+        specifically "so a later task group has somewhere to write."
+        Connectivity Layer stores ``{"connector_type": ...}`` here so a
+        command can later be routed back to the connector that
+        discovered the device, without a schema change.
+
+        **Not idempotent by itself.** Calling this twice with the same
+        ``external_id`` creates two rows -- deliberately, so a manual
+        "add a device I already know about" caller is never silently
+        turned into a no-op. A caller that re-discovers the same
+        physical device on every poll (Connectivity Layer's own job)
+        is expected to check ``get_device_by_external_id`` first and
+        call ``update_device``/``report_device_state`` instead when a
+        match exists.
         """
         name = (name or "").strip()
         if not name:
@@ -313,6 +331,7 @@ class SmartHomeService:
                 raise ServiceError(
                     f"Room {room_id!r} belongs to a different home; a device cannot span two."
                 )
+        metadata_json = json.dumps(metadata) if metadata else "{}"
         async with self._db.session() as sess:
             device = await DeviceRepository(sess).add(  # type: ignore[arg-type]
                 home_id,
@@ -323,10 +342,46 @@ class SmartHomeService:
                 manufacturer=manufacturer,
                 model=model,
                 external_id=external_id,
+                metadata_json=metadata_json,
             )
             device_id = device.id
         await self._publish_device(device_id, home_id, action="created", status="discovered")
         return await self.require_device(device_id)
+
+    async def get_device_by_external_id(self, home_id: str, external_id: str) -> Device | None:
+        """Milestone 12 Task Group B's own discovery-idempotency check
+        -- a connector calls this before ``register_discovered_device``
+        to decide whether a discovery result is a new device or an
+        update to one already known."""
+        async with self._db.session() as sess:
+            return await DeviceRepository(sess).get_by_external_id(  # type: ignore[arg-type]
+                home_id, external_id
+            )
+
+    async def report_device_state(
+        self, device_id: str, *, status: str, touch_last_seen: bool = True
+    ) -> Device | None:
+        """Milestone 12 Task Group B's own method: a connector's real
+        state read drives a device's status here, generalizing
+        ``pair_device``'s single ``discovered`` -> ``paired``
+        transition to any status a connector actually reports
+        (``paired`` -> ``offline``, ``offline`` -> ``paired``, ...).
+        This is what finally gives ``HomeMetadata.offline_device_count``
+        / ``unreachable_device_count`` real data -- both fields existed
+        since Task Group A with nothing to drive them.
+        """
+        _validate(status, DEVICE_STATUSES, "device status", required=True)
+        device = await self.get_device(device_id)
+        if device is None:
+            return None
+        async with self._db.session() as sess:
+            await DeviceRepository(sess).update(  # type: ignore[arg-type]
+                device_id, status=status, touch_last_seen=touch_last_seen
+            )
+        await self._publish_device(
+            device_id, device.home_id, action="status_changed", status=status
+        )
+        return await self.get_device(device_id)
 
     async def pair_device(self, device_id: str) -> Device | None:
         """``discovered`` -> ``paired``, directly -- this task group has

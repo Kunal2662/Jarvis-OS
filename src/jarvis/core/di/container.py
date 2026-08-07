@@ -497,6 +497,40 @@ def _build_smart_home_service(*, database: Any, event_bus: Any) -> Any:
     return SmartHomeService(database=database, event_bus=event_bus)
 
 
+def _build_connectivity_registry() -> Any:
+    """Milestone 12 Task Group B, Phase 1. Empty of real connectors --
+    a later phase calls ``register("home_assistant", ...)`` here at
+    this composition root, the same pattern
+    ``_build_mcp_transport_registry`` already established for MCP."""
+    from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
+
+    return ConnectorFactoryRegistry()
+
+
+def _build_connectivity_credential_store(*, settings: Settings) -> Any:
+    """Reuses the existing config-dir convention and the app's own
+    Fernet key -- no second crypto stack, no new location. A sibling
+    of ``_build_mcp_credential_store``, not a shared instance; see
+    ``core/connectivity/credential_store.py``'s own docstring for why."""
+    from jarvis.core.config import paths as _paths
+    from jarvis.core.connectivity.credential_store import ConnectorCredentialStore
+
+    return ConnectorCredentialStore(
+        _paths.config_dir(settings.resolved_data_dir) / "connectivity_credentials.json",
+        secret_key=settings.security.secret_key.get_secret_value(),
+    )
+
+
+def _build_connectivity_service(
+    *, connectivity_registry: Any, smart_home_service: Any, event_bus: Any
+) -> Any:
+    from jarvis.services.connectivity_service import ConnectivityService
+
+    return ConnectivityService(
+        registry=connectivity_registry, smart_home=smart_home_service, event_bus=event_bus
+    )
+
+
 def _build_task_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
     from jarvis.services.task_service import TaskService
 
@@ -1082,6 +1116,19 @@ class Container(containers.DeclarativeContainer):
     smart_home_service = providers.Singleton(
         _build_smart_home_service,
         database=database,
+        event_bus=event_bus,
+    )
+
+    # ---- Milestone 12 Task Group B -- Connectivity Layer, Phase 1 ---------
+    connectivity_registry = providers.Singleton(_build_connectivity_registry)
+    connectivity_credential_store = providers.Singleton(
+        _build_connectivity_credential_store,
+        settings=settings,
+    )
+    connectivity_service = providers.Singleton(
+        _build_connectivity_service,
+        connectivity_registry=connectivity_registry,
+        smart_home_service=smart_home_service,
         event_bus=event_bus,
     )
 

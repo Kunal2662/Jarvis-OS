@@ -111,6 +111,8 @@ export const RELAYED_EVENTS = [
   // Smart Home platform (M12 Task Group A)
   "home.updated",
   "device.updated",
+  // Connectivity Layer (M12 Task Group B)
+  "connectivity.status_changed",
 ] as const;
 
 export type RelayedEvent = (typeof RELAYED_EVENTS)[number];

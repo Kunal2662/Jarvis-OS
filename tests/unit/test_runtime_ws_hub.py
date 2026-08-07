@@ -148,6 +148,8 @@ def test_every_documented_event_type_is_mapped() -> None:
         # `runtime_ws_hub.py`'s own registration comment.
         "home.updated",
         "device.updated",
+        # Milestone 12 Task Group B.
+        "connectivity.status_changed",
     }
 
 

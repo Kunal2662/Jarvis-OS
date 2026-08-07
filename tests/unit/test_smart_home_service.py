@@ -7,6 +7,7 @@ repository tests as well as the service tests.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -391,3 +392,112 @@ async def test_search_devices_matches_manufacturer(service: SmartHomeService) ->
 async def test_empty_search_query_returns_nothing(service: SmartHomeService) -> None:
     assert await service.search_homes("") == []
     assert await service.search_devices("   ") == []
+
+
+# --- Connectivity Layer additions (M12 Task Group B) ------------------------------
+
+
+@pytest.mark.asyncio
+async def test_register_discovered_device_stores_metadata(service: SmartHomeService) -> None:
+    home = await service.create_home("Primary Residence")
+
+    device = await service.register_discovered_device(
+        home.id,
+        "Hallway Light",
+        external_id="ha-1",
+        metadata={"connector_type": "home_assistant"},
+    )
+
+    assert json.loads(device.metadata_json or "{}") == {"connector_type": "home_assistant"}
+
+
+@pytest.mark.asyncio
+async def test_register_discovered_device_without_metadata_defaults_to_empty_object(
+    service: SmartHomeService,
+) -> None:
+    home = await service.create_home("Primary Residence")
+
+    device = await service.register_discovered_device(home.id, "Hallway Light")
+
+    assert device.metadata_json == "{}"
+
+
+@pytest.mark.asyncio
+async def test_register_discovered_device_is_not_idempotent(service: SmartHomeService) -> None:
+    """Deliberate -- see the method's own docstring. A manual "add a
+    device I already know about" caller must never be silently turned
+    into a no-op by a later task group's idempotency needs."""
+    home = await service.create_home("Primary Residence")
+
+    await service.register_discovered_device(home.id, "Plug", external_id="ha-1")
+    await service.register_discovered_device(home.id, "Plug", external_id="ha-1")
+
+    assert len(await service.list_devices(home_id=home.id)) == 2
+
+
+@pytest.mark.asyncio
+async def test_get_device_by_external_id_finds_a_match_scoped_to_its_home(
+    service: SmartHomeService,
+) -> None:
+    home_a = await service.create_home("House A")
+    home_b = await service.create_home("House B")
+    await service.register_discovered_device(home_a.id, "Plug", external_id="ha-1")
+
+    found_in_a = await service.get_device_by_external_id(home_a.id, "ha-1")
+    found_in_b = await service.get_device_by_external_id(home_b.id, "ha-1")
+
+    assert found_in_a is not None
+    assert found_in_b is None
+
+
+@pytest.mark.asyncio
+async def test_get_device_by_external_id_returns_none_when_unknown(
+    service: SmartHomeService,
+) -> None:
+    home = await service.create_home("Primary Residence")
+    assert await service.get_device_by_external_id(home.id, "no-such-id") is None
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_updates_status_and_touches_last_seen(
+    service: SmartHomeService,
+) -> None:
+    home = await service.create_home("Primary Residence")
+    device = await service.register_discovered_device(home.id, "Plug")
+
+    updated = await service.report_device_state(device.id, status="paired")
+
+    assert updated is not None
+    assert updated.status == "paired"
+    assert updated.last_seen_at is not None
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_on_a_missing_device_returns_none(
+    service: SmartHomeService,
+) -> None:
+    assert await service.report_device_state("no-such-device", status="paired") is None
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_rejects_an_unknown_status(service: SmartHomeService) -> None:
+    home = await service.create_home("Primary Residence")
+    device = await service.register_discovered_device(home.id, "Plug")
+
+    with pytest.raises(ServiceError, match="Unknown device status"):
+        await service.report_device_state(device.id, status="haunted")
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_publishes_status_changed(recorder) -> None:
+    service, seen = recorder
+    home = await service.create_home("Primary Residence")
+    device = await service.register_discovered_device(home.id, "Plug")
+    seen.clear()
+
+    await service.report_device_state(device.id, status="offline")
+
+    device_events = [e for e in seen if isinstance(e, DeviceUpdatedEvent)]
+    assert len(device_events) == 1
+    assert device_events[0].action == "status_changed"
+    assert device_events[0].status == "offline"

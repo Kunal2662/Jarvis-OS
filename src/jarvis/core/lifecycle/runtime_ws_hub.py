@@ -69,6 +69,7 @@ from jarvis.core.events.events import (
     CalendarEventUpdatedEvent,
     CalendarUpdatedEvent,
     ConfigurationUpdatedEvent,
+    ConnectivityStatusChangedEvent,
     CrashRecoveredEvent,
     DailyBriefingGeneratedEvent,
     DeviceUpdatedEvent,
@@ -238,6 +239,8 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     # watches; a room rename has no real-time subscriber yet.
     HomeUpdatedEvent: "home.updated",
     DeviceUpdatedEvent: "device.updated",
+    # Milestone 12 Task Group B -- Connectivity Layer.
+    ConnectivityStatusChangedEvent: "connectivity.status_changed",
 }
 
 #: Declared but never published, so deliberately absent from the relay

@@ -852,3 +852,21 @@ class DeviceUpdatedEvent(Event):
     home_id: str = ""
     action: str = "created"  # created|updated|status_changed|deleted
     status: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Milestone 12 Task Group B -- Connectivity Layer
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class ConnectivityStatusChangedEvent(Event):
+    """Published by
+    :class:`~jarvis.services.connectivity_service.ConnectivityService`
+    on connector connect/disconnect. Deliberately its own event rather
+    than folded into ``DeviceUpdatedEvent``: a connector going offline
+    is a fact about the *bus*, before any per-device state is even
+    known -- the same reason ``MCPConnectionChangedEvent`` is separate
+    from a per-capability event."""
+
+    connector_type: str = ""
+    status: str = "disconnected"  # connecting|connected|disconnecting|disconnected
+    detail: str = ""

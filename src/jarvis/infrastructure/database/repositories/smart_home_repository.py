@@ -296,6 +296,16 @@ class DeviceRepository:
     async def get(self, device_id: str) -> Device | None:
         return await self._s.get(Device, device_id)
 
+    async def get_by_external_id(self, home_id: str, external_id: str) -> Device | None:
+        """Scoped to *home_id* as well as *external_id* -- two
+        different homes' connectors could, in principle, both discover
+        a device that happens to report the same external id (e.g. two
+        independent Home Assistant instances), and a lookup that
+        ignored the home would silently merge them. Milestone 12 Task
+        Group B's own discovery-idempotency check."""
+        stmt = select(Device).where(Device.home_id == home_id, Device.external_id == external_id)
+        return (await self._s.execute(stmt)).scalars().first()
+
     async def list_devices(
         self,
         *,

@@ -40,6 +40,11 @@
     "configuration.updated": [
       "keys"
     ],
+    "connectivity.status_changed": [
+      "connector_type",
+      "detail",
+      "status"
+    ],
     "device.updated": [
       "action",
       "device_id",
