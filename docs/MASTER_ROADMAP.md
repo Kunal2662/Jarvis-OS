@@ -195,19 +195,24 @@ Partial and M11 is Active, so neither qualifies). Task Group A (Smart
 Home Core) was built, tested, and **is now committed** — implementation
 in `d99a984`, documentation in `b0a531b` — a second deliberate
 exception to "one active milestone at a time," the same kind this
-document's introduction records for M8/M9 running in parallel. **M12 is
-recorded here as 🟡 Active, not Complete**: Task Group A is one of
-fifteen modules in M12's own feature list, and fourteen remain
-unstarted (Connectivity Layer, Smart Lighting, Smart Locks, Sensors,
-Smart Cameras, Energy Management, Appliance Control, Home Automation,
-AI Home Assistant, Security & Safety, Remote Access, Smart Home Memory,
-Smart Home Analytics, Developer Tools). **No version bump accompanied
-this task group, by explicit instruction** -- unlike M22's own task
-groups (each of which shipped real code and bumped the version in
-turn), this one ships real code at `0.38.0` unchanged. Recorded here
-as a deliberate exception to this project's usual pattern, not a claim
-that the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A
-entry for the full implementation account.
+document's introduction records for M8/M9 running in parallel. Task
+Group B (Connectivity Layer) has since started: **Phase 1 (foundation)
+shipped** — the port/adapter contract (`IDeviceConnector`), the
+connector factory registry, the encrypted credential store, and
+`ConnectivityService` orchestration, with no protocol adapter behind
+any of it yet. **M12 is recorded here as 🟡 Active, not Complete**:
+Smart Home Core is one of fifteen modules in M12's own feature list,
+Connectivity Layer is a second, its own foundation only, and thirteen
+modules remain entirely unstarted (Smart Lighting, Smart Locks,
+Sensors, Smart Cameras, Energy Management, Appliance Control, Home
+Automation, AI Home Assistant, Security & Safety, Remote Access, Smart
+Home Memory, Smart Home Analytics, Developer Tools). **No version bump
+accompanied either task group** -- unlike M22's own task groups (each
+of which shipped real code and bumped the version in turn), both ship
+real code at `0.38.0` unchanged. Recorded here as a deliberate
+exception to this project's usual pattern, not a claim that the pattern
+changed. See `MILESTONE_REPORT.md`'s M12 Task Group A and Task Group B
+Phase 1 entries for the full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -436,9 +441,12 @@ future work; see M6's own §3 entry for the full scope note.
   section's own "M12 status" note above for the full account.)* Task
   Group A (Smart Home Core) shipped: Home/Zone/Room/Device/DeviceGroup
   CRUD, Multi-Home Support, derived health/status metadata, Discovery/
-  Pairing modeled as domain status transitions. **Not Complete**:
-  fourteen of fifteen modules remain unstarted, starting with
-  Connectivity Layer.
+  Pairing modeled as domain status transitions. Task Group B
+  (Connectivity Layer) Phase 1 shipped: `IDeviceConnector` port,
+  `ConnectorFactoryRegistry`, encrypted `ConnectorCredentialStore`,
+  `ConnectivityService` orchestration — no protocol adapter (Home
+  Assistant, MQTT) yet; those are Phases 2 and 3. **Not Complete**:
+  thirteen of fifteen modules remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -3435,12 +3443,28 @@ M11's own complexity reasoning)*.
 bump, version remains `0.38.0`). Home/Zone/Room/Device/DeviceGroup
 CRUD, Multi-Home Support, derived Device Health Monitoring/Status
 Dashboard metadata, and Device Discovery/Pairing modeled as domain
-status transitions with no real hardware behind them yet. **Not
-Complete**: fourteen of this milestone's fifteen modules remain
-unstarted, beginning with Connectivity Layer — the module the "real
-hardware" half of Discovery/Pairing depends on. See
-`IMPLEMENTATION_ROADMAP.md` §5H and `MILESTONE_REPORT.md`'s M12 Task
-Group A entry for the full account of what was built.
+status transitions with no real hardware behind them yet.
+
+**Task Group B (Connectivity Layer) — Phase 1 (foundation) shipped,
+Aug 2026**, no version bump. The port/adapter contract every future
+protocol plugs into (`IDeviceConnector`, mirroring MCP's own
+`IMCPTransport` shape): `ConnectorFactoryRegistry`, an encrypted
+`ConnectorCredentialStore` (Fernet, sibling to MCP's own credential
+store), and `ConnectivityService` orchestration (idempotent connect/
+discover/refresh-state/send-command), wired into DI and the WebSocket
+relay (`ConnectivityStatusChangedEvent`). **No protocol adapter
+exists yet** — `CONNECTOR_TYPES` names `home_assistant` and `mqtt`,
+but both are unimplemented; Phase 2 (Home Assistant) and Phase 3
+(MQTT) are separate, later, individually-approved passes. See
+`MILESTONE_REPORT.md`'s M12 Task Group B, Phase 1 entry and
+`docs/CONNECTIVITY_LAYER_LOGIC_CONTRACT.md` for the full account.
+
+**Not Complete**: thirteen of this milestone's fifteen modules remain
+entirely unstarted (Smart Lighting, Smart Locks, Sensors, Smart
+Cameras, Energy Management, Appliance Control, Home Automation, AI
+Home Assistant, Security & Safety, Remote Access, Smart Home Memory,
+Smart Home Analytics, Developer Tools). See `IMPLEMENTATION_ROADMAP.md`
+§5H for the full account of what was built.
 
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
 single-bus device bridge into a complete enterprise-grade Smart Home
@@ -3477,6 +3501,9 @@ Analytics, Developer Tools.
 - Device Status Dashboard
 
 #### Connectivity Layer
+*(Phase 1 — the port/adapter foundation only — shipped Aug 2026; none
+of the items below are implemented yet. See this section's own Task
+Group B status note above.)*
 - ESP32
 - MQTT
 - Wi-Fi

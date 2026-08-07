@@ -3,6 +3,60 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12 Task Group B, Phase 1: Connectivity Layer Foundation
+
+**No version bump**, matching Task Group A's own precedent; `0.38.0`
+is unchanged.
+
+An approved five-step plan (audit, connectivity-technology analysis,
+architecture design, phased plan, risk analysis — no code) broke this
+task group into three separately-approved phases. Phase 1 builds the
+port/adapter foundation every later phase plugs into; it talks to no
+real device and ships no protocol adapter.
+
+### Added
+- **`IDeviceConnector` port** (`core/interfaces/connectivity.py`) plus
+  `DiscoveredDevice`/`DeviceState`/`CommandResult` value objects —
+  mirrors `IMCPTransport`'s own shape. `CONNECTOR_TYPES` deliberately
+  narrow: `home_assistant`, `mqtt` — only this task group's approved
+  scope, not the milestone's full connectivity vocabulary.
+- **`ConnectorFactoryRegistry`** (`core/connectivity/registry.py`) —
+  mirrors `TransportFactoryRegistry`; empty of real connectors.
+- **`ConnectorCredentialStore`** (`core/connectivity/credential_store.py`)
+  — Fernet-encrypted-at-rest, refuses to persist without a real key. A
+  structural sibling of MCP's own `CredentialStore`, not a shared
+  instance.
+- **`ConnectivityService`** (`services/connectivity_service.py`) —
+  idempotent connect/disconnect, discovery idempotent by home +
+  external id, state refresh mapped onto Task Group A's closed device
+  statuses, and `send_command` — the single chokepoint a later M12
+  module will gate safety-critical devices against.
+- **`SmartHomeService` extensions** — `register_discovered_device`
+  gained a `metadata` kwarg (written to the existing
+  `Device.metadata_json` column, no schema change),
+  `get_device_by_external_id`, `report_device_state`.
+- **DI wiring** — `connectivity_registry`, `connectivity_credential_
+  store`, `connectivity_service` singletons.
+- **`ConnectivityStatusChangedEvent`** — new WebSocket relay event,
+  wired into `runtime_ws_hub.py`, the generated contract, frontend
+  `RELAYED_EVENTS`, and both pinned relay-vocabulary tests in the same
+  change.
+- **107 new/affected tests** — `FakeDeviceConnector` plus three new
+  suites (registry, credential store, service) and extended
+  `SmartHomeService` coverage, all against real (temp-file) SQLite or
+  real file-backed credential storage.
+
+### Notes
+- **No protocol code.** `CONNECTOR_TYPES` names `home_assistant` and
+  `mqtt`; neither has an implementation. Phase 2 (Home Assistant) and
+  Phase 3 (MQTT) are separate, later, individually-approved passes.
+- Full backend regression: **2379 passed, 1 skipped (pre-existing), 0
+  failed.** Full frontend: **750/750**, plus a clean `tsc`/`oxlint`/
+  production build.
+- **M12 is still 🟡 Active, not Complete** — Smart Home Core and
+  Connectivity Layer's own foundation are two modules of fifteen;
+  thirteen remain entirely unstarted.
+
 ## M12 Task Group A: Smart Home Core
 
 **No version bump, by explicit instruction.** Unlike M22's own task

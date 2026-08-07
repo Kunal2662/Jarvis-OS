@@ -1975,14 +1975,17 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phase 1 shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
 out of the M9→M21 resumption order, on direct instruction while M22
 remained open, and is now committed -- implementation `d99a984`,
-documentation `b0a531b`. **Not Complete**: this is one of fifteen
-modules in M12's own feature list, and fourteen remain unstarted.
+documentation `b0a531b`. Task Group B (Connectivity Layer) Phase 1
+followed, also Aug 2026, also out of order, on direct instruction --
+see its own section below. **Not Complete**: Smart Home Core and
+Connectivity Layer's own foundation are two of fifteen modules in
+M12's own feature list, and thirteen remain entirely unstarted.
 Full milestone definition — Objective, Dependencies, Complexity,
 15-module feature list, Acceptance Criteria — lives in
 `MASTER_ROADMAP.md` §8/§9.)*
@@ -2055,6 +2058,75 @@ names M14 (Security Platform, for device-pairing credential storage)
 and M11 (cloud-vendor OAuth) — both come later or are not closed; this
 task group needed neither, since it stores no real credential and
 talks to no real cloud vendor.
+
+### Task Group B — Connectivity Layer (🟡 Phase 1 of 3 shipped, Aug 2026 — no version bump)
+
+An approved implementation plan (five-step audit → connectivity
+analysis → architecture design → phased plan → risk analysis, delivered
+as text, no code) broke this task group into three explicitly
+phase-gated passes, each requiring its own approval before starting.
+Phase 1 builds the port/adapter foundation every later phase plugs
+into; it talks to no real device.
+
+- [x] **Logic Contract** — `docs/CONNECTIVITY_LAYER_LOGIC_CONTRACT.md`,
+      all 15 fields `MASTER_ROADMAP.md` §4 requires, written before any
+      code, covering the whole module across all three approved phases.
+- [x] `IDeviceConnector` port + `DiscoveredDevice`/`DeviceState`/
+      `CommandResult` value objects (`core/interfaces/connectivity.py`)
+      — mirrors `IMCPTransport`'s own port shape deliberately, not
+      reinvented. `CONNECTOR_TYPES` is deliberately narrow
+      (`home_assistant`, `mqtt`) — only what Phases 2/3 are actually
+      approved to build, not the full roadmap vocabulary (BLE/Matter/
+      Thread/Zigbee/Z-Wave) the way `TRANSPORT_TYPES` names for MCP.
+- [x] `ConnectorFactoryRegistry` (`core/connectivity/registry.py`) —
+      mirrors `TransportFactoryRegistry` exactly: register/unregister/
+      create/`registered_types`/`supports`, empty of real connectors at
+      construction.
+- [x] `ConnectorCredentialStore` (`core/connectivity/credential_store.py`)
+      — Fernet-encrypted-at-rest, refuse-to-persist-without-a-key, a
+      structural sibling of MCP's own `CredentialStore`
+      (`core/mcp/auth/store.py`) rather than a shared instance, to avoid
+      coupling `core/connectivity` to the unrelated `core/mcp/auth`
+      subsystem.
+- [x] `ConnectivityService` (`services/connectivity_service.py`) —
+      connect/disconnect (idempotent), discovery (idempotent by home +
+      external id, via `SmartHomeService.get_device_by_external_id`),
+      state refresh (`_map_connector_status` maps a connector's raw
+      status onto Task Group A's closed `DEVICE_STATUSES`), and
+      `send_command` — documented as the single chokepoint a later M12
+      module (Home Automation / AI Home Assistant) will gate
+      `safety_critical` devices against, not built here.
+- [x] `SmartHomeService` extensions (Task Group A's own file, extended,
+      not duplicated) — `register_discovered_device` gained a
+      `metadata` kwarg (written to the existing `Device.metadata_json`
+      column so a command can be routed back to the connector that
+      discovered it, no schema change), `get_device_by_external_id`,
+      `report_device_state`.
+- [x] DI — `connectivity_registry`, `connectivity_credential_store`,
+      `connectivity_service` singletons, wired the same way MCP's own
+      transport/credential-store/service triad is.
+- [x] `ConnectivityStatusChangedEvent` — new WebSocket relay event,
+      wired into `runtime_ws_hub.py`'s `EVENT_TYPE_NAMES`, the
+      generated contract, frontend `RELAYED_EVENTS`, and both pinned
+      relay-vocabulary tests in the same change (the lesson Task Group A
+      learned the hard way, applied proactively this time).
+- [x] Tests — `FakeDeviceConnector` (`tests/fakes/`, the same scripted-
+      fake convention as `FakeOSAutomation`), plus three new suites
+      (`test_connectivity_registry.py`, `test_connectivity_credential_
+      store.py`, `test_connectivity_service.py`) and extended
+      `test_smart_home_service.py` coverage for the three additions
+      above — real (temp-file) SQLite throughout, no mocked repository.
+
+**Governing rule for this phase: no protocol code.** `CONNECTOR_TYPES`
+names `home_assistant` and `mqtt`; neither has an implementation.
+`ConnectorFactoryRegistry` starts empty — a later phase calls
+`register("home_assistant", ...)` at the DI composition root without
+this phase's code changing. Phase 2 (Home Assistant, using the
+existing `httpx`/`websockets` dependencies) and Phase 3 (MQTT) are
+separate, later, individually-approved passes; BLE/Matter/Thread/
+Zigbee/Z-Wave/vendor adapters are named in `MASTER_ROADMAP.md`'s own
+Connectivity Layer feature list but are not this task group's approved
+scope at all.
 
 ---
 

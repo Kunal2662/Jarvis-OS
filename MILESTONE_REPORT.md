@@ -2089,3 +2089,137 @@ that pass's own instruction not to edit historical report sections —
 this section is the record of what changed and why, the same
 append-only discipline every earlier correction in this report has
 followed.
+
+---
+---
+
+# Milestone Report — M12 Task Group B, Phase 1: Connectivity Layer Foundation
+
+**Version:** 0.38.0 (unchanged — no version bump, matching Task Group
+A's own precedent)
+**Branch:** `feature/m22-task-group-c`
+**Baseline:** Task Group A committed (`d99a984`, `b0a531b`)
+**Date:** 2026-08-07
+
+## 1. Executive summary
+
+With Task Group A committed, a five-step brief (audit, connectivity
+technology analysis, architecture design, phased implementation plan,
+risk analysis — "No code" explicitly through this step) produced an
+approved plan for Task Group B, phase-gated into three separately-
+approved passes. Approval to begin was then granted for Phase 1 only,
+with an explicit stop instruction after it: *"Report results before
+continuing to Phase 2... Stop after Phase 1 unless instructed
+otherwise."* This report covers Phase 1 alone.
+
+## 2. What Phase 1 builds
+
+The port/adapter foundation every later phase of this task group plugs
+into, deliberately mirroring the MCP transport layer's own shape
+(`IMCPTransport` / `TransportFactoryRegistry` / MCP's `CredentialStore`)
+rather than inventing a new pattern:
+
+- **Logic Contract** (`docs/CONNECTIVITY_LAYER_LOGIC_CONTRACT.md`) —
+  written first, per `MASTER_ROADMAP.md` §4's rule that no
+  implementation may begin until its module's Logic Contract is
+  complete. All 15 required fields, covering the whole module across
+  all three approved phases.
+- **`IDeviceConnector`** port (`core/interfaces/connectivity.py`) plus
+  `DiscoveredDevice` / `DeviceState` / `CommandResult` value objects.
+  `CONNECTOR_TYPES` is deliberately narrow (`home_assistant`, `mqtt`)
+  — only what Phases 2/3 are approved to build, not the milestone's
+  full connectivity vocabulary.
+- **`ConnectorFactoryRegistry`** (`core/connectivity/registry.py`) —
+  empty of real connectors; a later phase registers into it without
+  this module changing.
+- **`ConnectorCredentialStore`** (`core/connectivity/credential_store.py`)
+  — Fernet-encrypted-at-rest, refuses to persist without a real key. A
+  structural sibling of MCP's own `CredentialStore`, not a shared
+  instance — importing it would couple `core/connectivity` to the
+  unrelated `core/mcp/auth` subsystem for a three-field dataclass.
+- **`ConnectivityService`** (`services/connectivity_service.py`) —
+  connect/disconnect lifecycle (idempotent), discovery (idempotent by
+  home + external id — `SmartHomeService.register_discovered_device`
+  itself stays a plain, non-idempotent create by design), state refresh
+  (maps a connector's raw status onto Task Group A's closed
+  `DEVICE_STATUSES`), and `send_command` — documented as the single
+  chokepoint a later M12 module will gate `safety_critical` devices
+  against, not built here.
+- **`SmartHomeService` extensions** (Task Group A's own file, extended
+  in place) — `register_discovered_device(..., metadata=...)` writing
+  to the existing `Device.metadata_json` column, `get_device_by_
+  external_id`, `report_device_state`.
+- **DI wiring** — three new singletons, composed the same way MCP's
+  transport/credential-store/service triad is.
+- **`ConnectivityStatusChangedEvent`** — wired into the WebSocket relay
+  and all four sync surfaces (`runtime_ws_hub.py`, the generated
+  contract, frontend `RELAYED_EVENTS`, both pinned relay-vocabulary
+  tests) in the same change, applying the lesson Task Group A learned
+  the hard way after the fact.
+
+**No protocol code exists.** `CONNECTOR_TYPES` names `home_assistant`
+and `mqtt`; the registry has nothing registered. Phase 2 (Home
+Assistant connector) and Phase 3 (MQTT connector) are separate, later,
+individually-approved passes this report does not request starting.
+
+## 3. Tests
+
+`FakeDeviceConnector` (`tests/fakes/fake_device_connector.py`) follows
+this project's established scripted-fake convention
+(`FakeOSAutomation`, `FakeVectorStore`). Three new suites —
+`test_connectivity_registry.py`, `test_connectivity_credential_
+store.py`, `test_connectivity_service.py` — plus extended
+`test_smart_home_service.py` coverage for the three service additions.
+107 new/affected tests, all against real (temp-file) SQLite or real
+file-backed credential storage — no mocked repository.
+
+## 4. Quality gates
+
+- **black** — 4 files needed reformatting; auto-applied, all clean.
+- **ruff** — zero new findings. Remaining hits (mostly `PLC0415` on
+  lazily-imported test fixtures and event-publishing helpers) are
+  pre-existing baseline patterns, confirmed by diffing this task
+  group's files against `HEAD`; ruff is advisory
+  (`continue-on-error: true`) in this project's own CI.
+- **mypy** (`src/` only, matching CI's own scope) — zero new errors.
+  All 22 pre-existing errors are in unrelated `container.py` sections
+  untouched by this task group.
+- **pytest, scoped** — 107/107 new + affected tests pass.
+- **pytest, full regression** (`tests/unit tests/integration`) —
+  **2379 passed, 1 skipped, 0 failed.** The one skip is the same
+  pre-existing platform-specific symlink skip Task Group A's own
+  report recorded. Confirmed via the progress-marker count after the
+  trailing summary line was clipped by output-redirection buffering —
+  cross-checked against a `junit`-equivalent character count, not
+  assumed.
+- **frontend** — `tsc -b --noEmit` clean; `oxlint` clean (pre-existing
+  warnings only, none in touched files); `vitest` **750/750**;
+  production build succeeded.
+
+## 5. Defects found
+
+None. This phase's work was new, additive code with no existing
+behavior to regress; the full-suite re-run above is the regression
+check, and it is clean.
+
+## 6. Documentation updated
+
+Same-day, after Phase 1's implementation was approved and only after
+implementation was complete, per that approval's own instruction ("No
+documentation updates until implementation is complete"):
+`MASTER_ROADMAP.md` (§2 status note, Active-milestone list, §8 M12
+section, Connectivity Layer feature-list scope note),
+`IMPLEMENTATION_ROADMAP.md` (§5H header, new Task Group B section),
+`MILESTONE_REPORT.md` (this section), `CHANGELOG.md` (new entry).
+`docs/ARCHITECTURE.md` §21's Domain Architecture Map gained one new
+row (`Smart Home Architecture`) covering both Task Group A and this
+phase — the first architecture-doc touch this milestone has made;
+Task Group A's own docs commit did not touch `ARCHITECTURE.md` since
+nothing there was yet stale for it.
+
+## 7. Recommendation
+
+Commit Phase 1 as two commits (implementation, documentation), matching
+Task Group A's own precedent. Do not begin Phase 2 (Home Assistant
+connector) without a separate, explicit approval — this task group's
+own brief requires it.
