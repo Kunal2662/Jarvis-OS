@@ -506,6 +506,22 @@ class AgentSettings(BaseSettings):
     # -- this is the *outer*, graph-visible gate every tool call now also
     # passes through, not a replacement for that inner one.
     confirm_required_tools: frozenset[str] = frozenset({"run_automation"})
+    # Conversational Orchestration Routing (M10 -- see
+    # docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md). "legacy" preserves
+    # today's behaviour byte-for-byte (Chat/Voice call ChatService
+    # directly, AgentOrchestrator untouched by either); "hybrid" makes
+    # both paths reachable for side-by-side comparison without either
+    # silently replacing the other on failure; "orchestrator" routes
+    # Chat/Voice through AgentOrchestrator exclusively. Default is
+    # "legacy" so existing behaviour is preserved unless explicitly
+    # opted out of.
+    conversation_routing: Literal["legacy", "hybrid", "orchestrator"] = "legacy"
+    # Milestone 10's Intent Engine gating threshold (see
+    # agents/graph.py's DEFAULT_INTENT_DIRECT_ROUTE_CONFIDENCE for the
+    # asymmetric-risk reasoning behind the default). A `direct_answer`
+    # classification below this confidence still takes the full
+    # context/planning/tool-selection path.
+    intent_direct_route_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
 
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}AGENT_", extra="ignore")
 

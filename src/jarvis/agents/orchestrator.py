@@ -165,6 +165,9 @@ class AgentOrchestrator(IAgentOrchestrator):
                 "permission_gate": permission_gate,
                 "confirm": self._confirm,
                 "max_parallel_steps": self._settings.agent.max_parallel_steps,
+                "intent_direct_route_confidence": (
+                    self._settings.agent.intent_direct_route_confidence
+                ),
             }
             self._graph = build_agent_graph(checkpointer=saver, **graph_kwargs)
             self._stream_graph = build_agent_graph(

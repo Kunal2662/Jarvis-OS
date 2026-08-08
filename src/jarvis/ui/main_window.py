@@ -187,6 +187,15 @@ class MainWindow(QMainWindow):
         self._chat_controller = ConversationController(
             chat_service=container.chat_service(),
             conversation_service=container.conversation_service(),
+            settings=settings,
+            # M10 Conversational Orchestration Routing: always wired in
+            # (the orchestrator singleton itself is cheap to construct
+            # and starts lazily on first use), so switching
+            # AgentSettings.conversation_routing to "orchestrator" or
+            # "hybrid" needs no code change here -- only a settings
+            # change, per the Logic Contract's own "DI composition root
+            # is the only place the mode is read" acceptance criterion.
+            agent_orchestrator=container.agent_orchestrator(),
             parent=self,
         )
         self._voice_controller = VoiceController(
