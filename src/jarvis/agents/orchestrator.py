@@ -66,6 +66,7 @@ if TYPE_CHECKING:
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.smart_lighting_service import SmartLightingService
+    from jarvis.services.smart_lock_service import SmartLockService
     from jarvis.services.system_service import SystemService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
@@ -92,6 +93,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         workspace_assistant: WorkspaceAssistantService | None = None,
         integrations: IntegrationService | None = None,
         smart_lighting: SmartLightingService | None = None,
+        smart_lock: SmartLockService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -121,6 +123,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # converging on the same `SmartLightingService` the REST surface
         # calls -- see `agents/tools/smart_lighting_tools.py`.
         self._smart_lighting = smart_lighting
+        # Milestone 12 Smart Locks: normalized lock/unlock reaches the
+        # agent as tools on the same registry, converging on the same
+        # `SmartLockService` the REST surface calls -- see
+        # `agents/tools/smart_lock_tools.py`.
+        self._smart_lock = smart_lock
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -160,6 +167,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 workspace_assistant=self._workspace_assistant,
                 integrations=self._integrations,
                 smart_lighting=self._smart_lighting,
+                smart_lock=self._smart_lock,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

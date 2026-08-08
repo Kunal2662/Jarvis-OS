@@ -546,6 +546,18 @@ def _build_smart_lighting_service(
     )
 
 
+def _build_smart_lock_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.smart_lock_service import SmartLockService
+
+    return SmartLockService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
 def _build_task_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
     from jarvis.services.task_service import TaskService
 
@@ -1017,6 +1029,7 @@ def _build_agent_orchestrator(
     workspace_assistant: Any,
     integrations: Any,
     smart_lighting: Any,
+    smart_lock: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1036,6 +1049,7 @@ def _build_agent_orchestrator(
         workspace_assistant=workspace_assistant,
         integrations=integrations,
         smart_lighting=smart_lighting,
+        smart_lock=smart_lock,
         event_bus=event_bus,
     )
 
@@ -1341,6 +1355,14 @@ class Container(containers.DeclarativeContainer):
         permission_model=permission_model,
     )
 
+    # ---- Milestone 12 Smart Locks ------------------------------------------
+    smart_lock_service = providers.Singleton(
+        _build_smart_lock_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 10.5 Task Group A -- MCP & Integration Platform --------
     mcp_server_runtime = providers.Singleton(
         _build_mcp_server_runtime,
@@ -1615,5 +1637,6 @@ class Container(containers.DeclarativeContainer):
         workspace_assistant=workspace_assistant_service,
         integrations=integration_service,
         smart_lighting=smart_lighting_service,
+        smart_lock=smart_lock_service,
         event_bus=event_bus,
     )

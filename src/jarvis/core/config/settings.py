@@ -504,8 +504,13 @@ class AgentSettings(BaseSettings):
     # only tool in the registry today capable of a destructive action;
     # AutomationService's own PermissionGate still gates it internally too
     # -- this is the *outer*, graph-visible gate every tool call now also
-    # passes through, not a replacement for that inner one.
-    confirm_required_tools: frozenset[str] = frozenset({"run_automation"})
+    # passes through, not a replacement for that inner one. "unlock_device"
+    # (Milestone 12 Smart Locks) was added the same way -- unlocking is the
+    # one direction with real security consequence; "lock_device" (the
+    # fail-safe direction) deliberately is not, so an unattended "Auto
+    # Lock"-style feature stays possible later. See
+    # docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md §14 for the full reasoning.
+    confirm_required_tools: frozenset[str] = frozenset({"run_automation", "unlock_device"})
     # Conversational Orchestration Routing (M10 -- see
     # docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md). "legacy" preserves
     # today's behaviour byte-for-byte (Chat/Voice call ChatService
