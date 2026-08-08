@@ -65,6 +65,7 @@ if TYPE_CHECKING:
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.system_service import SystemService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
@@ -90,6 +91,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         intelligence: IntelligenceService | None = None,
         workspace_assistant: WorkspaceAssistantService | None = None,
         integrations: IntegrationService | None = None,
+        smart_lighting: SmartLightingService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -114,6 +116,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # Milestone 11 Task Group E: external vendors reach the agent
         # as four discovery-and-invoke tools, on the same registry.
         self._integrations = integrations
+        # Milestone 12 Connectivity REST + Smart Lighting: normalized
+        # light control reaches the agent as tools on the same registry,
+        # converging on the same `SmartLightingService` the REST surface
+        # calls -- see `agents/tools/smart_lighting_tools.py`.
+        self._smart_lighting = smart_lighting
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -152,6 +159,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 intelligence=self._intelligence,
                 workspace_assistant=self._workspace_assistant,
                 integrations=self._integrations,
+                smart_lighting=self._smart_lighting,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

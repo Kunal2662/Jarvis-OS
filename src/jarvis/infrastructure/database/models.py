@@ -1203,3 +1203,34 @@ class DeviceGroupMember(Base):
 
     group: Mapped[DeviceGroup] = relationship(back_populates="members")
     device: Mapped[Device] = relationship(back_populates="group_memberships")
+
+
+class LightingScene(Base):
+    """A named, stored set of target light states -- Smart Lighting's own
+    scene-application capability (Milestone 12 Connectivity REST + Smart
+    Lighting). ``targets_json`` is a JSON array of ``{"device_id": ...,
+    "on": ..., "brightness": ..., "color_temp_kelvin": ..., "color": ...}``
+    objects, each optional field applied only if present -- the same
+    "sparse, additive payload" shape ``Device.metadata_json`` already
+    uses elsewhere in this file.
+
+    No relationship object to ``Device``: a scene target that outlives
+    its device (deleted, or belonging to another home) is *applied* by
+    ``SmartLightingService`` at scene-apply time, not enforced at the
+    schema level -- the same "detect at use, not at rest" choice this
+    module's own device-unavailable handling already makes.
+    """
+
+    __tablename__ = "smart_lighting_scenes"
+    __table_args__ = (Index("ix_smart_lighting_scenes_home", "home_id"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    home_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("homes.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    targets_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )

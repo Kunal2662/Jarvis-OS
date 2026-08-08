@@ -34,7 +34,7 @@ from jarvis.core.logging.logger import get_logger
 if TYPE_CHECKING:
     from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
     from jarvis.core.events.event_bus import EventBus
-    from jarvis.core.interfaces.connectivity import CommandResult, IDeviceConnector
+    from jarvis.core.interfaces.connectivity import CommandResult, DeviceState, IDeviceConnector
     from jarvis.infrastructure.database.models import Device
     from jarvis.services.smart_home_service import SmartHomeService
 
@@ -58,6 +58,25 @@ def _map_connector_status(raw_status: str) -> str:
     if normalized in _OFFLINE_STATUS_HINTS:
         return "offline"
     return "unreachable"
+
+
+def connector_type_for(device: Device) -> str | None:
+    """The connector type recorded in `Device.metadata_json` at
+    discovery time, or `None` if this device was never discovered
+    through a connector. A module-level function (not a private method)
+    specifically so a later caller needing the same lookup -- Smart
+    Lighting's own command translation, which must know a device's wire
+    protocol *before* calling `send_command` -- reuses this instead of
+    re-deriving it, the same "one place reads `metadata_json`" discipline
+    `_connector_type_for` already kept as a private staticmethod here
+    before it gained a second caller.
+    """
+    try:
+        metadata = json.loads(device.metadata_json or "{}")
+    except (TypeError, ValueError):
+        return None
+    value = metadata.get("connector_type")
+    return str(value) if value else None
 
 
 class ConnectivityService:
@@ -165,13 +184,32 @@ class ConnectivityService:
         device = await self._smart_home.get_device(device_id)
         if device is None or not device.external_id:
             return None
-        connector_type = self._connector_type_for(device)
+        connector_type = connector_type_for(device)
         if connector_type is None:
             return None
         connector = self._require_connector(connector_type)
         state = await connector.read_state(device.external_id)
         mapped = _map_connector_status(state.status)
         return await self._smart_home.report_device_state(device_id, status=mapped)
+
+    async def read_raw_state(self, device_id: str) -> DeviceState | None:
+        """The connector's own unmapped state report for one device --
+        distinct from `refresh_device_state`, which both reads *and*
+        writes the mapped lifecycle status back onto the `Device` row.
+        `Device.status` only ever holds Task Group A's connectivity
+        lifecycle vocabulary (`paired`/`offline`/`unreachable`/...),
+        never a connector's real attributes -- a module that needs
+        those (Smart Lighting's on/off, brightness, color) reads
+        through here instead, without a second write to `SmartHomeService`.
+        """
+        device = await self._smart_home.get_device(device_id)
+        if device is None or not device.external_id:
+            return None
+        connector_type = connector_type_for(device)
+        if connector_type is None:
+            return None
+        connector = self._require_connector(connector_type)
+        return await connector.read_state(device.external_id)
 
     async def send_command(
         self, device_id: str, command: str, payload: dict[str, Any] | None = None
@@ -183,22 +221,13 @@ class ConnectivityService:
         connector that owns the device.
         """
         device = await self._smart_home.require_device(device_id)
-        connector_type = self._connector_type_for(device)
+        connector_type = connector_type_for(device)
         if connector_type is None:
             raise ConnectorNotConnectedError(
                 f"Device {device_id!r} has no recorded connector; it cannot be commanded."
             )
         connector = self._require_connector(connector_type)
         return await connector.send_command(device.external_id or "", command, payload or {})
-
-    @staticmethod
-    def _connector_type_for(device: Device) -> str | None:
-        try:
-            metadata = json.loads(device.metadata_json or "{}")
-        except (TypeError, ValueError):
-            return None
-        value = metadata.get("connector_type")
-        return str(value) if value else None
 
     # ------------------------------------------------------------------
     # Events

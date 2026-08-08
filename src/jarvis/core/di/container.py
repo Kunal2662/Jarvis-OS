@@ -533,6 +533,19 @@ def _build_connectivity_service(
     )
 
 
+def _build_smart_lighting_service(
+    *, database: Any, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.smart_lighting_service import SmartLightingService
+
+    return SmartLightingService(
+        database=database,
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
 def _build_task_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
     from jarvis.services.task_service import TaskService
 
@@ -1003,6 +1016,7 @@ def _build_agent_orchestrator(
     intelligence: Any,
     workspace_assistant: Any,
     integrations: Any,
+    smart_lighting: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1021,6 +1035,7 @@ def _build_agent_orchestrator(
         intelligence=intelligence,
         workspace_assistant=workspace_assistant,
         integrations=integrations,
+        smart_lighting=smart_lighting,
         event_bus=event_bus,
     )
 
@@ -1312,6 +1327,20 @@ class Container(containers.DeclarativeContainer):
         settings=settings,
     )
 
+    # ---- Milestone 12 Connectivity REST + Smart Lighting ------------------
+    # Declared here, after `permission_model` (Milestone 9 Task Group D,
+    # above) and `smart_home_service`/`connectivity_service` (Milestone 12
+    # Task Groups A/B, above) -- `DeclarativeContainer` providers must
+    # reference an already-bound name, so this cannot sit next to
+    # `connectivity_service` itself.
+    smart_lighting_service = providers.Singleton(
+        _build_smart_lighting_service,
+        database=database,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 10.5 Task Group A -- MCP & Integration Platform --------
     mcp_server_runtime = providers.Singleton(
         _build_mcp_server_runtime,
@@ -1585,5 +1614,6 @@ class Container(containers.DeclarativeContainer):
         intelligence=intelligence_service,
         workspace_assistant=workspace_assistant_service,
         integrations=integration_service,
+        smart_lighting=smart_lighting_service,
         event_bus=event_bus,
     )
