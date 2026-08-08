@@ -500,6 +500,16 @@ class ApplicationBootstrapper:
                 "heartbeats": list(heartbeat_monitor.snapshot()),
                 # Task Group C -- provider health joins this same
                 # snapshot rather than a second collector.
+                #
+                # M11 Task Group C (API Center Health Surface) reuses
+                # this same list rather than registering its own
+                # collector: every installed integration is registered
+                # here too (it's an MCPProviderManager provider like any
+                # other), so its health already rides this one poll.
+                # `IntegrationService.health()` is an on-demand,
+                # integration-scoped *view* over this same local state,
+                # not a second measurement of it -- see
+                # docs/M11_API_CENTER_LOGIC_CONTRACT.md §13.
                 "providers": await provider_manager.collect_health(),
                 # Task Group D -- authentication health likewise. The
                 # collect_health() call also sweeps for newly-expired

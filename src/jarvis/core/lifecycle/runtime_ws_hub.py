@@ -251,11 +251,29 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
 #: ``PluginCrashedEvent`` to the supervisor M9 Task Group C deferred.
 #: Listed by name so the omission reads as a decision rather than an
 #: oversight the next audit re-discovers.
+#:
+#: ``IntegrationConnectionTestEvent``, ``IntegrationSwitchEvent``,
+#: ``IntegrationFailoverEvent`` and ``IntegrationDiscoveryEvent`` are a
+#: different case from the other four -- all four *are* published (by
+#: ``IntegrationService`` on every M11 Connection Test / Runtime Switch
+#: / Failover attempt / Discovery sweep, Task Groups B, E and F) -- but
+#: relaying them is a separate, deliberately deferred decision: wiring
+#: a new relayed event also means regenerating the frontend WS contract
+#: and its four pinned tests (``export_ws_contract.py``,
+#: ``event-contract.generated.json``, ``types.ts``'s
+#: ``RELAYED_EVENTS``, the contract test), which is a frontend-touching
+#: change outside those task groups' backend-only scope. Internal
+#: subscribers (audit, a future observability consumer) can still
+#: receive them from the event bus today.
 UNPUBLISHED_EVENT_TYPES: tuple[str, ...] = (
     "WorkflowStepEvent",
     "ScheduledJobFiredEvent",
     "VisionProviderStatusEvent",
     "PluginCrashedEvent",
+    "IntegrationConnectionTestEvent",
+    "IntegrationSwitchEvent",
+    "IntegrationFailoverEvent",
+    "IntegrationDiscoveryEvent",
 )
 
 #: ``DebugLogCapturedEvent`` is published (by ``DebugConsole``) and is

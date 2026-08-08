@@ -824,6 +824,105 @@ class IntegrationCallCompletedEvent(Event):
     detail: str = ""
 
 
+@dataclass(frozen=True, slots=True)
+class IntegrationConnectionTestEvent(Event):
+    """Published by
+    :class:`~jarvis.services.integration_service.IntegrationService` after
+    an explicit, user-triggered Connection Test (M11 Task Group B) --
+    the audit record for the one M11 operation permitted to make a real
+    vendor request. Not
+    :class:`IntegrationCallCompletedEvent`: a Connection Test is a
+    diagnostic a user asked for, not a vendor operation invoked on
+    their behalf, and conflating the two would make "how many real
+    integration calls happened" impossible to answer honestly.
+
+    **Carries no request/response body, no header, no credential.**
+    ``error_code`` is one of the fixed, reviewed classification strings
+    (see ``core/integrations/provider.py``'s ``_classify_gateway_error``/
+    ``_classify_authorization_reason``) -- never a raw vendor message or
+    exception string.
+
+    Not yet relayed over WebSocket -- see ``runtime_ws_hub.py``'s
+    ``UNPUBLISHED_EVENT_TYPES`` for why that's a documented decision.
+    """
+
+    integration_id: str = ""
+    action: str = "completed"  # "completed" | "failed"
+    outcome: str = "success"  # "success" | "failure"
+    error_code: str = ""
+    status_code: int = 0
+    latency_ms: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class IntegrationSwitchEvent(Event):
+    """Published by
+    :class:`~jarvis.services.integration_service.IntegrationService` on
+    an explicit, user-triggered Runtime Switch (M11 Task Group E).
+    ``capability`` names the shared operation both integrations must
+    declare -- an audit label backed by the existing
+    :class:`~jarvis.core.integrations.models.IntegrationSpec` model,
+    not a new routing key.
+
+    **Carries no credential.** Not yet relayed over WebSocket -- see
+    ``runtime_ws_hub.py``'s ``UNPUBLISHED_EVENT_TYPES``.
+    """
+
+    capability: str = ""
+    from_integration_id: str = ""
+    to_integration_id: str = ""
+    action: str = "completed"  # "completed" | "failed"
+    outcome: str = "success"  # "success" | "failure"
+    error_code: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class IntegrationFailoverEvent(Event):
+    """Published by
+    :class:`~jarvis.services.integration_service.IntegrationService` on
+    every Vendor Integration Failover attempt (M11 Task Group E) --
+    including a ``no_candidate`` outcome, so a failed attempt with
+    nothing to fail over to is visible rather than silently absorbed.
+    Exactly one candidate per attempt, always caller-named -- there is
+    no discovery here.
+
+    **Carries no credential and no raw vendor response.** Not yet
+    relayed over WebSocket -- see ``runtime_ws_hub.py``'s
+    ``UNPUBLISHED_EVENT_TYPES``.
+    """
+
+    capability: str = ""
+    failed_integration_id: str = ""
+    candidate_integration_id: str = ""
+    action: str = "completed"  # "completed" | "no_candidate" | "failed"
+    outcome: str = "recovered"  # "recovered" | "no_candidate" | "failed"
+    error_code: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class IntegrationDiscoveryEvent(Event):
+    """Published by
+    :class:`~jarvis.services.integration_service.IntegrationService`
+    once per catalogue entry processed by an Automatic Discovery sweep
+    (M11 Task Group F). Distinct from the
+    :class:`MCPProviderStateChangedEvent` ``install()`` already
+    publishes when a fresh registration actually happens -- this is a
+    discovery-sweep-level record (including the ``already_registered``
+    and ``rejected`` outcomes ``install()`` alone never reports), not a
+    second copy of the registration transition itself.
+
+    **Carries no credential.** ``reason`` is a locally-raised
+    validation/service-error message (catalogue/spec problems), never a
+    vendor response. Not yet relayed over WebSocket -- see
+    ``runtime_ws_hub.py``'s ``UNPUBLISHED_EVENT_TYPES``.
+    """
+
+    integration_id: str = ""
+    vendor: str = ""
+    action: str = "registered"  # "registered" | "already_registered" | "rejected"
+    reason: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Milestone 12 Task Group A -- Smart Home Core
 # ---------------------------------------------------------------------------

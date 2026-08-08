@@ -5,6 +5,22 @@ Persists to ``<data_dir>/config/api_center.json``. Secret fields
 encrypted at rest with the app's Fernet key (see
 :mod:`jarvis.utils.crypto`) whenever a real key is configured, so the JSON
 file on disk never holds plaintext credentials.
+
+**M5 / M11 boundary (Task Group A).** This service is the permanent,
+sole owner of *generic and uncatalogued* API credentials -- every
+:class:`~jarvis.domain.api_center.models.ApiCategory`, including
+``LLM`` (Gemini/OpenAI/Claude keys stored here as ordinary
+:class:`~jarvis.domain.api_center.models.ApiDefinition` rows). It is not
+merged into, migrated to, or superseded by M11's catalogue-backed
+Integration Platform (:mod:`jarvis.core.integrations`,
+:class:`~jarvis.services.integration_service.IntegrationService`), which
+owns only vendors with a hand-written
+:class:`~jarvis.core.integrations.models.IntegrationSpec` (Google
+Workspace today). Nothing in that engine reads, writes, or migrates an
+``ApiDefinition``, and nothing here reads, writes, or migrates a
+``Credential``. See ``docs/M11_API_CENTER_ARCHITECTURE_DECISIONS.md``
+§2 and §10 for the approved boundary and its AI-provider-credential
+carve-out.
 """
 
 from __future__ import annotations
