@@ -3,6 +3,80 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Smart Locks (Task Group D)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Smart Locks** scope -- the second of M12's
+device-category modules to ship, following a read-only dependency
+audit that ranked Smart Locks, Sensors and Energy Management as the
+only unblocked candidates among the twelve remaining modules (Home
+Automation, AI Home Assistant, Security & Safety, Remote Access and
+Smart Home Analytics were each found genuinely blocked on an unshipped
+cross-milestone dependency). **Does not close M12** -- eleven
+device-category modules remain unstarted; see
+`docs/IMPLEMENTATION_ROADMAP.md` §5H. Preceded by a read-only Logic
+Contract (`docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md`), per this project's
+own standing rules. 39 new tests, 0 failures, 0 errors, against real
+components throughout (`FakeDeviceConnector`, real temp-file SQLite,
+real `PermissionModel`, real `AgentPermissionGate`).
+
+### Added
+- **`SmartLockService`** (`services/smart_lock_service.py`) --
+  normalized lock/unlock control and state/availability reporting for
+  `device_type="lock"` devices, mirroring `SmartLightingService`'s own
+  architecture exactly, reduced to a single-attribute device (no
+  attribute-merge case exists for a binary lock). Home Assistant
+  translation: `lock.lock`/`lock.unlock`, no payload. MQTT translation:
+  a new JARVIS-native `lock`/`unlock` command vocabulary this task
+  group defines, mirroring HA's own service names.
+- **Smart Locks REST** -- `/api/v1/smart-locks/*`: list/get/lock/unlock.
+  No body-driven `/state` endpoint (unlike Smart Lighting's merged
+  one) -- two explicit action verbs are clearer for a single binary
+  attribute. `infrastructure/api/routes/smart_locks.py`.
+- **Smart Lock agent tools** -- `agents/tools/smart_lock_tools.py`,
+  four tools (`list_locks`, `get_lock_status`, `lock_device`,
+  `unlock_device`) wired into the existing Tool Registry and
+  `AgentOrchestrator`, converging on the same `SmartLockService`
+  methods the REST route calls.
+- **Permission enforcement** -- every side-effecting operation requires
+  the existing `PermissionModel`'s `smart_home` scope, under a new
+  fixed principal `core:smart_locks`, granted through the existing
+  generic `POST /api/v1/plugins/{id}/permissions/{scope}/grant` route
+  -- no new authorization mechanism.
+- **Safety: `unlock_device` added to `AgentSettings.
+  confirm_required_tools`'s default set** (`core/config/settings.py`)
+  -- reuses `AgentPermissionGate`'s existing confirmation mechanism, no
+  new confirmation system. `lock_device` is deliberately not included
+  (locking is the fail-safe direction; an unattended future "Auto Lock"
+  feature would be pointless otherwise). This gate applies only to the
+  agent-tool path -- REST callers are already behind session auth plus
+  the `PermissionModel` grant.
+- **DI** -- `smart_lock_service` singleton in `core/di/container.py`.
+
+### Not changed
+- `ConnectivityService`, `SmartHomeService`, `PermissionModel`,
+  `AgentPermissionGate` -- reused verbatim, no second connectivity
+  service, no second permission engine, no second confirmation system.
+- No new pairing endpoint -- reuses the existing `POST /devices/{id}/pair`.
+- No new WebSocket event class -- reuses `DeviceUpdatedEvent`.
+
+### Explicitly out of scope
+- Guest access codes, temporary PINs, NFC/fingerprint enrollment -- no
+  schema exists for any of it.
+- Access history -- no existing mechanism captures a queryable "who
+  locked/unlocked when" trail without new infrastructure this task
+  group was not asked to add; `lock()`/`unlock()` do not write to the
+  DB or publish an event, matching `SmartLightingService.
+  set_light_state`'s own behavior.
+- Auto Lock or any other trigger-based behavior -- deferred to the
+  unstarted Home Automation module.
+- Every other M12 device-category module (Sensors, Smart Cameras,
+  Energy Management, Appliance Control, Home Automation, AI Home
+  Assistant, Security & Safety, Remote Access, Smart Home Memory, Smart
+  Home Analytics, Developer Tools).
+
 ## M12: Connectivity REST + Smart Lighting (Task Group C)
 
 **No version bump**, matching this project's own established

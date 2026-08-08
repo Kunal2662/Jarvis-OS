@@ -125,7 +125,7 @@ if the two ever disagree, `MASTER_ROADMAP.md` §2 is right.)*
 | **M10.5 – MCP & Integration Platform** | ✅ **Completed (`0.20.0`) — all five task groups.** Capability Registry, client/server runtimes, negotiation, DI, runtime events, `/api/v1/mcp/*` (A); all four transports (stdio/websocket/http/ipc), transport factory, discovery/query, heartbeat (B); provider interface, registry with filtered discovery, lifecycle manager, health collection (C); credential model, encrypted store, auth strategies, provider sessions, permission bridge (D); SDK builders, validation framework, `jarvis mcp` CLI, self-contained examples, `MCPDiagnostics`, `/api/v1/mcp/diagnostics` + `/validate` (E). Generic infrastructure throughout — real providers, the OAuth flow, a server-side listener and vendor integrations are M11's scope. See §5D below and `MASTER_ROADMAP.md` §8/§14. |
 | **M11 – Intelligent Workspace & Productivity** | 🟡 **Active — Task Groups A–F shipped (backend); not closed.** *(Corrected Aug 2026 — this row previously read "M11 onward: Planned, not started," which contradicted §5G below and had gone stale as M11's own six task groups shipped without this table being updated alongside them.)* Task Group F's backend integration audit is complete; its React/Tauri UI half is M8's, which remains deferred, so M11 itself is not closed. See §5G below and `MASTER_ROADMAP.md` §8/§14. |
 | M11A – SEO Intelligence, M11B – Productivity Suite | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
-| **M12 – Smart Home & IoT Platform** | 🟡 **Active — Task Group A (Smart Home Core), Task Group B (Connectivity Layer, all 3 phases) and Task Group C (Connectivity REST + Smart Lighting) shipped, Aug 2026** (no version bump, `0.38.0` unchanged). **Not Complete**: twelve of fifteen modules remain unstarted (Smart Locks, Sensors, Smart Cameras, Energy Management, Appliance Control, Home Automation, AI Home Assistant, Security & Safety, Remote Access, Smart Home Memory, Smart Home Analytics, Developer Tools). See §5H below and `MILESTONE_REPORT.md`'s M12 Task Group A/B/C entries for the full account. |
+| **M12 – Smart Home & IoT Platform** | 🟡 **Active — Task Group A (Smart Home Core), Task Group B (Connectivity Layer, all 3 phases), Task Group C (Connectivity REST + Smart Lighting) and Task Group D (Smart Locks) shipped, Aug 2026** (no version bump, `0.38.0` unchanged). **Not Complete**: eleven of fifteen modules remain unstarted (Sensors, Smart Cameras, Energy Management, Appliance Control, Home Automation, AI Home Assistant, Security & Safety, Remote Access, Smart Home Memory, Smart Home Analytics, Developer Tools). See §5H below and `MILESTONE_REPORT.md`'s M12 Task Group A/B/C/D entries for the full account. |
 | M13 – Computer Control, M13A – AI Sandbox | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
 | **M13B – Self-Healing & Observability** | 🔴 Planned, not started. *(New lettered companion to M13, added Aug 2026 — the foundational subset of M18/M20A, which remain their full-scale realizations.)* See `MASTER_ROADMAP.md` §8 and §14. |
 | M14 onward | 🔴 Planned, not started. See `MASTER_ROADMAP.md` §8 and §14. |
@@ -171,6 +171,7 @@ After M22, resume with M9 → M10 → M11 → M12 → M13 → M14 → M15
 Also active: M12 — Smart Home & IoT Platform
               TG-A  Shipped (Smart Home Core -- d99a984, b0a531b)
               TG-C  Shipped (Connectivity REST + Smart Lighting)
+              TG-D  Shipped (Smart Locks)
 
 Deferred:   M23 — Core Intelligence
 ```
@@ -2096,7 +2097,7 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
@@ -2115,17 +2116,22 @@ latter incompatible with this project's existing subprocess-based MCP
 `StdioTransport`; see this section's own Phase 3 entry below. Task
 Group C (Connectivity REST + Smart Lighting) followed the same day, on
 a fourth, separate instruction preceded by its own read-only audit and
-Logic Contract -- see its own section below.
-**Not Complete**: Smart Home Core, Connectivity Layer and Connectivity
-REST + Smart Lighting are three of fifteen modules in M12's own feature
-list -- Connectivity Layer has both of its approved protocol adapters
-(Home Assistant, MQTT), closing that task group's three-phase plan, and
-Smart Lighting is the first of thirteen device-category modules to ship
-(device control + scene application only; motion/sunrise-sunset/
-scheduled automation explicitly deferred to Home Automation) -- and
-twelve M12 modules remain entirely unstarted. Full milestone
-definition — Objective, Dependencies, Complexity, 15-module feature
-list, Acceptance Criteria — lives in `MASTER_ROADMAP.md` §8/§9.)*
+Logic Contract -- see its own section below. Task Group D (Smart Locks)
+followed a subsequent, fifth, separate instruction preceded by its own
+read-only dependency audit (ranking Smart Locks/Sensors/Energy
+Management as the top unblocked candidates) and Logic Contract -- see
+its own section below.
+**Not Complete**: Smart Home Core, Connectivity Layer, Connectivity
+REST + Smart Lighting, and Smart Locks are four of fifteen modules in
+M12's own feature list -- Connectivity Layer has both of its approved
+protocol adapters (Home Assistant, MQTT), closing that task group's
+three-phase plan; Smart Lighting and Smart Locks are the first two of
+thirteen device-category modules to ship (device control only in both
+cases; motion/sunrise-sunset/scheduled automation and Auto Lock
+explicitly deferred to Home Automation) -- and eleven M12 modules
+remain entirely unstarted. Full milestone definition — Objective,
+Dependencies, Complexity, 15-module feature list, Acceptance Criteria —
+lives in `MASTER_ROADMAP.md` §8/§9.)*
 
 ### Task Group A — Smart Home Core (✅ shipped, Aug 2026 — commits `d99a984`, `b0a531b`, no version bump)
 
@@ -2611,6 +2617,96 @@ M12 device-category module (Smart Locks, Sensors, Smart Cameras, Energy
 Management, Appliance Control, AI Home Assistant, Security & Safety,
 Remote Access, Smart Home Memory, Smart Home Analytics, Developer
 Tools).
+
+### Task Group D — Smart Locks (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a read-only dependency audit (`M12 POST-TG-C — NEXT DEVICE
+CATEGORY AUDIT`) evaluating all twelve remaining M12 device-category
+modules against existing infrastructure, connector support, permission
+readiness and cross-milestone blockers — Home Automation, AI Home
+Assistant, Security & Safety, Remote Access and Smart Home Analytics
+were each found genuinely blocked on an unshipped dependency (M7's
+Scheduler, M21's Mobile Platform, M20A's Analytics Platform, or a
+`safety_critical` gate that does not exist yet); Smart Locks, Sensors
+and Energy Management were the only unblocked candidates, ranked in
+that order. Smart Locks was approved as the second of M12's
+device-category modules to ship, mirroring Task Group C's own
+architecture — a new `SmartLockService`
+(`services/smart_lock_service.py`), reduced to a single-attribute
+device (no attribute-merge case exists for a binary lock, unlike
+lighting's multi-attribute translators).
+
+- [x] **Logic Contract** — `docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md`,
+      written before any code, covering the normalized lock model,
+      REST/schema/envelope/error taxonomy, connector mapping, permission
+      requirements, confirmation requirements, event/access-history
+      behavior, idempotency and safety boundaries.
+- [x] `SmartLockService` — `LockCommand` (`lock`/`unlock`), reusing
+      `connector_type_for()` and `ConnectivityService.send_command`/
+      `read_raw_state()` (both already shipped, Task Group C) verbatim.
+      HA translation: `lock.lock`/`lock.unlock`, no payload — verified
+      directly against the shipped `HomeAssistantConnector`. MQTT
+      translation: a new JARVIS-native `lock`/`unlock` vocabulary this
+      task group defines, mirroring HA's own service names — verified
+      directly against the shipped `MqttConnector`/`mqtt_envelope.py`,
+      no guessed field names. `locked: bool | None` derived from a
+      connector's raw state string via the same best-effort heuristic
+      `on: bool | None` already uses for lights; unmodeled states
+      (`jammed`/`locking`/`unlocking`) report `None` rather than being
+      invented, since neither connector normalizes them today.
+- [x] Permission — existing `PermissionModel`, `smart_home` scope, new
+      principal `core:smart_locks`, granted through the existing
+      generic `POST /api/v1/plugins/{id}/permissions/{scope}/grant`
+      route — no new authorization mechanism.
+- [x] REST — `infrastructure/api/routes/smart_locks.py`,
+      `/api/v1/smart-locks/*`: `GET /smart-locks`, `GET /smart-locks/
+      {id}`, `POST .../lock`, `POST .../unlock`. No `/state` body-driven
+      endpoint (unlike Smart Lighting's merged one) — a lock has one
+      binary attribute, so two explicit action verbs are clearer. No
+      new pairing endpoint — reuses `POST /devices/{id}/pair` verbatim.
+- [x] Agent tools — `agents/tools/smart_lock_tools.py`, four tools
+      (`list_locks`, `get_lock_status`, `lock_device`, `unlock_device`)
+      wired into the existing Tool Registry/`AgentOrchestrator` exactly
+      like Smart Lighting's own four-point pattern.
+- [x] **Safety: `unlock_device` added to `AgentSettings.
+      confirm_required_tools`'s default set** (`core/config/
+      settings.py`, alongside the existing `run_automation` entry) —
+      reuses `AgentPermissionGate`'s existing confirmation mechanism
+      unchanged, no new confirmation system. `lock_device` deliberately
+      is not included: locking is the fail-safe direction, and an
+      unattended future "Auto Lock" feature would be pointless if every
+      lock action needed interactive confirmation. This gate applies
+      only to the agent-tool path (the LangGraph tool-execution node);
+      REST callers are already behind session auth plus the
+      `PermissionModel` grant, the same two-layer posture every other
+      M12 REST surface has.
+- [x] DI — `smart_lock_service` singleton (`core/di/container.py`,
+      declared after `permission_model`/`smart_home_service`/
+      `connectivity_service`); wired into `_build_agent_orchestrator`
+      and the new router registered in `fastapi_server.py`.
+- [x] 39 new tests across service / REST / agent tools, real components
+      throughout (`FakeDeviceConnector`, real temp-file SQLite, real
+      `PermissionModel`, real `AgentPermissionGate` — the confirmation
+      tests exercise the actual gate class, not a stand-in, including a
+      direct assertion that `Settings().agent.confirm_required_tools`
+      contains `unlock_device` in production, not just in a test
+      override) — plus a boundary test asserting no HA/MQTT wire-format
+      term leaks into the Smart Home domain layer this task group
+      reuses.
+
+**Explicitly out of scope, per the Logic Contract's own honest
+accounting of what existing infrastructure does not support without new
+work this task group was not asked to add:** guest access codes,
+temporary PINs, NFC/fingerprint enrollment (no schema exists); access
+history (no existing mechanism captures a queryable "who
+locked/unlocked when" trail — `lock()`/`unlock()` do not write to the
+DB or publish an event, mirroring `SmartLightingService.
+set_light_state`'s own behavior exactly); Auto Lock or any other
+trigger-based behavior (Home Automation's job, unstarted). **Not this
+task group, and not built:** any other M12 device-category module
+(Sensors, Smart Cameras, Energy Management, Appliance Control, Home
+Automation, AI Home Assistant, Security & Safety, Remote Access, Smart
+Home Memory, Smart Home Analytics, Developer Tools).
 
 ---
 

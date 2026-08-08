@@ -184,6 +184,10 @@ Also active (deliberate exception -- see below)
           room/group fan-out, scene application; motion/sunrise-sunset/
           scheduled automation explicitly out of scope, deferred to
           Home Automation)
+    TG-D  Shipped (Smart Locks -- lock/unlock/state/availability only;
+          no guest access codes, no Auto Lock automation, deferred to
+          Home Automation; "unlock_device" added to
+          agent.confirm_required_tools' default)
 
 Deferred
   M23 — Core Intelligence
@@ -262,20 +266,44 @@ scheduled lighting — all deferred to the separate, unstarted Home
 Automation module, per this task group's own Logic Contract
 (`docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md`).
 
+**Task Group D (Smart Locks) shipped, Aug 2026**, no version bump. A
+new `SmartLockService` (`services/smart_lock_service.py`) providing
+normalized lock/unlock control and state/availability reporting for
+`device_type="lock"` devices — the second of M12's device-category
+modules, mirroring Task Group C's own architecture exactly (same
+`ConnectivityService.send_command` chokepoint, same `PermissionModel`/
+`smart_home`-scope pattern under a new principal `core:smart_locks`,
+same REST/Tool-Registry shape). Home Assistant translation: HA's own
+`lock.lock`/`lock.unlock` domain services, no payload. MQTT
+translation: a new JARVIS-native `lock`/`unlock` command vocabulary
+this task group defines, mirroring HA's own service names for
+cross-connector predictability. **Because locks are physically
+safety-relevant**, `unlock_device` (but not `lock_device`) was added to
+`AgentSettings.confirm_required_tools`'s existing default set
+(`core/config/settings.py`) — reusing `AgentPermissionGate`'s existing
+confirmation mechanism, not a new one — so an agent cannot unlock a
+door without interactive user confirmation by default; locking remains
+unattended-friendly for a future "Auto Lock" feature. Explicitly **not**
+built: guest access codes, temporary PINs, access history (no existing
+mechanism captures a queryable "who unlocked when" trail without new
+infrastructure this task group was not asked to add), or any
+automation trigger — see
+`docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md` for the full account.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
-Connectivity Layer (all three phases) and Connectivity REST + Smart
-Lighting are now shipped; twelve of this milestone's fifteen modules
-remain entirely unstarted (Smart Locks, Sensors, Smart Cameras, Energy
-Management, Appliance Control, Home Automation, AI Home Assistant,
-Security & Safety, Remote Access, Smart Home Memory, Smart Home
-Analytics, Developer Tools). **No version bump accompanied any of the
-five task-group passes** -- unlike M22's own task groups (each of
-which shipped real code and bumped the version in turn), all five ship
+Connectivity Layer (all three phases), Connectivity REST + Smart
+Lighting, and Smart Locks are now shipped; eleven of this milestone's
+fifteen modules remain entirely unstarted (Sensors, Smart Cameras,
+Energy Management, Appliance Control, Home Automation, AI Home
+Assistant, Security & Safety, Remote Access, Smart Home Memory, Smart
+Home Analytics, Developer Tools). **No version bump accompanied any of
+the six task-group passes** -- unlike M22's own task groups (each of
+which shipped real code and bumped the version in turn), all six ship
 real code at `0.38.0` unchanged. Recorded here as a deliberate
 exception to this project's usual pattern, not a claim that the
 pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
-Group B Phase 1/Phase 2/Phase 3, and Task Group C entries for the full
-implementation account.
+Group B Phase 1/Phase 2/Phase 3, Task Group C, and Task Group D entries
+for the full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -526,7 +554,17 @@ future work; see M6's own §3 entry for the full scope note.
   new principal (`core:smart_lighting`) via the existing generic grant
   route — no new permission mechanism. Motion/sunrise-sunset/scheduled
   lighting automation explicitly deferred to the unstarted Home
-  Automation module. **Not Complete**: twelve of fifteen M12 modules
+  Automation module. Task Group D (Smart Locks) shipped: a new
+  `SmartLockService` mirroring Task Group C's own architecture exactly
+  — normalized lock/unlock control and state/availability reporting,
+  `/api/v1/smart-locks/*`, four agent tools, gated by the same
+  `PermissionModel` under a new principal (`core:smart_locks`). Because
+  locks are physically safety-relevant, `unlock_device` (not
+  `lock_device`) was added to `AgentSettings.confirm_required_tools`'s
+  existing default set, reusing `AgentPermissionGate`'s existing
+  confirmation mechanism. No guest access codes, no access history, no
+  automation triggers — deferred/out of scope, same as Smart Lighting's
+  own carve-outs. **Not Complete**: eleven of fifteen M12 modules
   remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
@@ -3685,12 +3723,34 @@ to the unstarted Home Automation module. See
 `docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md` for the
 full Logic Contract.
 
-**Not Complete**: twelve of this milestone's fifteen modules remain
-entirely unstarted (Smart Locks, Sensors, Smart Cameras, Energy
-Management, Appliance Control, Home Automation, AI Home Assistant,
-Security & Safety, Remote Access, Smart Home Memory, Smart Home
-Analytics, Developer Tools). See `IMPLEMENTATION_ROADMAP.md` §5H for
-the full account of what was built.
+**Task Group D (Smart Locks) shipped, Aug 2026**, no version bump. A
+new `SmartLockService` (`services/smart_lock_service.py`) providing
+normalized lock/unlock control and state/availability reporting for
+`device_type="lock"` devices, mirroring Task Group C's own architecture
+exactly — same `ConnectivityService.send_command` chokepoint, same
+`PermissionModel`/`smart_home`-scope pattern under a new principal
+(`core:smart_locks`), exposed over `/api/v1/smart-locks/*` and as four
+agent tools. Home Assistant translation: HA's own `lock.lock`/
+`lock.unlock` domain services, no payload. MQTT translation: a new
+JARVIS-native `lock`/`unlock` command vocabulary this task group
+defines, mirroring HA's own service names. **Because locks are
+physically safety-relevant**, `unlock_device` (not `lock_device`) was
+added to `AgentSettings.confirm_required_tools`'s existing default set
+— reusing `AgentPermissionGate`'s existing confirmation mechanism, not
+a new one — so an agent cannot unlock a door without interactive user
+confirmation by default; locking remains unattended-friendly for a
+future "Auto Lock" feature. Explicitly not built: guest access codes,
+temporary PINs, access history (no existing mechanism captures a
+queryable trail without new infrastructure this task group was not
+asked to add), or any automation trigger. See
+`docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md` for the full Logic Contract.
+
+**Not Complete**: eleven of this milestone's fifteen modules remain
+entirely unstarted (Sensors, Smart Cameras, Energy Management,
+Appliance Control, Home Automation, AI Home Assistant, Security &
+Safety, Remote Access, Smart Home Memory, Smart Home Analytics,
+Developer Tools). See `IMPLEMENTATION_ROADMAP.md` §5H for the full
+account of what was built.
 
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
 single-bus device bridge into a complete enterprise-grade Smart Home
@@ -3769,6 +3829,18 @@ and remain unstarted, deferred to the Home Automation module.)*
 - Room Lighting ✅
 
 #### Smart Locks
+*(Lock/unlock control and state/availability reporting shipped Task
+Group D, Aug 2026 -- device-agnostic: works through whichever
+connector already discovered the lock (Wi-Fi/Bluetooth/etc. are a
+connector-level concern, not distinguished by this module), over both
+REST (`/api/v1/smart-locks/*`) and four agent tools. Temporary Access
+Codes, Guest Access, Auto Lock, Access History and Access Notifications
+are explicitly out of scope for this task group -- no schema exists for
+access codes, and no existing infrastructure captures a queryable
+access-history trail without new tables/event plumbing this task group
+was not asked to add; Auto Lock is trigger-based, deferred to the
+unstarted Home Automation module, same carve-out Smart Lighting already
+established.)*
 - Wi-Fi Locks
 - Bluetooth Locks
 - Fingerprint Locks
@@ -3776,7 +3848,7 @@ and remain unstarted, deferred to the Home Automation module.)*
 - NFC Locks
 - Temporary Access Codes
 - Guest Access
-- Remote Unlock
+- Remote Unlock ✅
 - Auto Lock
 - Access History
 - Access Notifications
