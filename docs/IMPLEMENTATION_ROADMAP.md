@@ -1241,12 +1241,15 @@ reasoning and design. **M10 is not 100% complete.**
       to the pre-existing accepted baseline — zero new categories.
   - **Deferred** (documented, not silently dropped): Learning/Feedback
         via M16's Reflection Engine (needs M16); Permission Validation's
-        final M14-routed form (needs M14); Intent Engine gating graph
-        routing (needs M10A/M10B for real signal); the "final" shortcut
+        final M14-routed form (needs M14); ~~Intent Engine gating graph
+        routing (needs M10A/M10B for real signal)~~; the "final" shortcut
         path's real token streaming; PySide6 Agent Trace view / React
         frontend wiring to `/api/v1/agent` (M8's own remaining phases).
         *(Context Engine's knowledge-graph half, originally deferred
-        here pending M10A, is now real — see §5B below.)*
+        here pending M10A, is now real — see §5B below. Intent Engine
+        gating graph routing, deferred pending M10A/M10B, is now real
+        too — both shipped since this deferral was written — see the
+        Conversational Orchestration Routing pass immediately below.)*
 
 **Dependencies note:** M10's formal dependencies are M5A (✅, extended
 directly), M8 (🟡 partial — the backend WebSocket transport this pass
@@ -1254,6 +1257,93 @@ needed is real via M9; M8's own remaining frontend phases are
 unaffected either way), M10A (✅ **now shipped**, closing Context
 Engine's knowledge-graph deferral — see §5B below), M14 (🔴, blocks
 Permission Validation's final form).
+
+### M10 — Conversational Orchestration Routing (✅ shipped, Aug 2026 — no version bump)
+
+Closes two of M10's own named deferrals, both of which turned out to
+be stale rather than genuinely still blocked: "Intent Engine gating
+graph routing" cited M10A/M10B as blockers, and both have since
+shipped (✅ Completed, `MASTER_ROADMAP.md` §2); "Remaining UI
+integration" named wiring a real surface to `AgentOrchestrator`, which
+this pass does at the composition layer rather than waiting on M8's
+still-deferred frontend phases. Preceded by a read-only Phase 0 audit
+(current M10 implementation, roadmap sections, `CLAUDE.md`,
+`ARCHITECTURE.md`, `AgentOrchestrator` itself, every conversation/voice
+entry point) that confirmed both gaps by direct code inspection before
+any Logic Contract or code was written — see
+`docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md` for the full account.
+**Not a new orchestrator, not a new AI Core, not duplicate planning
+logic** — every change below extends an already-shipped M10/M5A
+component; nothing new was created.
+
+- [x] **Intent gating** (`agents/graph.py`) — one new conditional edge,
+      `intent_classifier → {context_engine | responder}`, keyed on the
+      already-computed `state["intent"]`/`state["intent_confidence"]`.
+      A `direct_answer` at or above a configurable confidence
+      (`AgentSettings.intent_direct_route_confidence`, default `0.85`)
+      skips `context_engine`/`planner`/`tool_selector` entirely —
+      consistent with `intent_classifier`'s own definition of
+      `direct_answer` as "answerable from knowledge alone, no tool
+      needed." Everything else (`tool_use`, `clarification_needed`, or
+      a below-threshold `direct_answer`) takes the existing,
+      byte-for-byte-unchanged assessment path — verified directly: no
+      existing test scripts an intent-classification response, so
+      every one of them exercises `safe_complete`'s own existing
+      fallback (`{"intent": "tool_use", "confidence": 0.5}`), which
+      never satisfies the gate. Applies to both the `invoke()` graph
+      and `stream()`'s responder-less variant, so a direct-routed
+      answer gets real per-token streaming too, not just the
+      tool-composed path.
+- [x] **Conversation routing flag** — `AgentSettings.conversation_routing:
+      Literal["legacy", "hybrid", "orchestrator"]`, default `"legacy"`
+      (today's behaviour, byte-for-byte). `"orchestrator"` routes
+      through `AgentOrchestrator`; `"hybrid"` makes both paths reachable
+      through the same `ConversationController` without making an
+      ordinary call non-deterministic (its default is `"legacy"`'s
+      default too). Read in exactly one place — the DI composition
+      root (`ConversationController.__init__`) — so switching modes
+      needs no other file to change.
+- [x] **`ConversationController`** (`features/conversation/controller.py`)
+      — the composition-layer seam Chat and Voice already both
+      converged on (confirmed by the audit: `_chat_page.prompt.submitted`
+      and `_voice_controller.transcribed` both already wired to
+      `ConversationController.send()`), so routing both through
+      `AgentOrchestrator` needed exactly one class changed, not two.
+      `ChatService`/`ConversationService`/`VoiceService` (M0–M6,
+      frozen) are unmodified — the controller decides which backend a
+      call reaches; neither backend changed. The new orchestrator path
+      persists through `ConversationService` itself (`AgentOrchestrator`
+      has no `ConversationService` dependency of its own — its
+      checkpointer tracks unrelated agent-graph state keyed by
+      `thread_id`), reusing the conversation id as the thread id,
+      mirroring `SessionManager`'s own established two-ids-one-string
+      pattern. Fails at construction (not first send) if
+      `conversation_routing="orchestrator"` is set with no orchestrator
+      provided.
+- [x] `ui/main_window.py` — the one call site updated: `settings` and
+      `container.agent_orchestrator()` (an existing DI singleton,
+      untouched) passed to `ConversationController`'s constructor.
+      Voice needed zero wiring changes — it already fed into the same
+      `send()` this change re-routes.
+- [x] Tests — `tests/unit/test_agent_graph_routing.py` (8, the routing
+      function in isolation), 4 new cases in
+      `tests/integration/test_agent_orchestrator.py` (direct-route
+      bypass verified via `ScriptedFakeLLM.calls` never touching the
+      planner's own prompt anchor, confidence-threshold assessment,
+      `tool_use` never gating regardless of confidence, real token
+      streaming on the direct-routed path), `tests/unit/
+      test_conversation_controller.py` (10: legacy/orchestrator/hybrid
+      routing, persisted-message-shape parity with the legacy path,
+      thread-id/conversation-id reuse, construction-time validation,
+      no silent fallback on an orchestrator failure) — real temp-file
+      SQLite `ConversationService` throughout, no mocked repository.
+      22 new tests total. Full regression: 2499 passed, 1 skipped
+      (pre-existing), 0 failed, out of 2500.
+
+**Governing outcome:** both of M10's own named deferrals this pass
+targeted are closed. `AgentOrchestrator`'s LangGraph, `ChatService`,
+`ConversationService`, `VoiceService` are all the same components M10
+and M0–M6 already shipped — none replaced, none duplicated.
 
 ---
 

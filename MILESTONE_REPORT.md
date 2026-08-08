@@ -2671,3 +2671,153 @@ this task group's own precedent throughout. Task Group B (Connectivity
 Layer) is now complete across all three approved phases; the next M12
 work (any of the thirteen still-unstarted modules) is a new task group
 requiring its own separate approval, not an extension of this one.
+
+# Milestone Report — M10: Conversational Orchestration Routing
+
+**Version:** 0.38.0 (unchanged — no version bump)
+**Branch:** `feature/m22-task-group-c`
+**Date:** 2026-08-08
+
+## 1. Executive summary
+
+M10's own Closure Summary named two items as explicitly deferred, not
+silently dropped: "Intent Engine gating graph routing" (blocked on
+M10A/M10B, neither started at the time) and "Remaining UI integration"
+(wiring a real surface to `AgentOrchestrator`, named as M8's own
+remaining-phases scope). Both blockers turned out to be stale — M10A
+and M10B have both since shipped — and this pass closes both gaps
+directly, at the composition layer, without waiting on M8's still-
+deferred frontend phases. Preceded by a mandatory read-only Phase 0
+audit and a Logic Contract
+(`docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md`), both delivered before
+any code, per this project's own standing rules.
+
+## 2. Phase 0 audit findings
+
+Verified by direct code inspection, not assumed:
+
+- `agents/graph.py`'s three existing conditional-edge functions
+  (`_route_after_selection`, `_route_after_permission`,
+  `_route_after_critic`) never referenced `state["intent"]`/
+  `state["intent_confidence"]`, confirming the classification was
+  computed but never consumed for routing.
+- `ui/main_window.py` wired both `_chat_page.prompt.submitted` and
+  `_voice_controller.transcribed` to the same
+  `ConversationController.send()`, which called `ChatService.stream()`
+  directly. Zero references to `AgentOrchestrator` existed anywhere in
+  that file. `AgentOrchestrator` was reachable only via
+  `POST /api/v1/agent/invoke`/`stream`, with no live caller (the React
+  frontend has no chat feature yet; grep for `chat`/`conversation`
+  under `frontend/src/features/` and `infrastructure/api/routes/`
+  returned nothing).
+- Both gaps confirmed real, not stale documentation.
+
+## 3. What this pass builds
+
+- **Intent gating** (`agents/graph.py`) — see Changelog for the exact
+  edge added. Deliberately gates right after `intent_classifier`,
+  before `context_engine` — `responder.py`'s shared
+  `build_final_response_prompt` only receives `context` indirectly
+  through `plan` (confirmed by reading `planner.py`/`responder.py`
+  directly), so gating any later would silently discard the gathered
+  context without a compensating change to that shared, dual-purpose
+  prompt builder. Gating before `context_engine` avoids that: the
+  classifier's own definition of `direct_answer` ("answerable from
+  knowledge alone") already implies no context lookup was expected to
+  matter either.
+- **`AgentSettings.conversation_routing`** and
+  **`AgentSettings.intent_direct_route_confidence`** (`Field(ge=0.0,
+  le=1.0)`) — new settings fields, `AGENT_` env-prefixed like every
+  other `AgentSettings` field.
+- **`ConversationController`** — the one composition-layer class both
+  real entry points already converged on, per the audit. Gained
+  `_stream_via_chat_service`/`_stream_via_orchestrator` alongside the
+  existing `_stream` dispatcher; `send()`'s own public signature is
+  unchanged, so Voice's existing signal wiring needed zero changes.
+- **`ui/main_window.py`** — one construction call site updated.
+
+## 4. Tests
+
+22 new tests, all passing: `tests/unit/test_agent_graph_routing.py`
+(8, pure unit tests of the routing function, no LangGraph/LLM
+involved), 4 new cases appended to
+`tests/integration/test_agent_orchestrator.py` (full compiled-graph
+runs with `ScriptedFakeLLM`, matching that file's own established
+convention exactly), `tests/unit/test_conversation_controller.py` (10,
+new file — real temp-file SQLite `ConversationService`, faked
+`ChatService`/`AgentOrchestrator`, matching this project's "fake the
+external boundary, use the real thing under test" discipline).
+
+One real, non-test-artifact finding surfaced during test development:
+confirmed via `safe_complete`'s own fallback behavior
+(`(result or "").strip() or fallback`) that every pre-existing
+orchestrator test — none of which scripts an intent-classification
+response — safely resolves to `intent="tool_use"` via
+`intent_classifier.py`'s own existing fallback, which never satisfies
+the new gate. This was verified by reading the code, then confirmed
+empirically by the full regression run below; it was not assumed.
+
+A second real regression risk was identified and verified, not
+assumed: `tests/unit/test_ui_milestone5_smoke.py` constructs `MainWindow`
+against a real `Container()` with only specific providers overridden by
+a catch-all fake — `agent_orchestrator` was not among them. Adding a
+`container.agent_orchestrator()` call to `main_window.py` risked
+triggering real construction of several services that test never
+previously needed. Verified directly (not assumed safe): the full
+`test_ui_milestone5_smoke.py` suite (54 tests) passes unchanged.
+
+## 5. Quality gates
+
+- **black** — clean after auto-reformatting the two new/extended test
+  files.
+- **ruff** — zero new findings. Every flagged line in `settings.py`,
+  `main_window.py`, and `orchestrator.py` was confirmed pre-existing by
+  diffing against `HEAD` (this pass's diff is pure insertions in all
+  three files, never touching the flagged lines). The new test file's
+  `PLC0415` findings (lazy imports inside test functions) match
+  `test_agent_orchestrator.py`'s own existing convention exactly (15
+  identical pre-existing findings in that unmodified-by-this-pass
+  file, confirmed directly). 5 genuinely new `RUF100` (unused
+  `noqa: SLF001`, a rule this project's ruff config doesn't enable)
+  findings were fixed.
+- **mypy** (`src/` only, matching CI's own scope, confirmed via the
+  literal `.github/workflows/ci.yml` invocation) — zero new errors.
+  All 4 findings across the 4 touched `src/` files were confirmed
+  pre-existing by running mypy against the `git show HEAD` version of
+  each file directly, not assumed.
+- **pytest, scoped** — 112 tests (22 new + `test_agent_nodes.py` +
+  `test_ui_milestone5_smoke.py`), all passing.
+- **pytest, full regression** — **2499 passed, 1 skipped, 0 failed, 0
+  errors** (2500 collected). Confirmed via `--junit-xml`: header
+  (`errors="0" failures="0" skipped="1" tests="2500"`) cross-checked
+  against a raw tag count, both agreeing exactly. Exit code `0`. The
+  one skip is the same pre-existing platform-specific symlink skip
+  every prior report in this project has recorded.
+- **frontend** — not re-run: zero frontend files touched (confirmed
+  via `git status --porcelain -- frontend/`, empty), and 750/750 was
+  already confirmed green in the immediately preceding work on this
+  same branch.
+
+## 6. Defects found
+
+None introduced. The regression risk named in §4 (the UI smoke test's
+partially-faked container) was a real risk worth verifying, not a
+defect — verification confirmed it was safe.
+
+## 7. Documentation updated
+
+After implementation was complete and the full regression suite
+confirmed green: `MASTER_ROADMAP.md` (M10's Deferred list — the Intent
+Engine gating item struck through with a resolution note; new
+Conversational Orchestration Routing summary), `IMPLEMENTATION_ROADMAP.md`
+(§5A — the same Deferred-list correction, plus a full new subsection),
+`MILESTONE_REPORT.md` (this section), `CHANGELOG.md` (new entry),
+`CLAUDE.md` (the "Two conversational paths" gotcha corrected to
+describe the new routing flag — this project's own guidance file,
+written one session prior, had gone stale the moment this pass shipped).
+
+## 8. Recommendation
+
+Commit as two commits (implementation, documentation), matching this
+project's own established precedent. `conversation_routing` defaults to
+`"legacy"` — no user-facing behavior changes until an operator opts in.

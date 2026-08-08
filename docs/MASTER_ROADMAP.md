@@ -2317,9 +2317,11 @@ item's own reason, not silently dropped):
 - **Learning & Feedback** -- needs **M16** (Reflection Engine), not
   started; M10's own spec routes this through M16, not a second
   learning mechanism.
-- **Intent Engine gating graph routing** -- needs real signal from
+- ~~**Intent Engine gating graph routing**~~ -- needs real signal from
   **M10A/M10B**, neither started; today the classification is recorded
-  but diagnostic-only.
+  but diagnostic-only. *(No longer deferred -- M10A and M10B have both
+  since shipped, and this gate is now real. See the Conversational
+  Orchestration Routing pass below.)*
 - **Final streaming optimizations** -- `tool_selector`'s "final"
   (no-tool-needed) shortcut still replays precomposed text rather than
   streaming real tokens, since its answer is embedded inside a JSON
@@ -2424,6 +2426,29 @@ M10A (knowledge/context substrate), M14 (Permission Validation).
    enforcement policy itself is interim (`AgentPermissionGate`,
    settings-driven) pending M14's Authorization Engine, per this
    milestone's own Permission Validation key feature above.
+
+**Conversational Orchestration Routing (Aug 2026, ✅ shipped, no
+version bump):** closes two of the Deferred items above -- Intent
+Engine gating graph routing (its cited blockers, M10A/M10B, have both
+since shipped) and Remaining UI integration (Chat and Voice now reach
+`AgentOrchestrator` at the composition layer, rather than waiting on
+M8's still-deferred frontend phases). Preceded by a read-only Phase 0
+audit that confirmed, by direct code inspection, that both Chat
+(`ConversationController.send()` → `ChatService.stream()`) and Voice
+(wired to the same `send()`) bypassed `AgentOrchestrator` entirely, and
+that none of `agents/graph.py`'s three existing conditional-edge
+functions read `state["intent"]`. **Not a new orchestrator, AI Core, or
+planning logic** -- `agents/graph.py` gained one new conditional edge
+consuming the already-computed Intent Engine output;
+`ConversationController` gained a settings-driven branch between two
+already-shipped backends. `ChatService`/`ConversationService`/
+`VoiceService` (M0–M6, frozen) are unmodified. A new
+`AgentSettings.conversation_routing` flag
+(`legacy`/`hybrid`/`orchestrator`, default `legacy`) makes the change
+fully opt-in; existing behaviour is preserved byte-for-byte by
+default. See `docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md` and
+`IMPLEMENTATION_ROADMAP.md` §5A for the full account. 22 new tests;
+full regression 2499 passed, 1 skipped (pre-existing), 0 failed.
 
 ### M10A — Universal Search & Knowledge Platform
 

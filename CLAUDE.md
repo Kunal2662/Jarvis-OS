@@ -57,14 +57,20 @@ load-bearing:
 - `src/jarvis/agents/` — LangGraph agent runtime (see below).
 
 ### Two conversational paths exist — know which one you're in
-- `ChatService.stream()` — plain LLM passthrough. **This is what the desktop chat UI and the
-  voice pipeline actually use.** No tools, no planning, no intent classification.
+- `ChatService.stream()` — plain LLM passthrough. No tools, no planning, no intent
+  classification.
 - `AgentOrchestrator` (`agents/orchestrator.py`) — the compiled LangGraph `StateGraph`
-  (`intent_classifier → context_engine → planner → tool_selector → [permission_validator →
-  tool_executor → critic]* → responder`). Reachable **only** via `POST /api/v1/agent/invoke`
-  and `/api/v1/agent/stream`.
+  (`intent_classifier → {context_engine | responder} → planner → tool_selector →
+  [permission_validator → tool_executor → critic]* → responder`). A high-confidence
+  `direct_answer` intent classification now gates straight to `responder`, skipping
+  `context_engine`/`planner`/`tool_selector` (M10 Conversational Orchestration Routing).
 
-These are not yet unified. Do not assume a change to one affects the other.
+Which one Desktop Chat and Voice actually reach is decided in exactly one place —
+`ConversationController.__init__` — by `AgentSettings.conversation_routing`
+(`legacy`/`hybrid`/`orchestrator`, default `legacy`, preserving pre-M10-routing behaviour
+byte-for-byte). Reaching `AgentOrchestrator` via REST directly (`POST /api/v1/agent/invoke`
+and `/api/v1/agent/stream`) still works regardless of the flag. Do not assume a change to
+one path affects the other without checking which mode is configured.
 
 ### Adding a relayed WebSocket event touches five surfaces
 Adding an `Event` and forgetting the rest fails the suite in two places and silently breaks

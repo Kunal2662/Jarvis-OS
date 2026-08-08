@@ -3,6 +3,69 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M10: Conversational Orchestration Routing
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; `0.38.0` is unchanged.
+
+Closes two items M10's own Closure Summary explicitly recorded as
+deferred: "Intent Engine gating graph routing" (cited M10A/M10B as
+blockers -- both have since shipped) and "Remaining UI integration"
+(Chat/Voice reaching `AgentOrchestrator`). Preceded by a read-only
+Phase 0 audit and a Logic Contract
+(`docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md`), per this project's
+own standing rules. **Not a new orchestrator, AI Core, or planning
+logic** -- every change extends an already-shipped M10/M5A/M0-M6
+component.
+
+### Added
+- **Intent gating** (`agents/graph.py`) -- one new conditional edge,
+  `intent_classifier → {context_engine | responder}`, consuming the
+  already-computed `state["intent"]`/`state["intent_confidence"]`. A
+  high-confidence `direct_answer` skips context/planning/tool-selection
+  entirely; everything else takes the existing, unchanged path.
+  Threshold is `AgentSettings.intent_direct_route_confidence` (default
+  `0.85`).
+- **`AgentSettings.conversation_routing`** -- new
+  `Literal["legacy", "hybrid", "orchestrator"]` flag, default
+  `"legacy"` (today's behaviour, byte-for-byte unchanged). Read in
+  exactly one place: `ConversationController.__init__`.
+- **`ConversationController`** (`features/conversation/controller.py`)
+  -- gained a settings-driven branch between `ChatService.stream()`
+  (existing) and a new `AgentOrchestrator.stream()` path. The
+  orchestrator path persists through `ConversationService` itself
+  (which `AgentOrchestrator` has no dependency on) and reuses the
+  conversation id as the agent's `thread_id`. Fails at construction,
+  not first use, if `conversation_routing="orchestrator"` has no
+  orchestrator provided.
+- **`ui/main_window.py`** -- one call site updated to pass `settings`
+  and the existing `container.agent_orchestrator()` singleton to
+  `ConversationController`. Voice needed no wiring change -- it
+  already fed into the same `send()` this re-routes.
+- **`docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md`** -- the Logic
+  Contract, written before implementation per this project's own rule.
+- **22 new tests** -- `test_agent_graph_routing.py` (8, the routing
+  function in isolation), 4 new cases in
+  `test_agent_orchestrator.py` (direct-route bypass verified via
+  `ScriptedFakeLLM.calls` never reaching the planner, confidence
+  thresholding, `tool_use` never gating, real token streaming on the
+  direct-routed path), `test_conversation_controller.py` (10:
+  legacy/orchestrator/hybrid routing, persisted-message parity with
+  the legacy path, thread-id reuse, construction-time validation, no
+  silent fallback on orchestrator failure) -- real temp-file SQLite
+  throughout, no mocked repository.
+
+### Notes
+- **`ChatService`/`ConversationService`/`VoiceService` (M0-M6,
+  frozen) are unmodified.** `AgentOrchestrator`'s own public
+  `invoke()`/`stream()` contract is unchanged; only its internal graph
+  gained the new conditional edge.
+- Full backend regression: **2499 passed, 1 skipped (pre-existing), 0
+  failed** (2500 collected). Frontend unaffected -- zero frontend
+  files touched.
+- Default (`conversation_routing="legacy"`) preserves pre-existing
+  behaviour byte-for-byte; `"orchestrator"`/`"hybrid"` are opt-in.
+
 ## M12 Task Group B, Phase 3: MQTT Connector
 
 **No version bump**, matching Task Group A and Phases 1-2's own
