@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "JARVIS OS",
-  "version": "0.1.0",
+  "version": "0.38.0",
   "identifier": "os.jarvis.app",
   "build": {
     "frontendDist": "../dist",
@@ -28,16 +28,29 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "android": {
-      "debugApplicationIdSuffix": ".debug"
+    "publisher": "JARVIS OS",
+    "copyright": "Copyright (c) JARVIS OS",
+    "category": "Productivity",
+    "shortDescription": "Local-first AI operating system",
+    "longDescription": "JARVIS OS is a local-first AI assistant for the desktop. It runs its own model on your machine, remembers what you tell it, and works without an internet connection.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English"
+        ],
+        "displayLanguageSelector": false
+      },
+      "allowDowngrades": false
     }
   }
 }

@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.reminder_service import ReminderService
+    from jarvis.services.smart_home_service import SmartHomeService
     from jarvis.services.task_service import TaskService
     from jarvis.services.workspace_service import WorkspaceService
 
@@ -392,3 +393,30 @@ class AttachmentSearchSource:
 
     async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
         return await self._attachments.search_attachments(query, top_k=top_k)
+
+
+class HomeSearchSource:
+    """Wraps :meth:`SmartHomeService.search_homes` (Milestone 12 Task
+    Group A)."""
+
+    source_type = "homes"
+
+    def __init__(self, smart_home: SmartHomeService) -> None:
+        self._smart_home = smart_home
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._smart_home.search_homes(query, top_k=top_k)
+
+
+class DeviceSearchSource:
+    """Wraps :meth:`SmartHomeService.search_devices` (Milestone 12 Task
+    Group A). Zones, rooms and device groups are not their own sources
+    -- see ``core/di/container.py``'s registration comment for why."""
+
+    source_type = "devices"
+
+    def __init__(self, smart_home: SmartHomeService) -> None:
+        self._smart_home = smart_home
+
+    async def search(self, query: str, *, top_k: int = 10) -> list[SearchResult]:
+        return await self._smart_home.search_devices(query, top_k=top_k)

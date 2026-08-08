@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.smart_lighting_service import SmartLightingService
+    from jarvis.services.smart_lock_service import SmartLockService
     from jarvis.services.system_service import SystemService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
@@ -42,6 +44,8 @@ def build_tool_registry(
     intelligence: IntelligenceService | None = None,
     workspace_assistant: WorkspaceAssistantService | None = None,
     integrations: IntegrationService | None = None,
+    smart_lighting: SmartLightingService | None = None,
+    smart_lock: SmartLockService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -74,6 +78,21 @@ def build_tool_registry(
         from jarvis.agents.tools.integration_tools import build_integration_tools
 
         tools += build_integration_tools(integrations)
+    if smart_lighting is not None:
+        # Milestone 12 Connectivity REST + Smart Lighting. One tool per
+        # normalized operation -- see `agents/tools/smart_lighting_tools.py`
+        # for why this differs from the integrations catalogue's
+        # discover-then-invoke pair.
+        from jarvis.agents.tools.smart_lighting_tools import build_smart_lighting_tools
+
+        tools += build_smart_lighting_tools(smart_lighting)
+    if smart_lock is not None:
+        # Milestone 12 Smart Locks. Four tools, mirroring Smart
+        # Lighting's own registration exactly -- see
+        # `agents/tools/smart_lock_tools.py`.
+        from jarvis.agents.tools.smart_lock_tools import build_smart_lock_tools
+
+        tools += build_smart_lock_tools(smart_lock)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

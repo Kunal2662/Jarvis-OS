@@ -1,0 +1,53 @@
+{
+  "satisfied": true,
+  "dependencies": [
+    {
+      "key": "python",
+      "label": "Python runtime",
+      "status": "present",
+      "version": "3.13.14",
+      "required": true,
+      "detail": "Python 3.13.14."
+    },
+    {
+      "key": "visual_cpp",
+      "label": "Visual C++ runtime",
+      "status": "present",
+      "version": null,
+      "required": false,
+      "detail": "Installed."
+    },
+    {
+      "key": "git",
+      "label": "Git",
+      "status": "present",
+      "version": "2.55.0.windows.3",
+      "required": false,
+      "detail": "Git 2.55.0.windows.3."
+    },
+    {
+      "key": "cuda",
+      "label": "CUDA acceleration",
+      "status": "missing",
+      "version": null,
+      "required": false,
+      "detail": "No NVIDIA driver detected. JARVIS will run on the processor."
+    },
+    {
+      "key": "directml",
+      "label": "DirectML acceleration",
+      "status": "present",
+      "version": null,
+      "required": false,
+      "detail": "Available."
+    },
+    {
+      "key": "onnx_runtime",
+      "label": "ONNX Runtime",
+      "status": "present",
+      "version": null,
+      "required": false,
+      "detail": "Available."
+    }
+  ]
+}

@@ -3,6 +3,1496 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Smart Locks (Task Group D)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Smart Locks** scope -- the second of M12's
+device-category modules to ship, following a read-only dependency
+audit that ranked Smart Locks, Sensors and Energy Management as the
+only unblocked candidates among the twelve remaining modules (Home
+Automation, AI Home Assistant, Security & Safety, Remote Access and
+Smart Home Analytics were each found genuinely blocked on an unshipped
+cross-milestone dependency). **Does not close M12** -- eleven
+device-category modules remain unstarted; see
+`docs/IMPLEMENTATION_ROADMAP.md` §5H. Preceded by a read-only Logic
+Contract (`docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md`), per this project's
+own standing rules. 39 new tests, 0 failures, 0 errors, against real
+components throughout (`FakeDeviceConnector`, real temp-file SQLite,
+real `PermissionModel`, real `AgentPermissionGate`).
+
+### Added
+- **`SmartLockService`** (`services/smart_lock_service.py`) --
+  normalized lock/unlock control and state/availability reporting for
+  `device_type="lock"` devices, mirroring `SmartLightingService`'s own
+  architecture exactly, reduced to a single-attribute device (no
+  attribute-merge case exists for a binary lock). Home Assistant
+  translation: `lock.lock`/`lock.unlock`, no payload. MQTT translation:
+  a new JARVIS-native `lock`/`unlock` command vocabulary this task
+  group defines, mirroring HA's own service names.
+- **Smart Locks REST** -- `/api/v1/smart-locks/*`: list/get/lock/unlock.
+  No body-driven `/state` endpoint (unlike Smart Lighting's merged
+  one) -- two explicit action verbs are clearer for a single binary
+  attribute. `infrastructure/api/routes/smart_locks.py`.
+- **Smart Lock agent tools** -- `agents/tools/smart_lock_tools.py`,
+  four tools (`list_locks`, `get_lock_status`, `lock_device`,
+  `unlock_device`) wired into the existing Tool Registry and
+  `AgentOrchestrator`, converging on the same `SmartLockService`
+  methods the REST route calls.
+- **Permission enforcement** -- every side-effecting operation requires
+  the existing `PermissionModel`'s `smart_home` scope, under a new
+  fixed principal `core:smart_locks`, granted through the existing
+  generic `POST /api/v1/plugins/{id}/permissions/{scope}/grant` route
+  -- no new authorization mechanism.
+- **Safety: `unlock_device` added to `AgentSettings.
+  confirm_required_tools`'s default set** (`core/config/settings.py`)
+  -- reuses `AgentPermissionGate`'s existing confirmation mechanism, no
+  new confirmation system. `lock_device` is deliberately not included
+  (locking is the fail-safe direction; an unattended future "Auto Lock"
+  feature would be pointless otherwise). This gate applies only to the
+  agent-tool path -- REST callers are already behind session auth plus
+  the `PermissionModel` grant.
+- **DI** -- `smart_lock_service` singleton in `core/di/container.py`.
+
+### Not changed
+- `ConnectivityService`, `SmartHomeService`, `PermissionModel`,
+  `AgentPermissionGate` -- reused verbatim, no second connectivity
+  service, no second permission engine, no second confirmation system.
+- No new pairing endpoint -- reuses the existing `POST /devices/{id}/pair`.
+- No new WebSocket event class -- reuses `DeviceUpdatedEvent`.
+
+### Explicitly out of scope
+- Guest access codes, temporary PINs, NFC/fingerprint enrollment -- no
+  schema exists for any of it.
+- Access history -- no existing mechanism captures a queryable "who
+  locked/unlocked when" trail without new infrastructure this task
+  group was not asked to add; `lock()`/`unlock()` do not write to the
+  DB or publish an event, matching `SmartLightingService.
+  set_light_state`'s own behavior.
+- Auto Lock or any other trigger-based behavior -- deferred to the
+  unstarted Home Automation module.
+- Every other M12 device-category module (Sensors, Smart Cameras,
+  Energy Management, Appliance Control, Home Automation, AI Home
+  Assistant, Security & Safety, Remote Access, Smart Home Memory, Smart
+  Home Analytics, Developer Tools).
+
+## M12: Connectivity REST + Smart Lighting (Task Group C)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Connectivity REST + Smart Lighting** scope -- the
+first of M12's thirteen still-unstarted device-category modules to
+ship, plus REST exposure of the already-shipped `ConnectivityService`
+(Task Group B). **Does not close M12** -- twelve device-category
+modules remain unstarted; see `docs/IMPLEMENTATION_ROADMAP.md` §5H.
+Preceded by a read-only Phase 0 audit and a Logic Contract
+(`docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md`), per
+this project's own standing rules. 59 new tests, 0 failures, 0 errors,
+0 skipped, against real components throughout (`FakeDeviceConnector`,
+real temp-file SQLite, real `PermissionModel`, real FastAPI
+`TestClient` + DI container).
+
+### Added
+- **`ConnectivityService` REST exposure** -- `/api/v1/connectivity/*`:
+  connector connect/disconnect, discovery, device state refresh, and a
+  generic uninterpreted `send_command` passthrough.
+  `infrastructure/api/routes/connectivity.py`.
+- **`ConnectivityService.read_raw_state()`** -- a new method returning
+  a connector's unmapped `DeviceState` (real attributes), distinct from
+  the existing `refresh_device_state()` which only writes Task Group
+  A's lifecycle vocabulary onto `Device.status`.
+  `connector_type_for()` promoted from a private staticmethod to a
+  module-level function so a second caller (Smart Lighting) can reuse
+  it without duplicating `Device.metadata_json` parsing.
+- **`SmartLightingService`** (`services/smart_lighting_service.py`) --
+  normalized on/off, brightness (0-100), color temperature (Kelvin)
+  and RGB color control; room/group fan-out with per-device fault
+  isolation; lighting scenes (new `LightingScene` ORM model +
+  `SceneRepository`). Translates into Home Assistant (a single merged
+  `light.turn_on` service call) and MQTT (a new JARVIS-native
+  `turn_off`/`set_state` command vocabulary this task group defines)
+  through the existing `ConnectivityService.send_command` chokepoint --
+  no second execution path.
+- **Smart Lighting REST** -- `/api/v1/smart-lighting/*`: lights
+  (list/get/set-state), room/group fan-out, scenes (create/list/get/
+  delete/apply). `infrastructure/api/routes/smart_lighting.py`.
+- **Smart Lighting agent tools** -- `agents/tools/
+  smart_lighting_tools.py`, seven tools wired into the existing Tool
+  Registry and `AgentOrchestrator` (`smart_lighting` param threaded
+  through `build_tool_registry`, `AgentOrchestrator.__init__`/
+  `.start()`, and the DI composition root) -- converges on the same
+  `SmartLightingService` methods the REST route calls, so both trip the
+  same permission gate.
+- **Permission enforcement** -- every side-effecting Smart Lighting
+  operation requires the existing `PermissionModel`'s `smart_home`
+  scope (pre-declared since M9, never enforced before this task group),
+  under a new fixed principal `core:smart_lighting`, granted through
+  the existing generic `POST /api/v1/plugins/{id}/permissions/{scope}/
+  grant` route (M9 Task Group E) -- no new authorization mechanism.
+- **DI** -- `smart_lighting_service` singleton in
+  `core/di/container.py`.
+
+### Not changed
+- `SmartHomeService`, `ConnectivityService`'s existing methods,
+  `IDeviceConnector`, `ConnectorFactoryRegistry`, `PermissionModel` --
+  reused verbatim (plus the one additive `read_raw_state()` method),
+  no second connectivity service, no second permission engine.
+- No new pairing endpoint -- reuses the existing `POST /devices/{id}/pair`.
+- No new WebSocket event class -- reuses `DeviceUpdatedEvent`/
+  `ConnectivityStatusChangedEvent`.
+
+### Explicitly out of scope
+- Motion-activated lighting, sunrise/sunset automation, scheduled
+  lighting -- deferred to the separate, unstarted Home Automation
+  module.
+- Every other M12 device-category module (Smart Locks, Sensors, Smart
+  Cameras, Energy Management, Appliance Control, AI Home Assistant,
+  Security & Safety, Remote Access, Smart Home Memory, Smart Home
+  Analytics, Developer Tools).
+
+## M11: API Center Architecture module
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M11's "API Center Architecture" module -- the roadmap's own
+lifecycle-management design for M11's `core/integrations/` engine,
+previously "Planning only; no implementation exists yet"
+(`MASTER_ROADMAP.md`). Scoped throughout to *catalogued external
+vendor integrations* (Google Workspace today) -- never `ILLMProvider`,
+AI/voice/vision provider routing, or the unscheduled AI/API Calibration
+Engine, which this module never touches. Preceded by a read-only Phase
+0 audit and a Logic Contract (`docs/M11_API_CENTER_ARCHITECTURE_DECISIONS.md`,
+`docs/M11_API_CENTER_SCOPE_MATRIX.md`, `docs/M11_API_CENTER_LOGIC_CONTRACT.md`),
+per this project's own standing rules. Implemented as seven internal
+Task Groups (A-G, distinct from M11's own Task Groups A-F), each with
+its own audit-first read → design → implement → test → verify pass.
+410 tests, 0 failures, 0 errors, 0 skipped.
+
+### Added
+- **`IntegrationService.health()`** (Task Group C) -- local-only status
+  read, never a vendor request; rides the existing `mcp` `HealthMonitor`
+  collector rather than a second one. `GET /integrations/{id}/health`.
+- **`IntegrationService.test_connection()`** (Task Group B) -- the
+  first M11 capability permitted to make a real, bounded, read-only
+  vendor request; supersedes the mock validator as this module's own
+  production validation path (M5's own separate `MockApiValidator`
+  wiring is untouched -- still open). `ApiGateway` gained per-call
+  `timeout_seconds`/`single_attempt` (no silent retry).
+  `POST /integrations/{id}/test-connection`.
+- **`IntegrationService.switch()` / `invoke_with_failover()`**
+  (Task Group E) -- user-triggered Runtime Switching and
+  single-candidate, caller-named vendor Failover, both restricted to
+  already-installed, capability-compatible, credentialed catalogued
+  integrations. Never chains, never loops, never touches credentials.
+  `POST /integrations/switch`, `GET /integrations/failover/history`.
+- **`IntegrationService.discover()`** (Task Group F) -- enumerates
+  `core/integrations/catalogue.py` and registers unregistered entries
+  through the existing `install()`; discover + register only, never
+  auto-activate, never contacts a vendor.
+  `POST /integrations/discover`.
+- **`IntegrationService.observability_snapshot()`** (Task Group G) --
+  consolidated, secret-free operational counters across the whole
+  module. `GET /integrations/observability`.
+- New events: `IntegrationConnectionTestEvent`, `IntegrationSwitchEvent`,
+  `IntegrationFailoverEvent`, `IntegrationDiscoveryEvent` -- published
+  today, WebSocket relay deliberately deferred (a frontend-touching
+  contract change outside this module's backend-only scope; see
+  `runtime_ws_hub.py`'s `UNPUBLISHED_EVENT_TYPES`).
+
+### Not changed
+- M5's `ApiCenterService` and its `MockApiValidator` default (separate,
+  still-open item).
+- `core/mcp/providers/registry.py`, `core/mcp/providers/manager.py`,
+  `core/mcp/auth/*` -- reused verbatim throughout, no second registry,
+  provider manager, or credential store introduced.
+- `ILLMProvider`, `infrastructure/llm/`, and every AI Calibration
+  Engine concept -- structurally never referenced (verified by test).
+- Version-compatibility policy for discovered integrations and global
+  API rate limiting -- both remain open, explicitly deferred
+  architecture decisions.
+
+## M10: Conversational Orchestration Routing
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; `0.38.0` is unchanged.
+
+Closes two items M10's own Closure Summary explicitly recorded as
+deferred: "Intent Engine gating graph routing" (cited M10A/M10B as
+blockers -- both have since shipped) and "Remaining UI integration"
+(Chat/Voice reaching `AgentOrchestrator`). Preceded by a read-only
+Phase 0 audit and a Logic Contract
+(`docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md`), per this project's
+own standing rules. **Not a new orchestrator, AI Core, or planning
+logic** -- every change extends an already-shipped M10/M5A/M0-M6
+component.
+
+### Added
+- **Intent gating** (`agents/graph.py`) -- one new conditional edge,
+  `intent_classifier → {context_engine | responder}`, consuming the
+  already-computed `state["intent"]`/`state["intent_confidence"]`. A
+  high-confidence `direct_answer` skips context/planning/tool-selection
+  entirely; everything else takes the existing, unchanged path.
+  Threshold is `AgentSettings.intent_direct_route_confidence` (default
+  `0.85`).
+- **`AgentSettings.conversation_routing`** -- new
+  `Literal["legacy", "hybrid", "orchestrator"]` flag, default
+  `"legacy"` (today's behaviour, byte-for-byte unchanged). Read in
+  exactly one place: `ConversationController.__init__`.
+- **`ConversationController`** (`features/conversation/controller.py`)
+  -- gained a settings-driven branch between `ChatService.stream()`
+  (existing) and a new `AgentOrchestrator.stream()` path. The
+  orchestrator path persists through `ConversationService` itself
+  (which `AgentOrchestrator` has no dependency on) and reuses the
+  conversation id as the agent's `thread_id`. Fails at construction,
+  not first use, if `conversation_routing="orchestrator"` has no
+  orchestrator provided.
+- **`ui/main_window.py`** -- one call site updated to pass `settings`
+  and the existing `container.agent_orchestrator()` singleton to
+  `ConversationController`. Voice needed no wiring change -- it
+  already fed into the same `send()` this re-routes.
+- **`docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md`** -- the Logic
+  Contract, written before implementation per this project's own rule.
+- **22 new tests** -- `test_agent_graph_routing.py` (8, the routing
+  function in isolation), 4 new cases in
+  `test_agent_orchestrator.py` (direct-route bypass verified via
+  `ScriptedFakeLLM.calls` never reaching the planner, confidence
+  thresholding, `tool_use` never gating, real token streaming on the
+  direct-routed path), `test_conversation_controller.py` (10:
+  legacy/orchestrator/hybrid routing, persisted-message parity with
+  the legacy path, thread-id reuse, construction-time validation, no
+  silent fallback on orchestrator failure) -- real temp-file SQLite
+  throughout, no mocked repository.
+
+### Notes
+- **`ChatService`/`ConversationService`/`VoiceService` (M0-M6,
+  frozen) are unmodified.** `AgentOrchestrator`'s own public
+  `invoke()`/`stream()` contract is unchanged; only its internal graph
+  gained the new conditional edge.
+- Full backend regression: **2499 passed, 1 skipped (pre-existing), 0
+  failed** (2500 collected). Frontend unaffected -- zero frontend
+  files touched.
+- Default (`conversation_routing="legacy"`) preserves pre-existing
+  behaviour byte-for-byte; `"orchestrator"`/`"hybrid"` are opt-in.
+
+## M12 Task Group B, Phase 3: MQTT Connector
+
+**No version bump**, matching Task Group A and Phases 1-2's own
+precedent; `0.38.0` is unchanged.
+
+Phase 2 shipped the first real `IDeviceConnector` (Home Assistant, REST
+over `httpx`). Phase 3, approved the same day on direct, separate
+instruction preceded by its own 17-point read-only architectural
+audit, builds the second: an MQTT connector, closing this task group's
+three-phase implementation plan.
+
+### Added
+- **Library selection, corrected during implementation** — the audit's
+  originally-preferred `aiomqtt` (wraps `paho-mqtt`) was replaced with
+  `gmqtt` after connecting each against a real local broker found
+  `aiomqtt` raises `NotImplementedError` on Windows' default
+  `ProactorEventLoop` (needs `loop.add_reader`/`add_writer`, which only
+  `SelectorEventLoop` implements on Windows -- and `SelectorEventLoop`
+  cannot run this project's existing subprocess-based MCP
+  `StdioTransport`). `gmqtt` connected cleanly on the same loop with no
+  workaround. `requirements.txt`/`requirements-lock.txt`/`pyproject.toml`
+  updated to `gmqtt>=0.7,<1.0`, zero `aiomqtt`/`paho-mqtt` remnants.
+- **JARVIS-native message envelope** (`core/connectivity/connectors/
+  mqtt_envelope.py`) -- the canonical protocol for future JARVIS-native
+  devices (ESP32 and similar): one JSON shape (`schema_version`,
+  `device_id`, `type`, `timestamp`, `payload`) covering state/command/
+  discovery/availability/error, with explicit schema versioning.
+- **`MqttConnector`** (`core/connectivity/connectors/mqtt.py`) -- the
+  second real `IDeviceConnector`. Speaks Home Assistant MQTT Discovery
+  (interoperating with Zigbee2MQTT/zwave-js-to-mqtt/Tasmota/ESPHome
+  with no dedicated connector for any of them) and the JARVIS-native
+  envelope. State is push-based and cached, not pulled. Commands
+  publish at QoS 1, never retained. Reconnection is `gmqtt`'s own
+  automatic retry paired with unconditional resubscription on every
+  `on_connect`.
+- **`build_mqtt_connector`** (`core/connectivity/connectors/factory.py`)
+  -- registered into `build_default_connector_registry()` alongside
+  Home Assistant. Both `CONNECTOR_TYPES` entries are now registered.
+- **`tests/fakes/fake_mqtt_broker.py`** -- a real, hand-written,
+  in-process MQTT 3.1.1 broker (no stdlib broker exists to reuse,
+  unlike Phases 1-2's `http.server`/`websockets`), supporting
+  CONNECT/CONNACK auth, SUBSCRIBE/UNSUBSCRIBE with wildcards, PUBLISH
+  at QoS 0/1 with PUBACK, retained-message replay, and Last Will and
+  Testament.
+- **68 new tests** -- envelope round-trip/validation (26), connector
+  coverage across connect/disconnect, auth, TLS config, HA + native
+  discovery, state cache, availability, retained-message handling, QoS,
+  commands, and automatic reconnect-with-resubscription (42), plus MQTT
+  factory tests -- all against the real fake broker, no mocked `gmqtt`
+  client.
+
+### Notes
+- **`CONNECTOR_TYPES` fully realized.** `home_assistant` and `mqtt` are
+  both registered; Task Group B's three-phase plan is closed.
+- Full backend regression: **2477 passed, 1 skipped (pre-existing), 0
+  failed.** Full frontend: **750/750**, plus a clean `tsc`/`oxlint`.
+- **M12 is still 🟡 Active, not Complete** -- Smart Home Core and
+  Connectivity Layer are two modules of fifteen; thirteen remain
+  entirely unstarted.
+
+## M12 Task Group B, Phase 2: Home Assistant Connector
+
+**No version bump**, matching Task Group A and Phase 1's own
+precedent; `0.38.0` is unchanged.
+
+Phase 1 shipped the port/adapter foundation with no protocol code
+behind it. Phase 2, approved the same day on direct, separate
+instruction per Phase 1's own recommendation, builds the first real
+`IDeviceConnector`: a Home Assistant connector speaking REST over
+`httpx`.
+
+### Added
+- **`HomeAssistantConnector`** (`core/connectivity/connectors/
+  home_assistant.py`) — `connect()`/`disconnect()` manage a pooled
+  `httpx.AsyncClient` with a real reachability probe (`GET /api/`),
+  the same "fail at connect, not at first use" discipline
+  `HttpTransport` established for MCP. `discover()` lists
+  `/api/states` and maps each entity onto a `DiscoveredDevice` through
+  a closed allowlist of eighteen physical-device domains (onto Task
+  Group A's own `DEVICE_TYPES`); a domain outside the allowlist
+  (`automation`, `script`, `scene`, `zone`, `person`, ...) is skipped,
+  never registered as a device. `read_state()` reads
+  `/api/states/{entity_id}`. `send_command()` posts to
+  `/api/services/{domain}/{service}`, reporting a device-level
+  rejection as `CommandResult.success=False` rather than raising.
+- **`core/connectivity/connectors/factory.py`** — `build_home_assistant_
+  connector` (validates `base_url`/`token` at construction) and
+  `build_default_connector_registry()`, mirroring
+  `build_default_transport_registry()`. Registers `home_assistant`
+  only; `mqtt` stays unregistered.
+- **DI wiring** — `_build_connectivity_registry` now calls
+  `build_default_connector_registry()` instead of constructing an
+  empty registry directly.
+- **26 new tests** — `test_home_assistant_connector.py` against a real
+  local `http.server.HTTPServer` (no mocked `httpx` client, matching
+  `test_mcp_transports_live.py`'s own convention for MCP's network
+  transports) and `test_connectivity_connector_factory.py` for the
+  factory/registration surface.
+
+### Notes
+- **Still no MQTT code.** `CONNECTOR_TYPES` continues to name `mqtt`;
+  Phase 3 (MQTT) remains a separate, later, individually-approved
+  pass.
+- **No frontend or event changes.** Phase 1 wired
+  `ConnectivityStatusChangedEvent` into the WebSocket relay; this phase
+  reuses it unchanged and adds no REST route — `ConnectivityService`
+  still has no HTTP caller, by design (a later M12 module's job).
+- **M12 is still 🟡 Active, not Complete** — Connectivity Layer now has
+  one of its two approved protocol adapters; thirteen of fifteen
+  modules remain entirely unstarted.
+
+## M12 Task Group B, Phase 1: Connectivity Layer Foundation
+
+**No version bump**, matching Task Group A's own precedent; `0.38.0`
+is unchanged.
+
+An approved five-step plan (audit, connectivity-technology analysis,
+architecture design, phased plan, risk analysis — no code) broke this
+task group into three separately-approved phases. Phase 1 builds the
+port/adapter foundation every later phase plugs into; it talks to no
+real device and ships no protocol adapter.
+
+### Added
+- **`IDeviceConnector` port** (`core/interfaces/connectivity.py`) plus
+  `DiscoveredDevice`/`DeviceState`/`CommandResult` value objects —
+  mirrors `IMCPTransport`'s own shape. `CONNECTOR_TYPES` deliberately
+  narrow: `home_assistant`, `mqtt` — only this task group's approved
+  scope, not the milestone's full connectivity vocabulary.
+- **`ConnectorFactoryRegistry`** (`core/connectivity/registry.py`) —
+  mirrors `TransportFactoryRegistry`; empty of real connectors.
+- **`ConnectorCredentialStore`** (`core/connectivity/credential_store.py`)
+  — Fernet-encrypted-at-rest, refuses to persist without a real key. A
+  structural sibling of MCP's own `CredentialStore`, not a shared
+  instance.
+- **`ConnectivityService`** (`services/connectivity_service.py`) —
+  idempotent connect/disconnect, discovery idempotent by home +
+  external id, state refresh mapped onto Task Group A's closed device
+  statuses, and `send_command` — the single chokepoint a later M12
+  module will gate safety-critical devices against.
+- **`SmartHomeService` extensions** — `register_discovered_device`
+  gained a `metadata` kwarg (written to the existing
+  `Device.metadata_json` column, no schema change),
+  `get_device_by_external_id`, `report_device_state`.
+- **DI wiring** — `connectivity_registry`, `connectivity_credential_
+  store`, `connectivity_service` singletons.
+- **`ConnectivityStatusChangedEvent`** — new WebSocket relay event,
+  wired into `runtime_ws_hub.py`, the generated contract, frontend
+  `RELAYED_EVENTS`, and both pinned relay-vocabulary tests in the same
+  change.
+- **107 new/affected tests** — `FakeDeviceConnector` plus three new
+  suites (registry, credential store, service) and extended
+  `SmartHomeService` coverage, all against real (temp-file) SQLite or
+  real file-backed credential storage.
+
+### Notes
+- **No protocol code.** `CONNECTOR_TYPES` names `home_assistant` and
+  `mqtt`; neither has an implementation. Phase 2 (Home Assistant) and
+  Phase 3 (MQTT) are separate, later, individually-approved passes.
+- Full backend regression: **2379 passed, 1 skipped (pre-existing), 0
+  failed.** Full frontend: **750/750**, plus a clean `tsc`/`oxlint`/
+  production build.
+- **M12 is still 🟡 Active, not Complete** — Smart Home Core and
+  Connectivity Layer's own foundation are two modules of fifteen;
+  thirteen remain entirely unstarted.
+
+## M12 Task Group A: Smart Home Core
+
+**No version bump, by explicit instruction.** Unlike M22's own task
+groups (each of which bumped the version for its own shipped code),
+this one did not; `0.38.0` is unchanged. An earlier draft of this
+entry briefly described a `0.39.0` bump that was reverted before
+commit — this entry describes what actually shipped, at the real,
+unchanged version.
+
+A roadmap audit (`MASTER_ROADMAP.md`, `IMPLEMENTATION_ROADMAP.md`)
+found M12 — Smart Home & IoT Platform is the next milestone actually
+marked Not Started in the M9→M21 resumption order: M10 is Partial and
+M11 is Active (Task Groups A–F shipped, not closed), so neither
+qualifies even though both precede M12 numerically. Started while M22
+remains open — a second deliberate exception to "one active milestone
+at a time," on direct instruction.
+
+### Added
+- **Smart Home domain** (`domain/smart_home/models.py`) — closed
+  vocabularies for home status, device status and device type, plus
+  derived `HomeMetadata` (never stored, computed on read).
+- **Five ORM models** (`infrastructure/database/models.py`) — `Home`
+  → `Zone` → `Room` → `Device`, plus `DeviceGroup` /
+  `DeviceGroupMember` as a cross-cutting grouping independent of that
+  hierarchy.
+- **`SmartHomeService`** — lifecycle CRUD for all five entities,
+  derived home metadata (Device Health Monitoring / Status Dashboard),
+  event publishing, search hooks. Device Discovery and Pairing are
+  modeled as domain status transitions
+  (`register_discovered_device` / `pair_device`) — neither talks to
+  real hardware; no Connectivity Layer exists yet.
+- **REST** — `/api/v1/homes`, `/api/v1/devices`,
+  `/api/v1/smart-home/{zones,rooms,device-groups}`, plus
+  `/homes/{id}/metadata`, device-group membership routes, and
+  `POST /devices/{id}/pair`.
+- **Two new search sources** (`homes`, `devices`) registered on M10A's
+  existing provider registry.
+- **Two new WebSocket relay events** (`home.updated`,
+  `device.updated`), wired into `runtime_ws_hub.py`'s relay mapping
+  and both sides of the WebSocket contract (backend
+  `event-contract.generated.json` regenerated; frontend
+  `RELAYED_EVENTS` updated to match).
+- **89 tests** across service, repository, REST and contract-
+  consistency layers, all against real (temp-file) SQLite — no mocked
+  repository.
+
+### Fixed
+- Two pinned search-source-vocabulary tests
+  (`test_platform_integration.py`, `test_knowledge_route.py`) and two
+  pinned relay-vocabulary tests (`test_platform_integration.py`,
+  `test_runtime_ws_hub.py`) hadn't been extended for the new sources
+  and events — found by actually running the full suite, not assumed.
+- `IMPLEMENTATION_ROADMAP.md`'s top-level milestone status table
+  incorrectly read "M11 onward: Planned, not started," contradicting
+  its own §5G section. M11 is Active (backend shipped across six task
+  groups; not closed — the React/Tauri UI half waits on M8).
+
+### Notes
+- **Scope boundary, drawn the same way M11 Task Group B drew one
+  around `Reminder`:** this task group builds the domain layer only.
+  No real device talks to it. Fourteen of M12's fifteen modules
+  (starting with Connectivity Layer, which real discovery/pairing
+  depends on) are separate, later task groups.
+- M10 and M11's own open status is reported, not resolved, by this
+  entry — see `MILESTONE_REPORT.md`'s M12 Task Group A entry for the
+  full roadmap audit.
+- **M12 is now 🟡 Active, not Complete** — Task Group A is one module
+  of fifteen; fourteen remain unstarted.
+
+## M22 Task Group F: Final Build Verification, Cross-Platform Readiness & Release Validation
+
+**No version bump.** Consistent with this project's own precedent
+(the governance documentation pass, `11a8f6f`): a verification and
+documentation pass with no shipped application change does not bump
+the version. Version remains `0.38.0`.
+
+**Status: Implementation Complete — Build Verification Pending**, for
+the same reason 0.36.0 through 0.38.0 carry it: no Rust toolchain
+exists on this build machine, so nothing gated on a real `tauri build`
+has been proven. What this pass adds is everything that *doesn't* need
+one, run for real rather than assumed.
+
+### Verified for real (no Rust toolchain required)
+- **Fresh installation, resume, and existing-installation detection**
+  — `python -m jarvis.installer provision` run against a real scratch
+  directory: genuinely created the directory tree, wrote a real
+  config file, completed three real steps, then failed at
+  `model_download` exactly as expected (this environment's download
+  source registry ships empty by design). Re-running the same command
+  correctly skipped the three completed steps rather than redoing
+  them.
+- **Interrupted installation recovery** — the provisioning journal was
+  deliberately truncated mid-write to simulate a crash. Confirmed
+  correct, intentional behavior (`journal.py`'s own documented
+  design: an unreadable journal is treated as absent, and every step
+  is idempotent, so starting over is safe) rather than a defect.
+- **Repair and verification workflows, together** — a real
+  installation's config file was deleted; `verify` correctly reported
+  it failed and repairable; `repair configuration` recreated it; a
+  second `verify` immediately confirmed the fix, re-verifying after
+  acting rather than trusting its own result.
+- **Dependency verification** — ran against this machine's real,
+  live-probed state (Python, Git, DirectML, CUDA), not a fixture.
+
+### Fixed
+- **`docs/PACKAGING.md`'s icon paragraph and Build Verification Task 5
+  were stale**, still describing Task Group E's branding work as
+  unstarted after Task Group E had shipped it — a documentation
+  regression from that file being outside Task Group E's own
+  documentation sync list. Corrected to describe the real, current
+  two-variant/hybrid-ICO state.
+
+### Added
+- **`docs/PACKAGING.md` "Cross-platform readiness" section** — an
+  evidence-based audit of every Windows-specific assumption in the
+  codebase (found by reading every `#[cfg(windows)]`, `wmic` call and
+  hardcoded path, not by guessing) and a concrete migration checklist
+  for a future Linux/macOS task group. Nothing in it was implemented —
+  this task group's own brief was explicit that it audits and
+  documents, and does not build Linux or macOS support.
+- **Two new Build Verification Tasks** (now twelve total, in
+  `docs/PACKAGING.md`): watching the startup animation actually run in
+  a real compositing browser (still not possible in this session's
+  sandboxed preview pane), and generating and committing
+  `frontend/src-tauri/Cargo.lock`, which does not exist yet because
+  `cargo` has never run against this repository.
+
+### Notes
+- **M22 cannot be marked Complete.** Per `MASTER_ROADMAP.md` §18, all
+  of TG-C, TG-D, TG-E and TG-F must reach Build Verification Passed —
+  none of the twelve Build Verification Tasks is checked. This is the
+  same blocker TG-C's own first report named, now confirmed to still
+  be the single blocking factor across four task groups at once.
+- Full audit findings, the complete real-CLI verification evidence,
+  and the itemized remaining-risk list are in `MILESTONE_REPORT.md`'s
+  Task Group F entry.
+
+## [0.38.0] — M22 Task Group E: Windows Packaging & Installer Distribution
+
+**Status: Implementation Complete — Build Verification Pending**, for
+the same reason 0.36.0 and 0.37.0 carry that status: no Rust toolchain
+exists on the build machine, so nothing new in `src-tauri/` has been
+compiled.
+
+An audit before implementation found most of this task group's
+nineteen-item brief already built by Task Groups A–D: NSIS
+configuration, installer/uninstaller/Add-Remove-Programs registration,
+version metadata, installation logging, launch-after-install, and
+open-installation-folder are all real, shipped capability, not new
+work. What was genuinely missing was the application's actual branding
+— every icon in the repository was still Tauri's own placeholder logo
+— and that gap became directly actionable mid-task-group when the
+user supplied and approved the official JARVIS master logo.
+
+### Added
+- **The approved master logo**, integrated as the project's brand
+  identity: `frontend/src-tauri/icons/master-logo.png` (the source of
+  truth), a full production icon set (16 through 1024px PNG, `.ico`,
+  `.icns`), and `frontend/public/branding/premium/` for future in-app
+  use (About, Settings, notifications — none of which exist yet in
+  this codebase; nothing was invented to house them early).
+- **A second, simplified icon variant**, hand-authored specifically
+  for the sizes where the master's metallic gradients stop reading —
+  confirmed empirically: the master rasterized to plain 32×32 renders
+  as a near-illegible dark blur. `frontend/src-tauri/icons/small-icon-
+  source.svg` is a bold, high-contrast reinterpretation of the same
+  ring-and-blade silhouette, used for 16–48px contexts (taskbar, system
+  tray, Explorer, window title bar) and `frontend/public/branding/
+  small-icon/`.
+- **A hybrid multi-resolution `icon.ico`**, built by a small
+  hand-written PNG-in-ICO packer (no Pillow/ImageMagick available):
+  small frames (16/24/32/48) from the simplified variant, large frames
+  (128/256) from the master, so the one file Windows actually reads is
+  legible at every size it gets asked to render, not just the large
+  ones.
+- **The startup animation's logo recreated as SVG** (`components/
+  startup/jarvis-logo.tsx`), replacing the earlier hexagon placeholder
+  with the approved logo's own geometry, animated with Framer Motion
+  across the existing `assembling`/`pulsing` phases — ring channels
+  drawing, the outer ring fading in, the center blade rising, the side
+  blades sliding up, a glow igniting, a pulse travelling outward, one
+  soft breathing cycle. Every animated property is opacity, a
+  transform translate/scale, or SVG `pathLength` — never a
+  layout-triggering property — so this composites on the GPU without
+  forcing layout.
+- **The browser-tab favicon replaced** (`public/favicon.svg`) — was an
+  unrelated purple abstract mark (a Vite/template-era placeholder, not
+  even the same shape family as the hexagon logo elsewhere), found only
+  by checking `index.html` directly rather than assuming the favicon
+  was already covered by the icon work.
+- **`packaging/verify_tauri_build.ps1`**, a new build-verification
+  script that turns part of Task Group C's manual Build Verification
+  Tasks list into mechanical pass/fail checks: the installer artifact
+  exists, its version metadata matches this project's single source of
+  truth, its product/publisher fields are real, and the shipped icon is
+  provably not Tauri's placeholder. Run for real against this
+  project's current (unbuilt) state — correctly reports the one
+  failure that should exist (no installer yet) and passes every check
+  that does not depend on a build existing.
+- **11 new packaging/branding contract tests** plus a rewritten
+  `jarvis-logo.tsx` test suite (7 tests, up from 4) — 750 tests total
+  in the frontend suite, up from 736.
+
+### Fixed
+- **A verification heuristic that broke on its own first real input.**
+  The build-verification script's original icon check asserted "small
+  enough to be the real icon" against an early placeholder; Task Group
+  E's actual hybrid `.ico` is a multi-resolution file that ended up
+  *larger* than the Tauri placeholder it replaced, not smaller,
+  immediately failing that heuristic against genuinely correct output.
+  Replaced with a negative match against the placeholder's own known,
+  fixed byte size — a check that does not need updating every time this
+  project's real artwork does.
+- **A double hyphen inside an SVG comment**, twice, while authoring
+  `small-icon-source.svg` — XML forbids `--` inside comment text and
+  Tauri's icon generator enforces it strictly, panicking with a parse
+  error rather than a readable message. Found by actually running the
+  generator against the file before treating it as done, not by
+  inspecting the SVG source and assuming it would parse.
+- **A compounding double-opacity animation** in `jarvis-logo.tsx`'s
+  first draft — a parent group and its child paths each independently
+  animated `opacity` toward 1, which compose multiplicatively rather
+  than additively, producing a slower, muddier fade than either
+  animation alone intended. Found on review, not by observation (see
+  Notes); fixed by leaving opacity solely to the paths that actually
+  need it and letting the group own only the shared translate.
+
+### Notes
+- **Roadmap scope, resolved further.** Prior documentation described
+  "Task Groups E–F" as an undivided Linux/macOS-packaging-and-QA block
+  with the letter split undecided. Task Group E is now resolved
+  specifically to Windows Packaging & Installer Distribution; that
+  packaging/QA scope moves entirely to Task Group F, which absorbs
+  what would have been split between the two.
+- **Live browser animation verification was not possible in this
+  session's environment.** The sandboxed Browser pane used for
+  UI verification does not composite frames at all —
+  `requestAnimationFrame` was confirmed, directly, to never fire in
+  that tab — which explains why `computer.screenshot` also failed
+  independent of timing. This is a property of that specific pane, not
+  evidence the animation code is broken: Framer Motion's engine is
+  itself driven by `requestAnimationFrame`, so nothing animated in that
+  session regardless of which component was involved. What *was*
+  verified without a working compositor: correct DOM/SVG structure,
+  Framer Motion correctly initializing every element's `initial` state
+  (including SVG-specific `transform-box`/`transform-origin` handling),
+  zero console errors across several real mounts, and a careful manual
+  review that found and fixed the compounding-opacity bug above. See
+  `MILESTONE_REPORT.md`'s Task Group E entry for the full account.
+- **Two deviations from what a strict reading of "Windows Packaging &
+  Installer Distribution" would cover**, both directly instructed:
+  integrating branding into the startup animation and favicon reaches
+  slightly beyond "installer distribution" into general app branding;
+  and file associations were evaluated and found not applicable — this
+  project has no custom file format — documented as N/A rather than
+  invented to fill a checklist item.
+
+## [0.37.0] — M22 Task Group D: Universal Installation Experience
+
+**Status: Implementation Complete — Build Verification Pending**, for
+the same reason 0.36.0 carries that status: this task group adds five
+commands to `src-tauri/src/installer.rs`, and there is still no Rust
+toolchain on the build machine to compile them. One `tauri build`
+proves both this task group's Rust and Task Group C's.
+
+TG-D's brief listed fifteen items. The audit that preceded this release
+found ten of them already real, shipped by Task Groups A–C and this
+milestone's own installer UI pass: the progress framework, the download
+manager UI, byte-level resume, retry-via-journal, seven-category
+failure classification, and a completion screen. What was missing was
+narrower — the backend already had a nine-check post-install verifier,
+a `repair()` engine method, and a `status`/`verify`/`dependencies` CLI
+surface, none of it wired to the frontend. This release is that wiring.
+
+### Added
+- **Five Rust bridge commands** (`check_dependencies`,
+  `get_installation_status`, `verify_installation`,
+  `repair_installation`, `open_log_folder`), additive to Task Group C's
+  surface the same way `cancel_provisioning` was — the documented
+  four-command contract is a floor, not a ceiling. Each wraps an
+  **already-shipped, unmodified** CLI subcommand; zero Python files
+  changed.
+- **Component verification, on screen.** The completion step now shows
+  all nine post-install checks, not only their warnings, each with a
+  Repair button when the underlying failure is repairable.
+- **Repair**, wired end to end: a click invalidates and re-runs the
+  named step through the engine's own `repair()`, then **re-verifies**
+  rather than trusting the repair's own result — a repair can complete
+  having failed a *later* step (a blocked download) without the
+  originally-failed check ever running again.
+- **Installer diagnostics.** A dialog, reachable from any step, showing
+  whether an installation already exists at the chosen location, its
+  journal progress, a dependency report (Python, Git, CUDA, DirectML,
+  ONNX Runtime, Visual C++), and the same verification-with-repair view
+  the completion screen uses — reused, not duplicated.
+- **Update preparation.** The wizard now detects an existing or
+  partially-completed installation automatically, as soon as a location
+  is chosen, and says so — "An installation already exists at this
+  location. Continuing will update it — anything already set up is
+  kept."
+- **`open_log_folder`**, revealing the log directory Task Group C's
+  logger has written to, unreachable by any UI, since v0.36.0.
+- **57 new tests** (190 total in the installer suite, up from 129),
+  including 13 new Rust/TypeScript contract checks and a dependency
+  contract test mirroring the existing plan-payload one.
+
+### Fixed
+- **A real inconsistency, found by testing against a genuine
+  partially-completed status fixture rather than only a fresh one.**
+  The proactive wizard-wide notice and the diagnostics dialog's own
+  "Existing installation" field checked different things — one looked
+  at manifest-or-journal-progress, the other at manifest alone — so an
+  interrupted install read as "found" on one screen and "none found" on
+  the other for the same location. Both now call one shared
+  `installationPresence()` classification (`none` / `partial` /
+  `complete`).
+
+### Notes
+- **Roadmap scope, made explicit.** Prior documentation described
+  "Task Groups D–F" as an undivided block of Linux/macOS packaging and
+  cross-platform QA. This release resolves TG-D specifically to
+  Universal Installation Experience; that packaging and QA scope is not
+  dropped — it moves to Task Groups E/F, whose own letter-to-content
+  assignment remains open. See `MASTER_ROADMAP.md` §19 (Roadmap
+  Governance) for why this is a documented decision, not a silent
+  redefinition.
+- **What repair cannot yet show:** the CLI's `repair` subcommand has no
+  `--stream` flag, and adding one means editing Task Group B's
+  `__main__.py`, which this task group's brief reserves for a genuine
+  defect. A repair that re-downloads a large artefact therefore blocks
+  with an honest, indeterminate "Repairing…" state, not a percentage
+  this bridge cannot produce.
+- **Not verified**, same gate as v0.36.0: no `cargo build`, no
+  `tauri build`, nothing in `src-tauri/` compiled. See
+  `MILESTONE_REPORT.md`'s Task Group D entry for what is and is not
+  proven without a toolchain.
+
+## [0.36.0] — M22 Task Group C: Windows Packaging & Host Bridge
+
+**Status: Implementation Complete — Build Verification Pending.**
+
+Implements the host side of the transport contract v0.35.0 defined, and
+configures the Windows installer. **Not one payload, command name or
+event name changed** — the contract was written first so the UI would
+need no edit on the day the host landed, and it needed none.
+
+There is no Rust toolchain on the build machine, so nothing in
+`src-tauri/` has been compiled, no `tauri build` has run, and no
+installer has been produced. Ten Build Verification Tasks — build the
+installer, confirm it builds, confirm the desktop and Start Menu
+shortcuts, replace Tauri's default logo with real JARVIS branding
+(unstarted, not just unverified), confirm installer metadata, the
+uninstall entry, Launch JARVIS, Open Installation Folder, and the
+provisioning bridge inside the packaged app — gate this task group to
+Complete; none has run. See Notes and `MILESTONE_REPORT.md` §9
+for the full list.
+
+### Added
+- **`src-tauri/src/installer.rs`** — the Windows host bridge. Spawns
+  `python -m jarvis.installer`, relays stdout, captures stderr, and
+  implements the four contract commands: `run_provisioning`,
+  `load_installation_plan`, `launch_application`,
+  `open_installation_folder`.
+- **`cancel_provisioning`**, additive to the contract, plus the Cancel
+  control that calls it. The UI has modelled a cancelled run since
+  v0.35.0 — classifier, label, icon — with nothing able to trigger it;
+  Task Group C's scope names cancellation, so the state is now
+  reachable instead of decorative.
+- **Interpreter discovery** — `JARVIS_PYTHON`, then a runtime bundled
+  beside the executable, then the project virtual environment, then
+  `PATH`. Returns "Python unavailable" rather than failing later with an
+  opaque spawn error.
+- **Windows packaging configuration** — NSIS target, per-user install
+  (no elevation), publisher, copyright, descriptions, icons.
+- **Unconditional structured logging** to the platform log directory,
+  not debug-only: an installer failing on a user's machine is where a
+  log is worth most, and that machine runs a release build.
+- **A Rust/TypeScript contract suite** (13 tests) pinning command names,
+  argument arity and the event name. It reads the Rust as *text*, so it
+  needs no toolchain and runs in the ordinary `vitest` pass.
+- **`tauri.conf.json` is now version-checked** against `__version__`.
+  This is the first milestone producing a packaged artifact, so it is
+  the first where that file's version is something a user reads — in
+  Add/Remove Programs, while `/api/v1/health` reports the other one.
+
+### Fixed
+- **An inactivity timeout that could not fire.** It was checked *after*
+  reading a line from stdout, so a process that hung producing no output
+  — precisely the case it exists for — blocked forever in the read and
+  never reached the check. stdout now feeds a channel and the loop waits
+  with a timeout, which also makes cancellation prompt rather than
+  dependent on the child saying something first.
+- **A process that outlived the installer.** Rust's `Child` detaches on
+  drop rather than killing, so closing the window mid-run left Python
+  downloading gigabytes with no window and no way to stop it.
+- **`launch_application` took an argument no caller sends.** Written as
+  `(location: String)` while the frontend invokes it with none — a clean
+  compile on both sides and a guaranteed runtime failure the first time
+  a user pressed the button on the completion screen. The host now
+  remembers where it installed, which keeps the documented no-argument
+  contract intact. Found by the new contract suite.
+- **Cancelling reported "the installer process disappeared."** The
+  cancel path clears the child handle, and the exit-status branch ran
+  first, so an ordinary cancel surfaced as an error — and missed the
+  word "cancel" that the failure classifier matches on.
+
+### Notes
+- **`@tauri-apps/plugin-shell` was not added, and planning to add it was
+  the error.** A `#[tauri::command]` spawning `std::process::Command`
+  needs no plugin. The shell plugin exists to let *JavaScript* spawn
+  processes — a strictly larger capability than this needs, on the
+  surface with the largest attack area. The roadmap line item is closed
+  by deciding against it.
+- **What is unproven.** No compilation, no `tauri build`, no installer,
+  no shortcut or icon observed, and the desktop/Start Menu shortcuts are
+  left to Tauri's default NSIS template rather than forced through an
+  untested `.nsh` hook. What *is* checked without a toolchain: both JSON
+  configs parse, every referenced icon exists, the NSIS keys used are
+  real keys in the bundled `config.schema.json`, and the contract suite
+  above. `MILESTONE_REPORT.md` carries the full split.
+- **The application icon is still Tauri's default logo**, not JARVIS
+  branding — found by opening the PNG, not by checking the files exist.
+  This is unstarted work, not a verification gap: it needs real artwork
+  before it can even be checked.
+- **Ten Build Verification Tasks gate this task group to Fully
+  Complete**, none run: build the installer; confirm it builds; confirm
+  the desktop shortcut; confirm the Start Menu shortcut; replace Tauri's
+  branding with JARVIS's; confirm installer metadata; confirm the
+  uninstall entry; confirm Launch JARVIS; confirm Open Installation
+  Folder; confirm the provisioning bridge inside the packaged app. See
+  `MILESTONE_REPORT.md` §9. Task Group D does not begin until all ten
+  pass and that is explicitly approved.
+
+## [0.35.0] — M22: Installer UI & Provisioning Integration
+
+Connects the installer wizard to the provisioning engine. The engine
+itself is unchanged: pytest, black, ruff and mypy are identical to
+0.34.0, and TG-B's 30 engine tests pass untouched.
+
+### Added
+- **Provisioning event stream.** `provision --stream` emits
+  newline-delimited JSON — one `progress` event per engine callback, then
+  a final `result`. Without the flag the output is byte-identical to
+  0.34.0. The brief asked the UI to "support the provisioning events
+  already emitted by the backend"; those events existed only as a Python
+  callback, so a UI could not show live progress for a multi-gigabyte
+  download from a value it received once the download was over.
+- **`DownloadState.VERIFYING`**, emitted around the checksum pass.
+  Checksumming a large file takes long enough that leaving the state on
+  "running" reads as a hang.
+- **`kind` on `DownloadProgress`**, so the UI can group Models and Voices
+  without inspecting an id it is not permitted to display.
+- **Installation screen** — phase in the backend's own §22.12 wording,
+  overall progress, steps, bytes, speed, time remaining, and a per-item
+  download list with all seven states (waiting, downloading, checking,
+  ready, already installed, failed, cancelled), each carried by text
+  *and* an accessible label rather than by colour.
+- **Resume, failure and completion screens.** Failures map the engine's
+  own error text onto the seven required categories and show copy that
+  names no internal cause — "Connection lost", never "URLError". Retry
+  is worded "Continue installation" because the journal makes it a
+  resume.
+- **`/install` route.** TG-A and TG-B left the wizard mounted nowhere.
+  It sits *outside* `DesktopShell`: rendering an installer inside the
+  sidebar and header of the application it is installing is incoherent
+  and invites navigating away mid-run.
+- **Host-bridge contract** (`provisioning-transport.ts`) — see Notes.
+
+### Fixed
+- **A React render loop.** `selectDownloadsByKind` built a new object per
+  call, and zustand compares selector results by reference, so using it
+  as a hook selector made every render look like a state change until
+  React aborted with "Maximum update depth exceeded". Grouping is now a
+  `useMemo` over the stable array.
+- **`defaultLocation` defaulted to `""`**, permanently disabling
+  Continue on the Location step with no explanation. The route now
+  proposes `%LOCALAPPDATA%\JARVIS` (or `~/.jarvis`), and the step says
+  "Enter a folder to continue" while the field is blank.
+- **A group headed "Local AI" containing an item also called "Local
+  AI"** — groups renamed to Models / Voices / Assets.
+
+### Notes
+- **Speed and time remaining are derived in the UI, not emitted by the
+  engine.** A rate is a property of an observer over an interval, not a
+  fact about a download; a stopwatch in the engine would report
+  different numbers to two consumers. They are derived from the
+  authoritative byte counts, smoothed over 3s, and are `null` rather
+  than `0` until there is signal — "0 B/s" reads as stalled where "—"
+  reads as not yet known.
+- **The host bridge is intentionally deferred to Task Group C.**
+  `@tauri-apps/plugin-shell` is not a dependency and no Rust command
+  exists to spawn the Python process. Rather than adding a dependency to
+  make a screen look finished, the transport *defines the contract* — one
+  command (`run_provisioning`), one event (`provisioning://event`) — and
+  rejects with a readable reason when the host cannot provide it, which
+  the failure classifier turns into friendly copy with a Retry. A stub
+  that resolved quietly, or emitted invented progress, would make the
+  installer look complete while installing nothing.
+- **81 tests added**, including a contract suite driven by a *captured
+  real stream* rather than a hand-written approximation, and assertions
+  that no model id, registry key or URL reaches a personal payload.
+
+## [0.34.0] — M22 Task Group B: Runtime Provisioning
+
+Task Group A planned an installation; this performs one. Dependency
+detection, a resumable checksum-verified download manager, a durable
+provisioning journal, parallel verification, first-run preparation and an
+`installation.json` manifest — behind one engine that is simultaneously
+install, resume and repair.
+
+The success path runs end to end: a real provisioning against a `file://`
+mirror completes all eight steps and writes a manifest; a second run
+skips all eight.
+
+**Backend untouched.** No route, model, schema, event or contract
+changed; the installer package still imports no service, repository or
+container.
+
+### Added
+- **`sources.py`** — download-source abstraction. **No URL exists
+  anywhere in the package.** The registry ships empty: with nothing
+  configured it names the environment variable to set rather than
+  falling back to a vendor host, because a silent fallback would defeat
+  the abstraction on the one path that matters.
+- **`download.py`** — queued, **byte-level resumable** (HTTP `Range`),
+  checksum-verified downloads with pause, cancel, retry and source
+  failover. A file lands in `.part`, is verified there, and is renamed
+  last — so a file under its final name is *by construction* one that
+  passed.
+- **`dependencies.py`** — Python, Git, Visual C++, CUDA, DirectML, ONNX
+  Runtime. It has **no code path that writes**, which is how "never
+  silently overwrite" is enforced rather than merely promised.
+- **`journal.py`** — durable, fsynced, atomically-replaced provisioning
+  record. Only *completions* are written, so an interrupted step is
+  re-run and a finished one skipped.
+- **`verification.py`** — nine checks in parallel; **`manifest.py`** —
+  `installation.json` as the migration contract; **`first_run.py`**,
+  **`provisioning.py`**, **`atomic.py`**.
+- CLI: `dependencies`, `provision`, `verify`, `repair <step>`, `status`.
+
+### Fixed *(all four found by running it end to end)*
+- **A model id is not a filename.** `qwen2.5:14b` is a valid registry id
+  and an impossible Windows filename — NTFS reads the colon as a drive
+  qualifier — so every model download would have failed on the primary
+  platform. `key` now addresses the source; `filename` is the sanitised
+  on-disk name, and sources gained a `{filename}` placeholder because a
+  `file://` mirror cannot store a file named after the raw key.
+- **The same confusion, a second time:** verification looked artefacts up
+  by `key` while the downloader wrote them under `filename`, reporting a
+  correctly-downloaded model as missing.
+- **A source spec that looked like it worked.** Commas separated both
+  entries and `kinds`, so `mirror|url|model,voice|0` split into a
+  model-only source plus an unparseable fragment — model downloads
+  worked, voice downloads found no source. Entries are now
+  semicolon-separated.
+- **A §22.12 leak in the progress payload**: personal progress carried
+  the model id. It now carries a display name; the id is
+  administrator-only.
+
+### Notes
+- **There is no separate resume command.** `provision` skips whatever the
+  journal records as complete, so resuming *is* running it again — a
+  resume on its own code path would be the least-exercised and most
+  often broken.
+- **Unverifiable is not verified.** No upstream source is wired, so no
+  checksums are published; downloads are reported as *present but
+  unverifiable* rather than as verified.
+- **The installer does not create the database schema.** It prepares the
+  location; the application's `initialize()` creates the schema on first
+  launch through the frozen code that owns it.
+- **No packaging** — no MSI, EXE or code signing, per the brief.
+  *(Superseded by 0.35.0: this entry originally said the wizard's Install
+  step was unchanged and that wiring it required the Tauri bridge. The
+  wiring shipped in 0.35.0 without that bridge — the UI reaches the
+  engine through an injected transport, and only the transport's host
+  implementation waits on packaging.)*
+- Ruff rose to 33 categories on the new code and was brought back to the
+  21-category baseline — `StrEnum`, an `Error` suffix, a named opener,
+  `ClassVar` annotations, and a shared `atomic.py` that removed two
+  `SIM115` violations by removing the duplication behind them.
+
+## [0.33.0] — M22 Task Group A: Universal Installer Foundation
+
+The installer experience and the hardware calibration that drives it.
+Eleven-step wizard, real hardware detection, an AI Capability Score, a
+local-model recommendation, a voice plan and seven pre-installation
+checks — verified against this machine's actual hardware.
+
+**Backend untouched.** The installer is a new, isolated package that
+imports no service, no repository and no container. It has to be: it
+runs *before* JARVIS is installed, on a machine where none of those
+exist yet. No route, model, schema or contract changed.
+
+### Added
+- **`src/jarvis/installer/`** — hardware detection (CPU, RAM, storage,
+  GPU/VRAM, battery, temperature, internet, NPU), AI calibration,
+  model tiers, voice planning and pre-flight validation. Zero mypy
+  errors across seven new modules.
+- **`python -m jarvis.installer`** — a JSON-emitting CLI (`detect`,
+  `plan`, `validate`). **A CLI rather than a REST route**: an installer
+  cannot call an API served by the application it is installing, and
+  adding a route would have modified a frozen contract.
+- **`src/features/installer/`** — the eleven-step wizard, its store, and
+  types pinned against real CLI output by a contract test.
+
+### Fixed *(all three found by running on real hardware)*
+- **Free space was measured on the wrong drive.** `detect_storage` fell
+  back to the current working directory when the target did not exist —
+  which is the *normal* case during installation. On Windows the
+  installer is routinely launched from a different volume, so a machine
+  with a full target drive would have passed the disk-space check.
+- **A 16 GB machine could never reach the 16 GB tier.** RAM is sold in
+  decimal GB: a "16 GB" machine has 16 × 10⁹ bytes = 15.7 *GiB*.
+  Comparing against a binary threshold meant every 16 GB machine missed
+  its tier and was offered the 8 GB one. Detection on this laptop
+  returned 15.7 and recommended Small.
+- **The wizard's scan effect cancelled every scan it started.**
+  `beginScan()` sets `scanning`, which was an effect dependency, so
+  starting a scan re-ran the effect, whose cleanup cancelled the request
+  it had just started — and the guard then refused to retry. Replaced
+  with a request-id ref.
+- The Location step's Continue was dead unless the user retyped the path
+  already shown; each account card's accessible name was ~40 words and
+  ambiguous between the two options.
+
+### Notes
+- **The governing rule:** a field is either measured or `null` — never
+  estimated or defaulted to something plausible. The UI renders "Not
+  detected", `notes` explains why, and `missing_inputs` records what the
+  recommendation did not know. On this machine three fields came back
+  `null` (no temperature sensors on Windows, no probeable GPU) and the
+  installer says so rather than showing zeros.
+- **§22.11/§22.12 are enforced at the payload**, not in the UI: a
+  personal plan genuinely does not contain model ids, score components,
+  resource limits or provider names. A test asserts the serialised
+  personal payload contains none of `piper`, `whisper`, `elevenlabs`,
+  `llama`, `qwen`, `openai`, `gemini`, `groq` — and that it still
+  carries everything that affects the user.
+- **Nothing is downloaded, and no installation is performed.** The
+  modules know no download URL at all. The Install step says so on
+  screen rather than animating a progress bar that measures nothing;
+  Test Voice and Launch JARVIS are disabled with a reason on hover.
+  Windows packaging (MSI, shortcuts, auto-start, portable, signing) is
+  Task Group B.
+
+## [0.32.0] — M8 Phase 7: Production Readiness
+
+An audit milestone, run against a **live backend** rather than by
+reading code — the real FastAPI app with a real DI container and a real
+health poll, driven from the React client, with the backend killed
+mid-session and restarted.
+
+That found **four defects code review had missed**. No new
+functionality; no backend change beyond the version constant.
+
+### Fixed
+- **Version drift, three releases deep.** `GET /api/v1/health` reported
+  `0.28.0` while `pyproject.toml` said `0.31.0` —
+  `src/jarvis/__version__.py`, whose docstring calls itself "single
+  source of truth for the package version", had not been bumped since
+  v0.28.0. That constant is what the health endpoint returns and what
+  `jarvis --version` prints, so an installation was misreporting its own
+  version by three releases. Both now `0.32.0`, with
+  `tests/unit/test_version_consistency.py` asserting they can never
+  diverge again — nothing compared them before, which is why they drifted.
+- **A dead-end user journey.** Five dashboard widgets shipped in Phase 5
+  say "Bind this workspace to a JARVIS workspace to see its tasks", and
+  no control anywhere could do it: `bindBackendWorkspace` had only tests
+  calling it and `workspacesApi` had no caller at all. The binding
+  control now exists in the workspace toolbar, wiring the store action,
+  the typed endpoint and the widgets that were already built.
+- **A status selector reporting a fault that did not exist.** Memory and
+  Knowledge Graph showed Degraded amber on a healthy system:
+  `selectSourceStatus` conflated "the collector is not reporting at all"
+  with "it is reporting and this source is missing". Only the second is
+  a degradation.
+- **Two stories for one condition.** While offline the health widgets
+  said "Waiting for the backend to report…" — implying a report was
+  coming — beside REST-backed widgets correctly saying "Offline".
+- **A footgun in the shared fetch hook.** `useBackendResource`'s default
+  emptiness check did not understand the `Page<T>` shape most endpoints
+  return, so empty collections rendered as an empty list rather than an
+  empty state. Three callers had already worked around it; a fourth
+  forgot. Fixed at the default and the workarounds deleted.
+
+### Added
+- **An executable guard for `ARCHITECTURE.md` §22.12.**
+  `restricted-surface.test.ts` scans every source file: any module
+  reading provider names, routing or debug state must also consult the
+  audience gate. The behavioural tests check *existing* surfaces; this
+  catches a **new** one added later that never gets a gate — precisely
+  how the Phase 3 Activity Center leak survived a milestone.
+  Mutation-tested: removing a gate makes it fail by filename.
+
+### Removed
+- `healthApi` (a stub documenting a decision a comment documents
+  better), `useWideLayout`/`WIDE_MIN_WIDTH` (never called), and
+  duplicated skeleton markup. Each verified as having zero importers.
+
+### Notes
+- **Verified live:** real health values flowing over `health.updated`;
+  **no stale numbers survive a backend outage** (the pre-outage snapshot
+  is dropped, not shown as current); **automatic reconnection without a
+  page reload**; "connected but no snapshot yet" correctly distinguished
+  from offline.
+- **TanStack Query is mounted and never used** — no `useQuery` anywhere
+  — costing 24.5 kB (7.28 kB gzipped) in the initial bundle. Flagged
+  rather than removed: dropping an approved dependency is an
+  architecture change this milestone forbids.
+- **Not done, and it matters:** no cross-browser testing (Chromium
+  only — the Tauri shell uses WebKit/WebView2), no screen-reader pass,
+  no contrast-ratio measurement.
+- **Eleven modules remain placeholders.** The brief asked to confirm "no
+  placeholder routes for completed modules"; the accurate finding is
+  that those modules are *not completed*, so their placeholders are
+  correct rather than a regression.
+
+## [0.31.0] — M8 Phase 5 + Phase 6: Module Integration & Production UX
+
+Phase 5 turned the workspace into the JARVIS operating environment;
+Phase 6 hardened it. Delivered as one milestone.
+
+**Backend untouched** — no route, model, schema, event or contract
+changed. pytest, black, ruff and mypy are byte-identical to v0.30.0,
+which is the evidence rather than the assertion that the freeze held.
+
+**The milestone began with an API audit, and the audit changed the
+plan.** All 172 REST operations the frozen backend exposes were
+enumerated before any UI was written. Three findings shaped everything
+after.
+
+### Added
+- **AI Dashboard — 11 widgets, every one on real backend data**, joining
+  the *existing* `dashboardWidgetRegistry`: System Overview, Subsystem
+  Status, Performance, Knowledge Graph, Suggestions (M10B's real
+  engine), Recent Tasks, Projects, Pinned Notes, Recent Files, Upcoming
+  Calendar, Notification Summary.
+- **Developer Dashboard** (Developer Mode only) — providers & routing,
+  outbound API counters, API inspector, performance metrics, agent
+  trace, the relay's 61-event vocabulary, runtime state.
+- **Administrator Dashboard** (Administrator only) — six panels with a
+  real API, plus one naming the seven that have none.
+- **Plugins** and **Diagnostics** panels, joining the existing
+  `panelRegistry`.
+- **`core/user-mode.ts` + `stores/user-mode.store.ts`** — one audience
+  gate for §22.11/§22.12: three modes, seven restricted classes of
+  information. Derived from Developer Mode's existing session unlock
+  rather than a second flag; two flags that can disagree about whether
+  provider names may be shown will eventually disagree permissively.
+- **`useBackendResource` + `ResourceView`** — one fetch hook and one set
+  of honest loading / empty / offline / error states, replacing what
+  would have been fifteen hand-rolled `useEffect` triples. Connection
+  recovery is free at the widget level because `isLive` is a dependency.
+- **Skeleton loaders** shaped like the content they replace, not a
+  generic grey box that makes the layout jump.
+- **`installConnectionRecovery()`** — re-runs ping → session → socket.
+  The socket's own retry reuses a token that a *restarted* backend will
+  refuse forever, which is the most common real outage.
+
+### Fixed
+- **A §22.12 leak shipped in M8 Phase 3.** The Activity Center rendered
+  `agent.step`'s raw `node` field — `planner`, `tool_executor`,
+  `critic` — to every audience. The Phase 3 milestone report flagged it
+  as a gating requirement before a personal-user build ships; this is
+  that gate. Personal users now see §22.12's mandated progress
+  vocabulary, with step count, ordering and status identical in both
+  modes — fewer *words*, not less truth.
+
+### Notes
+- **`GET /health` is a bare liveness probe** (`{status, version}`). The
+  rich subsystem data every "… Status" widget needs is published as the
+  `health.updated` **WebSocket** event, which nothing on the frontend
+  was reading. The dashboards subscribe rather than poll — no new
+  endpoint, and the numbers move on their own.
+- **Seven Administrator panels have no backend and are named, not
+  mocked**: users, daily/monthly budgets, provider priority, calibration
+  status, analytics, synchronization. All are `ARCHITECTURE.md` §22 —
+  approved and not built. An administrator seeing "Budget: $0.00" would
+  reasonably conclude nothing had been spent.
+- **Two AI Dashboard widgets from the brief have no data source.**
+  *Recent Conversations* — no conversation-history route exists.
+  *Pinned Projects* — `Project` has no `pinned` column; `Note` and
+  `Workspace` do, so **Pinned Notes** ships in its place and projects
+  surface by their real `status` field.
+- **Provider Status moved to the Developer Dashboard.** Real data, but
+  §22.12 puts provider names off-limits to personal users. That is the
+  architecture decision winning over the brief's widget list,
+  deliberately.
+- **Six separate "… Status" widgets ship as one.** They share a data
+  source and a presentation; six cards showing one light each would be
+  six copies of four lines, and worse for the question a user actually
+  asks.
+- **Two gates, not one.** Restricted panels are filtered from the panel
+  menu *and* refused by the dashboard components — a workspace layout
+  can be exported from a developer's machine and imported on a personal
+  one. This is a render gate, not a security boundary: the backend
+  authenticates, the frontend decides what to show.
+- **A correction to the Phase 3 report**, which claimed the Status Bar's
+  "AI Provider" item names a provider. It does not — it renders "Not
+  configured" and never leaked.
+
+## [Unreleased] — Documentation: approved architecture decisions
+
+Documentation only. **No application code changed** — no backend, no
+frontend, no version bump. The application version stays `0.30.0`;
+`MASTER_ROADMAP.md`'s own document version moves 3.0 → 3.1.
+
+Records eighteen approved architecture decisions as the binding target
+architecture, and the development freeze that accompanies them.
+
+### Added
+- **`docs/ARCHITECTURE.md` §22 — Approved architecture decisions (Aug
+  2026)**, eighteen subsections covering Local AI First (§22.1), the
+  Universal AI/API Calibration Engine (§22.2), the AI Cost Optimizer
+  (§22.3), the three-tier AI strategy (§22.4), the Oracle Cloud role
+  (§22.5), the voice platform (§22.6), AI providers (§22.7), hardware
+  calibration (§22.8), the Universal Performance Engine (§22.9), the
+  installation platform (§22.10), Personal/Administrator accounts
+  (§22.11), hidden backend operations (§22.12), cross-agent
+  collaboration (§22.13), the AI Health Dashboard (§22.14),
+  cross-platform distribution (§22.15), JARVIS Core Intelligence's
+  deferral (§22.16), recommended free infrastructure (§22.17), and where
+  the rest gets built (§22.18).
+
+### Changed
+- **`docs/MASTER_ROADMAP.md`** — the development-policy freeze at the
+  top; a note at the head of §8 Future Roadmap making §22 binding across
+  every milestone; §13 AI Provider Roadmap reframed as available
+  providers reached *through* the Calibration Engine rather than a
+  selection menu; **Cross-Platform Distribution added to M22**, filed
+  there because the OS abstraction layer is the same substrate M22's
+  hardware backends need.
+- **`docs/IMPLEMENTATION_ROADMAP.md`** — the same freeze, stated as a
+  pre-flight check before starting a phase, plus an explicit note that
+  none of §22 is in any checklist in that document.
+- **`README.md`** — a pointer to §22 and the freeze.
+
+### Notes
+- **Approved is not built.** Every decision in §22 is signed off as the
+  target architecture and **none of it exists in code**. The section is
+  written as a contract for future work, and says so in its first line,
+  so it cannot be misread as a description of the running system.
+- **Two places where §22 constrains what already exists** are called out
+  rather than left to be discovered later: today's configuration-driven
+  provider selection (`JARVIS_LLM_DEFAULT_PROVIDER`) becomes an *input*
+  to the Calibration Engine rather than a competing mechanism (§22.1);
+  and the Status Bar's "AI Provider" item plus the Activity Center's
+  agent node names both leak routing detail that §22.12 forbids to
+  personal users — acceptable while Developer Mode is the audience, and
+  now a tracked gating requirement before a personal-user build ships.
+- **Nothing was scheduled** beyond M22. The rest awaits milestone
+  assignment under `ARCHITECTURE.md` §20's governance process;
+  `MASTER_ROADMAP.md` stays the single source of truth for sequencing.
+
+## [0.30.0] — M8 Phase 3: Universal Workspace Framework
+
+Panels. The frontend gains a dockable, resizable, persistable workspace
+in which any module's content can sit alongside any other's, plus the
+three shell-level panels that framework existed to make possible.
+
+Backend untouched: no route, model, schema or contract changed. Every
+Python gate is byte-identical to v0.29.0's, which is the intended result
+of a frontend-only milestone rather than a coincidence.
+
+### Added
+- **Universal Workspace Layout** — four dock zones (`left`, `main`,
+  `right`, `bottom`) plus a floating layer, each zone collapsing out of
+  the layout entirely when empty, so a one-panel workspace looks like a
+  single-pane app rather than a grid with three blank cells.
+- **Panel system** — every panel supports the seven required operations:
+  open, close, resize, collapse, detach, move, restore.
+  `core/panel-registry.ts` is a `ContributionRegistry` instance, not a
+  fourth hand-rolled registry — the generic mechanism exists for exactly
+  this.
+- **Multi-workspace support** — create, rename, delete, duplicate, reset,
+  import, export, switch, and restore-on-launch. Layouts persist to
+  `localStorage` under the established `jarvis.<name>` key convention.
+- **Notification Center** — the persistent panel over
+  `core/notification-framework.ts`'s already-real data. Listed in
+  `IMPLEMENTATION_ROADMAP.md` Phase 3 and deferred since Phase 1 because
+  it had nowhere to live; `notification-layer.tsx` has been a reserved
+  `return null` anchor all along. The header's notification bell finally
+  has a handler, for the same reason.
+- **Activity Center** — one timeline merging background tasks, `agent.step`
+  and `automation.step`. It merges live store reads rather than keeping a
+  fourth copy of the same facts.
+- **Global Search** — backed by the real `POST /api/v1/search` (M10A's
+  13 registered sources). Distinct from the Command Palette, which
+  navigates the app locally and instantly; this searches content over the
+  network, and says so plainly when the backend is unreachable rather
+  than returning an empty list that looks like "no results".
+- **Responsive layout** — `hooks/use-responsive-layout.ts` shares the
+  Sidebar's existing 768px breakpoint. Below it the rails are dropped and
+  `main` fills, rather than three rails being squeezed to unusability.
+- **Performance** — route splitting (`routes/lazy-routes.ts`), lazily
+  imported panels, `<Suspense>` at both boundaries with one shared
+  fallback, `memo` on `PanelFrame`, and `components/common/virtual-list.tsx`
+  for the two unbounded lists. The build now emits eight feature chunks
+  where it previously emitted one bundle.
+
+### Notes
+- **"Workspace" now means three things, deliberately kept apart.**
+  `WorkspaceManager`/`workspace.store.ts` is which *module* the route has
+  mounted; the backend `Workspace` (M11 Task Group A) is a data scope
+  owning projects, notes, tasks and files; and this phase's
+  `workspace-layout.store.ts` is a named *arrangement of panels*. The
+  third links to the second through `backendWorkspaceId` — an id, never a
+  copy of backend data — and does not touch the first.
+- **Layouts persist locally, and that is not a compromise.** There is no
+  endpoint for panel geometry and the backend contract is frozen; a
+  layout is also genuinely per-device state, since an arrangement that
+  suits a 34" monitor is wrong on a laptop.
+- **Detached panels float inside the viewport, not in OS windows.** A
+  real second window needs Tauri's multi-window API — its own React root,
+  store bridge and IPC — which is `IMPLEMENTATION_ROADMAP.md` Phase 3's
+  separate, still-open "Window management" item. The store's `frame`
+  geometry is already in the shape that work would need.
+- **Nine modules deliberately register no panel.** Conversation, Memory,
+  Automation, Files, Browser, Coding, Finance, Smart Home, Calendar,
+  Gmail and Spotify still render `PlaceholderRoute` — they have no real
+  content. Wrapping "this module hasn't been built yet" in a title bar
+  with resize handles would dress an unbuilt module up as a working one.
+  They register on the day they have something to show; the framework
+  needs no change when they do.
+- **`skipHydration` on the layout store.** Zustand rehydrates on import,
+  which can precede panel registration; since rehydration drops panels
+  whose contribution is unknown, a layout restored at that moment would
+  come back empty and the user would have lost their arrangement to an
+  import-order accident. The startup sequence registers panels and *then*
+  rehydrates, explicitly.
+
+## [0.29.0] — M8 Phase 2: Universal Application Framework & Logic
+
+The React client stops being a self-contained shell and starts talking to
+the Python process. Most of this phase was not writing new frameworks —
+Phase 1 built those — but connecting them to a backend that had moved on
+underneath them, and finding that in three places the client's idea of
+the backend was simply wrong.
+
+**The recurring defect: a client written against the spec, not the
+server.** Phase 1 shipped its REST and WebSocket layers before the
+backend routes existed, using `ARCHITECTURE.md`'s illustrative examples
+as the contract. The examples were illustrative. Every drift below is the
+same mistake, and the fix is the same idea in each case — assert against
+the running server, not the document.
+
+### Security
+- **`SettingsService.snapshot()` leaked OAuth client secrets.** Pydantic
+  redacts a `SecretStr` on dump, which covers `openai.api_key` and its
+  neighbours. It does not cover a secret inside a plain container, and
+  `integrations.clients` (added by M11 Task Group E) is a
+  `dict[str, dict[str, str]]` whose `client_secret` entries dump
+  verbatim. The leak was latent — the only caller was the in-process
+  PySide6 Configuration Manager — but adding a settings API is precisely
+  the change that would have made it live, and it would have shipped a
+  route that published Google OAuth client secrets to any authenticated
+  caller. `public_snapshot()` now redacts by *key name* (the only check
+  that catches a secret whose type says nothing about it), and the REST
+  route serves that and never `snapshot()`. Two methods rather than one
+  with a flag, matching `Credential.to_storage_dict`/`to_public_dict`:
+  a method callers must remember to sanitise is one somebody forgets.
+
+### Fixed
+- **Eleven of the client's fourteen WebSocket event names did not
+  exist.** `ai.token`, `ai.step`, `ai.complete`,
+  `voice.transcript_partial`, `voice.transcript_final`,
+  `automation.step_started`, `automation.step_completed`,
+  `automation.workflow_finished`, `progress.update`,
+  `notification.created` and `runtime.module_state_changed` were never
+  emitted by anything. A handler registered for any of them would never
+  fire — silently, with no error anywhere. The vocabulary is now the real
+  61 names from `EVENT_TYPE_NAMES`, and three of the six payload
+  interfaces this phase types had wrong field names too
+  (`AutomationStepPayload` and `PluginNotificationPayload` were
+  invented; `UpdatePhasePayload` was missing `session_id`).
+- **The REST client discarded every error message the backend sent.** It
+  understood only the `{"error": {...}}` envelope from `ARCHITECTURE.md`
+  §9, which no route produces — every route raises `HTTPException`, which
+  serialises as `{"detail": "..."}`. So a real "Workspace not found"
+  surfaced as "Request failed with status 404". Both shapes are handled,
+  `detail` first because it is the one that occurs.
+- **The REST client expected cursor pagination.** It read
+  `meta.next_cursor`; the backend ships offset paging
+  (`{count, limit, offset, has_more}`) as of M11 Task Group F, which
+  recorded that divergence rather than hiding it. `apiList` follows the
+  server.
+- **A 2xx with a non-envelope body threw a bare `TypeError`** from inside
+  the client, naming nothing. It now raises `MALFORMED_RESPONSE` naming
+  the route, and flows through the normal error path. Found by a test.
+- **`notification.created` in `notifications.store.ts`** — a comment
+  documenting an event that has never existed. The real one is
+  `notification.plugin`.
+
+### Added
+- **A generated WebSocket contract, asserted from both sides.**
+  `scripts/export_ws_contract.py` writes
+  `frontend/src/services/websocket/event-contract.generated.json` from
+  `EVENT_TYPE_NAMES` and each event's dataclass fields.
+  `tests/unit/test_ws_contract_export.py` fails if the checked-in file is
+  stale; `websocket-contract.test.ts` fails if the TypeScript disagrees
+  with it. Neither side can drift without something going red — which is
+  the only durable fix for the class of defect above.
+- **`GET /api/v1/settings` and `/api/v1/settings/{dotted_key}`** —
+  read-only, session-authenticated, `{data, meta}` envelope, secrets
+  redacted. Read-only deliberately: writing a setting means writing
+  `.env`, which is a privilege-escalation surface belonging with M14's
+  Security Platform, not with a frontend phase whose job is to read real
+  values.
+- **Frontend service layer** — `services/api/client.ts` (typed REST,
+  configurable base URL via `VITE_API_BASE_URL`),
+  `services/api/session.ts` (the authentication flow; the token is
+  deliberately not persisted), `services/api/endpoints.ts` (typed
+  helpers for every M9–M11 surface the client reads),
+  `services/backend-connection.ts` (the ping → session → socket
+  ordering, in one place), `services/realtime-bridge.ts` (every
+  WebSocket subscription, installed once at startup rather than inside
+  component effects), `services/permissions-sync.ts`,
+  `services/error-reporting.ts`.
+- **Stores and hooks** — `connection.store.ts`, `settings.store.ts`,
+  `agent-activity.store.ts`, `use-backend-status.ts`.
+- **`npm run typecheck`** as a permanent quality gate. It runs
+  `tsc -b --noEmit`, not `tsc --noEmit`: the root `tsconfig.json` is a
+  solution file (`"files": []`), so plain `tsc --noEmit` type-checks zero
+  files and exits 0 — a gate that always passes. Verified with
+  `--listFilesOnly` before choosing build mode. It caught six real errors
+  on its first run.
+
+### Notes
+- **Offline is an explicit state, never fake data.** `BackendState`
+  distinguishes `unreachable` (the process is not answering) from
+  `unauthenticated` (it is, but refused a session), because collapsing
+  them produces a UI that says "something went wrong" when the truth is
+  "JARVIS isn't running". A failed request while offline deliberately
+  does *not* toast — the condition is already on screen persistently.
+- **Permissions are surfaced from M9's `PermissionModel`.** The roadmap
+  files this under "the backend's Authorization Engine (M14)"; M14 does
+  not exist. The Authorization Engine that does exist owns the same
+  ten-scope vocabulary `core/permission-framework.ts` already mirrors, so
+  Phase 2 surfaces that one and `services/api/endpoints.ts` is the single
+  place that repoints if M14 supersedes it.
+- **Storage needed no new work.** `core/storage-framework.ts` already
+  implements the four sensitivity tiers ARCHITECTURE.md §12 specifies,
+  including refusing client-side encryption rather than pretending to
+  offer it. Verified, not rebuilt.
+- **The "API Integration Rework" sub-block is not included.** Those ten
+  items (Real API Activation, Provider Registry, Runtime Provider
+  Registration, failover, …) are backend provider-lifecycle work tied to
+  M11's API Center Architecture module, not frontend framework work, and
+  they are not honestly completable in this phase. They remain unchecked
+  in `IMPLEMENTATION_ROADMAP.md` with this note.
+
 ## [0.28.0] — M11 Task Group F: Platform Integration & Closure
 
 An audit of every cross-cutting surface M11 built, and the fixes the

@@ -143,6 +143,13 @@ def test_every_documented_event_type_is_mapped() -> None:
         # rather than through a second set of names for the same
         # transitions.
         "integration.call_completed",
+        # Milestone 12 Task Group A. Zone/Room/DeviceGroup publish no
+        # event of their own in this task group -- see
+        # `runtime_ws_hub.py`'s own registration comment.
+        "home.updated",
+        "device.updated",
+        # Milestone 12 Task Group B.
+        "connectivity.status_changed",
     }
 
 

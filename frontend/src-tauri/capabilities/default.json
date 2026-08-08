@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
+  "description": "Default permissions. The installer's host-bridge commands (M22 Task Group C) need no entry here: Tauri v2's ACL gates plugin commands, and commands registered through invoke_handler are application code, not plugin surface. Adding identifiers that turn out not to exist would fail the build for no benefit.",
   "windows": [
     "main"
   ],

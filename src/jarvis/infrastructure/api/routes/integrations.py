@@ -70,6 +70,27 @@ class InvokeRequest(BaseModel):
     params: dict[str, Any] = {}
 
 
+class TestConnectionRequest(BaseModel):
+    #: An existing, non-mutating operation name on *this* integration's
+    #: own spec -- never a URL. Left unset, a safe zero-argument read
+    #: operation is chosen automatically. See
+    #: docs/M11_API_CENTER_LOGIC_CONTRACT.md §11/§18: the vendor target
+    #: always comes from trusted catalogue configuration, never from
+    #: caller input, which is what rules out SSRF here.
+    operation: str | None = None
+    timeout_seconds: float | None = None
+
+
+class SwitchRequest(BaseModel):
+    #: Both ids must already be installed, trusted, catalogue-backed
+    #: integrations -- there is no field here for a URL, a provider
+    #: class, or a credential. See
+    #: docs/M11_API_CENTER_LOGIC_CONTRACT.md §14.
+    operation: str
+    from_integration_id: str
+    to_integration_id: str
+
+
 # ---------------------------------------------------------------------------
 # Resolution
 # ---------------------------------------------------------------------------
@@ -136,6 +157,26 @@ async def install_integration(body: InstallRequest, request: Request) -> Envelop
     return envelope(record, meta={"installed": True})
 
 
+@router.get("/integrations/observability", response_model=Envelope[dict[str, Any]])
+async def integrations_observability(request: Request) -> Envelope[dict[str, Any]]:
+    """Safe operational counters across the whole M11 surface --
+    installed/connected counts, connection-test and switch tallies,
+    failover outcomes, discovery runs, and the gateway's own egress
+    counters. Collected from the same in-memory state every other
+    diagnostics route already reads; not a second observability
+    platform.
+
+    **Registered before ``GET /integrations/{integration_id}`` below,
+    deliberately.** FastAPI/Starlette match routes in registration
+    order; a single-segment literal path like this one must be declared
+    ahead of a single-segment path-*parameter* route or the parameter
+    route silently swallows it (as ``/integrations/gateway/stats`` and
+    the other two-segment routes below never risk, having two segments
+    to a param route's one).
+    """
+    return envelope(_service(request).observability_snapshot())
+
+
 @router.get("/integrations/{integration_id}", response_model=Envelope[dict[str, Any]])
 async def integration_status(integration_id: str, request: Request) -> Envelope[dict[str, Any]]:
     from jarvis.core.exceptions import ServiceError
@@ -144,6 +185,59 @@ async def integration_status(integration_id: str, request: Request) -> Envelope[
         return envelope(await _service(request).status(integration_id))
     except ServiceError as err:
         raise HTTPException(status_code=404, detail=str(err)) from err
+
+
+@router.get("/integrations/{integration_id}/health", response_model=Envelope[dict[str, Any]])
+async def integration_health(integration_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    """Locally-known health for one installed integration -- never a
+    vendor request. Deliberately distinct from (a later task group's)
+    Connection Testing; see
+    ``docs/M11_API_CENTER_LOGIC_CONTRACT.md`` §11/§13.
+    """
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        return envelope(await _service(request).health(integration_id))
+    except ServiceError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+
+
+@router.post(
+    "/integrations/{integration_id}/test-connection", response_model=Envelope[dict[str, Any]]
+)
+async def test_connection(
+    integration_id: str,
+    request: Request,
+    body: TestConnectionRequest | None = None,
+) -> Envelope[dict[str, Any]]:
+    """The explicit, user-triggered Connection Test -- M11 Task Group
+    B, the one M11 operation permitted to make a real vendor request.
+    Deliberately distinct from ``GET .../health`` above (local-only).
+
+    The vendor target always comes from this integration's own trusted
+    ``IntegrationSpec``; *operation* selects among its already-declared,
+    non-mutating operations and can never be a URL -- there is no SSRF
+    surface here because there is nowhere for a caller-supplied
+    destination to go. Never raises for a vendor-side failure (auth,
+    network, timeout, rate limit, ...) -- those come back as a
+    structured, 200-envelope result the caller reads; only an unknown
+    *integration_id* is a 404.
+
+    *body* is entirely optional (every field on it is) -- a bare
+    ``POST`` with no body runs the automatic zero-argument probe.
+    """
+    from jarvis.core.exceptions import ServiceError
+
+    body = body or TestConnectionRequest()
+    try:
+        result = await _service(request).test_connection(
+            integration_id,
+            operation=body.operation,
+            timeout_seconds=body.timeout_seconds,
+        )
+    except ServiceError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+    return envelope(result, meta={"outcome": result["outcome"]})
 
 
 @router.post("/integrations/{integration_id}/connect", response_model=Envelope[dict[str, Any]])
@@ -314,3 +408,68 @@ async def gateway_stats(request: Request) -> Envelope[dict[str, Any]]:
     the same collects-never-computes rule ``MCPDiagnostics`` follows.
     """
     return envelope(_service(request).gateway_stats())
+
+
+# ---------------------------------------------------------------------------
+# Runtime Switching + Failover (Milestone 11 Task Group E)
+# ---------------------------------------------------------------------------
+@router.post("/integrations/switch", response_model=Envelope[dict[str, Any]])
+async def switch_integration(body: SwitchRequest, request: Request) -> Envelope[dict[str, Any]]:
+    """The explicit, user-triggered Runtime Switch -- M11 Task Group E.
+
+    Both *from_integration_id* and *to_integration_id* must already be
+    installed, trusted, catalogue-backed integrations; there is no
+    field for a URL, a provider class, or a credential, so there is
+    nowhere for a caller-supplied destination to go. Never raises for
+    an ineligible target (unregistered, incompatible, uncredentialed,
+    unauthorized, activation failure) -- those come back as a
+    structured, 200-envelope result; only an unknown *from* id (never
+    installed at all) is a 404.
+    """
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        result = await _service(request).switch(
+            operation=body.operation,
+            from_integration_id=body.from_integration_id,
+            to_integration_id=body.to_integration_id,
+        )
+    except ServiceError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+    return envelope(result, meta={"outcome": result["outcome"]})
+
+
+@router.get("/integrations/failover/history", response_model=Envelope[list[dict[str, Any]]])
+async def failover_history(
+    request: Request,
+    capability: str = Query("", description="Filter to one operation name. Empty means all."),
+) -> Envelope[list[dict[str, Any]]]:
+    """The last (up to 50) failover attempts, newest first, in-memory
+    only. Read-only -- there is no endpoint to *force* a failover; it
+    only ever happens as a side effect of
+    ``IntegrationService.invoke_with_failover``.
+    """
+    rows = _service(request).failover_history(capability=capability or None)
+    return envelope(rows, meta={"count": len(rows)})
+
+
+# ---------------------------------------------------------------------------
+# Automatic Discovery (Milestone 11 Task Group F)
+# ---------------------------------------------------------------------------
+@router.post("/integrations/discover", response_model=Envelope[list[dict[str, Any]]])
+async def discover_integrations(request: Request) -> Envelope[list[dict[str, Any]]]:
+    """Enumerate ``core/integrations/catalogue.py`` -- the only trusted
+    source -- and register whichever entries are not yet installed.
+    Takes no request body: there is nothing here for a caller to target
+    with a URL, a module path, or a package name, because discovery
+    never reads anything but the server's own trusted catalogue.
+
+    Never activates, never contacts a vendor. Safe to call repeatedly;
+    already-installed entries come back ``"already_registered"``, not
+    duplicated.
+    """
+    results = await _service(request).discover()
+    counts: dict[str, int] = {"registered": 0, "already_registered": 0, "rejected": 0}
+    for row in results:
+        counts[row["status"]] = counts.get(row["status"], 0) + 1
+    return envelope(results, meta={"count": len(results), **counts})

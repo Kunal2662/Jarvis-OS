@@ -1,9 +1,11 @@
 """Builds the compiled LangGraph state machine (Milestone 5-Agents, extended
-Milestone 10 -- AI Orchestrator).
+Milestone 10 -- AI Orchestrator, extended again by M10's own Conversational
+Orchestration Routing pass -- see ``docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT
+.md``).
 
-``intent_classifier -> context_engine -> planner -> tool_selector ->
-permission_validator -> (tool_executor -> critic -> tool_selector)* ->
-responder -> END`` -- the Milestone 5-Agents sequence
+``intent_classifier -> {context_engine | responder} -> planner ->
+tool_selector -> permission_validator -> (tool_executor -> critic ->
+tool_selector)* -> responder -> END`` -- the Milestone 5-Agents sequence
 (``planner -> tool_selector -> tool_executor -> critic -> responder``,
 looping from ``critic`` back to ``tool_selector``) with Milestone 10's
 Intent Engine and Context Engine prepended, and Permission Validation
@@ -11,10 +13,25 @@ Intent Engine and Context Engine prepended, and Permission Validation
 and execution as the one enforcement point every proposed tool call now
 passes through, whether it came from the single-tool or the
 ``tool_parallel`` (Milestone 10 AC1) path.
+
+**Intent gating (new).** M10's own Closure Summary recorded Intent Engine
+classification as "diagnostic-only" -- computed but never consumed by a
+routing decision -- pending M10A/M10B, neither shipped at the time. Both
+have since shipped (`MASTER_ROADMAP.md` §2), so this pass closes that
+deferral: a high-confidence ``direct_answer`` now routes straight to
+``responder``/``END``, skipping ``context_engine``/``planner``/
+``tool_selector`` entirely. This is deliberately *not* "skip context too
+so it's faster" as an afterthought -- ``intent_classifier``'s own
+instructions already define ``direct_answer`` as "answerable from
+knowledge alone, no tool needed," which by that definition doesn't need a
+memory/knowledge lookup either. Anything else (``tool_use``,
+``clarification_needed``, or a ``direct_answer`` below the confidence bar)
+takes the existing, byte-for-byte-unchanged assessment path.
 """
 
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING, Any
 
 from langgraph.graph import END, START, StateGraph
@@ -37,6 +54,23 @@ if TYPE_CHECKING:
     from jarvis.features.automation.permission import ConfirmationCallback
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
+
+
+#: Conservative by design -- a wrong "direct" route means the agent
+#: skips planning/tool-selection for a request that actually needed a
+#: tool, silently answering wrong instead of acting. A wrong "assess"
+#: route just costs two extra LLM calls for a genuinely simple
+#: question. The asymmetry favors a high bar.
+DEFAULT_INTENT_DIRECT_ROUTE_CONFIDENCE = 0.85
+
+
+def _route_after_intent(state: AgentState, *, direct_route_confidence: float) -> str:
+    if (
+        state.get("intent") == "direct_answer"
+        and state.get("intent_confidence", 0.0) >= direct_route_confidence
+    ):
+        return "direct"
+    return "assess"
 
 
 def _route_after_selection(state: AgentState) -> str:
@@ -70,6 +104,7 @@ def build_agent_graph(
     permission_gate: AgentPermissionGate | None = None,
     confirm: ConfirmationCallback | None = None,
     max_parallel_steps: int = 4,
+    intent_direct_route_confidence: float = DEFAULT_INTENT_DIRECT_ROUTE_CONFIDENCE,
     include_responder: bool = True,
 ) -> Any:
     """Compile the graph. ``checkpointer`` is any LangGraph
@@ -80,7 +115,10 @@ def build_agent_graph(
     used by :meth:`~jarvis.agents.orchestrator.AgentOrchestrator.stream` so
     it can call ``llm.stream()`` directly on the composed prompt for real
     token-level output (Milestone 10 AC2) instead of running responder's
-    own blocking completion and re-chunking the result.
+    own blocking completion and re-chunking the result. The same
+    ``final_target`` also terminates the new intent-gated "direct" branch
+    below, so a high-confidence direct answer gets real token streaming
+    too, not just the tool-composed path.
     """
     tools_by_name = {t.name: t for t in tools}
     gate = permission_gate or AgentPermissionGate()
@@ -115,7 +153,13 @@ def build_agent_graph(
         graph.add_node("responder", make_responder_node(llm))  # type: ignore[call-overload]
 
     graph.add_edge(START, "intent_classifier")
-    graph.add_edge("intent_classifier", "context_engine")
+    graph.add_conditional_edges(
+        "intent_classifier",
+        functools.partial(
+            _route_after_intent, direct_route_confidence=intent_direct_route_confidence
+        ),
+        {"direct": final_target, "assess": "context_engine"},
+    )
     graph.add_edge("context_engine", "planner")
     graph.add_edge("planner", "tool_selector")
     graph.add_conditional_edges(

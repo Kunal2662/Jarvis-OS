@@ -11,16 +11,25 @@ const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000];
 
 /**
  * The single WebSocket connection every event category multiplexes over,
- * per ARCHITECTURE.md section 6. This is real, working connection logic
- * (heartbeat monitoring, exponential-backoff reconnect, an event
- * dispatcher) -- but there is no backend WebSocket route to connect to
- * yet (confirmed: zero `@app.websocket` routes exist in
- * `infrastructure/api/` as of this phase). Pointed at a real URL, it
- * will genuinely try, genuinely fail, and honestly report
- * `"error"`/`"offline"` -- never a faked `"connected"` state.
+ * per ARCHITECTURE.md section 6.
+ *
+ * **Now connected to a real route (M8 Phase 2).** Phase 1's version of
+ * this docstring said "there is no backend WebSocket route to connect to
+ * yet (confirmed: zero `@app.websocket` routes exist)". That stopped
+ * being true when M9 Task Group B shipped `/api/v1/ws` and
+ * `RuntimeWebSocketHub`; the note is corrected here rather than left to
+ * mislead the next reader.
+ *
+ * The route authenticates with `?token=<session_id>` -- the same
+ * credential the REST client sends as a Bearer header, because
+ * `ARCHITECTURE.md` section 6 specifies one session concept across both
+ * transports. A connection attempt without a token is refused by the
+ * server, so `connect()` requires one rather than trying anonymously and
+ * reporting a confusing close.
  */
 export class WebSocketConnectionManager {
   private socket: WebSocket | null = null;
+  private token: string | null = null;
   private status: ConnectionStatus = "not_configured";
   private lastMessageId: string | null = null;
   private reconnectAttempt = 0;
@@ -29,17 +38,24 @@ export class WebSocketConnectionManager {
   private readonly handlers = new Map<WebSocketEventType, Set<WebSocketEventHandler>>();
   private readonly statusHandlers = new Set<(status: ConnectionStatus) => void>();
   private readonly url: string;
+  private intentionalClose = false;
 
   constructor(url: string) {
     this.url = url;
   }
 
-  connect(token?: string): void {
+  /**
+   * Open the connection. *token* is a session id from
+   * `services/api/session.ts`; the server closes an untokened socket, so
+   * a caller with no session should establish one first rather than
+   * calling this and reading the failure.
+   */
+  connect(token: string): void {
     if (this.socket) return;
+    this.token = token;
     this.setStatus(this.reconnectAttempt > 0 ? "reconnecting" : "connecting");
 
-    const target = token ? `${this.url}?token=${encodeURIComponent(token)}` : this.url;
-    const socket = new WebSocket(target);
+    const socket = new WebSocket(`${this.url}?token=${encodeURIComponent(token)}`);
     this.socket = socket;
 
     socket.addEventListener("open", this.handleOpen);
@@ -49,9 +65,11 @@ export class WebSocketConnectionManager {
   }
 
   disconnect(): void {
+    this.intentionalClose = true;
     this.clearTimers();
     this.socket?.close();
     this.socket = null;
+    this.token = null;
     this.reconnectAttempt = 0;
     this.setStatus("not_configured");
   }
@@ -105,6 +123,10 @@ export class WebSocketConnectionManager {
   private handleClose = (): void => {
     this.socket = null;
     this.clearTimers();
+    if (this.intentionalClose) {
+      this.intentionalClose = false;
+      return;
+    }
     this.setStatus("offline");
     this.scheduleReconnect();
   };
@@ -120,9 +142,16 @@ export class WebSocketConnectionManager {
   }
 
   private scheduleReconnect(): void {
-    const delay = RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)];
+    // Reconnect with the same token. If the backend restarted, that
+    // token is stale and the socket will close again -- which is what
+    // `onStatusChange` reports, and what drives the app to establish a
+    // fresh session rather than this class guessing at auth.
+    const token = this.token;
+    if (!token) return;
+    const delay =
+      RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)];
     this.reconnectAttempt += 1;
-    this.reconnectTimer = setTimeout(() => this.connect(), delay);
+    this.reconnectTimer = setTimeout(() => this.connect(token), delay);
   }
 
   private armHeartbeatWatchdog(): void {

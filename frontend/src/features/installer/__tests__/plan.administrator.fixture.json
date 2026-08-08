@@ -1,0 +1,197 @@
+{
+  "account_type": "administrator",
+  "install_location": "C:\\Users\\DELL-5430\\AppData\\Local\\JARVIS",
+  "hardware": {
+    "platform": {
+      "system": "Windows",
+      "release": "11",
+      "version": "10.0.26200",
+      "machine": "AMD64",
+      "python": "3.13.14",
+      "is_windows": true,
+      "is_macos": false,
+      "is_linux": false
+    },
+    "cpu": {
+      "model": "Intel64 Family 6 Model 154 Stepping 4, GenuineIntel",
+      "physical_cores": 10,
+      "logical_cores": 12,
+      "max_frequency_mhz": 1300.0,
+      "architecture": "AMD64"
+    },
+    "memory": {
+      "total_bytes": 16857645056,
+      "available_bytes": 4328038400,
+      "total_gb": 15.7
+    },
+    "storage": {
+      "path": "C:\\Users\\DELL-5430\\AppData\\Local\\JARVIS",
+      "total_bytes": 511881244672,
+      "free_bytes": 161870274560,
+      "free_gb": 150.75
+    },
+    "gpus": [],
+    "power": {
+      "has_battery": true,
+      "on_battery": false,
+      "percent": 100.0
+    },
+    "internet": true,
+    "temperature_celsius": null,
+    "npu": null,
+    "notes": [
+      "No GPU could be detected. Calibration used CPU and RAM only.",
+      "Temperature sensors are not exposed by this operating system."
+    ],
+    "total_vram_bytes": null
+  },
+  "calibration": {
+    "score": 48,
+    "performance_profile": "balanced",
+    "cloud_usage": "balanced",
+    "missing_inputs": [
+      "Graphics memory could not be measured",
+      "Temperature sensors unavailable"
+    ],
+    "warnings": [],
+    "recommended_model": {
+      "key": "standard",
+      "label": "Standard",
+      "minimum_ram_gb": 16,
+      "approximate_download_gb": 4.7,
+      "model_id": "llama3.1:8b",
+      "description": "Stronger reasoning and longer context. The default for most machines."
+    },
+    "components": [
+      {
+        "name": "Memory",
+        "points": 22.1,
+        "maximum": 45,
+        "detail": "15.7 GB of system memory"
+      },
+      {
+        "name": "Processor",
+        "points": 25.8,
+        "maximum": 30,
+        "detail": "10 physical cores at up to 1.3 GHz"
+      },
+      {
+        "name": "Accelerator",
+        "points": 0.0,
+        "maximum": 25,
+        "detail": "No GPU or NPU detected"
+      }
+    ],
+    "inputs": {
+      "total_ram_gb": 15.7,
+      "physical_cores": 10,
+      "max_frequency_mhz": 1300.0,
+      "total_vram_gb": null,
+      "has_npu": false,
+      "on_battery": false,
+      "internet": true
+    },
+    "resource_limits": {
+      "max_memory_fraction": 0.45,
+      "max_cpu_fraction": 0.6,
+      "use_gpu": false
+    }
+  },
+  "voice": {
+    "identity_name": "JARVIS",
+    "can_test_offline": true,
+    "total_download_mb": 545,
+    "notes": [],
+    "components": [
+      {
+        "key": "piper",
+        "label": "Local speech synthesis",
+        "role": "tts_local",
+        "approximate_download_mb": 65,
+        "required": true,
+        "enabled": true,
+        "reason": "Lets JARVIS speak without a connection."
+      },
+      {
+        "key": "faster_whisper",
+        "label": "Speech recognition (standard)",
+        "role": "stt_local",
+        "approximate_download_mb": 480,
+        "required": true,
+        "enabled": true,
+        "reason": "Lets JARVIS listen without a connection."
+      },
+      {
+        "key": "elevenlabs",
+        "label": "Enhanced cloud speech",
+        "role": "tts_cloud",
+        "approximate_download_mb": 0,
+        "required": false,
+        "enabled": false,
+        "reason": "Higher-quality speech when a connection is available. Requires an API key."
+      }
+    ]
+  },
+  "validation": {
+    "can_install": true,
+    "results": [
+      {
+        "key": "os",
+        "label": "Operating system",
+        "verdict": "pass",
+        "detail": "Windows 11.",
+        "blocking": false
+      },
+      {
+        "key": "python",
+        "label": "Runtime",
+        "verdict": "pass",
+        "detail": "Python 3.13.",
+        "blocking": false
+      },
+      {
+        "key": "architecture",
+        "label": "Processor architecture",
+        "verdict": "pass",
+        "detail": "AMD64.",
+        "blocking": false
+      },
+      {
+        "key": "memory",
+        "label": "Memory",
+        "verdict": "pass",
+        "detail": "15.7 GB of memory.",
+        "blocking": false
+      },
+      {
+        "key": "disk",
+        "label": "Disk space",
+        "verdict": "pass",
+        "detail": "150.8 GB free on C:\\Users\\DELL-5430\\AppData\\Local\\JARVIS.",
+        "blocking": false
+      },
+      {
+        "key": "permissions",
+        "label": "Permissions",
+        "verdict": "pass",
+        "detail": "C:\\Users\\DELL-5430\\AppData\\Local\\JARVIS is writable.",
+        "blocking": false
+      },
+      {
+        "key": "internet",
+        "label": "Internet",
+        "verdict": "pass",
+        "detail": "Connected.",
+        "blocking": false
+      }
+    ]
+  },
+  "recommended_model": {
+    "key": "standard",
+    "label": "Standard",
+    "minimum_ram_gb": 16,
+    "approximate_download_gb": 4.7,
+    "model_id": "llama3.1:8b",
+    "description": "Stronger reasoning and longer context. The default for most machines."
+  }
+}

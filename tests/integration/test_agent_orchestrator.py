@@ -274,6 +274,127 @@ async def test_start_and_stop_are_idempotent(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_invoke_direct_routes_a_high_confidence_direct_answer(tmp_path) -> None:
+    """Intent routing (M10 Conversational Orchestration Routing): a
+    high-confidence ``direct_answer`` classification skips
+    context_engine/planner/tool_selector entirely -- verified two ways:
+    the response text is what only `responder` could have produced
+    (nothing scripts a `tool-selection module`/`(none yet)` reply, so a
+    non-gated run would get the empty default and fail), and no call in
+    `llm.calls` touches the planner's own prompt anchor."""
+    from jarvis.agents.orchestrator import AgentOrchestrator
+
+    llm = ScriptedFakeLLM(
+        {
+            "intent classification module": ('{"intent": "direct_answer", "confidence": 0.95}'),
+            "Compose the final answer": "Paris is the capital of France.",
+        }
+    )
+    orchestrator = AgentOrchestrator(
+        _settings(tmp_path), llm, memory=None, automation=None, browser=None
+    )
+
+    response = await orchestrator.invoke(AgentRequest(prompt="What is the capital of France?"))
+
+    assert response.text == "Paris is the capital of France."
+    assert response.steps == 0
+    assert not any(
+        "planning module" in m.content for call in llm.calls for m in call
+    ), "planner bypass: the direct-routed path must never reach the planner"
+    assert not any(
+        "tool-selection module" in m.content for call in llm.calls for m in call
+    ), "tool_selector bypass: the direct-routed path must never reach tool selection"
+
+    await orchestrator.stop()
+
+
+@pytest.mark.asyncio
+async def test_invoke_assesses_a_low_confidence_direct_answer(tmp_path) -> None:
+    """Confidence routing: a direct_answer classification *below* the
+    threshold still takes the full context/planning/tool-selection
+    path -- planner execution, not bypass."""
+    from jarvis.agents.orchestrator import AgentOrchestrator
+
+    llm = ScriptedFakeLLM(
+        {
+            "intent classification module": ('{"intent": "direct_answer", "confidence": 0.4}'),
+            "planning module": "Answer directly, no tool needed.",
+            "tool-selection module": (
+                '{"action": "final", "final_text": "Paris is the capital of France."}'
+            ),
+        }
+    )
+    orchestrator = AgentOrchestrator(
+        _settings(tmp_path), llm, memory=None, automation=None, browser=None
+    )
+
+    response = await orchestrator.invoke(AgentRequest(prompt="What is the capital of France?"))
+
+    assert response.text == "Paris is the capital of France."
+    assert any(
+        "planning module" in m.content for call in llm.calls for m in call
+    ), "planner execution: a below-threshold direct_answer must still reach the planner"
+
+    await orchestrator.stop()
+
+
+@pytest.mark.asyncio
+async def test_invoke_assesses_tool_use_intent_regardless_of_confidence(tmp_path) -> None:
+    """A `tool_use` classification never direct-routes, even at
+    maximum confidence -- gating only ever fires for `direct_answer`."""
+    from jarvis.agents.orchestrator import AgentOrchestrator
+
+    llm = ScriptedFakeLLM(
+        {
+            "intent classification module": '{"intent": "tool_use", "confidence": 1.0}',
+            "(none yet)": (
+                '{"action": "tool", "tool": "recall_memory", "args": {"query": "birthday"}}'
+            ),
+            "self-critique module": '{"complete": true, "reason": "recalled successfully"}',
+            "Compose the final answer": "Your birthday note has been recalled.",
+        }
+    )
+    orchestrator = AgentOrchestrator(
+        _settings(tmp_path), llm, memory=_FakeMemoryService(), automation=None, browser=None
+    )
+
+    response = await orchestrator.invoke(AgentRequest(prompt="What's my birthday note?"))
+
+    assert response.steps == 1
+    assert response.metadata["tool_calls"][0]["tool"] == "recall_memory"
+
+    await orchestrator.stop()
+
+
+@pytest.mark.asyncio
+async def test_stream_direct_routes_with_real_token_streaming(tmp_path) -> None:
+    """The intent-gated "direct" branch terminates at the same
+    `final_target` the tool-composed path does, so it gets real
+    per-token streaming too (Milestone 10 AC2), not a re-chunked
+    replay."""
+    from jarvis.agents.orchestrator import AgentOrchestrator
+
+    llm = ScriptedFakeLLM(
+        {
+            "intent classification module": ('{"intent": "direct_answer", "confidence": 0.95}'),
+            "Compose the final answer": "Your birthday is in March.",
+        }
+    )
+    orchestrator = AgentOrchestrator(
+        _settings(tmp_path), llm, memory=None, automation=None, browser=None
+    )
+
+    chunks = [
+        chunk async for chunk in orchestrator.stream(AgentRequest(prompt="when's my birthday?"))
+    ]
+
+    assert "".join(chunks).strip() == "Your birthday is in March."
+    assert len(chunks) == 5  # one per word -- real token-level, not re-chunked
+
+    await orchestrator.stop()
+
+
+@pytest.mark.asyncio
 async def test_invoke_with_real_sqlite_checkpointer(tmp_path) -> None:
     """Regression test: every other test in this file runs with
     ``checkpoint_enabled=False`` (in-memory saver). That previously hid a

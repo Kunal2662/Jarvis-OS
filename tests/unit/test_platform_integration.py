@@ -108,8 +108,10 @@ def test_every_search_source_is_registered_exactly_once(container) -> None:
 
 
 def test_the_expected_search_sources_are_all_present(container) -> None:
-    """Thirteen at rest; a connected integration adds a fourteenth at
-    runtime (proved in the Task Group E end-to-end suite)."""
+    """Fifteen at rest (M12 Task Group A added `homes`/`devices` to
+    the thirteen M9-M11 sources); a connected integration adds a
+    sixteenth at runtime (proved in the Task Group E end-to-end
+    suite)."""
     types = {source.source_type for source in container.search_service().get_sources()}
 
     assert types == {
@@ -126,6 +128,8 @@ def test_the_expected_search_sources_are_all_present(container) -> None:
         "files",
         "folders",
         "attachments",
+        "homes",
+        "devices",
     }
 
 
