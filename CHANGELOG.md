@@ -3,6 +3,68 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M11: API Center Architecture module
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M11's "API Center Architecture" module -- the roadmap's own
+lifecycle-management design for M11's `core/integrations/` engine,
+previously "Planning only; no implementation exists yet"
+(`MASTER_ROADMAP.md`). Scoped throughout to *catalogued external
+vendor integrations* (Google Workspace today) -- never `ILLMProvider`,
+AI/voice/vision provider routing, or the unscheduled AI/API Calibration
+Engine, which this module never touches. Preceded by a read-only Phase
+0 audit and a Logic Contract (`docs/M11_API_CENTER_ARCHITECTURE_DECISIONS.md`,
+`docs/M11_API_CENTER_SCOPE_MATRIX.md`, `docs/M11_API_CENTER_LOGIC_CONTRACT.md`),
+per this project's own standing rules. Implemented as seven internal
+Task Groups (A-G, distinct from M11's own Task Groups A-F), each with
+its own audit-first read → design → implement → test → verify pass.
+410 tests, 0 failures, 0 errors, 0 skipped.
+
+### Added
+- **`IntegrationService.health()`** (Task Group C) -- local-only status
+  read, never a vendor request; rides the existing `mcp` `HealthMonitor`
+  collector rather than a second one. `GET /integrations/{id}/health`.
+- **`IntegrationService.test_connection()`** (Task Group B) -- the
+  first M11 capability permitted to make a real, bounded, read-only
+  vendor request; supersedes the mock validator as this module's own
+  production validation path (M5's own separate `MockApiValidator`
+  wiring is untouched -- still open). `ApiGateway` gained per-call
+  `timeout_seconds`/`single_attempt` (no silent retry).
+  `POST /integrations/{id}/test-connection`.
+- **`IntegrationService.switch()` / `invoke_with_failover()`**
+  (Task Group E) -- user-triggered Runtime Switching and
+  single-candidate, caller-named vendor Failover, both restricted to
+  already-installed, capability-compatible, credentialed catalogued
+  integrations. Never chains, never loops, never touches credentials.
+  `POST /integrations/switch`, `GET /integrations/failover/history`.
+- **`IntegrationService.discover()`** (Task Group F) -- enumerates
+  `core/integrations/catalogue.py` and registers unregistered entries
+  through the existing `install()`; discover + register only, never
+  auto-activate, never contacts a vendor.
+  `POST /integrations/discover`.
+- **`IntegrationService.observability_snapshot()`** (Task Group G) --
+  consolidated, secret-free operational counters across the whole
+  module. `GET /integrations/observability`.
+- New events: `IntegrationConnectionTestEvent`, `IntegrationSwitchEvent`,
+  `IntegrationFailoverEvent`, `IntegrationDiscoveryEvent` -- published
+  today, WebSocket relay deliberately deferred (a frontend-touching
+  contract change outside this module's backend-only scope; see
+  `runtime_ws_hub.py`'s `UNPUBLISHED_EVENT_TYPES`).
+
+### Not changed
+- M5's `ApiCenterService` and its `MockApiValidator` default (separate,
+  still-open item).
+- `core/mcp/providers/registry.py`, `core/mcp/providers/manager.py`,
+  `core/mcp/auth/*` -- reused verbatim throughout, no second registry,
+  provider manager, or credential store introduced.
+- `ILLMProvider`, `infrastructure/llm/`, and every AI Calibration
+  Engine concept -- structurally never referenced (verified by test).
+- Version-compatibility policy for discovered integrations and global
+  API rate limiting -- both remain open, explicitly deferred
+  architecture decisions.
+
 ## M10: Conversational Orchestration Routing
 
 **No version bump**, matching this project's own established

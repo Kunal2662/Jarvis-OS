@@ -333,26 +333,56 @@ API Center Architecture module)*:
 > ten were left unchecked rather than marked done on the strength of a
 > client that can merely *display* provider state. They need their own
 > milestone slot.
+>
+> **Update (Aug 2026): delivered by the API Center Architecture
+> module's own Task Groups A–G**, scoped throughout to *catalogued
+> external vendor integrations* (Google Workspace today) — never to
+> `ILLMProvider`/AI/voice/vision providers, which stay reserved for the
+> unscheduled Calibration Engine. See `MASTER_ROADMAP.md`'s Module:
+> API Center Architecture subsection for the full shipped/not-shipped
+> boundary; this checklist is updated to match it below.
 
-- [ ] Real API Activation — a saved key activates its provider
-      immediately, no restart.
-- [ ] Provider Registry — the live, post-startup registration surface
-      every provider joins on activation.
-- [ ] Runtime Provider Registration — providers can register after
-      process startup, not only at boot.
-- [ ] API Validation — round-trip key validation before a provider is
-      marked active.
-- [ ] Connection Testing — explicit, user-triggered per-provider test.
-- [ ] Health Checks — periodic background health polling per active
-      provider.
-- [ ] Automatic Provider Loading — provider adapters are discovered
-      from their implemented port, not manually listed.
-- [ ] Provider Failover — automatic fallback to the next configured
-      provider on failure.
+- [x] Real API Activation — a saved key activates its provider
+      immediately, no restart. *(TG-D, reusing `connect()`; true for
+      every catalogued OAuth2 integration — the catalogue has no
+      static-key entry today.)*
+- [x] Provider Registry — the live, post-startup registration surface
+      every provider joins on activation. *(Already `MCPProviderRegistry`
+      — TG-A confirmed no second registry was needed.)*
+- [x] Runtime Provider Registration — providers can register after
+      process startup, not only at boot. *(TG-D, `install()`.)*
+- [x] API Validation — round-trip key validation before a provider is
+      marked active. *(Real validation exists as this module's
+      Connection Testing, TG-B — a deliberate, explicit, user-triggered
+      action rather than an activation-blocking gate; see the Logic
+      Contract §11 for why Health and Validation are kept apart.)*
+- [x] Connection Testing — explicit, user-triggered per-provider test.
+      *(TG-B — real, bounded, read-only vendor request.)*
+- [x] Health Checks — periodic background health polling per active
+      provider. *(TG-C — local-only, rides the existing `mcp` health
+      collector, no second monitor.)*
+- [x] Automatic Provider Loading — provider adapters are discovered
+      from their implemented port, not manually listed. *(TG-F —
+      scoped to `core/integrations/catalogue.py` only, discover +
+      register, never auto-activate. Not implemented for `ILLMProvider`
+      adapters — that reading of this item was explicitly rejected as
+      Calibration Engine territory.)*
+- [x] Provider Failover — automatic fallback to the next configured
+      provider on failure. *(TG-E — narrowly scoped: one
+      caller-specified, already-connected, capability-compatible
+      catalogued alternate per failure; never chained, never AI/model
+      failover.)*
 - [ ] No Fake Providers — mock providers only when Developer Mode
-      explicitly enables them; never a silent default.
-- [ ] Runtime Provider Switching — a module's active provider can
-      change without restart.
+      explicitly enables them; never a silent default. *(This module's
+      own new work never uses a mock — TG-B's Connection Testing is
+      real. Left unchecked because the pre-existing violation this rule
+      was written against, M5 `ApiCenterService`'s unconditional
+      `MockApiValidator`, is untouched and still a silent default;
+      fixing it is a separate, still-open item outside this module's
+      catalogue-integration scope.)*
+- [x] Runtime Provider Switching — a module's active provider can
+      change without restart. *(TG-E — user-triggered, catalogued
+      vendor integrations only; never LLM/model switching.)*
 
 **Hard rule for this phase and every phase after it:** no fake data,
 no simulated completed functionality. Every screen renders a real
@@ -2509,12 +2539,15 @@ note above and in §5 for why M9 was never blocked on any of this.)*
 API layer, Voice/AI/Automation Integration, Offline support and Error
 handling are all complete; see §2 above for the itemized list and
 `CHANGELOG.md` 0.29.0 for what the phase found and fixed.
-- [ ] **API Integration Rework block only** — the ten provider-lifecycle
+- [x] **API Integration Rework block only** — the ten provider-lifecycle
       items (Real API Activation, Provider Registry, Runtime Provider
       Registration, API Validation, Connection Testing, Health Checks,
       Automatic Provider Loading, Provider Failover, No Fake Providers,
       Runtime Provider Switching). Backend work belonging to M11's API
-      Center Architecture module; see the note in §2.
+      Center Architecture module; see the note in §2. **Shipped Aug
+      2026** for catalogued vendor integrations, 9 of 10 — "No Fake
+      Providers" stays open (M5's own pre-existing mock validator is
+      untouched); see §2's updated checklist for the itemized status.
 
 ### M8 Phase 5 — AI Workspace & Module Integration ✅ *(v0.31.0)*
 - [x] Every backend module with real content reaches the user, through

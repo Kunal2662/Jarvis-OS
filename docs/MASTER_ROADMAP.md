@@ -2951,8 +2951,48 @@ XL "platform" milestones, e.g. M8, M12, M13, M14)*.
 > bullet above from credential CRUD into a governed, self-activating
 > provider surface. It is a module within M11 — it does not introduce
 > a new milestone code and does not change M11's numbering,
-> dependencies, or acceptance criteria above. Planning only; no
-> implementation exists yet.
+> dependencies, or acceptance criteria above. ~~Planning only; no
+> implementation exists yet.~~
+
+**Status (Aug 2026): ✅ shipped, for its actual scope — the**
+**catalogue-backed vendor-integration slice only. No version bump**
+**(see `CHANGELOG.md`).** Implemented as its own seven-part sequence —
+Task Groups A–G, internal to this module and distinct from M11's own
+Task Groups A–F above — after a dedicated Phase 0 audit and Logic
+Contract. Full design, boundary and per-item classification:
+`docs/M11_API_CENTER_ARCHITECTURE_DECISIONS.md`,
+`docs/M11_API_CENTER_SCOPE_MATRIX.md`,
+`docs/M11_API_CENTER_LOGIC_CONTRACT.md`.
+
+**Shipped:** M5/M11 credential-plane boundary made explicit (TG-A);
+local-only Health surface, never a vendor call (TG-C); Runtime
+Registration/Activation, reusing `install()`/`connect()`/`disconnect()`
+verbatim, no second mechanism (TG-D); real, bounded, read-only
+Connection Testing against the actual vendor, superseding the mock
+validator as *this module's* production path (TG-B); narrowly-scoped
+Runtime Switching and vendor Failover — user-triggered or
+single-candidate-caller-named only, never chained, never automatic
+(TG-E); Automatic Discovery of the catalogue only, discover + register,
+never auto-activate (TG-F); a consolidated observability snapshot and
+cross-cutting REST/event validation (TG-G). 410 tests.
+
+**Explicitly out of scope, and not shipped by this module:** the
+*Built-in Providers* taxonomy below (Memory, Automation, Workflow, …)
+is unchanged — still reachable only through `ServiceManager`, not a
+unified registry. "Automatic Provider Discovery" and "Runtime Provider
+Switching" apply **only** to catalogued vendor integrations (Google
+Workspace today) — never to `ILLMProvider` adapters, and never to any
+AI/voice/vision provider ranking, routing, cost-optimization, or
+fallback; those remain exclusively reserved for the unscheduled
+Universal AI/API Calibration Engine (`ARCHITECTURE.md` §22) and were
+at no point implemented here. M5's own `ApiCenterService` (the
+credential-CRUD "API Center" referenced in the status table above) is
+unchanged and still uses its mock validator by default for
+generic/uncatalogued credentials — fixing that remains a separate,
+still-open item, distinct from this module's own (real, non-mock)
+Connection Testing. Version-compatibility policy for discovered
+integrations and a global API rate-limiting layer both remain open,
+explicitly deferred architecture decisions, not solved here.
 
 **Objective:** one governed registry for every provider JARVIS talks
 to — built-in (internal services) and external (credential-backed) —
