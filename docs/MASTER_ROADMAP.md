@@ -179,6 +179,11 @@ After M22, resume with
 Also active (deliberate exception -- see below)
   M12 — Smart Home & IoT Platform
     TG-A  Shipped (Smart Home Core -- commits d99a984, b0a531b)
+    TG-C  Shipped (Connectivity REST + Smart Lighting -- device
+          control/scenes only; on/off, brightness, color, color temp,
+          room/group fan-out, scene application; motion/sunrise-sunset/
+          scheduled automation explicitly out of scope, deferred to
+          Home Automation)
 
 Deferred
   M23 — Core Intelligence
@@ -221,20 +226,55 @@ State is push-based and cached rather than pulled; reconnection is
 automatic (`gmqtt`'s own retry, this connector's own unconditional
 resubscribe on every `on_connect`). `CONNECTOR_TYPES` now has both
 approved names registered — `home_assistant` and `mqtt` — closing
-Connectivity Layer's three-phase implementation plan. **M12 is
-recorded here as 🟡 Active, not Complete**: Smart Home Core is one of
-fifteen modules in M12's own feature list, Connectivity Layer is a
-second, now with both its approved connectors, and thirteen modules
-remain entirely unstarted (Smart Lighting, Smart Locks, Sensors, Smart
-Cameras, Energy Management, Appliance Control, Home Automation, AI
-Home Assistant, Security & Safety, Remote Access, Smart Home Memory,
-Smart Home Analytics, Developer Tools). **No version bump accompanied
-any of the four task-group passes** -- unlike M22's own task groups
-(each of which shipped real code and bumped the version in turn), all
-four ship real code at `0.38.0` unchanged. Recorded here as a
-deliberate exception to this project's usual pattern, not a claim that
-the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A and
-Task Group B Phase 1/Phase 2/Phase 3 entries for the full
+Connectivity Layer's three-phase implementation plan.
+
+**Task Group C (Connectivity REST + Smart Lighting) shipped, Aug
+2026**, no version bump. Two things, both thin orchestration over the
+already-shipped Task Group A/B services, never a second execution path:
+(1) `ConnectivityService` exposed over REST
+(`infrastructure/api/routes/connectivity.py` —
+`/api/v1/connectivity/*`: connector connect/disconnect, discovery,
+device state refresh, and a generic uninterpreted `send_command`
+passthrough); (2) a new, genuinely new `SmartLightingService`
+(`services/smart_lighting_service.py`) providing normalized light
+control — on/off, brightness (0-100), color temperature (Kelvin), RGB
+color, room/group fan-out, and lighting scenes (a new
+`smart_lighting_scenes` table + `SceneRepository`) — translated into
+each connector's own wire format (Home Assistant: a single
+`light.turn_on` service call merging every changed attribute, using
+`brightness_pct`/`color_temp_kelvin`/`rgb_color`; MQTT: a JARVIS-native
+`turn_off`/`set_state` command vocabulary defined by this task group,
+since `mqtt_envelope.py`'s own command/args shape was previously
+undefined for lighting) and exposed both over REST
+(`infrastructure/api/routes/smart_lighting.py` —
+`/api/v1/smart-lighting/*`) and as seven agent tools
+(`agents/tools/smart_lighting_tools.py`, wired into the existing Tool
+Registry/`AgentOrchestrator` — no parallel execution path). Every
+side-effecting operation is gated by the existing `PermissionModel`
+under a fixed principal (`core:smart_lighting`, scope `smart_home`),
+reusing the same generic, already-shipped grant route Milestone 9's
+Plugin Platform provides (`POST /api/v1/plugins/{id}/permissions/
+{scope}/grant`) — no new authorization mechanism. Out of the box this
+permission is `PENDING` (denied) until an operator grants it, the same
+interim posture M11's own integrations ship with. Explicitly **not**
+in scope: motion-activated lighting, sunrise/sunset automation and
+scheduled lighting — all deferred to the separate, unstarted Home
+Automation module, per this task group's own Logic Contract
+(`docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md`).
+
+**M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
+Connectivity Layer (all three phases) and Connectivity REST + Smart
+Lighting are now shipped; twelve of this milestone's fifteen modules
+remain entirely unstarted (Smart Locks, Sensors, Smart Cameras, Energy
+Management, Appliance Control, Home Automation, AI Home Assistant,
+Security & Safety, Remote Access, Smart Home Memory, Smart Home
+Analytics, Developer Tools). **No version bump accompanied any of the
+five task-group passes** -- unlike M22's own task groups (each of
+which shipped real code and bumped the version in turn), all five ship
+real code at `0.38.0` unchanged. Recorded here as a deliberate
+exception to this project's usual pattern, not a claim that the
+pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
+Group B Phase 1/Phase 2/Phase 3, and Task Group C entries for the full
 implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
@@ -475,8 +515,19 @@ future work; see M6's own §3 entry for the full scope note.
   — see this task group's own Phase 3 milestone report), speaking both
   Home Assistant MQTT Discovery and a new JARVIS-native envelope —
   both `CONNECTOR_TYPES` entries are now registered, closing this task
-  group's three-phase plan. **Not Complete**: thirteen of fifteen
-  M12 modules remain entirely unstarted.
+  group's three-phase plan. Task Group C (Connectivity REST + Smart
+  Lighting) shipped: `ConnectivityService` exposed over
+  `/api/v1/connectivity/*`; a new `SmartLightingService` providing
+  normalized on/off, brightness, color temperature and RGB control,
+  room/group fan-out and lighting scenes, exposed over
+  `/api/v1/smart-lighting/*` and as seven agent tools, translated per
+  connector (Home Assistant service calls; a new JARVIS-native MQTT
+  command vocabulary), gated by the existing `PermissionModel` under a
+  new principal (`core:smart_lighting`) via the existing generic grant
+  route — no new permission mechanism. Motion/sunrise-sunset/scheduled
+  lighting automation explicitly deferred to the unstarted Home
+  Automation module. **Not Complete**: twelve of fifteen M12 modules
+  remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -3607,12 +3658,39 @@ implementation plan. See `MILESTONE_REPORT.md`'s M12 Task Group B,
 Phase 1/Phase 2/Phase 3 entries and
 `docs/CONNECTIVITY_LAYER_LOGIC_CONTRACT.md` for the full account.
 
-**Not Complete**: thirteen of this milestone's fifteen modules remain
-entirely unstarted (Smart Lighting, Smart Locks, Sensors, Smart
-Cameras, Energy Management, Appliance Control, Home Automation, AI
-Home Assistant, Security & Safety, Remote Access, Smart Home Memory,
-Smart Home Analytics, Developer Tools). See `IMPLEMENTATION_ROADMAP.md`
-§5H for the full account of what was built.
+**Task Group C (Connectivity REST + Smart Lighting) shipped, Aug
+2026**, no version bump. `ConnectivityService` exposed over REST
+(`/api/v1/connectivity/*` — connect/disconnect, discovery, device
+state refresh, generic `send_command` passthrough) and a new
+`SmartLightingService` (`services/smart_lighting_service.py`) providing
+normalized on/off, brightness (0-100), color temperature (Kelvin) and
+RGB control, room/group fan-out, and lighting scenes (new
+`smart_lighting_scenes` table), exposed over REST
+(`/api/v1/smart-lighting/*`) and as seven agent tools
+(`agents/tools/smart_lighting_tools.py`), converging on the same
+`ConnectivityService.send_command` chokepoint from every path — REST,
+UI and agent tool calls never diverge. Home Assistant translation is a
+single merged `light.turn_on` service call
+(`brightness_pct`/`color_temp_kelvin`/`rgb_color`); MQTT translation is
+a new JARVIS-native `turn_off`/`set_state` command vocabulary this task
+group defines (`mqtt_envelope.py`'s command/args shape was previously
+undefined for lighting). Every side-effecting operation requires the
+existing `PermissionModel`'s `smart_home` scope, granted for a new
+fixed principal (`core:smart_lighting`) via the same generic,
+already-shipped grant route Milestone 9's Plugin Platform provides — no
+new authorization mechanism, and denied (`PENDING`) by default until an
+operator grants it. Motion-activated lighting, sunrise/sunset
+automation and scheduled lighting are explicitly out of scope, deferred
+to the unstarted Home Automation module. See
+`docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md` for the
+full Logic Contract.
+
+**Not Complete**: twelve of this milestone's fifteen modules remain
+entirely unstarted (Smart Locks, Sensors, Smart Cameras, Energy
+Management, Appliance Control, Home Automation, AI Home Assistant,
+Security & Safety, Remote Access, Smart Home Memory, Smart Home
+Analytics, Developer Tools). See `IMPLEMENTATION_ROADMAP.md` §5H for
+the full account of what was built.
 
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
 single-bus device bridge into a complete enterprise-grade Smart Home
@@ -3668,18 +3746,27 @@ section's own Task Group B status note above.)*
 - Home Assistant Integration ✅ *(Phase 2 — `HomeAssistantConnector`, REST over `httpx`)*
 - Local Network Discovery
 - Secure Device Provisioning
+- REST exposure ✅ *(Task Group C — `/api/v1/connectivity/*`: connect/
+  disconnect, discovery, state refresh, generic command passthrough)*
 
 #### Smart Lighting
-- On / Off Control
-- Brightness
-- RGB Control
-- Color Temperature
-- Lighting Scenes
+*(On/Off, Brightness, RGB, Color Temperature, Lighting Scenes, Group
+Lighting and Room Lighting shipped Task Group C, Aug 2026 — device
+control and scene application only, over both REST
+(`/api/v1/smart-lighting/*`) and seven agent tools. Adaptive Lighting,
+Motion Activated Lighting and Sunrise/Sunset Automation are explicitly
+out of scope for this task group — see its own status note above —
+and remain unstarted, deferred to the Home Automation module.)*
+- On / Off Control ✅
+- Brightness ✅
+- RGB Control ✅
+- Color Temperature ✅
+- Lighting Scenes ✅ *(apply only; scene creation via REST, not yet an agent tool)*
 - Adaptive Lighting
 - Motion Activated Lighting
 - Sunrise / Sunset Automation
-- Group Lighting
-- Room Lighting
+- Group Lighting ✅
+- Room Lighting ✅
 
 #### Smart Locks
 - Wi-Fi Locks

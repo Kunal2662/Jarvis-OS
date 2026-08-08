@@ -3,6 +3,81 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Connectivity REST + Smart Lighting (Task Group C)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Connectivity REST + Smart Lighting** scope -- the
+first of M12's thirteen still-unstarted device-category modules to
+ship, plus REST exposure of the already-shipped `ConnectivityService`
+(Task Group B). **Does not close M12** -- twelve device-category
+modules remain unstarted; see `docs/IMPLEMENTATION_ROADMAP.md` §5H.
+Preceded by a read-only Phase 0 audit and a Logic Contract
+(`docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md`), per
+this project's own standing rules. 59 new tests, 0 failures, 0 errors,
+0 skipped, against real components throughout (`FakeDeviceConnector`,
+real temp-file SQLite, real `PermissionModel`, real FastAPI
+`TestClient` + DI container).
+
+### Added
+- **`ConnectivityService` REST exposure** -- `/api/v1/connectivity/*`:
+  connector connect/disconnect, discovery, device state refresh, and a
+  generic uninterpreted `send_command` passthrough.
+  `infrastructure/api/routes/connectivity.py`.
+- **`ConnectivityService.read_raw_state()`** -- a new method returning
+  a connector's unmapped `DeviceState` (real attributes), distinct from
+  the existing `refresh_device_state()` which only writes Task Group
+  A's lifecycle vocabulary onto `Device.status`.
+  `connector_type_for()` promoted from a private staticmethod to a
+  module-level function so a second caller (Smart Lighting) can reuse
+  it without duplicating `Device.metadata_json` parsing.
+- **`SmartLightingService`** (`services/smart_lighting_service.py`) --
+  normalized on/off, brightness (0-100), color temperature (Kelvin)
+  and RGB color control; room/group fan-out with per-device fault
+  isolation; lighting scenes (new `LightingScene` ORM model +
+  `SceneRepository`). Translates into Home Assistant (a single merged
+  `light.turn_on` service call) and MQTT (a new JARVIS-native
+  `turn_off`/`set_state` command vocabulary this task group defines)
+  through the existing `ConnectivityService.send_command` chokepoint --
+  no second execution path.
+- **Smart Lighting REST** -- `/api/v1/smart-lighting/*`: lights
+  (list/get/set-state), room/group fan-out, scenes (create/list/get/
+  delete/apply). `infrastructure/api/routes/smart_lighting.py`.
+- **Smart Lighting agent tools** -- `agents/tools/
+  smart_lighting_tools.py`, seven tools wired into the existing Tool
+  Registry and `AgentOrchestrator` (`smart_lighting` param threaded
+  through `build_tool_registry`, `AgentOrchestrator.__init__`/
+  `.start()`, and the DI composition root) -- converges on the same
+  `SmartLightingService` methods the REST route calls, so both trip the
+  same permission gate.
+- **Permission enforcement** -- every side-effecting Smart Lighting
+  operation requires the existing `PermissionModel`'s `smart_home`
+  scope (pre-declared since M9, never enforced before this task group),
+  under a new fixed principal `core:smart_lighting`, granted through
+  the existing generic `POST /api/v1/plugins/{id}/permissions/{scope}/
+  grant` route (M9 Task Group E) -- no new authorization mechanism.
+- **DI** -- `smart_lighting_service` singleton in
+  `core/di/container.py`.
+
+### Not changed
+- `SmartHomeService`, `ConnectivityService`'s existing methods,
+  `IDeviceConnector`, `ConnectorFactoryRegistry`, `PermissionModel` --
+  reused verbatim (plus the one additive `read_raw_state()` method),
+  no second connectivity service, no second permission engine.
+- No new pairing endpoint -- reuses the existing `POST /devices/{id}/pair`.
+- No new WebSocket event class -- reuses `DeviceUpdatedEvent`/
+  `ConnectivityStatusChangedEvent`.
+
+### Explicitly out of scope
+- Motion-activated lighting, sunrise/sunset automation, scheduled
+  lighting -- deferred to the separate, unstarted Home Automation
+  module.
+- Every other M12 device-category module (Smart Locks, Sensors, Smart
+  Cameras, Energy Management, Appliance Control, AI Home Assistant,
+  Security & Safety, Remote Access, Smart Home Memory, Smart Home
+  Analytics, Developer Tools).
+
 ## M11: API Center Architecture module
 
 **No version bump**, matching this project's own established
