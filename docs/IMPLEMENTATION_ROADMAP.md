@@ -2099,7 +2099,7 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
@@ -2132,21 +2132,31 @@ its own read-only dependency audit (confirming Power/Energy/Load
 Monitoring already provided by the shipped Sensors module, and
 Consumption History/Analytics/Optimization/Scheduling all blocked on
 Smart Home Memory/Analytics/M20A/Home Automation/M7) and Logic
-Contract -- see its own section below.
+Contract -- see its own section below. Task Group G (Appliance Control
+-- Core Appliance Slice) followed a further, eighth, separate
+instruction preceded by its own read-only next-module audit (re-ranking
+the nine remaining candidates and recommending Appliance Control scoped
+to Fans + Covers only, after confirming zero connector changes are
+required for those two domains) and Logic Contract -- see its own
+section below.
 **Not Complete**: Smart Home Core, Connectivity Layer, Connectivity
-REST + Smart Lighting, Smart Locks, Sensors, and Energy Management's
-Core Energy Slice are six of fifteen modules in M12's own feature list
--- Connectivity Layer has both of its approved protocol adapters (Home
-Assistant, MQTT), closing that task group's three-phase plan; Smart
-Lighting, Smart Locks, Sensors and Energy Management (device control
-only) are the first four of thirteen device-category modules with at
-least some shipped scope (motion/sunrise-sunset/scheduled automation,
-Auto Lock, sensor-triggered automation, and all energy automation/
-history/analytics explicitly deferred to Home Automation/Smart Home
-Memory/Smart Home Analytics) -- and nine M12 modules remain entirely
-unstarted. Full milestone definition — Objective, Dependencies,
-Complexity, 15-module feature list, Acceptance Criteria — lives in
-`MASTER_ROADMAP.md` §8/§9.)*
+REST + Smart Lighting, Smart Locks, Sensors, Energy Management's Core
+Energy Slice, and Appliance Control's Core Appliance Slice are seven of
+fifteen modules in M12's own feature list -- Connectivity Layer has
+both of its approved protocol adapters (Home Assistant, MQTT), closing
+that task group's three-phase plan; Smart Lighting, Smart Locks,
+Sensors, Energy Management (device control only) and Appliance Control
+(Fan + Cover control only) are the first five of thirteen
+device-category modules with at least some shipped scope
+(motion/sunrise-sunset/scheduled automation, Auto Lock,
+sensor-triggered automation, all energy automation/history/analytics,
+and five appliance categories plus fan percentage/cover position all
+explicitly deferred to Home Automation/Smart Home Memory/Smart Home
+Analytics/future Appliance Control slices; two further appliance
+categories blocked on the current connector domain mapping) -- and
+eight M12 modules remain entirely unstarted. Full milestone definition
+— Objective, Dependencies, Complexity, 15-module feature list,
+Acceptance Criteria — lives in `MASTER_ROADMAP.md` §8/§9.)*
 
 ### Task Group A — Smart Home Core (✅ shipped, Aug 2026 — commits `d99a984`, `b0a531b`, no version bump)
 
@@ -2931,6 +2941,110 @@ task group, and not built:** any other M12 device-category module
 (Smart Cameras, Appliance Control, Home Automation, AI Home Assistant,
 Security & Safety, Remote Access, Smart Home Memory, Smart Home
 Analytics, Developer Tools).
+
+---
+
+### Task Group G — Appliance Control: Core Appliance Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a third read-only next-module audit (`JARVIS CORE — M12
+POST-ENERGY MANAGEMENT NEXT MODULE AUDIT`), re-evaluating all nine
+remaining M12 candidates against the now-four-times-proven architecture
+and giving special attention to Appliance Control's own per-domain
+buildability (thermostat/climate/fan/cover/media_player/vacuum/
+water_heater/humidifier/appliance, each separated into SUPPORTED NOW /
+PARTIALLY SUPPORTED / REQUIRES NEW CONNECTOR CAPABILITY / BLOCKED).
+Central finding: **`fan` and `cover` both already map to
+`device_type="appliance"` in both connectors, and both already have
+their sub-kind captured via the existing `metadata["domain"]` discovery
+field** (`home_assistant.py`'s `_entity_to_discovered_device` /
+`mqtt.py`'s `_handle_ha_discovery`, both unchanged since Task Group B,
+both already write `metadata={"domain": domain, ...}` for every entity,
+not only sensors) — **zero connector code changes required**, unlike
+Sensors' own `device_class` capture enhancement. Climate, media_player,
+vacuum, water_heater and humidifier each need a structurally different,
+non-binary command vocabulary (own future slices); Smart Pumps/
+Irrigation was found blocked (HA's `valve` domain maps to
+`device_type="other"`, not `"appliance"`); Smart Kitchen Devices was
+found blocked (no consistent HA/MQTT domain model). Only Fan and Cover
+control were found genuinely unblocked, low-complexity and worth new
+code in one pass — the Core Appliance Slice this task group ships.
+
+- [x] **Logic Contract** — `docs/M12_APPLIANCE_CONTROL_LOGIC_CONTRACT.md`,
+      written before any code, explicitly scoped to the Core Appliance
+      Slice only (not the full module), covering the fan/cover models,
+      domain discrimination, connector mapping, REST/Tool
+      Registry/permission behavior, position-handling deferral, and
+      deferred/blocked appliance categories.
+- [x] `ApplianceService` (`services/appliance_service.py`) -- one
+      service covering both capabilities (not two services, and not a
+      generic multi-category abstraction), distinguishing fan from
+      cover via `Device.metadata_json["domain"]`, the same
+      domain-discrimination mechanism `SensorService._kind_for` already
+      established for `binary_sensor` vs `sensor`. `FanCommand`
+      (`turn_on`/`turn_off`) and `CoverCommand` (`open_cover`/
+      `close_cover`), reusing `connector_type_for()` and
+      `ConnectivityService.send_command()`/`read_raw_state()` verbatim.
+      HA translation: `fan.turn_on`/`fan.turn_off`,
+      `cover.open_cover`/`cover.close_cover`, no payload -- HA's own
+      real fan-/cover-domain service names, verified directly against
+      the shipped `HomeAssistantConnector`. MQTT translation: a new
+      JARVIS-native vocabulary this task group defines, reusing the
+      identical literals for cross-connector predictability -- verified
+      directly against the shipped `MqttConnector`. **No connector code
+      changes were needed.**
+- [x] Position handling -- `fan.set_percentage`/`cover.set_cover_
+      position` both evaluated (both architecturally supportable via
+      `SmartLightingService`'s existing attribute-merge translator
+      pattern) and **deliberately deferred**, kept out of this pass's
+      approved scope; no `position`/`percentage` field exists anywhere
+      in this task group's payloads.
+- [x] Permission -- existing `PermissionModel`, `smart_home` scope, new
+      principal `core:appliances` (one principal covering both
+      capabilities, mirroring `core:smart_switch`), granted through the
+      existing generic `POST /api/v1/plugins/{id}/permissions/{scope}/
+      grant` route. **Reads are ungated** -- following Smart
+      Lighting/Smart Locks/Smart Switches' precedent: fan/cover state
+      carries no comparable privacy weight to sensor data.
+- [x] REST -- `infrastructure/api/routes/appliances.py`,
+      `/api/v1/appliances/*`, split into two sibling resource
+      collections (`fans`, `covers`) rather than one generic
+      `/appliances/{id}/command` endpoint -- a fan and a cover have
+      genuinely different command vocabularies: `GET .../fans`, `GET
+      .../fans/{id}`, `POST .../fans/{id}/on`, `POST .../fans/{id}/off`,
+      `GET .../covers`, `GET .../covers/{id}`, `POST .../covers/{id}/
+      open`, `POST .../covers/{id}/close`. No new pairing endpoint --
+      reuses `POST /devices/{id}/pair` verbatim.
+- [x] Agent tools -- `agents/tools/appliance_tools.py`, eight tools
+      (`list_fans`, `get_fan_state`, `fan_on`, `fan_off`, `list_covers`,
+      `get_cover_state`, `cover_open`, `cover_close`) wired into the
+      existing Tool Registry/`AgentOrchestrator` exactly like Smart
+      Switches' own four-point pattern, doubled. **No
+      `AgentSettings.confirm_required_tools` entry added** -- neither a
+      fan nor a cover is physically safety-relevant.
+- [x] DI -- `appliance_service` singleton (`core/di/container.py`,
+      declared after `permission_model`/`smart_home_service`/
+      `connectivity_service`); wired into `_build_agent_orchestrator`
+      and the new router registered in `fastapi_server.py`.
+- [x] 70 new tests across service (36) / REST (24) / agent tools (10),
+      real components throughout (`FakeDeviceConnector`, real
+      temp-file SQLite, real `PermissionModel`) -- covering HA/MQTT
+      translation for both capabilities, availability, ungated-reads
+      behavior, permission-gated mutations, failure honesty, domain
+      discrimination (a cover id rejected by the fan endpoints and vice
+      versa, both at the service and REST layers), and the deliberate
+      absence of any percentage/position surface.
+
+**Explicitly out of scope, confirmed by the audit and not built:**
+Climate/AC, Media Players/Smart TVs, Vacuum, Water Heater/Geysers,
+Humidifier (each deferred to a future, separately-scoped Appliance
+Control slice -- each spans a structurally different HA domain and
+command vocabulary), Smart Pumps/Irrigation (blocked on the `valve`→
+`device_type="other"` connector mapping), Smart Kitchen Devices
+(blocked on no consistent domain model), fan percentage and cover
+position (evaluated, deliberately deferred). **Not this task group, and
+not built:** any other M12 device-category module (Smart Cameras, Home
+Automation, AI Home Assistant, Security & Safety, Remote Access, Smart
+Home Memory, Smart Home Analytics, Developer Tools).
 
 ---
 

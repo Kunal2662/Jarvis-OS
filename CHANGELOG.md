@@ -3,6 +3,92 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Core Appliance Slice (Task Group G)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Appliance Control — Core Appliance Slice** scope --
+**not the full Appliance Control module**. Preceded by a read-only
+next-module audit that re-evaluated all nine remaining M12 candidates
+and gave special attention to Appliance Control's own per-domain
+buildability, finding Fan and Cover control genuinely unblocked and
+low-complexity -- both domains already map to `device_type="appliance"`
+in both connectors, and both already have their sub-kind captured via
+the existing `metadata["domain"]` discovery field, so **zero connector
+code changes were required**. Climate, media_player, vacuum,
+water_heater and humidifier were each found to need a structurally
+different, non-binary command vocabulary (own future slices); Smart
+Pumps/Irrigation was found blocked (HA's `valve` domain maps to
+`device_type="other"`, not `"appliance"`); Smart Kitchen Devices was
+found blocked (no consistent HA/MQTT domain model). **Does not close
+M12**, and does not close Appliance Control as a whole; see
+`docs/IMPLEMENTATION_ROADMAP.md` §5H. Preceded by a Logic Contract
+(`docs/M12_APPLIANCE_CONTROL_LOGIC_CONTRACT.md`), per this project's own
+standing rules. 70 new tests, 0 failures, 0 errors, against real
+components throughout (`FakeDeviceConnector`, real temp-file SQLite,
+real `PermissionModel`).
+
+### Added
+- **`ApplianceService`** (`services/appliance_service.py`) -- one
+  service covering both Fan and Cover control (not two services, and
+  not a generic multi-category abstraction), distinguishing fan from
+  cover via `Device.metadata_json["domain"]`, the same
+  domain-discrimination mechanism `SensorService` already established
+  for `binary_sensor` vs `sensor`. Home Assistant translation:
+  `fan.turn_on`/`fan.turn_off`, `cover.open_cover`/`cover.close_cover`,
+  no payload -- HA's own real service names. MQTT translation: a new
+  JARVIS-native vocabulary this task group defines, reusing the
+  identical literals for cross-connector predictability. No connector
+  code changes needed -- both connectors already map HA's `fan`/`cover`
+  domains to `device_type="appliance"` and already capture
+  `metadata["domain"]`, unchanged since Task Group B/Sensors.
+- **Appliance Control REST** -- `/api/v1/appliances/*`, split into two
+  sibling resource collections: `GET/POST .../fans[/...]` (list/get/
+  on/off) and `GET/POST .../covers[/...]` (list/get/open/close).
+  `infrastructure/api/routes/appliances.py`.
+- **Appliance agent tools** -- `agents/tools/appliance_tools.py`, eight
+  tools (`list_fans`, `get_fan_state`, `fan_on`, `fan_off`,
+  `list_covers`, `get_cover_state`, `cover_open`, `cover_close`) wired
+  into the existing Tool Registry and `AgentOrchestrator`.
+- **Permission enforcement (mutations only)** -- existing
+  `PermissionModel`, `smart_home` scope, new principal
+  `core:appliances` (one principal covering both capabilities),
+  granted through the existing generic grant route. **Reads are
+  ungated**, following Smart Lighting/Smart Locks/Smart Switches'
+  precedent -- fan/cover state carries no comparable privacy weight to
+  sensor data.
+- **DI** -- `appliance_service` singleton in `core/di/container.py`.
+
+### Not changed
+- `ConnectivityService`, `SmartHomeService`, `SensorService`,
+  `PermissionModel` -- reused verbatim. No new `DEVICE_TYPES` entries
+  (`"fan"`/`"cover"`) were created -- `device_type="appliance"` plus
+  `metadata["domain"]` was sufficient.
+- No new pairing endpoint -- reuses the existing `POST /devices/{id}/pair`.
+- No `AgentSettings.confirm_required_tools` entry -- neither a fan nor
+  a cover is physically safety-relevant.
+
+### Position handling
+`fan.set_percentage`/`cover.set_cover_position` were both evaluated
+(both architecturally supportable via `SmartLightingService`'s existing
+attribute-merge translator pattern) and **deliberately deferred**, kept
+out of this pass's approved scope -- no percentage/position field
+exists anywhere in this task group's payloads.
+
+### Explicitly out of scope
+- Climate/AC, Media Players/Smart TVs, Vacuum, Water Heater/Geysers,
+  Humidifier -- each deferred to a future, separately-scoped Appliance
+  Control slice; each spans a structurally different HA domain and
+  command vocabulary.
+- Smart Pumps/Irrigation -- blocked on the `valve` → `device_type=
+  "other"` connector mapping.
+- Smart Kitchen Devices -- blocked on no consistent HA/MQTT domain
+  model.
+- Every other M12 device-category module (Smart Cameras, Home
+  Automation, AI Home Assistant, Security & Safety, Remote Access,
+  Smart Home Memory, Smart Home Analytics, Developer Tools).
+
 ## M12: Energy Management — Core Energy Slice (Task Group F)
 
 **No version bump**, matching this project's own established

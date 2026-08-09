@@ -201,6 +201,19 @@ Also active (deliberate exception -- see below)
           provided by the shipped Sensors module -- not rebuilt.
           Consumption History/Analytics/Optimization/Scheduling all
           deferred to Smart Home Memory/Analytics/Home Automation/M7)
+    TG-G  Shipped (Appliance Control -- Core Appliance Slice only: Fan
+          control (on/off/state/availability) and Cover/Blind/Curtain
+          control (open/close/state/availability), mirroring Smart
+          Locks/Smart Switches exactly; zero connector changes -- both
+          domains already mapped to device_type="appliance" and
+          metadata["domain"] already captured at discovery. Reads
+          ungated, following Lighting/Locks/Switches' precedent. Fan
+          percentage and cover position deliberately deferred, not
+          built. Climate/AC, Media Players, Vacuum, Water Heater,
+          Humidifier deferred to future Appliance Control slices; Smart
+          Pumps/Irrigation blocked on the "valve" domain mapping to
+          device_type="other"; Smart Kitchen Devices blocked on no
+          consistent domain model)
 
 Deferred
   M23 — Core Intelligence
@@ -351,23 +364,56 @@ explicitly out of scope, deferred respectively to Smart Home Memory,
 Smart Home Analytics/M20A, and Home Automation/M7 — all four still
 unstarted/unshipped.
 
+**Task Group G (Appliance Control — Core Appliance Slice) shipped, Aug
+2026**, no version bump. **Not the full Appliance Control module** —
+only Fan control and Cover/Blind/Curtain control: a new
+`ApplianceService` covering both capabilities under one `device_type=
+"appliance"` category, distinguished by `Device.metadata_json["domain"]`
+(`"fan"` vs `"cover"`) — the same domain-discrimination mechanism
+Sensors already established for `binary_sensor` vs `sensor`. Mirrors
+`SmartSwitchService`'s exact architecture doubled (`turn_on`/`turn_off`
+for fans, `open_cover`/`close_cover` for covers, same
+`ConnectivityService.send_command` chokepoint, same `PermissionModel`/
+`smart_home`-scope pattern under a new principal `core:appliances`).
+Reads are **ungated**, following Smart Lighting/Smart Locks/Smart
+Switches' own precedent rather than Sensors'. Preceded by a read-only
+post-Energy-Management module audit confirming **zero connector code
+changes are required** — both `HomeAssistantConnector` and
+`MqttConnector` already map `fan`/`cover` to `device_type="appliance"`
+and already capture `metadata["domain"]` for every entity, not only
+sensors. Fan percentage (`fan.set_percentage`) and cover position
+(`cover.set_cover_position`) were evaluated and **deliberately
+deferred**, not built — architecturally supportable via
+`SmartLightingService`'s existing attribute-merge translator pattern,
+but out of this pass's approved scope. Climate/AC, Media Players/Smart
+TVs, Vacuum, Water Heater/Geysers and Humidifier are deferred to future
+Appliance Control slices (each spans a structurally different HA
+domain/command vocabulary). Smart Pumps/Irrigation is **blocked**: HA's
+`valve` domain — the natural mapping for irrigation — currently maps to
+`device_type="other"`, not `"appliance"`. Smart Kitchen Devices is
+**blocked**: no single HA/MQTT domain represents "kitchen appliance" as
+a category.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
-Lighting, Smart Locks, Sensors, and Energy Management's Core Energy
-Slice are now shipped; nine of this milestone's fifteen modules remain
-entirely unstarted (Smart Cameras, Appliance Control, Home Automation,
-AI Home Assistant, Security & Safety, Remote Access, Smart Home
-Memory, Smart Home Analytics, Developer Tools) — Energy Management
-itself remains only partially shipped (device control only; History/
-Analytics/Optimization/Scheduling all deferred). **No version bump
-accompanied any of the eight task-group passes** -- unlike M22's own
+Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
+and Appliance Control's Core Appliance Slice are now shipped; eight of
+this milestone's fifteen modules remain entirely unstarted (Smart
+Cameras, Home Automation, AI Home Assistant, Security & Safety, Remote
+Access, Smart Home Memory, Smart Home Analytics, Developer Tools) —
+Energy Management and Appliance Control themselves each remain only
+partially shipped (Energy Management: device control only,
+History/Analytics/Optimization/Scheduling all deferred; Appliance
+Control: Fan + Cover control only, five appliance categories deferred
+and two blocked on the current connector mapping). **No version bump
+accompanied any of the nine task-group passes** -- unlike M22's own
 task groups (each of which shipped real code and bumped the version in
-turn), all eight ship real code at `0.38.0` unchanged. Recorded here as
+turn), all nine ship real code at `0.38.0` unchanged. Recorded here as
 a deliberate exception to this project's usual pattern, not a claim
 that the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group
 A, Task Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D,
-Task Group E, and Task Group F entries for the full implementation
-account.
+Task Group E, Task Group F, and Task Group G entries for the full
+implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -653,8 +699,22 @@ future work; see M6's own §3 entry for the full scope note.
   combined entity. Consumption History/Analytics/Optimization/
   Scheduling/energy automations all deferred to Smart Home
   Memory/Analytics/Home Automation/M7 (all unstarted). **Not the full
-  Energy Management module.** **Not Complete**: nine of fifteen M12
-  modules remain entirely unstarted.
+  Energy Management module.** Task Group G (Appliance Control — Core
+  Appliance Slice) shipped: a new `ApplianceService` covering Fan
+  control and Cover/Blind/Curtain control under one `device_type=
+  "appliance"` category, distinguished by the existing
+  `metadata["domain"]` discovery field (already captured for every
+  device, not only sensors) — zero connector changes required, exposed
+  over `/api/v1/appliances/fans/*` and `/api/v1/appliances/covers/*`
+  and eight agent tools, gated by the same `PermissionModel` under a
+  new principal (`core:appliances`) — reads ungated, following
+  Lighting/Locks/Switches' precedent. Fan percentage and cover position
+  evaluated and deliberately deferred. Climate/AC, Media Players,
+  Vacuum, Water Heater, Humidifier deferred to future Appliance Control
+  slices; Smart Pumps/Irrigation and Smart Kitchen Devices blocked on
+  the current connector domain mapping. **Not the full Appliance
+  Control module.** **Not Complete**: eight of fifteen M12 modules
+  remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -3904,16 +3964,50 @@ readings — the existing per-entity model, never a combined "SmartPlug"
 entity. See `docs/M12_ENERGY_MANAGEMENT_LOGIC_CONTRACT.md` for the
 full Logic Contract.
 
-**Not Complete**: nine of this milestone's fifteen modules remain
-entirely unstarted (Smart Cameras, Appliance Control, Home Automation,
-AI Home Assistant, Security & Safety, Remote Access, Smart Home
-Memory, Smart Home Analytics, Developer Tools) — and Energy Management
-itself remains only partially shipped: Consumption History, Energy
-Dashboard/Analytics/Trends, Energy Optimization, Automatic Power
-Saving, Load Scheduling and Energy-based Automations are all still
-outstanding, deferred to the modules named above. See
-`IMPLEMENTATION_ROADMAP.md` §5H for the full account of what was
-built.
+**M12 — Appliance Control (Core Appliance Slice) shipped Aug 2026.** A
+read-only post-Energy-Management module audit re-ranked the nine
+remaining M12 candidates and recommended Appliance Control, scoped down
+to Fans + Covers only — the audit found both domains **already** map to
+`device_type="appliance"` in both connectors and both already have
+their sub-kind captured via the existing `metadata["domain"]` discovery
+field (the same field Sensors reused for `binary_sensor` vs `sensor`,
+predating this module) — **zero connector code changes required**. A
+new `ApplianceService` (`services/appliance_service.py`) was built as
+one service covering both capabilities (not two separate services, and
+not a generic multi-category abstraction) — `fan_on`/`fan_off` (HA's
+`fan.turn_on`/`fan.turn_off`) and `cover_open`/`cover_close` (HA's
+`cover.open_cover`/`cover.close_cover`), exposed over
+`/api/v1/appliances/fans/*` and `/api/v1/appliances/covers/*` (two
+sibling resource collections, not one generic command endpoint — a fan
+and a cover have genuinely different command vocabularies) and eight
+agent tools, gated by the existing `PermissionModel` under a new
+principal (`core:appliances`). Reads are **ungated**, following Smart
+Lighting/Smart Locks/Smart Switches' precedent. Fan percentage
+(`fan.set_percentage`) and cover position (`cover.set_cover_position`)
+were evaluated — both architecturally supportable via
+`SmartLightingService`'s existing attribute-merge translator pattern —
+and **deliberately deferred**, kept out of this pass's approved scope.
+Climate/AC, Media Players/Smart TVs, Vacuum, Water Heater/Geysers and
+Humidifier are deferred to future, separately-scoped Appliance Control
+slices, each spanning a structurally different HA domain and command
+vocabulary. Smart Pumps/Irrigation is **blocked**: HA's `valve` domain
+— the natural mapping for irrigation valves — currently maps to
+`device_type="other"`, not `"appliance"`. Smart Kitchen Devices is
+**blocked**: no single HA/MQTT domain represents "kitchen appliance" as
+a consistent category. See `docs/M12_APPLIANCE_CONTROL_LOGIC_CONTRACT.md`
+for the full Logic Contract.
+
+**Not Complete**: eight of this milestone's fifteen modules remain
+entirely unstarted (Smart Cameras, Home Automation, AI Home Assistant,
+Security & Safety, Remote Access, Smart Home Memory, Smart Home
+Analytics, Developer Tools) — and Energy Management and Appliance
+Control each remain only partially shipped: Energy Management's
+Consumption History, Energy Dashboard/Analytics/Trends, Energy
+Optimization, Automatic Power Saving, Load Scheduling and Energy-based
+Automations are all still outstanding, deferred to the modules named
+above; Appliance Control's five deferred categories and two blocked
+categories (above) remain outstanding. See `IMPLEMENTATION_ROADMAP.md`
+§5H for the full account of what was built.
 
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
 single-bus device bridge into a complete enterprise-grade Smart Home
@@ -4079,15 +4173,30 @@ Automation/M7, both still unstarted/unshipped.)*
 - Load Scheduling
 
 #### Appliance Control
-- Smart Fans
+*(Core Appliance Slice only shipped Task Group G, Aug 2026 -- Fan and
+Cover/Blind/Curtain **control** via a new `ApplianceService` mirroring
+Smart Switches' architecture, over both REST
+(`/api/v1/appliances/fans/*`, `/api/v1/appliances/covers/*`) and eight
+agent tools. Zero connector code changes required -- both domains
+already mapped to `device_type="appliance"` and already had their
+sub-kind captured via the existing `metadata["domain"]` discovery
+field. Fan percentage and cover position evaluated and deliberately
+deferred. Climate/AC, Media Players, Vacuum, Water Heater and
+Humidifier are deferred to future, separately-scoped Appliance Control
+slices. Smart Pumps/Irrigation is blocked: HA's `valve` domain --
+irrigation's natural mapping -- currently maps to `device_type=
+"other"`, not `"appliance"`. Smart Kitchen Devices is blocked: no
+single HA/MQTT domain represents "kitchen appliance" as a consistent
+category.)*
+- Smart Fans ✅
 - Smart AC
 - Smart TV
-- Smart Curtains
-- Smart Blinds
+- Smart Curtains ✅ *(via the cover entity)*
+- Smart Blinds ✅ *(via the cover entity)*
 - Smart Geysers
 - Smart Pumps
-- Smart Irrigation
-- Smart Kitchen Devices
+- Smart Irrigation *(blocked -- HA's `valve` domain maps to `device_type="other"`, not `"appliance"`)*
+- Smart Kitchen Devices *(blocked -- no consistent HA/MQTT domain model)*
 
 #### Home Automation
 - Rule Engine
