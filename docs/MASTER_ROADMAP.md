@@ -194,6 +194,13 @@ Also active (deliberate exception -- see below)
           themselves permission-gated under smart_home, a deliberate
           departure from Lighting/Locks; no automation, no energy
           logic, no security response)
+    TG-F  Shipped (Energy Management -- Core Energy Slice only: Smart
+          Switch/Plug control (on/off/state/availability), mirroring
+          Smart Locks exactly; reads ungated, following Lighting/Locks'
+          precedent, not Sensors'. Power/Energy/Load Monitoring already
+          provided by the shipped Sensors module -- not rebuilt.
+          Consumption History/Analytics/Optimization/Scheduling all
+          deferred to Smart Home Memory/Analytics/Home Automation/M7)
 
 Deferred
   M23 — Core Intelligence
@@ -321,20 +328,46 @@ Explicitly not built: any automation/trigger logic, energy-specific
 logic, or security-response logic — all deferred to their own
 still-unstarted modules; sensors expose normalized data only.
 
+**Task Group F (Energy Management — Core Energy Slice) shipped, Aug
+2026**, no version bump. **Not the full Energy Management module** —
+only Smart Switch/Plug control: a new `SmartSwitchService` mirroring
+`SmartLockService`'s exact architecture (`turn_on`/`turn_off`, no
+attribute-merge case, same `ConnectivityService.send_command`
+chokepoint, same `PermissionModel`/`smart_home`-scope pattern under a
+new principal `core:smart_switch`). Reads are **ungated**, following
+Smart Lighting/Smart Locks' own precedent rather than Sensors' —
+a switch's on/off state carries no comparable privacy weight to sensor
+data. Preceded by a read-only Energy Management dependency audit
+confirming Power/Energy/Load Monitoring are **already fully provided
+by the shipped Sensors module** (HA's own numeric `power`/`energy`/
+`voltage`/`current` device classes normalize through Sensors' existing
+generic numeric path with zero new code) — no `EnergySensorService`/
+`EnergyTelemetryService`/`EnergyRegistry` was created. A physical smart
+plug is represented as one `switch` `Device` row plus sibling `sensor`
+rows, never a combined "SmartPlug" entity. Consumption History, Energy
+Dashboard/Analytics/Trends, Energy Optimization, Automatic Power
+Saving, Load Scheduling and Energy-based Automations are all
+explicitly out of scope, deferred respectively to Smart Home Memory,
+Smart Home Analytics/M20A, and Home Automation/M7 — all four still
+unstarted/unshipped.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
-Lighting, Smart Locks, and Sensors are now shipped; ten of this
-milestone's fifteen modules remain entirely unstarted (Smart Cameras,
-Energy Management, Appliance Control, Home Automation, AI Home
-Assistant, Security & Safety, Remote Access, Smart Home Memory, Smart
-Home Analytics, Developer Tools). **No version bump accompanied any of
-the seven task-group passes** -- unlike M22's own task groups (each of
-which shipped real code and bumped the version in turn), all seven
-ship real code at `0.38.0` unchanged. Recorded here as a deliberate
-exception to this project's usual pattern, not a claim that the
-pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
-Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, and Task
-Group E entries for the full implementation account.
+Lighting, Smart Locks, Sensors, and Energy Management's Core Energy
+Slice are now shipped; nine of this milestone's fifteen modules remain
+entirely unstarted (Smart Cameras, Appliance Control, Home Automation,
+AI Home Assistant, Security & Safety, Remote Access, Smart Home
+Memory, Smart Home Analytics, Developer Tools) — Energy Management
+itself remains only partially shipped (device control only; History/
+Analytics/Optimization/Scheduling all deferred). **No version bump
+accompanied any of the eight task-group passes** -- unlike M22's own
+task groups (each of which shipped real code and bumped the version in
+turn), all eight ship real code at `0.38.0` unchanged. Recorded here as
+a deliberate exception to this project's usual pattern, not a claim
+that the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group
+A, Task Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D,
+Task Group E, and Task Group F entries for the full implementation
+account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -608,8 +641,20 @@ future work; see M6's own §3 entry for the full scope note.
   permission scope. `HomeAssistantConnector`/`MqttConnector` both
   gained a small, symmetric, additive enhancement capturing
   `device_class` at discovery (already present in the same payload
-  each already parses). **Not Complete**: ten of fifteen M12 modules
-  remain entirely unstarted.
+  each already parses). Task Group F (Energy Management — Core Energy
+  Slice) shipped: a new `SmartSwitchService` mirroring Smart Locks'
+  exact architecture for `device_type="switch"` control, exposed over
+  `/api/v1/switches/*` and four agent tools, gated by the same
+  `PermissionModel` under a new principal (`core:smart_switch`) —
+  reads ungated, following Lighting/Locks' precedent rather than
+  Sensors'. Power/Energy/Load Monitoring already fully provided by the
+  shipped Sensors module — no duplicate telemetry service created; a
+  smart plug is one `switch` row plus sibling `sensor` rows, never a
+  combined entity. Consumption History/Analytics/Optimization/
+  Scheduling/energy automations all deferred to Smart Home
+  Memory/Analytics/Home Automation/M7 (all unstarted). **Not the full
+  Energy Management module.** **Not Complete**: nine of fifteen M12
+  modules remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -3828,12 +3873,47 @@ logic (optimization, billing, dashboards), or security-response logic
 — all deferred to their own still-unstarted modules; sensors expose
 normalized data only, never a reaction.
 
-**Not Complete**: ten of this milestone's fifteen modules remain
-entirely unstarted (Smart Cameras, Energy Management, Appliance
-Control, Home Automation, AI Home Assistant, Security & Safety, Remote
-Access, Smart Home Memory, Smart Home Analytics, Developer Tools). See
-`IMPLEMENTATION_ROADMAP.md` §5H for the full
-account of what was built.
+**Task Group F (Energy Management — Core Energy Slice) shipped, Aug
+2026**, no version bump. Preceded by a read-only dependency audit
+(`M12 POST-SENSORS — ENERGY MANAGEMENT DEPENDENCY AUDIT`) that
+evaluated all ten items in the roadmap's own Energy Management feature
+list and found only Smart Switch/Plug control genuinely unblocked and
+worth new code — **Power Monitoring, Energy Monitoring and Load
+Monitoring were found to already be fully provided by the shipped
+Sensors module** (HA's own numeric `power`/`energy`/`voltage`/
+`current`/`power_factor` device classes normalize through
+`SensorService`'s existing, fully generic numeric path with zero
+changes) — and Consumption History, Energy Dashboard/Analytics/Trends,
+Energy Optimization, Automatic Power Saving and Load Scheduling all
+found blocked on Smart Home Memory, Smart Home Analytics/M20A, or Home
+Automation/M7 (all still unstarted/unshipped, unchanged since the
+Home Automation and Sensors audits). A new `SmartSwitchService`
+(`services/smart_switch_service.py`) was built, mirroring
+`SmartLockService`'s architecture exactly for `device_type="switch"`:
+`turn_on`/`turn_off` (HA's own switch-domain services, no attribute
+merge — a switch has one property, same as a lock), exposed over
+`/api/v1/switches/*` and four agent tools, gated by the existing
+`PermissionModel` under a new principal (`core:smart_switch`). Reads
+are **ungated**, deliberately following Smart Lighting/Smart Locks'
+precedent rather than Sensors' — a switch's on/off state carries no
+comparable privacy weight. No connector code changes were needed (both
+connectors already map HA's `switch` domain to `device_type="switch"`,
+unchanged since Task Group B). A physical smart plug is represented as
+one `switch` `Device` row for control plus sibling `sensor` rows for
+readings — the existing per-entity model, never a combined "SmartPlug"
+entity. See `docs/M12_ENERGY_MANAGEMENT_LOGIC_CONTRACT.md` for the
+full Logic Contract.
+
+**Not Complete**: nine of this milestone's fifteen modules remain
+entirely unstarted (Smart Cameras, Appliance Control, Home Automation,
+AI Home Assistant, Security & Safety, Remote Access, Smart Home
+Memory, Smart Home Analytics, Developer Tools) — and Energy Management
+itself remains only partially shipped: Consumption History, Energy
+Dashboard/Analytics/Trends, Energy Optimization, Automatic Power
+Saving, Load Scheduling and Energy-based Automations are all still
+outstanding, deferred to the modules named above. See
+`IMPLEMENTATION_ROADMAP.md` §5H for the full account of what was
+built.
 
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
 single-bus device bridge into a complete enterprise-grade Smart Home
@@ -3974,14 +4054,27 @@ Quality" is supported generically — HA has no single unified
 - Snapshot Capture
 
 #### Energy Management
-- Smart Plugs
-- Smart Switches
-- Energy Monitoring
+*(Core Energy Slice only shipped Task Group F, Aug 2026 -- Smart
+Plug/Switch **control** via a new `SmartSwitchService` mirroring Smart
+Locks exactly, over both REST (`/api/v1/switches/*`) and four agent
+tools. Energy Monitoring/UPS/Battery/Solar/Generator Monitoring were
+found **already provided by the shipped Sensors module** -- HA's own
+numeric device classes (`power`/`energy`/`voltage`/`current`/
+`battery`/...) normalize through `SensorService`'s existing generic
+numeric path with zero new code; no duplicate telemetry service was
+built. "Power Usage Analytics" (trends/aggregation, not raw current
+values) remains unbuilt, deferred to Smart Home Analytics/M20A, same
+as every other analytics item in this roadmap. Automatic Power Saving
+and Load Scheduling are trigger/rule-engine-shaped, deferred to Home
+Automation/M7, both still unstarted/unshipped.)*
+- Smart Plugs ✅ *(control only, via the switch entity; readings via Sensors)*
+- Smart Switches ✅
+- Energy Monitoring ✅ *(via Sensors -- see note above)*
 - Power Usage Analytics
-- UPS Monitoring
-- Battery Monitoring
-- Solar Monitoring
-- Generator Monitoring
+- UPS Monitoring ✅ *(via Sensors, generic numeric normalization)*
+- Battery Monitoring ✅ *(via Sensors, generic numeric normalization)*
+- Solar Monitoring ✅ *(via Sensors, generic numeric normalization)*
+- Generator Monitoring ✅ *(via Sensors, generic numeric normalization)*
 - Automatic Power Saving
 - Load Scheduling
 

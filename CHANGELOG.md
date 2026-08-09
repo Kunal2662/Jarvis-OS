@@ -3,6 +3,83 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Energy Management — Core Energy Slice (Task Group F)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Energy Management — Core Energy Slice** scope --
+**not the full Energy Management module**. Preceded by a read-only
+dependency audit that evaluated all ten items in the roadmap's own
+Energy Management feature list separately and found only Smart Plug/
+Switch control genuinely unblocked and worth new code -- Power/
+Energy/Load Monitoring were found already fully provided by the
+shipped Sensors module, and Consumption History/Analytics/
+Optimization/Scheduling all found blocked on Smart Home Memory, Smart
+Home Analytics/M20A, or Home Automation/M7 (all still unstarted/
+unshipped). **Does not close M12**, and does not close Energy
+Management as a whole; see `docs/IMPLEMENTATION_ROADMAP.md` §5H.
+Preceded by a read-only Logic Contract (`docs/
+M12_ENERGY_MANAGEMENT_LOGIC_CONTRACT.md`), per this project's own
+standing rules. 36 new tests, 0 failures, 0 errors, against real
+components throughout (`FakeDeviceConnector`, real temp-file SQLite,
+real `PermissionModel`).
+
+### Added
+- **`SmartSwitchService`** (`services/smart_switch_service.py`) --
+  normalized on/off control and state/availability reporting for
+  `device_type="switch"` devices, mirroring `SmartLockService`'s
+  architecture exactly (single-attribute device, no attribute-merge
+  case). Home Assistant translation: `switch.turn_on`/
+  `switch.turn_off`, no payload. MQTT translation: a new JARVIS-native
+  `turn_on`/`turn_off` command vocabulary this task group defines,
+  mirroring HA's own service names. No connector code changes needed
+  -- both connectors already map HA's `switch` domain, unchanged since
+  Task Group B.
+- **Smart Switches REST** -- `/api/v1/switches/*`: list/get/on/off.
+  `infrastructure/api/routes/smart_switches.py`.
+- **Smart Switch agent tools** -- `agents/tools/smart_switch_tools.py`,
+  four tools (`list_switches`, `get_switch_state`, `switch_on`,
+  `switch_off`) wired into the existing Tool Registry and
+  `AgentOrchestrator`.
+- **Permission enforcement (mutations only)** -- existing
+  `PermissionModel`, `smart_home` scope, new principal
+  `core:smart_switch`, granted through the existing generic grant
+  route. **Reads are ungated**, deliberately following Smart Lighting/
+  Smart Locks' precedent rather than Sensors' -- a switch's on/off
+  state carries no comparable privacy weight to sensor data.
+- **DI** -- `smart_switch_service` singleton in `core/di/container.py`.
+
+### Not changed
+- `ConnectivityService`, `SmartHomeService`, `SensorService`,
+  `PermissionModel` -- reused verbatim. No `EnergySensorService`/
+  `EnergyTelemetryService`/`EnergyRegistry`/`EnergyPollingService` was
+  created; Power/Energy/Load Monitoring continue through the existing,
+  unmodified Sensors module.
+- No new pairing endpoint -- reuses the existing `POST /devices/{id}/pair`.
+- No `AgentSettings.confirm_required_tools` entry -- unlike
+  `unlock_device`, a switch is not physically safety-relevant.
+
+### Data model note
+A physical smart plug is represented as one `switch` `Device` row
+(control, this task group) plus one or more sibling `sensor` `Device`
+rows (`device_class="power"`/`"energy"`/..., already covered by
+Sensors) -- never a combined "SmartPlug" entity. This is the existing
+per-entity model, unchanged.
+
+### Explicitly out of scope
+- Consumption History -- Smart Home Memory, unstarted.
+- Energy Dashboard, Energy Analytics, Energy Trends -- Smart Home
+  Analytics / M20A, unstarted/nonexistent.
+- Energy Optimization, Automatic Power Saving, Energy-based
+  Automations -- Home Automation, unstarted.
+- Load Scheduling -- Home Automation + M7 Scheduler, both unstarted/
+  unshipped.
+- Every other M12 device-category module (Smart Cameras, Appliance
+  Control, Home Automation, AI Home Assistant, Security & Safety,
+  Remote Access, Smart Home Memory, Smart Home Analytics, Developer
+  Tools).
+
 ## M12: Sensors (Task Group E)
 
 **No version bump**, matching this project's own established
