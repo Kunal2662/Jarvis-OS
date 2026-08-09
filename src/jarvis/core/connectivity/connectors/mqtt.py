@@ -535,6 +535,18 @@ class MqttConnector:
         raw_device = config.get("device")
         device_block: dict[str, Any] = raw_device if isinstance(raw_device, dict) else {}
 
+        metadata: dict[str, Any] = {"component": component, "discovery_topic": topic}
+        # Milestone 12 Sensors: `device_class` is a standard, documented
+        # field in Home Assistant's own MQTT Discovery schema for
+        # `sensor`/`binary_sensor` components -- already present in this
+        # same `config` payload this method already parses for
+        # `state_topic`/`command_topic`/etc. No new topic, no new
+        # subscription. Absent for non-sensor components and for
+        # integrations that omit it; `SensorService` treats a missing
+        # value as "unknown", never as an error.
+        if config.get("device_class"):
+            metadata["device_class"] = str(config["device_class"])
+
         registration = _DeviceRegistration(
             external_id=external_id,
             name=str(config.get("name") or external_id),
@@ -544,7 +556,7 @@ class MqttConnector:
             state_topic=state_topic,
             command_topic=command_topic,
             availability_topic=availability_topic,
-            metadata={"component": component, "discovery_topic": topic},
+            metadata=metadata,
         )
         self._register_device(registration)
 

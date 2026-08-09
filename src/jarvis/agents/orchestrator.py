@@ -65,6 +65,7 @@ if TYPE_CHECKING:
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.sensor_service import SensorService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
     from jarvis.services.system_service import SystemService
@@ -94,6 +95,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         integrations: IntegrationService | None = None,
         smart_lighting: SmartLightingService | None = None,
         smart_lock: SmartLockService | None = None,
+        sensors: SensorService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -128,6 +130,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # `SmartLockService` the REST surface calls -- see
         # `agents/tools/smart_lock_tools.py`.
         self._smart_lock = smart_lock
+        # Milestone 12 Sensors: read-only sensor data reaches the agent
+        # as tools on the same registry, converging on the same
+        # `SensorService` the REST surface calls -- see
+        # `agents/tools/sensor_tools.py`.
+        self._sensors = sensors
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -168,6 +175,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 integrations=self._integrations,
                 smart_lighting=self._smart_lighting,
                 smart_lock=self._smart_lock,
+                sensors=self._sensors,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

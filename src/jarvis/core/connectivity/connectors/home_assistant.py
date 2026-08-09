@@ -277,11 +277,21 @@ def _entity_to_discovered_device(entity: dict[str, Any]) -> DiscoveredDevice | N
         attributes = {}
     name = str(attributes.get("friendly_name") or entity_id)
 
+    metadata: dict[str, Any] = {"domain": domain}
+    # Milestone 12 Sensors: already present in this same `attributes`
+    # dict (the same `/api/states` response this function already
+    # destructures for `friendly_name`) -- no new request, no new
+    # protocol surface. Absent for most non-sensor domains and for
+    # older sensor integrations that omit it; `SensorService` treats a
+    # missing value as "unknown", never as an error.
+    if attributes.get("device_class"):
+        metadata["device_class"] = str(attributes["device_class"])
+
     return DiscoveredDevice(
         external_id=entity_id,
         name=name,
         device_type=device_type,
-        metadata={"domain": domain},
+        metadata=metadata,
     )
 
 

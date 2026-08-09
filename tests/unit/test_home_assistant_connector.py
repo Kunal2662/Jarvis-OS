@@ -42,7 +42,17 @@ _ENTITIES = [
     {
         "entity_id": "sensor.living_room_temp",
         "state": "21.5",
-        "attributes": {"friendly_name": "Living Room Temp", "unit_of_measurement": "C"},
+        "attributes": {
+            "friendly_name": "Living Room Temp",
+            "unit_of_measurement": "C",
+            "device_class": "temperature",
+        },
+        "last_updated": "2026-08-07T10:00:00+00:00",
+    },
+    {
+        "entity_id": "binary_sensor.front_door_open",
+        "state": "on",
+        "attributes": {"friendly_name": "Front Door Sensor", "device_class": "door"},
         "last_updated": "2026-08-07T10:00:00+00:00",
     },
     {
@@ -210,7 +220,7 @@ async def test_discover_maps_known_domains_and_skips_non_devices(ha_server: str)
     """``automation.morning_routine`` and the malformed record are both
     absent from the result -- one for not being a device domain, the
     other via the fault-isolation the Logic Contract requires -- yet
-    neither prevents the three real devices from being discovered."""
+    neither prevents the four real devices from being discovered."""
     connector = HomeAssistantConnector(ha_server, _TOKEN)
     try:
         await connector.connect()
@@ -219,12 +229,43 @@ async def test_discover_maps_known_domains_and_skips_non_devices(ha_server: str)
         await connector.disconnect()
 
     by_id = {d.external_id: d for d in devices}
-    assert set(by_id) == {"light.kitchen", "lock.front_door", "sensor.living_room_temp"}
+    assert set(by_id) == {
+        "light.kitchen",
+        "lock.front_door",
+        "sensor.living_room_temp",
+        "binary_sensor.front_door_open",
+    }
     assert by_id["light.kitchen"].device_type == "light"
     assert by_id["light.kitchen"].name == "Kitchen Light"
     assert by_id["light.kitchen"].metadata == {"domain": "light"}
     assert by_id["lock.front_door"].device_type == "lock"
     assert by_id["sensor.living_room_temp"].device_type == "sensor"
+    assert by_id["binary_sensor.front_door_open"].device_type == "sensor"
+
+
+@pytest.mark.asyncio
+async def test_discover_captures_device_class_when_present(ha_server: str) -> None:
+    """Milestone 12 Sensors -- ``device_class`` is already present in
+    the same ``/api/states`` attributes payload this function already
+    parses for ``friendly_name``; captured into metadata with no new
+    request. Absent for entities that don't report one (`light.kitchen`
+    has none, asserted above as `metadata == {"domain": "light"}`)."""
+    connector = HomeAssistantConnector(ha_server, _TOKEN)
+    try:
+        await connector.connect()
+        devices = await connector.discover()
+    finally:
+        await connector.disconnect()
+
+    by_id = {d.external_id: d for d in devices}
+    assert by_id["sensor.living_room_temp"].metadata == {
+        "domain": "sensor",
+        "device_class": "temperature",
+    }
+    assert by_id["binary_sensor.front_door_open"].metadata == {
+        "domain": "binary_sensor",
+        "device_class": "door",
+    }
 
 
 @pytest.mark.asyncio

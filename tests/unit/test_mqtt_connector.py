@@ -227,6 +227,55 @@ async def test_discover_parses_ha_discovery_config(
 
 
 @pytest.mark.asyncio
+async def test_discover_captures_device_class_when_present(
+    broker: FakeMqttBroker, connector: MqttConnector
+) -> None:
+    """Milestone 12 Sensors -- ``device_class`` is a standard, documented
+    field in Home Assistant's own MQTT Discovery schema for `sensor`/
+    `binary_sensor` components, already present in this same config
+    payload this method already parses for `state_topic`/etc. Captured
+    into metadata with no new topic/subscription. Absent for the
+    existing `_HA_LIGHT_CONFIG` fixture (no `device_class` key), which
+    ``test_discover_parses_ha_discovery_config`` above does not assert
+    a `device_class` for -- confirming this doesn't fabricate one when
+    the config omits it."""
+    try:
+        await connector.connect()
+        await broker.publish(
+            "homeassistant/sensor/livingroom/temp/config",
+            json.dumps(
+                {
+                    "name": "Living Room Temp",
+                    "unique_id": "living_room_temp",
+                    "state_topic": "zigbee2mqtt/living_room_temp",
+                    "device_class": "temperature",
+                }
+            ).encode(),
+            retain=True,
+        )
+        await broker.publish(
+            "homeassistant/binary_sensor/frontdoor/open/config",
+            json.dumps(
+                {
+                    "name": "Front Door Sensor",
+                    "unique_id": "front_door_open",
+                    "state_topic": "zigbee2mqtt/front_door_open",
+                    "device_class": "door",
+                }
+            ).encode(),
+            retain=True,
+        )
+
+        devices = await connector.discover()
+
+        by_id = {d.external_id: d for d in devices}
+        assert by_id["living_room_temp"].metadata["device_class"] == "temperature"
+        assert by_id["front_door_open"].metadata["device_class"] == "door"
+    finally:
+        await connector.disconnect()
+
+
+@pytest.mark.asyncio
 async def test_discover_supports_two_segment_topics_without_node_id(
     broker: FakeMqttBroker, connector: MqttConnector
 ) -> None:
