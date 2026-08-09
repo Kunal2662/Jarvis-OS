@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from jarvis.services.sensor_service import SensorService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
+    from jarvis.services.smart_switch_service import SmartSwitchService
     from jarvis.services.system_service import SystemService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
@@ -48,6 +49,7 @@ def build_tool_registry(
     smart_lighting: SmartLightingService | None = None,
     smart_lock: SmartLockService | None = None,
     sensors: SensorService | None = None,
+    smart_switch: SmartSwitchService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -102,6 +104,13 @@ def build_tool_registry(
         from jarvis.agents.tools.sensor_tools import build_sensor_tools
 
         tools += build_sensor_tools(sensors)
+    if smart_switch is not None:
+        # Milestone 12 Energy Management (Core Energy Slice). Four
+        # tools, mirroring Smart Locks' own registration exactly -- see
+        # `agents/tools/smart_switch_tools.py`.
+        from jarvis.agents.tools.smart_switch_tools import build_smart_switch_tools
+
+        tools += build_smart_switch_tools(smart_switch)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

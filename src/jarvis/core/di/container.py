@@ -570,6 +570,18 @@ def _build_sensor_service(
     )
 
 
+def _build_smart_switch_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.smart_switch_service import SmartSwitchService
+
+    return SmartSwitchService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
 def _build_task_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
     from jarvis.services.task_service import TaskService
 
@@ -1043,6 +1055,7 @@ def _build_agent_orchestrator(
     smart_lighting: Any,
     smart_lock: Any,
     sensors: Any,
+    smart_switch: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1064,6 +1077,7 @@ def _build_agent_orchestrator(
         smart_lighting=smart_lighting,
         smart_lock=smart_lock,
         sensors=sensors,
+        smart_switch=smart_switch,
         event_bus=event_bus,
     )
 
@@ -1385,6 +1399,14 @@ class Container(containers.DeclarativeContainer):
         permission_model=permission_model,
     )
 
+    # ---- Milestone 12 Energy Management (Core Energy Slice) ---------------
+    smart_switch_service = providers.Singleton(
+        _build_smart_switch_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 10.5 Task Group A -- MCP & Integration Platform --------
     mcp_server_runtime = providers.Singleton(
         _build_mcp_server_runtime,
@@ -1661,5 +1683,6 @@ class Container(containers.DeclarativeContainer):
         smart_lighting=smart_lighting_service,
         smart_lock=smart_lock_service,
         sensors=sensor_service,
+        smart_switch=smart_switch_service,
         event_bus=event_bus,
     )
