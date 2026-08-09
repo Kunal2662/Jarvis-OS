@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
@@ -52,6 +53,7 @@ def build_tool_registry(
     sensors: SensorService | None = None,
     smart_switch: SmartSwitchService | None = None,
     appliances: ApplianceService | None = None,
+    security: SecurityService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -121,6 +123,14 @@ def build_tool_registry(
         from jarvis.agents.tools.appliance_tools import build_appliance_tools
 
         tools += build_appliance_tools(appliances)
+    if security is not None:
+        # Milestone 12 Security & Safety (Read-Only Alert/Status
+        # Slice). Two read-only tools, mirroring Sensors' own
+        # "terse re-shaping of one underlying call" registration -- see
+        # `agents/tools/security_tools.py`.
+        from jarvis.agents.tools.security_tools import build_security_tools
+
+        tools += build_security_tools(security)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

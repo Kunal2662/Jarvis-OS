@@ -594,6 +594,18 @@ def _build_appliance_service(
     )
 
 
+def _build_security_service(
+    *, sensor_service: Any, smart_lock_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.security_service import SecurityService
+
+    return SecurityService(
+        sensors=sensor_service,
+        smart_lock=smart_lock_service,
+        permissions=permission_model,
+    )
+
+
 def _build_task_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
     from jarvis.services.task_service import TaskService
 
@@ -1069,6 +1081,7 @@ def _build_agent_orchestrator(
     sensors: Any,
     smart_switch: Any,
     appliances: Any,
+    security: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1092,6 +1105,7 @@ def _build_agent_orchestrator(
         sensors=sensors,
         smart_switch=smart_switch,
         appliances=appliances,
+        security=security,
         event_bus=event_bus,
     )
 
@@ -1429,6 +1443,17 @@ class Container(containers.DeclarativeContainer):
         permission_model=permission_model,
     )
 
+    # ---- Milestone 12 Security & Safety (Read-Only Alert/Status Slice) ----
+    # Pull-based aggregation over sensor_service/smart_lock_service only --
+    # deliberately NOT smart_home_service/connectivity_service, per
+    # docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md §13.
+    security_service = providers.Singleton(
+        _build_security_service,
+        sensor_service=sensor_service,
+        smart_lock_service=smart_lock_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 10.5 Task Group A -- MCP & Integration Platform --------
     mcp_server_runtime = providers.Singleton(
         _build_mcp_server_runtime,
@@ -1707,5 +1732,6 @@ class Container(containers.DeclarativeContainer):
         sensors=sensor_service,
         smart_switch=smart_switch_service,
         appliances=appliance_service,
+        security=security_service,
         event_bus=event_bus,
     )

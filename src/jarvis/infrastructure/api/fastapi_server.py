@@ -79,6 +79,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         from jarvis.infrastructure.api.routes import plugins as plugin_routes
         from jarvis.infrastructure.api.routes import productivity as productivity_routes
         from jarvis.infrastructure.api.routes import runtime_ws as runtime_ws_routes
+        from jarvis.infrastructure.api.routes import security as security_routes
         from jarvis.infrastructure.api.routes import sensors as sensor_routes
         from jarvis.infrastructure.api.routes import sessions as session_routes
         from jarvis.infrastructure.api.routes import settings as settings_routes
@@ -108,6 +109,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(smart_switches_routes.router, prefix="/api/v1")
         app.include_router(appliance_routes.router, prefix="/api/v1")
         app.include_router(sensor_routes.router, prefix="/api/v1")
+        app.include_router(security_routes.router, prefix="/api/v1")
         app.include_router(integration_routes.router, prefix="/api/v1")
         # The OAuth callback carries no Bearer token -- a browser
         # redirect cannot -- so it is a separate, session-free router.
