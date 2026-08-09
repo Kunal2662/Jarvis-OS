@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from langchain_core.tools import BaseTool
 
 if TYPE_CHECKING:
+    from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
@@ -50,6 +51,7 @@ def build_tool_registry(
     smart_lock: SmartLockService | None = None,
     sensors: SensorService | None = None,
     smart_switch: SmartSwitchService | None = None,
+    appliances: ApplianceService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -111,6 +113,14 @@ def build_tool_registry(
         from jarvis.agents.tools.smart_switch_tools import build_smart_switch_tools
 
         tools += build_smart_switch_tools(smart_switch)
+    if appliances is not None:
+        # Milestone 12 Appliance Control (Core Appliance Slice: Fans +
+        # Covers). Eight tools, mirroring Smart Switches' own
+        # registration, doubled for the two capabilities -- see
+        # `agents/tools/appliance_tools.py`.
+        from jarvis.agents.tools.appliance_tools import build_appliance_tools
+
+        tools += build_appliance_tools(appliances)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

@@ -68,6 +68,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
     if container is not None:
         from jarvis.infrastructure.api.routes import agent as agent_routes
         from jarvis.infrastructure.api.routes import ai_workspace as ai_workspace_routes
+        from jarvis.infrastructure.api.routes import appliances as appliance_routes
         from jarvis.infrastructure.api.routes import connectivity as connectivity_routes
         from jarvis.infrastructure.api.routes import devtools as devtools_routes
         from jarvis.infrastructure.api.routes import files as file_routes
@@ -105,6 +106,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(smart_lighting_routes.router, prefix="/api/v1")
         app.include_router(smart_locks_routes.router, prefix="/api/v1")
         app.include_router(smart_switches_routes.router, prefix="/api/v1")
+        app.include_router(appliance_routes.router, prefix="/api/v1")
         app.include_router(sensor_routes.router, prefix="/api/v1")
         app.include_router(integration_routes.router, prefix="/api/v1")
         # The OAuth callback carries no Bearer token -- a browser

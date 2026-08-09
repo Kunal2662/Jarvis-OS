@@ -58,6 +58,7 @@ if TYPE_CHECKING:
     from jarvis.core.events.event_bus import EventBus
     from jarvis.core.interfaces.llm_provider import ILLMProvider
     from jarvis.features.automation.permission import ConfirmationCallback
+    from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
@@ -98,6 +99,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         smart_lock: SmartLockService | None = None,
         sensors: SensorService | None = None,
         smart_switch: SmartSwitchService | None = None,
+        appliances: ApplianceService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -142,6 +144,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # converging on the same `SmartSwitchService` the REST surface
         # calls -- see `agents/tools/smart_switch_tools.py`.
         self._smart_switch = smart_switch
+        # Milestone 12 Appliance Control (Core Appliance Slice): fan
+        # and cover control reach the agent as tools on the same
+        # registry, converging on the same `ApplianceService` the REST
+        # surface calls -- see `agents/tools/appliance_tools.py`.
+        self._appliances = appliances
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -184,6 +191,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 smart_lock=self._smart_lock,
                 sensors=self._sensors,
                 smart_switch=self._smart_switch,
+                appliances=self._appliances,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

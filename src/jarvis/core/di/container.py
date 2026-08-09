@@ -582,6 +582,18 @@ def _build_smart_switch_service(
     )
 
 
+def _build_appliance_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.appliance_service import ApplianceService
+
+    return ApplianceService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
 def _build_task_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
     from jarvis.services.task_service import TaskService
 
@@ -1056,6 +1068,7 @@ def _build_agent_orchestrator(
     smart_lock: Any,
     sensors: Any,
     smart_switch: Any,
+    appliances: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1078,6 +1091,7 @@ def _build_agent_orchestrator(
         smart_lock=smart_lock,
         sensors=sensors,
         smart_switch=smart_switch,
+        appliances=appliances,
         event_bus=event_bus,
     )
 
@@ -1407,6 +1421,14 @@ class Container(containers.DeclarativeContainer):
         permission_model=permission_model,
     )
 
+    # ---- Milestone 12 Appliance Control (Core Appliance Slice) ------------
+    appliance_service = providers.Singleton(
+        _build_appliance_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 10.5 Task Group A -- MCP & Integration Platform --------
     mcp_server_runtime = providers.Singleton(
         _build_mcp_server_runtime,
@@ -1684,5 +1706,6 @@ class Container(containers.DeclarativeContainer):
         smart_lock=smart_lock_service,
         sensors=sensor_service,
         smart_switch=smart_switch_service,
+        appliances=appliance_service,
         event_bus=event_bus,
     )
