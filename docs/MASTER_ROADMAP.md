@@ -188,6 +188,12 @@ Also active (deliberate exception -- see below)
           no guest access codes, no Auto Lock automation, deferred to
           Home Automation; "unlock_device" added to
           agent.confirm_required_tools' default)
+    TG-E  Shipped (Sensors -- read-only; motion/presence/occupancy/
+          door/window/temperature/humidity/air-quality/water-leak/
+          smoke/gas/light-level/vibration via device_class; reads
+          themselves permission-gated under smart_home, a deliberate
+          departure from Lighting/Locks; no automation, no energy
+          logic, no security response)
 
 Deferred
   M23 — Core Intelligence
@@ -290,20 +296,45 @@ infrastructure this task group was not asked to add), or any
 automation trigger — see
 `docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md` for the full account.
 
+**Task Group E (Sensors) shipped, Aug 2026**, no version bump. The
+first **read-only** M12 module: a new `SensorService` (`services/
+sensor_service.py`) reporting normalized state for `device_type=
+"sensor"` devices — motion, presence, occupancy, door, window,
+temperature, humidity, air quality, water leak, smoke, gas, light
+level, vibration, keyed by HA's own `device_class` vocabulary (`moisture`
+for water leak, `illuminance` for light level — not invented names).
+No command translation exists in this module at all (nothing to
+mutate); `HomeAssistantConnector`/`MqttConnector` both gained one
+additive, symmetric enhancement — capturing `device_class` (already
+present in the same discovery payload each already parses) into
+`Device.metadata_json` — no new request, no new topic. **Deliberate
+departure from Smart Lighting/Smart Locks**: reads themselves, not
+just mutations, require the `smart_home` grant (new principal
+`core:sensors`) — because for a sensor, observing *is* the product,
+unlike a light or lock's comparatively low-stakes observable state; no
+new permission scope was created, and no per-device-class granularity
+was added either, after the Logic Contract explicitly weighed and
+rejected that finer split (see `docs/M12_SENSORS_LOGIC_CONTRACT.md`
+§20 for the full reasoning). Exposed over `/api/v1/sensors/*` (`GET`
+only — no mutation route exists) and as four read-only agent tools.
+Explicitly not built: any automation/trigger logic, energy-specific
+logic, or security-response logic — all deferred to their own
+still-unstarted modules; sensors expose normalized data only.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
-Lighting, and Smart Locks are now shipped; eleven of this milestone's
-fifteen modules remain entirely unstarted (Sensors, Smart Cameras,
+Lighting, Smart Locks, and Sensors are now shipped; ten of this
+milestone's fifteen modules remain entirely unstarted (Smart Cameras,
 Energy Management, Appliance Control, Home Automation, AI Home
 Assistant, Security & Safety, Remote Access, Smart Home Memory, Smart
 Home Analytics, Developer Tools). **No version bump accompanied any of
-the six task-group passes** -- unlike M22's own task groups (each of
-which shipped real code and bumped the version in turn), all six ship
-real code at `0.38.0` unchanged. Recorded here as a deliberate
+the seven task-group passes** -- unlike M22's own task groups (each of
+which shipped real code and bumped the version in turn), all seven
+ship real code at `0.38.0` unchanged. Recorded here as a deliberate
 exception to this project's usual pattern, not a claim that the
 pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
-Group B Phase 1/Phase 2/Phase 3, Task Group C, and Task Group D entries
-for the full implementation account.
+Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, and Task
+Group E entries for the full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -564,7 +595,20 @@ future work; see M6's own §3 entry for the full scope note.
   existing default set, reusing `AgentPermissionGate`'s existing
   confirmation mechanism. No guest access codes, no access history, no
   automation triggers — deferred/out of scope, same as Smart Lighting's
-  own carve-outs. **Not Complete**: eleven of fifteen M12 modules
+  own carve-outs. Task Group E (Sensors) shipped: the first read-only
+  M12 module — a new `SensorService` reporting normalized state
+  (motion/presence/occupancy/door/window/temperature/humidity/air
+  quality/water leak/smoke/gas/light level/vibration, via HA's own
+  `device_class`) for `device_type="sensor"` devices, exposed over
+  `/api/v1/sensors/*` (`GET` only) and four agent tools. No command
+  translation exists in this module — nothing to mutate. Unlike
+  Lighting/Locks, reads themselves require the `smart_home` grant (new
+  principal `core:sensors`) — a deliberate privacy-driven departure
+  documented and justified in its own Logic Contract, not a new
+  permission scope. `HomeAssistantConnector`/`MqttConnector` both
+  gained a small, symmetric, additive enhancement capturing
+  `device_class` at discovery (already present in the same payload
+  each already parses). **Not Complete**: ten of fifteen M12 modules
   remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
@@ -3745,11 +3789,50 @@ queryable trail without new infrastructure this task group was not
 asked to add), or any automation trigger. See
 `docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md` for the full Logic Contract.
 
-**Not Complete**: eleven of this milestone's fifteen modules remain
-entirely unstarted (Sensors, Smart Cameras, Energy Management,
-Appliance Control, Home Automation, AI Home Assistant, Security &
-Safety, Remote Access, Smart Home Memory, Smart Home Analytics,
-Developer Tools). See `IMPLEMENTATION_ROADMAP.md` §5H for the full
+**Task Group E (Sensors) shipped, Aug 2026**, no version bump. The
+first read-only M12 module — a new `SensorService` (`services/
+sensor_service.py`) reporting normalized state for `device_type=
+"sensor"` devices: motion, presence, occupancy, door, window,
+temperature, humidity, air quality, water leak, smoke, gas, light
+level, vibration — keyed by Home Assistant's own real `device_class`
+vocabulary (`moisture` for water leak, `illuminance` for light level;
+"air quality" is not one HA class, so pollutant-specific classes like
+`aqi`/`pm25` normalize generically rather than being unified into a
+fabricated bucket). No command translation exists anywhere in this
+module — there is exactly one capability, reading current state, so
+unlike Lighting/Locks there is no wire-format table at all.
+`HomeAssistantConnector`/`MqttConnector` both gained one small,
+symmetric, additive enhancement: capturing `device_class` (already
+present in the same discovery payload each already parses — no new
+request, no new topic) into `Device.metadata_json`. Exposed over
+`/api/v1/sensors/*` (`GET /sensors`, `GET /sensors/{id}` — no mutation
+route anywhere) and four read-only agent tools (`list_sensors`,
+`get_sensor_state`, `get_sensor_value`, `get_sensor_status`).
+**Deliberate departure from Smart Lighting/Smart Locks**: reads
+themselves, not just mutations, require the existing `PermissionModel`'s
+`smart_home` grant (new principal `core:sensors`) — because for a
+sensor, *observing* is the entire product (motion/presence/occupancy
+data can reveal who is home and when), unlike a light or lock's
+comparatively low-stakes observable state. No new permission scope was
+created, and a finer, per-device-class split (gating only
+motion/presence/occupancy) was explicitly considered and rejected as
+architecturally inconsistent with every other M12 module's single
+`smart_home` grant — see `docs/M12_SENSORS_LOGIC_CONTRACT.md` §20 for
+the full reasoning. A `GET /sensors/{id}` can now fail for two
+distinct reasons (not found vs. permission not granted); resolved with
+a local `SensorPermissionError(ServiceError)` subclass the route
+catches by type, not by sniffing the message — mirroring
+`core/exceptions.py`'s own `AutomationPermissionDeniedError` precedent.
+Explicitly not built: any automation/trigger logic, energy-specific
+logic (optimization, billing, dashboards), or security-response logic
+— all deferred to their own still-unstarted modules; sensors expose
+normalized data only, never a reaction.
+
+**Not Complete**: ten of this milestone's fifteen modules remain
+entirely unstarted (Smart Cameras, Energy Management, Appliance
+Control, Home Automation, AI Home Assistant, Security & Safety, Remote
+Access, Smart Home Memory, Smart Home Analytics, Developer Tools). See
+`IMPLEMENTATION_ROADMAP.md` §5H for the full
 account of what was built.
 
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
@@ -3854,19 +3937,29 @@ established.)*
 - Access Notifications
 
 #### Sensors
-- Motion Sensors
-- Presence Sensors
+*(Normalized, read-only state reporting shipped Task Group E, Aug
+2026 — via HA's own `device_class` vocabulary, over both REST
+(`/api/v1/sensors/*`) and four agent tools. "LD2410B Support" names a
+specific mmWave radar chip/module, not a device_class — any such
+sensor integrated through Home Assistant or MQTT already reports
+generically as `presence`/`occupancy`, which this module already
+supports; no LD2410B-specific handling was added or tested. "Air
+Quality" is supported generically — HA has no single unified
+`air_quality` class, only pollutant-specific ones (`aqi`, `pm25`,
+...), each of which normalizes through the same generic numeric path.)*
+- Motion Sensors ✅
+- Presence Sensors ✅
 - LD2410B Support
-- Door Sensors
-- Window Sensors
-- Temperature
-- Humidity
-- Air Quality
-- Water Leak Detection
-- Smoke Detection
-- Gas Detection
-- Light Sensors
-- Vibration Sensors
+- Door Sensors ✅
+- Window Sensors ✅
+- Temperature ✅
+- Humidity ✅
+- Air Quality ✅ *(generic numeric normalization, not a unified category — see note above)*
+- Water Leak Detection ✅ *(HA's own `moisture` device_class)*
+- Smoke Detection ✅
+- Gas Detection ✅
+- Light Sensors ✅ *(HA's own `illuminance` device_class)*
+- Vibration Sensors ✅
 
 #### Smart Cameras
 - Camera Integration

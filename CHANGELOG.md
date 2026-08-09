@@ -3,6 +3,81 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Sensors (Task Group E)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Sensors** scope -- the third of M12's
+device-category modules to ship, and the first **read-only** one,
+following a second read-only dependency audit that re-ranked Sensors
+first (ahead of Energy Management and Appliance Control) once Smart
+Locks shipped. **Does not close M12** -- ten device-category modules
+remain unstarted; see `docs/IMPLEMENTATION_ROADMAP.md` §5H. Preceded by
+a read-only Logic Contract (`docs/M12_SENSORS_LOGIC_CONTRACT.md`), per
+this project's own standing rules. 57 new tests, 0 failures, 0 errors,
+against real components throughout (`FakeDeviceConnector`, real
+temp-file SQLite, real `PermissionModel`).
+
+### Added
+- **`SensorService`** (`services/sensor_service.py`) -- normalized
+  state reporting for `device_type="sensor"` devices: motion,
+  presence, occupancy, door, window, temperature, humidity, air
+  quality, water leak, smoke, gas, light level, vibration, keyed by
+  Home Assistant's own real `device_class` vocabulary (`moisture` for
+  water leak, `illuminance` for light level -- not invented names). No
+  command translation anywhere in this module -- exactly one
+  capability (read current state), so unlike Lighting/Locks there is
+  no wire-format table at all.
+- **Connector enhancement** -- `HomeAssistantConnector`/`MqttConnector`
+  both gained one small, symmetric, additive line capturing
+  `device_class` (already present in the same discovery payload each
+  already parses) into `Device.metadata_json`. No new request, no new
+  topic, no behavior change for any non-sensor entity.
+- **Sensors REST** -- `/api/v1/sensors/*`: `GET /sensors` (list),
+  `GET /sensors/{id}` (full live reading). No mutation route anywhere
+  -- sensors are read-only. `infrastructure/api/routes/sensors.py`.
+- **Sensor agent tools** -- `agents/tools/sensor_tools.py`, four
+  read-only tools (`list_sensors`, `get_sensor_state`,
+  `get_sensor_value`, `get_sensor_status`) wired into the existing Tool
+  Registry and `AgentOrchestrator`.
+- **Permission behavior, deliberately different from Lighting/Locks**
+  -- every operation, including reads, requires the existing
+  `PermissionModel`'s `smart_home` scope (new principal
+  `core:sensors`), because for a sensor *observing* is the entire
+  product (motion/presence/occupancy data can reveal who is home and
+  when), unlike a light or lock's comparatively low-stakes observable
+  state. No new permission scope was created, and a finer
+  per-device-class split was explicitly considered and rejected as
+  architecturally inconsistent with every other M12 module. New local
+  `SensorPermissionError(ServiceError)` lets the REST route distinguish
+  "permission not granted" (400) from "not found" (404) by exception
+  type, not by message-sniffing -- mirroring `core/exceptions.py`'s own
+  `AutomationPermissionDeniedError` precedent.
+- **DI** -- `sensor_service` singleton in `core/di/container.py`.
+
+### Not changed
+- `ConnectivityService`, `SmartHomeService`, `PermissionModel` --
+  reused verbatim, no second connectivity service, no second
+  permission engine, no polling framework.
+- No new event class -- this module publishes nothing (a read is not a
+  state change); `DeviceUpdatedEvent` remains untouched.
+
+### Explicitly out of scope
+- Any automation/trigger logic (motion-triggered lighting,
+  leak-triggered workflows, sunrise/sunset, schedules) -- Home
+  Automation's job, unstarted.
+- Energy-specific logic (optimization, load scheduling, dashboards,
+  billing) -- Energy Management's job, unstarted.
+- Security response logic (intrusion response, panic mode, emergency
+  workflows, safety-critical actuator control) -- Security & Safety's
+  job, unstarted; smoke/gas/water-leak sensors expose normalized data
+  only, never a reaction.
+- Every other M12 device-category module (Smart Cameras, Energy
+  Management, Appliance Control, Home Automation, AI Home Assistant,
+  Security & Safety, Remote Access, Smart Home Memory, Smart Home
+  Analytics, Developer Tools).
+
 ## M12: Smart Locks (Task Group D)
 
 **No version bump**, matching this project's own established
