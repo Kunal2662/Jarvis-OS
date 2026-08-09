@@ -2099,7 +2099,7 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
@@ -2138,23 +2138,34 @@ instruction preceded by its own read-only next-module audit (re-ranking
 the nine remaining candidates and recommending Appliance Control scoped
 to Fans + Covers only, after confirming zero connector changes are
 required for those two domains) and Logic Contract -- see its own
-section below.
+section below. Task Group H (Security & Safety -- Read-Only Alert/
+Status Slice) followed a further, ninth, separate instruction preceded
+by its own read-only post-Task-G next-module audit (re-evaluating all
+eight remaining candidates and finding Security & Safety the only
+fully-buildable one, because its whole data substrate already shipped
+in Task Groups D/E and a pull-based read needs neither M7's Scheduler
+nor the device-command event-publishing gap) and Logic Contract -- see
+its own section below.
 **Not Complete**: Smart Home Core, Connectivity Layer, Connectivity
 REST + Smart Lighting, Smart Locks, Sensors, Energy Management's Core
-Energy Slice, and Appliance Control's Core Appliance Slice are seven of
-fifteen modules in M12's own feature list -- Connectivity Layer has
-both of its approved protocol adapters (Home Assistant, MQTT), closing
-that task group's three-phase plan; Smart Lighting, Smart Locks,
-Sensors, Energy Management (device control only) and Appliance Control
-(Fan + Cover control only) are the first five of thirteen
-device-category modules with at least some shipped scope
-(motion/sunrise-sunset/scheduled automation, Auto Lock,
+Energy Slice, Appliance Control's Core Appliance Slice, and Security &
+Safety's Read-Only Alert/Status Slice are eight of fifteen modules in
+M12's own feature list -- Connectivity Layer has both of its approved
+protocol adapters (Home Assistant, MQTT), closing that task group's
+three-phase plan; Smart Lighting, Smart Locks, Sensors, Energy
+Management (device control only), Appliance Control (Fan + Cover
+control only) and Security & Safety (read-only status only) are the
+first six of thirteen device-category modules with at least some
+shipped scope (motion/sunrise-sunset/scheduled automation, Auto Lock,
 sensor-triggered automation, all energy automation/history/analytics,
-and five appliance categories plus fan percentage/cover position all
-explicitly deferred to Home Automation/Smart Home Memory/Smart Home
-Analytics/future Appliance Control slices; two further appliance
+five appliance categories plus fan percentage/cover position, and all
+of Security & Safety's action-taking half -- Panic Mode, Vacation Mode,
+Emergency Alerts, automated safety actions, scene/multi-device
+response, event-driven and scheduler-based security automation,
+notifications -- all explicitly deferred to Home Automation/Smart Home
+Memory/Smart Home Analytics/M7/future slices; two further appliance
 categories blocked on the current connector domain mapping) -- and
-eight M12 modules remain entirely unstarted. Full milestone definition
+seven M12 modules remain entirely unstarted. Full milestone definition
 — Objective, Dependencies, Complexity, 15-module feature list,
 Acceptance Criteria — lives in `MASTER_ROADMAP.md` §8/§9.)*
 
@@ -3045,6 +3056,102 @@ position (evaluated, deliberately deferred). **Not this task group, and
 not built:** any other M12 device-category module (Smart Cameras, Home
 Automation, AI Home Assistant, Security & Safety, Remote Access, Smart
 Home Memory, Smart Home Analytics, Developer Tools).
+
+---
+
+### Task Group H — Security & Safety: Read-Only Alert/Status Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a fourth read-only next-module audit (`JARVIS CORE — M12
+POST-TASK-G NEXT MODULE AUDIT`), re-evaluating all eight remaining M12
+candidates. Central findings, each evidence-grounded rather than
+assumed: (1) **Security & Safety was the only 🟢 fully-buildable
+candidate** — its entire data substrate already shipped, since
+`SensorService` (Task Group E) already normalizes motion, presence,
+occupancy, door, window, smoke, gas and water-leak (`moisture`), and
+`SmartLockService` (Task Group D) already reports lock state; (2) **Home
+Automation is blocked more deeply than the roadmap implied** — beyond
+M7's Scheduler being entirely unstarted (no scheduler file exists
+anywhere in `src/jarvis/`), *none* of the five per-category command
+services publishes `DeviceUpdatedEvent` on actuation, so even
+"event-based automation" has no trigger substrate today; (3) Smart Home
+Analytics (M20A) and Remote Access (M21) are both 🔴 blocked on
+entirely unshipped milestones with zero source; (4) Smart Cameras has
+`device_type="camera"` and both connector mappings already present, but
+its real value (streaming/detection) needs media infrastructure that
+does not exist. A **pull-based** read-only Security aggregate needs
+none of the blocked infrastructure — which is precisely why it was
+recommended and approved.
+
+- [x] **Logic Contract** — `docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md`,
+      written and separately approved before any code, explicitly
+      scoped to the Read-Only Alert/Status Slice only (not the full
+      module), and marking every claim **EXISTING** (with `file:line`)
+      or **PROPOSED** so it could not be misread as describing
+      already-built behavior.
+- [x] `SecurityService` (`services/security_service.py`) -- pull-based
+      aggregation over `SensorService` + `SmartLockService` +
+      `PermissionModel` **only**. No `ConnectivityService`,
+      `SmartHomeService` or `EventBus` dependency; no connector access;
+      no duplication of either service's normalization
+      (`_parse_binary`/`_infer_locked`/`_binary_state_label` remain
+      solely where they already live) -- pinned by a source-level test.
+- [x] **Closed hazard-vs-status split** -- only `smoke`/`gas`/
+      `moisture` can raise an alert (their `value=True` *is* HA's own
+      "hazard detected" meaning, so reporting it adds no inference);
+      `door`/`window`/`garage_door`/`motion`/`presence`/`occupancy`/
+      `vibration` and lock state are factual status only, never
+      intrusion. No detection algorithm or probabilistic inference
+      exists anywhere in the module.
+- [x] **`CRITICAL > WARNING > UNKNOWN > NORMAL`** deterministic
+      precedence, computed from the hazard bucket alone. `UNKNOWN`
+      deliberately outranks `NORMAL` -- unavailable, offline,
+      unparseable or entirely-absent hazard monitoring is never
+      presented as safe.
+- [x] `GET /api/v1/security/status` (`infrastructure/api/routes/
+      security.py`) -- one route, optional `home_id`/`room_id`,
+      `{data, meta}` envelope with `meta.overall_status`, existing
+      Bearer auth. **No 404 case** (no single-resource identity);
+      permission is the only failure mode.
+- [x] Two read-only agent tools (`agents/tools/security_tools.py`) --
+      `get_security_status`, `list_active_security_alerts` -- wired
+      into the existing Tool Registry and `AgentOrchestrator`. No
+      mutation tool, no `confirm_required_tools` entry.
+- [x] Permission -- existing `PermissionModel`, existing `smart_home`
+      scope, new principal `core:security`, following **Sensors'**
+      gated-reads precedent (this module recombines the very
+      motion/presence/occupancy data Sensors gates, so ungated reads
+      would bypass that boundary). `core:security` and `core:sensors`
+      stay **independently grantable**, and a propagated
+      `SensorPermissionError` is deliberately **not** swallowed --
+      surfacing an honest 400 rather than an empty "all clear".
+- [x] DI -- `security_service` singleton in `core/di/container.py`.
+- [x] 53 new tests (`test_m12_security_service.py`,
+      `test_m12_security_route.py`, `test_m12_security_tools.py`), 0
+      failures, against real components throughout
+      (`FakeDeviceConnector`, real temp-file SQLite, real
+      `PermissionModel`, real `SensorService`/`SmartLockService`) --
+      covering each hazard class, multiple simultaneous alerts, every
+      status-only class proven *not* to become an alert, lock state,
+      unavailable sensor/lock, empty home, multi-room filtering, full
+      precedence ordering, both permission gates independently, and
+      the deliberate absence of any mutation surface.
+
+**Explicitly out of scope, and not built:** Panic Mode, Vacation Mode,
+Emergency Alerts, emergency response, automatic remediation, any
+actuator command (lock/unlock, light, switch, fan, cover), scene/
+multi-device response, event-driven security automation,
+scheduler-based security automation, notifications, analytics, Smart
+Home Memory integration, camera/vision integration, and frontend work.
+**The `EventBus` was not touched** -- no `SecurityAlertEvent`, no
+subscriptions, no background worker; `/security/status` is poll-only.
+**The pre-existing device-command event-publishing gap was deliberately
+not fixed** -- it remains a separate architectural task, prerequisite
+to Home Automation, Smart Home Memory and Developer Tools' Event
+Viewer. **Connectors were not touched** -- no new `DEVICE_TYPES`, no
+new table/column, no new permission scope. **Not this task group, and
+not built:** any other M12 module (Smart Cameras, Home Automation, AI
+Home Assistant, Remote Access, Smart Home Memory, Smart Home Analytics,
+Developer Tools).
 
 ---
 

@@ -394,26 +394,62 @@ domain/command vocabulary). Smart Pumps/Irrigation is **blocked**: HA's
 **blocked**: no single HA/MQTT domain represents "kitchen appliance" as
 a category.
 
+**M12 — Security & Safety (Read-Only Alert/Status Slice) shipped Aug
+2026.** A read-only post-Task-G audit re-evaluated all eight remaining
+M12 candidates and found Security & Safety the only fully-buildable
+one: its entire data substrate already shipped (motion, presence,
+occupancy, door, window, smoke, gas, water-leak via `SensorService`;
+lock state via `SmartLockService`), and a **pull-based** read-only
+aggregate needs neither M7's Scheduler (confirmed entirely unstarted —
+no scheduler file exists anywhere in `src/jarvis/`) nor the
+device-command event-publishing gap the same audit surfaced (none of
+the five per-category command services publishes `DeviceUpdatedEvent`
+on actuation), both of which block Home Automation. A new
+`SecurityService` (`services/security_service.py`) aggregates the two
+already-shipped services — never a connector, never
+`ConnectivityService`/`SmartHomeService`, no `EventBus` dependency —
+exposed over a single `GET /api/v1/security/status` and two read-only
+agent tools, gated by the existing `PermissionModel` under a new
+principal (`core:security`). Alert semantics are **closed and
+non-inferred**: only `smoke`/`gas`/`moisture` can raise an alert;
+door/window/motion/presence/occupancy/vibration and lock state are
+factual status only, never intrusion. Overall status is
+`CRITICAL > WARNING > UNKNOWN > NORMAL`, with `UNKNOWN` deliberately
+outranking `NORMAL` so unavailable monitoring is never presented as
+safe. Reads are **gated**, following Sensors' precedent rather than
+Lighting/Locks/Switches/Appliances' — this module recombines the exact
+data Sensors gates — and `core:security`/`core:sensors` remain
+independently grantable, with a propagated `SensorPermissionError`
+deliberately not swallowed. **Informational only**: no mutation route,
+no mutation tool, no actuator path. Panic Mode, Vacation Mode,
+Emergency Alerts, automated safety actions, scene/multi-device
+response, event-driven and scheduler-based security automation, and
+notifications are all explicitly deferred. See
+`docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md` for the full Logic
+Contract.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
-and Appliance Control's Core Appliance Slice are now shipped; eight of
-this milestone's fifteen modules remain entirely unstarted (Smart
-Cameras, Home Automation, AI Home Assistant, Security & Safety, Remote
-Access, Smart Home Memory, Smart Home Analytics, Developer Tools) —
-Energy Management and Appliance Control themselves each remain only
-partially shipped (Energy Management: device control only,
+Appliance Control's Core Appliance Slice, and Security & Safety's
+Read-Only Alert/Status Slice are now shipped; seven of this
+milestone's fifteen modules remain entirely unstarted (Smart Cameras,
+Home Automation, AI Home Assistant, Remote Access, Smart Home Memory,
+Smart Home Analytics, Developer Tools) — Energy Management, Appliance
+Control and Security & Safety themselves each remain only partially
+shipped (Energy Management: device control only,
 History/Analytics/Optimization/Scheduling all deferred; Appliance
 Control: Fan + Cover control only, five appliance categories deferred
-and two blocked on the current connector mapping). **No version bump
-accompanied any of the nine task-group passes** -- unlike M22's own
+and two blocked on the current connector mapping; Security & Safety:
+read-only status only, every action-taking item deferred). **No version
+bump accompanied any of the ten task-group passes** -- unlike M22's own
 task groups (each of which shipped real code and bumped the version in
-turn), all nine ship real code at `0.38.0` unchanged. Recorded here as
+turn), all ten ship real code at `0.38.0` unchanged. Recorded here as
 a deliberate exception to this project's usual pattern, not a claim
 that the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group
 A, Task Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D,
-Task Group E, Task Group F, and Task Group G entries for the full
-implementation account.
+Task Group E, Task Group F, Task Group G, and Task Group H entries for
+the full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -713,7 +749,28 @@ future work; see M6's own §3 entry for the full scope note.
   Vacuum, Water Heater, Humidifier deferred to future Appliance Control
   slices; Smart Pumps/Irrigation and Smart Kitchen Devices blocked on
   the current connector domain mapping. **Not the full Appliance
-  Control module.** **Not Complete**: eight of fifteen M12 modules
+  Control module.** Task Group H (Security & Safety — Read-Only Alert/
+  Status Slice) shipped: a new `SecurityService` aggregating the
+  already-shipped `SensorService` and `SmartLockService` **pull-based**
+  — no connector access, no `ConnectivityService`/`SmartHomeService`,
+  and no `EventBus` dependency — exposed over a single `GET
+  /api/v1/security/status` and two read-only agent tools, gated by the
+  same `PermissionModel` under a new principal (`core:security`) with
+  reads **gated**, following Sensors' precedent rather than Lighting/
+  Locks/Switches/Appliances'. `core:security` and `core:sensors` stay
+  independently grantable, and a propagated `SensorPermissionError` is
+  deliberately not swallowed. Alert semantics are closed and
+  non-inferred — only smoke/gas/water-leak can raise an alert; door,
+  window, motion, presence, occupancy and lock state are factual status
+  only, **never** inferred as intrusion. Overall status is
+  `CRITICAL > WARNING > UNKNOWN > NORMAL`, with unavailable monitoring
+  never presented as safe. **Informational only** — no mutation route,
+  no mutation tool, no actuator path; Panic Mode, Vacation Mode,
+  Emergency Alerts, automated safety actions, scene response,
+  event-driven/scheduler-based security automation and notifications
+  are all deferred. The pre-existing device-command event-publishing
+  gap was deliberately **not** fixed here. **Not the full Security &
+  Safety module.** **Not Complete**: seven of fifteen M12 modules
   remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
@@ -3997,17 +4054,55 @@ vocabulary. Smart Pumps/Irrigation is **blocked**: HA's `valve` domain
 a consistent category. See `docs/M12_APPLIANCE_CONTROL_LOGIC_CONTRACT.md`
 for the full Logic Contract.
 
-**Not Complete**: eight of this milestone's fifteen modules remain
+**M12 — Security & Safety (Read-Only Alert/Status Slice) shipped Aug
+2026.** A read-only post-Task-G audit re-ranked the eight remaining M12
+candidates and found Security & Safety the only fully-buildable one —
+its whole data substrate already shipped in Task Groups D/E, and a
+**pull-based** read-only aggregate needs neither M7's Scheduler
+(confirmed entirely unstarted) nor the device-command
+event-publishing gap the same audit surfaced, both of which block Home
+Automation, Smart Home Memory and Developer Tools' Event Viewer. A new
+`SecurityService` (`services/security_service.py`) aggregates
+`SensorService` + `SmartLockService` only — never a connector, never
+`ConnectivityService`/`SmartHomeService`, and with **no `EventBus`
+dependency at all** — over a single `GET /api/v1/security/status` and
+two read-only agent tools (`get_security_status`,
+`list_active_security_alerts`), gated by the existing `PermissionModel`
+under a new principal (`core:security`). **Alert semantics are closed
+and non-inferred**: only `smoke`/`gas`/`moisture` (HA's real class name
+for water leak) can raise an alert, because their `value=True` reading
+*is* HA's own "hazard detected" meaning; door, window, garage_door,
+motion, presence, occupancy, vibration and lock state are reported as
+factual status only and are **never** classified as intrusion. Overall
+status is `CRITICAL > WARNING > UNKNOWN > NORMAL`, with `UNKNOWN`
+deliberately ranking above `NORMAL` so that unavailable, offline or
+entirely-absent hazard monitoring is never presented as safe. Reads are
+**gated** — following Sensors' precedent rather than Smart Lighting/
+Smart Locks/Smart Switches/Appliance Control's ungated one, since this
+module recombines the very motion/presence/occupancy data Sensors
+gates — and `core:security`/`core:sensors` remain independently
+grantable, with a propagated `SensorPermissionError` deliberately not
+swallowed. **Informational only**: no mutation route, no mutation tool,
+no actuator code path, no automatic action of any kind. See
+`docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md` for the full Logic
+Contract.
+
+**Not Complete**: seven of this milestone's fifteen modules remain
 entirely unstarted (Smart Cameras, Home Automation, AI Home Assistant,
-Security & Safety, Remote Access, Smart Home Memory, Smart Home
-Analytics, Developer Tools) — and Energy Management and Appliance
-Control each remain only partially shipped: Energy Management's
-Consumption History, Energy Dashboard/Analytics/Trends, Energy
-Optimization, Automatic Power Saving, Load Scheduling and Energy-based
-Automations are all still outstanding, deferred to the modules named
-above; Appliance Control's five deferred categories and two blocked
-categories (above) remain outstanding. See `IMPLEMENTATION_ROADMAP.md`
-§5H for the full account of what was built.
+Remote Access, Smart Home Memory, Smart Home Analytics, Developer
+Tools) — and Energy Management, Appliance Control and Security & Safety
+each remain only partially shipped: Energy Management's Consumption
+History, Energy Dashboard/Analytics/Trends, Energy Optimization,
+Automatic Power Saving, Load Scheduling and Energy-based Automations
+are all still outstanding, deferred to the modules named above;
+Appliance Control's five deferred categories and two blocked categories
+(above) remain outstanding; and Security & Safety's entire
+action-taking half — Panic Mode, Vacation Mode, Emergency Alerts, Fire/
+Gas/Water-leak *response* (as opposed to reporting), automated safety
+actions, scene/multi-device response, event-driven and scheduler-based
+security automation, and notifications — remains outstanding, deferred
+to Home Automation/M7/future separately-scoped slices. See
+`IMPLEMENTATION_ROADMAP.md` §5H for the full account of what was built.
 
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
 single-bus device bridge into a complete enterprise-grade Smart Home
@@ -4231,17 +4326,33 @@ automation are exposed as M5A agent tools, following the same
 tool-registry pattern every other service uses (`agents/tools/`).
 
 #### Security & Safety
-- Intrusion Detection
+*(Read-Only Alert/Status Slice only shipped Task Group H, Aug 2026 --
+a new `SecurityService` aggregating the already-shipped `SensorService`
+and `SmartLockService` **pull-based**, over one REST route
+(`/api/v1/security/status`) and two read-only agent tools. Hazard
+**reporting** for smoke/gas/water-leak ships; hazard **response** does
+not. Reads are permission-gated (`core:security`, following Sensors'
+precedent). The module is **informational only** -- no mutation route,
+no mutation tool, no actuator path, no automatic action. Every
+action-taking item below is deferred to Home Automation/M7/future
+separately-scoped slices, all still unstarted. Zero `EventBus`,
+connector, `DEVICE_TYPES` or schema changes.)*
+- Intrusion Detection *(read-only inputs only -- door/window/motion/
+  presence/occupancy state is reported factually and **deliberately
+  never inferred as intrusion**; any actual detection logic is
+  outstanding)*
 - Emergency Alerts
-- Fire Detection Integration
-- Gas Leak Alerts
-- Water Leak Alerts
+- Fire Detection Integration ✅ *(smoke-sensor alert reporting; response is deferred)*
+- Gas Leak Alerts ✅ *(reporting only; response is deferred)*
+- Water Leak Alerts ✅ *(reporting only, via HA's `moisture` device_class; response is deferred)*
 - Panic Mode
 - Vacation Mode
-- Home Status Dashboard
+- Home Status Dashboard ✅ *(backend aggregate: overall status, active alerts, hazard/status sensors, lock state, unavailable counts)*
 
 Every item in this module is `safety_critical` by default (see
-Architecture notes) — none of it silently auto-executes.
+Architecture notes) — none of it silently auto-executes. The shipped
+slice honours that by taking **no** action at all: it reports, and a
+human or a future, separately-approved module decides what to do.
 
 #### Remote Access
 - Secure Remote Access

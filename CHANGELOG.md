@@ -3,6 +3,127 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Security & Safety — Read-Only Alert/Status Slice (Task Group H)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Security & Safety — Read-Only Alert/Status Slice**
+scope -- **not the full Security & Safety module**. Preceded by a
+read-only post-Task-G next-module audit that re-evaluated all eight
+remaining M12 candidates and found Security & Safety the only 🟢
+fully-buildable one: its entire data substrate (motion, presence,
+occupancy, door, window, smoke, gas, water-leak via `SensorService`;
+lock state via `SmartLockService`) already shipped in Task Groups D/E,
+and a **pull-based** read-only aggregate needs neither M7's Scheduler
+(unstarted) nor the device-command event-publishing gap (unchanged)
+that block Home Automation, Smart Home Memory and Developer Tools'
+Event Viewer. **Does not close M12**, and does not close Security &
+Safety as a whole; see `docs/IMPLEMENTATION_ROADMAP.md` §5H. Preceded
+by a Logic Contract (`docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md`),
+written and separately approved before any code, per this project's own
+standing rules. 53 new tests, 0 failures, 0 errors, against real
+components throughout (`FakeDeviceConnector`, real temp-file SQLite,
+real `PermissionModel`, real `SensorService`/`SmartLockService` --
+never a mocked dependency).
+
+### Added
+- **`SecurityService`** (`services/security_service.py`) -- a
+  **pull-based aggregation** over two already-shipped services,
+  depending on `SensorService` + `SmartLockService` + `PermissionModel`
+  only. Deliberately takes **no** `ConnectivityService`,
+  `SmartHomeService` or `EventBus` dependency: it never reaches a
+  connector, and it re-implements none of either service's
+  normalization (`_parse_binary`/`_infer_locked`/`_binary_state_label`
+  stay where they already live) -- enforced by a source-level test.
+- **Closed, non-inferred alert semantics** -- only `smoke`, `gas` and
+  `moisture` (HA's real `device_class` name for water leak), whose
+  `value=True` reading *is* HA's own literal "hazard detected" meaning,
+  can produce an active alert or move the overall status.
+  `door`/`window`/`garage_door`/`motion`/`presence`/`occupancy`/
+  `vibration` and lock state are reported as **factual status only** --
+  never auto-classified as intrusion, never elevated to an alert. No
+  detection algorithm, heuristic or probabilistic inference exists
+  anywhere in this module.
+- **Four-value overall status** -- `CRITICAL > WARNING > UNKNOWN >
+  NORMAL`, deterministic precedence, computed from the hazard bucket
+  alone. `UNKNOWN` ranks **above** `NORMAL`: an unreadable hazard
+  sensor (`WARNING`) and a home with no hazard monitoring at all
+  (`UNKNOWN`) are both distinct from, and never collapsed into, a
+  confirmed-clear home. **Unavailable/offline/unparseable data is never
+  interpreted as safe.**
+- **Security & Safety REST** -- `GET /api/v1/security/status`, one
+  route only (`infrastructure/api/routes/security.py`), optional
+  `home_id`/`room_id` filters, `{data, meta}` envelope with
+  `meta.overall_status`. **No 404 case exists** -- a first for M12's
+  REST surface, since the endpoint has no single-resource identity;
+  permission is the only failure mode (400).
+- **Security agent tools** -- `agents/tools/security_tools.py`, two
+  read-only tools (`get_security_status`,
+  `list_active_security_alerts`) wired into the existing Tool Registry
+  and `AgentOrchestrator`. **No mutation tool**, and no
+  `AgentSettings.confirm_required_tools` entry -- there is no action to
+  confirm.
+- **Permission enforcement (reads gated)** -- existing
+  `PermissionModel`, existing `smart_home` scope, new principal
+  `core:security`. Follows **Sensors'** gated-reads precedent, not
+  Lighting/Locks/Switches/Appliances' ungated one: this module's output
+  recombines the exact motion/presence/occupancy data Sensors already
+  gates, so an ungated aggregate would be a real bypass of that
+  boundary.
+- **DI** -- `security_service` singleton in `core/di/container.py`.
+
+### Two independent permission gates compose
+`core:security` and `core:sensors` remain **independently grantable** --
+granting one never grants the other. A caller holding `core:security`
+alone still trips `SensorService`'s own check the moment a hazard or
+status sensor is read, and the resulting `SensorPermissionError` is
+**deliberately not caught** by `SecurityService`: it propagates to a
+400. Swallowing it would silently under-report hazards as an empty
+"all clear", which the safety boundary forbids more strongly than an
+honest failure. Covered by dedicated service, REST and tool tests.
+
+### Safety boundary
+**Informational only.** This module does not guarantee physical safety
+and does not replace alarms, certified security systems, emergency
+services, human judgment or physical safety mechanisms. **No automatic
+action is possible**: there is no mutation route, no mutation tool, and
+no code path calling `SmartLockService.lock`/`unlock`,
+`SmartLightingService`, `SmartSwitchService` or `ApplianceService`. A
+`CRITICAL` status is a report, not a response.
+
+### Not changed
+- `SensorService`, `SmartLockService`, `SmartLightingService`,
+  `SmartSwitchService`, `ApplianceService`, `SmartHomeService`,
+  `ConnectivityService`, `PermissionModel` -- reused verbatim, zero
+  behavior changes.
+- **`EventBus` untouched.** No `SecurityAlertEvent`, no new
+  subscriptions, no background worker, no polling. This module
+  publishes nothing (a read is not a state change), so
+  `/security/status` is **poll-only** -- there is no push notification
+  and no live feed. The pre-existing device-command event-publishing
+  gap (Lighting/Locks/Sensors/Switches/Appliances never publish
+  `DeviceUpdatedEvent` on a command) is **deliberately not fixed here**
+  -- it remains a separate architectural task, prerequisite to Home
+  Automation/Smart Home Memory/Developer Tools' Event Viewer.
+- **Connectors untouched** -- no `HomeAssistantConnector`/
+  `MqttConnector` change, no new `DEVICE_TYPES` value, no new ORM
+  table or column, no new permission scope.
+
+### Explicitly out of scope (deferred, not stubbed)
+- Panic Mode, Vacation Mode, Emergency Alerts, emergency response,
+  automatic remediation, any actuator command -- all action-taking;
+  several also need a multi-device "scene" concept that does not exist
+  anywhere in the codebase.
+- Scene/multi-device response, event-driven security automation,
+  scheduler-based security automation -- blocked on M7's Scheduler
+  (unstarted) and the event-publishing gap above.
+- Notifications (no delivery mechanism exists), Analytics (M20A
+  unshipped), Smart Home Memory (unstarted), Home Automation
+  (unstarted), camera/vision integration (no camera or media
+  infrastructure exists).
+- Frontend of any kind -- this slice is backend-only.
+
 ## M12: Appliance Control — Core Appliance Slice (Task Group G)
 
 **No version bump**, matching this project's own established
