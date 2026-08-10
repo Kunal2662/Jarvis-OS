@@ -428,28 +428,71 @@ notifications are all explicitly deferred. See
 `docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md` for the full Logic
 Contract.
 
+**M12 — Appliance Control (Climate / Thermostat Slice) shipped Aug
+2026.** A Phase 0 post-Security audit re-evaluated all seven remaining
+M12 modules, plus each partially-shipped module's own next-slice
+candidates, and found Climate the highest-value fully-buildable
+candidate: `device_type="thermostat"` was already reserved in
+`DEVICE_TYPES`, and both connectors already mapped HA's `climate`
+domain to it (`home_assistant.py:78`, `mqtt.py:159`) — zero connector
+changes required. A Logic Contract
+(`docs/M12_APPLIANCE_CLIMATE_LOGIC_CONTRACT.md`), separately approved
+before any code, corrected a scoping assumption left implicit by
+Appliance Control's own contract: a thermostat is **not** a
+`device_type="appliance"` device, so this slice ships its own
+`ThermostatService` (`services/thermostat_service.py`) — deliberately
+**not** an `ApplianceService` extension, enforced by a source-level
+test. Depends only on `SmartHomeService` + `ConnectivityService` +
+`PermissionModel` — no `IDatabase`, no `EventBus`, no connector import.
+One merged mutation, `set_thermostat_state(temperature?, hvac_mode?)`,
+mirroring `SmartLightingService`'s own attribute-merge shape. **Two
+structurally different wire translations, by design**: HA models
+climate as two distinct services, so a combined update sends
+`set_hvac_mode` then `set_temperature` sequentially — the repository
+carried zero prior evidence that HA's `set_temperature` accepts an
+optional `hvac_mode`, so the unverifiable merged form was not relied on;
+MQTT's own envelope has no such constraint, so it stays one merged,
+newly-defined `set_state` call. A combined update that partially fails
+reports `success: false` naming exactly what already applied — never a
+false full success. **No invented limits or vocabulary**: temperature
+bounds are enforced only when the device itself reports
+`min_temp`/`max_temp`; HVAC mode is validated against the device's own
+reported `hvac_modes` when present, permissive when absent. Because an
+HA climate entity's own state string *is* its HVAC mode, an unavailable
+thermostat reports `hvac_mode: null`, never the literal `"unavailable"`
+string — the one genuinely new normalization case in M12. Exposed over
+`/api/v1/thermostats/*` and three agent tools (merged, not split into
+per-attribute tools), gated by the existing `PermissionModel` under a
+new principal (`core:thermostats`) — reads **ungated**, following
+Lighting/Locks/Switches/Appliances' precedent. See
+`docs/M12_APPLIANCE_CLIMATE_LOGIC_CONTRACT.md` for the full Logic
+Contract.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
-Appliance Control's Core Appliance Slice, and Security & Safety's
-Read-Only Alert/Status Slice are now shipped; seven of this
-milestone's fifteen modules remain entirely unstarted (Smart Cameras,
-Home Automation, AI Home Assistant, Remote Access, Smart Home Memory,
-Smart Home Analytics, Developer Tools) — Energy Management, Appliance
-Control and Security & Safety themselves each remain only partially
-shipped (Energy Management: device control only,
+Appliance Control's Core Appliance Slice and Climate/Thermostat Slice,
+and Security & Safety's Read-Only Alert/Status Slice are now shipped;
+seven of this milestone's fifteen modules remain entirely unstarted
+(Smart Cameras, Home Automation, AI Home Assistant, Remote Access,
+Smart Home Memory, Smart Home Analytics, Developer Tools) — Energy
+Management, Appliance Control and Security & Safety themselves each
+remain only partially shipped (Energy Management: device control only,
 History/Analytics/Optimization/Scheduling all deferred; Appliance
-Control: Fan + Cover control only, five appliance categories deferred
-and two blocked on the current connector mapping; Security & Safety:
-read-only status only, every action-taking item deferred). **No version
-bump accompanied any of the ten task-group passes** -- unlike M22's own
-task groups (each of which shipped real code and bumped the version in
-turn), all ten ship real code at `0.38.0` unchanged. Recorded here as
-a deliberate exception to this project's usual pattern, not a claim
-that the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group
-A, Task Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D,
-Task Group E, Task Group F, Task Group G, and Task Group H entries for
-the full implementation account.
+Control: Fan + Cover + Climate/Thermostat control only — fan
+percentage/cover position and Climate's own fan mode/swing/presets/
+humidity/dual setpoint/scheduling all deferred, five appliance
+categories still entirely unbuilt, two blocked on the current connector
+mapping; Security & Safety: read-only status only, every action-taking
+item deferred). **No version bump accompanied any of the eleven
+task-group passes** -- unlike M22's own task groups (each of which
+shipped real code and bumped the version in turn), all eleven ship real
+code at `0.38.0` unchanged. Recorded here as a deliberate exception to
+this project's usual pattern, not a claim that the pattern changed. See
+`MILESTONE_REPORT.md`'s M12 Task Group A, Task Group B Phase 1/Phase 2/
+Phase 3, Task Group C, Task Group D, Task Group E, Task Group F, Task
+Group G, Task Group H, and Task Group I entries for the full
+implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -770,8 +813,25 @@ future work; see M6's own §3 entry for the full scope note.
   event-driven/scheduler-based security automation and notifications
   are all deferred. The pre-existing device-command event-publishing
   gap was deliberately **not** fixed here. **Not the full Security &
-  Safety module.** **Not Complete**: seven of fifteen M12 modules
-  remain entirely unstarted.
+  Safety module.** Task Group I (Appliance Control — Climate /
+  Thermostat Slice) shipped: a new `ThermostatService` — deliberately
+  **not** an `ApplianceService` extension, since a thermostat is its own
+  `device_type`, not a `device_type="appliance"` device — depending only
+  on `SmartHomeService`, `ConnectivityService` and `PermissionModel`, no
+  `EventBus`. One merged mutation
+  (`set_thermostat_state(temperature?, hvac_mode?)`), mirroring Smart
+  Lighting's attribute-merge shape; HA's two-service climate model means
+  a combined update sends `set_hvac_mode` then `set_temperature`
+  sequentially (no repository evidence supported a merged HA call), while
+  MQTT's own envelope stays one newly-defined merged `set_state` call.
+  No invented temperature limits or HVAC vocabulary — both are validated
+  only against what the device itself reports. Exposed over
+  `/api/v1/thermostats/*` and three merged (not per-attribute) agent
+  tools, gated by the same `PermissionModel` under a new principal
+  (`core:thermostats`) — reads **ungated**, following Lighting/Locks/
+  Switches/Appliances' precedent. **Not the full Appliance Control
+  module.** **Not Complete**: seven of fifteen M12 modules remain
+  entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -4268,7 +4328,7 @@ Automation/M7, both still unstarted/unshipped.)*
 - Load Scheduling
 
 #### Appliance Control
-*(Core Appliance Slice only shipped Task Group G, Aug 2026 -- Fan and
+*(Core Appliance Slice shipped Task Group G, Aug 2026 -- Fan and
 Cover/Blind/Curtain **control** via a new `ApplianceService` mirroring
 Smart Switches' architecture, over both REST
 (`/api/v1/appliances/fans/*`, `/api/v1/appliances/covers/*`) and eight
@@ -4276,15 +4336,24 @@ agent tools. Zero connector code changes required -- both domains
 already mapped to `device_type="appliance"` and already had their
 sub-kind captured via the existing `metadata["domain"]` discovery
 field. Fan percentage and cover position evaluated and deliberately
-deferred. Climate/AC, Media Players, Vacuum, Water Heater and
-Humidifier are deferred to future, separately-scoped Appliance Control
-slices. Smart Pumps/Irrigation is blocked: HA's `valve` domain --
-irrigation's natural mapping -- currently maps to `device_type=
+deferred. Climate/Thermostat Slice shipped Task Group I, Aug 2026 -- a
+separate `ThermostatService` (not an `ApplianceService` extension: a
+thermostat is its own `device_type`, already reserved and already
+mapped from HA's `climate` domain in both connectors -- zero connector
+changes here either), read/write current+target temperature and HVAC
+mode over `/api/v1/thermostats/*` and three merged agent tools, reads
+ungated like every other Appliance Control category. Fan mode, swing,
+presets, humidity, auxiliary/emergency heat, dual setpoint and
+scheduling evaluated and deliberately deferred, same discipline as fan
+percentage/cover position. Media Players, Vacuum, Water Heater and
+Humidifier remain deferred to future, separately-scoped Appliance
+Control slices. Smart Pumps/Irrigation is blocked: HA's `valve` domain
+-- irrigation's natural mapping -- currently maps to `device_type=
 "other"`, not `"appliance"`. Smart Kitchen Devices is blocked: no
 single HA/MQTT domain represents "kitchen appliance" as a consistent
 category.)*
 - Smart Fans ✅
-- Smart AC
+- Smart AC ✅ *(read/write current+target temperature, HVAC mode -- fan mode/swing/presets/humidity/scheduling deferred)*
 - Smart TV
 - Smart Curtains ✅ *(via the cover entity)*
 - Smart Blinds ✅ *(via the cover entity)*

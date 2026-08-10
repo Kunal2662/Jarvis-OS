@@ -3,6 +3,105 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Climate / Thermostat Slice (Task Group I)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Appliance Control — Climate / Thermostat Slice**
+scope -- **not the full Appliance Control module**. Preceded by a
+Phase 0 post-Security audit (`M12 PHASE 0 POST-MODULE AUDIT`) that
+re-evaluated all seven remaining M12 modules and identified Climate as
+the highest-value fully-buildable candidate: `device_type="thermostat"`
+was already reserved in `DEVICE_TYPES`, and both connectors already map
+HA's `climate` domain to it -- zero connector changes required. Preceded
+by a Logic Contract (`docs/M12_APPLIANCE_CLIMATE_LOGIC_CONTRACT.md`),
+written and approved before any code, which corrected a prior
+assumption: Climate is **not** an `ApplianceService` extension (a
+thermostat is its own `device_type`, not a `device_type="appliance"`
+device distinguished by `metadata["domain"]`), so this slice ships its
+own `ThermostatService`. 90 new tests, 0 failures, 0 errors, against
+real components throughout (`FakeDeviceConnector`, real temp-file
+SQLite, real `PermissionModel`).
+
+### Added
+- **`ThermostatService`** (`services/thermostat_service.py`) -- reads
+  current temperature, target temperature, HVAC mode, the device's own
+  supported-mode list, and its own reported min/max bounds; one merged
+  mutation, `set_thermostat_state(temperature?, hvac_mode?)`, covering
+  temperature-only, mode-only, and combined updates. Depends only on
+  `SmartHomeService` + `ConnectivityService` + `PermissionModel` -- no
+  `IDatabase` (no scenes to persist), no `EventBus`, no direct connector
+  import.
+- **Two wire translations, deliberately different shapes.** Home
+  Assistant models climate as two distinct services
+  (`climate.set_hvac_mode`/`climate.set_temperature`); the repository
+  carries no evidence `set_temperature` accepts an optional `hvac_mode`
+  (searched this session -- zero prior references anywhere in `src/`
+  or `tests/`), so a combined update sends two sequential calls, mode
+  first, through the existing generic `ConnectivityService.
+  send_command` chokepoint -- no connector change needed. MQTT's own
+  envelope has no such constraint, so this module defines a first,
+  JARVIS-native vocabulary: always one merged `set_state` call,
+  deliberately *not* copying HA's two-service split.
+- **Honest partial failure.** A combined HA update that applies the
+  mode but fails the temperature reports `success: false` naming
+  exactly what already applied -- never a false full success, never a
+  silent retry.
+- **No invented limits or vocabulary.** Temperature bounds are enforced
+  only when the device itself reports `min_temp`/`max_temp`; HVAC mode
+  is validated against the device's own reported `hvac_modes` when
+  present, and accepted permissively when the device declares none --
+  no fixed HVAC enum, no manufactured safety range.
+- **The one genuinely new normalization case in M12**: because an HA
+  climate entity's own state string *is* its HVAC mode, an unavailable
+  thermostat reports `hvac_mode: null` -- never the literal
+  `"unavailable"`/`"offline"` string.
+- **Thermostat REST** -- `GET /api/v1/thermostats`,
+  `GET /api/v1/thermostats/{id}`, `POST /api/v1/thermostats/{id}/state`
+  (merged body: `temperature?`, `hvac_mode?`; empty body rejected).
+  `infrastructure/api/routes/thermostats.py`.
+- **Three agent tools** -- `agents/tools/thermostat_tools.py`:
+  `list_thermostats`, `get_thermostat_state`, `set_thermostat_state`
+  (merged, not split into separate temperature/mode tools -- preserves
+  one user intent and avoids two sequential tool/wire calls), wired
+  into the existing Tool Registry and `AgentOrchestrator`.
+- **Permission enforcement (mutation only)** -- existing
+  `PermissionModel`, `smart_home` scope, new principal
+  `core:thermostats`. **Reads are ungated**, following Smart Lighting/
+  Smart Locks/Smart Switches/Appliance Control's precedent -- a
+  thermostat's temperature/mode carries no Sensors-grade privacy
+  weight. No confirmation requirement -- a setpoint change has no
+  security consequence comparable to `unlock_device`.
+- **DI** -- `thermostat_service` singleton in `core/di/container.py`.
+
+### Not changed
+- `ApplianceService` -- **not extended**. A source-level test pins that
+  it contains no `thermostat`/`hvac` reference of any kind.
+- `SmartHomeService`, `ConnectivityService`, `PermissionModel` -- reused
+  verbatim. No new `DEVICE_TYPES` entry (`thermostat` was already
+  reserved), no new ORM table/column.
+- `EventBus` -- untouched. No `ThermostatUpdatedEvent`, no
+  subscriptions, no background workers. The pre-existing device-command
+  event-publishing gap remains unfixed, a separate architectural task
+  for Home Automation/Smart Home Memory/Developer Tools' Event Viewer.
+- Both connectors (`HomeAssistantConnector`, `MqttConnector`) -- zero
+  changes; `climate` was already mapped to `device_type="thermostat"`
+  in both.
+
+### Explicitly out of scope
+- Fan mode, swing mode, preset modes, humidity/dehumidification,
+  auxiliary/emergency heat, dual setpoint (`target_temp_high`/
+  `target_temp_low`) range mode, `target_temp_step` enforcement -- each
+  deferred to a future, separately-scoped Appliance Control slice.
+- Scheduling, automation, occupancy-aware HVAC, predictive/AI HVAC
+  optimization, multi-zone orchestration, thermostat scenes -- Home
+  Automation/AI Home Assistant/Smart Home Analytics' job, all unstarted
+  or blocked.
+- Every other M12 device-category module (Smart Cameras, Home
+  Automation, AI Home Assistant, Remote Access, Smart Home Memory,
+  Smart Home Analytics, Developer Tools).
+
 ## M12: Security & Safety — Read-Only Alert/Status Slice (Task Group H)
 
 **No version bump**, matching this project's own established
