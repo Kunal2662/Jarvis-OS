@@ -594,6 +594,18 @@ def _build_appliance_service(
     )
 
 
+def _build_thermostat_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.thermostat_service import ThermostatService
+
+    return ThermostatService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
 def _build_security_service(
     *, sensor_service: Any, smart_lock_service: Any, permission_model: Any
 ) -> Any:
@@ -1081,6 +1093,7 @@ def _build_agent_orchestrator(
     sensors: Any,
     smart_switch: Any,
     appliances: Any,
+    thermostats: Any,
     security: Any,
     event_bus: Any,
 ) -> Any:
@@ -1105,6 +1118,7 @@ def _build_agent_orchestrator(
         sensors=sensors,
         smart_switch=smart_switch,
         appliances=appliances,
+        thermostats=thermostats,
         security=security,
         event_bus=event_bus,
     )
@@ -1443,6 +1457,17 @@ class Container(containers.DeclarativeContainer):
         permission_model=permission_model,
     )
 
+    # ---- Milestone 12 Appliance Control (Climate / Thermostat Slice) ------
+    # Its own device_type ("thermostat"), so deliberately a separate
+    # service rather than an ApplianceService extension -- see
+    # docs/M12_APPLIANCE_CLIMATE_LOGIC_CONTRACT.md §3.
+    thermostat_service = providers.Singleton(
+        _build_thermostat_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 12 Security & Safety (Read-Only Alert/Status Slice) ----
     # Pull-based aggregation over sensor_service/smart_lock_service only --
     # deliberately NOT smart_home_service/connectivity_service, per
@@ -1732,6 +1757,7 @@ class Container(containers.DeclarativeContainer):
         sensors=sensor_service,
         smart_switch=smart_switch_service,
         appliances=appliance_service,
+        thermostats=thermostat_service,
         security=security_service,
         event_bus=event_bus,
     )
