@@ -76,6 +76,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         from jarvis.infrastructure.api.routes import intelligence as intelligence_routes
         from jarvis.infrastructure.api.routes import knowledge as knowledge_routes
         from jarvis.infrastructure.api.routes import mcp as mcp_routes
+        from jarvis.infrastructure.api.routes import media_players as media_player_routes
         from jarvis.infrastructure.api.routes import plugins as plugin_routes
         from jarvis.infrastructure.api.routes import productivity as productivity_routes
         from jarvis.infrastructure.api.routes import runtime_ws as runtime_ws_routes
@@ -112,6 +113,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(appliance_routes.router, prefix="/api/v1")
         app.include_router(thermostat_routes.router, prefix="/api/v1")
         app.include_router(vacuum_humidifier_routes.router, prefix="/api/v1")
+        app.include_router(media_player_routes.router, prefix="/api/v1")
         app.include_router(sensor_routes.router, prefix="/api/v1")
         app.include_router(security_routes.router, prefix="/api/v1")
         app.include_router(integration_routes.router, prefix="/api/v1")

@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
+    from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
@@ -57,6 +58,7 @@ def build_tool_registry(
     appliances: ApplianceService | None = None,
     thermostats: ThermostatService | None = None,
     vacuum_humidifier: VacuumHumidifierService | None = None,
+    media_players: MediaPlayerService | None = None,
     security: SecurityService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
@@ -145,6 +147,15 @@ def build_tool_registry(
         from jarvis.agents.tools.vacuum_humidifier_tools import build_vacuum_humidifier_tools
 
         tools += build_vacuum_humidifier_tools(vacuum_humidifier)
+    if media_players is not None:
+        # Milestone 12 Appliance Control (Media Player Core Slice).
+        # Eight tools: five transport verbs mirroring Vacuum's
+        # one-tool-per-command shape, one merged state tool mirroring
+        # Thermostat's shape -- see
+        # `agents/tools/media_player_tools.py`.
+        from jarvis.agents.tools.media_player_tools import build_media_player_tools
+
+        tools += build_media_player_tools(media_players)
     if security is not None:
         # Milestone 12 Security & Safety (Read-Only Alert/Status
         # Slice). Two read-only tools, mirroring Sensors' own

@@ -65,6 +65,7 @@ if TYPE_CHECKING:
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
+    from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
@@ -105,6 +106,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         appliances: ApplianceService | None = None,
         thermostats: ThermostatService | None = None,
         vacuum_humidifier: VacuumHumidifierService | None = None,
+        media_players: MediaPlayerService | None = None,
         security: SecurityService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
@@ -166,6 +168,12 @@ class AgentOrchestrator(IAgentOrchestrator):
         # `VacuumHumidifierService` the REST surface calls -- see
         # `agents/tools/vacuum_humidifier_tools.py`.
         self._vacuum_humidifier = vacuum_humidifier
+        # Milestone 12 Appliance Control (Media Player Core Slice):
+        # media player control reaches the agent as tools on the same
+        # registry, converging on the same `MediaPlayerService` the
+        # REST surface calls -- see
+        # `agents/tools/media_player_tools.py`.
+        self._media_players = media_players
         # Milestone 12 Security & Safety (Read-Only Alert/Status
         # Slice): read-only hazard/status aggregation reaches the agent
         # as tools on the same registry, converging on the same
@@ -217,6 +225,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 appliances=self._appliances,
                 thermostats=self._thermostats,
                 vacuum_humidifier=self._vacuum_humidifier,
+                media_players=self._media_players,
                 security=self._security,
             )
             saver = await self._checkpointer.open()
