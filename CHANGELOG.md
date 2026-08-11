@@ -3,6 +3,112 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Media Player Core Slice (Task Group K)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Appliance Control — Media Player Core Slice**
+scope -- **not the full Appliance Control module**. Preceded by a
+Phase 0 audit (`M12 PHASE 0 AUDIT — Media Player`) that re-verified
+`media_player` maps to `device_type="appliance"` in both connectors
+(the Fan/Cover/Vacuum/Humidifier pattern, not Climate's own-`device_type`
+pattern). Preceded by a Logic Contract
+(`docs/M12_APPLIANCE_MEDIA_PLAYER_LOGIC_CONTRACT.md`), written and
+approved before any code, which resolved the slice's two open design
+questions: volume stays HA-native `0.0`–`1.0` (no `brightness_pct`-style
+0–100 conversion exists for `volume_set`), and `source` validates
+against the device's own reported `source_list` only when non-empty,
+directly reusing Thermostat's `hvac_mode`/`hvac_modes` template. 117
+new tests, 0 failures, 0 errors, against real components throughout
+(`FakeDeviceConnector`, real temp-file SQLite, real `PermissionModel`).
+
+### Added
+- **`MediaPlayerService`** (`services/media_player_service.py`) -- one
+  service covering the full slice, distinguishing media players via
+  `Device.metadata_json["domain"]` (falling back to
+  `metadata["component"]` for MQTT HA-Discovery-sourced devices,
+  reusing Vacuum + Humidifier's own local fallback template).
+  Depends only on `SmartHomeService` + `ConnectivityService` +
+  `PermissionModel` -- no `IDatabase`, no `EventBus`, no direct
+  connector import.
+- **Reads** -- normalized payload: `state` (open pass-through string,
+  never a closed vocabulary, forced to `None` -- never the literal
+  `"unavailable"` string -- when the device is unavailable, mirroring
+  Vacuum's identical rule), `available`, `volume_level` (HA-native
+  `0.0`-`1.0` float), `is_volume_muted`, `source`, `source_list`, and
+  `media_title`/`media_artist` (read-only, zero-cost informational
+  fields -- the highest conversational value ("what's playing") for
+  the lowest implementation cost). Every unreported field defaults to
+  `None`/`[]` -- never a fabricated value.
+- **Transport** -- five independent, zero-payload commands (`play`/
+  `pause`/`stop`/`next`/`previous`), mirroring `VacuumCommand`'s
+  shape.
+- **Merged state mutation** -- one merged `set_media_player_state(
+  volume?, muted?, source?)`, mirroring `ThermostatService`'s shape.
+  HA has three independent single-purpose services here
+  (`volume_set`/`volume_mute`/`select_source`), so a combined update
+  sends up to three sequential calls in declared order (volume, mute,
+  source -- a convention, not a discovered dependency, since none of
+  the three changes what another means), stopping at the first
+  failure and naming exactly what already applied. MQTT's own
+  envelope stays one merged `set_state` call. Volume is validated as
+  a finite `0.0`-`1.0` float (`bool`, `NaN`, `+inf`/`-inf` rejected --
+  HA's own protocol-level constraint on the parameter itself, not an
+  invented device limit). `source` is validated against the device's
+  own reported `source_list` only when non-empty -- permissive
+  otherwise, no fixed source enum invented, case preserved (not
+  lowercased, unlike `hvac_mode`).
+- **Media Player REST** -- under the existing `/appliances` prefix:
+  `/api/v1/appliances/media-players/*` (five verb-style transport
+  endpoints -- `play`/`pause`/`stop`/`next`/`previous`, matching
+  Vacuum -- plus one merged `/state` endpoint, matching Thermostat/
+  Humidifier). `infrastructure/api/routes/media_players.py`.
+- **Eight agent tools** -- `agents/tools/media_player_tools.py`:
+  `list_media_players`, `get_media_player_state`, five transport
+  tools (one per verb, matching Vacuum's tool shape), and
+  `set_media_player_state` (merged mutation, matching Thermostat's
+  tool shape), wired into the existing Tool Registry and
+  `AgentOrchestrator`.
+- **Permission enforcement (mutations only)** -- existing
+  `PermissionModel`, `smart_home` scope, new principal
+  `core:media_players`. **Reads are ungated**, following Fan/Cover/
+  Switch/Thermostat/Vacuum/Humidifier's precedent. No confirmation
+  requirement -- ordinary playback control carries no comparable risk
+  to `unlock_device`.
+- **DI** -- `media_player_service` singleton in `core/di/container.py`.
+
+### Not changed
+- `ApplianceService` -- **not extended**. A source-level test pins
+  that it contains no media-player functional symbol (its own
+  pre-existing docstring already, legitimately, names it as a future
+  deferred category).
+- `SmartHomeService`, `ConnectivityService`, `PermissionModel` --
+  reused verbatim. No new `DEVICE_TYPES` entry, no new ORM table/column.
+- `EventBus` -- untouched. No `MediaPlayerUpdatedEvent`, no
+  subscriptions, no background workers. The pre-existing
+  device-command event-publishing gap remains unfixed.
+- Both connectors -- zero code changes; `media_player` was already
+  mapped to `device_type="appliance"` in both, and
+  `metadata["domain"]`/`["component"]` were already captured at
+  discovery.
+
+### Explicitly out of scope
+- `play_media` / arbitrary media-URI or content dispatch.
+- `join`/`unjoin` / dynamic multi-speaker grouping.
+- Shuffle, repeat, sound mode.
+- Album, duration, playback position (+ its staleness timestamp).
+- Media content ID/type, artwork/image URL.
+- Queue/playlist management.
+- Room/output synchronization beyond the existing static Room/Group.
+- Vendor-specific controls.
+- Scheduling, automation (blocked on M7's Scheduler, confirmed
+  unstarted, and the event-publishing gap), AI recommendations,
+  playback history, analytics.
+- Every other M12 device-category module (Smart Cameras, Home
+  Automation, AI Home Assistant, Remote Access, Smart Home Memory,
+  Smart Home Analytics, Developer Tools).
+
 ## M12: Appliance Control — Vacuum + Humidifier Core Slice (Task Group J)
 
 **No version bump**, matching this project's own established

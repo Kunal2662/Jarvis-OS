@@ -2099,7 +2099,7 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped; Task Group K shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
@@ -2160,32 +2160,41 @@ not Climate's -- and finding a real, pre-existing MQTT metadata-key
 mismatch between `ApplianceService._domain_for` and
 `MqttConnector._handle_ha_discovery`, worked around locally in the new
 service without touching the connector or `ApplianceService`) and Logic
-Contract -- see its own section below.
+Contract -- see its own section below. Task Group K (Appliance Control
+-- Media Player Core Slice) followed a further, twelfth, separate
+instruction preceded by its own Phase 0 audit (re-verifying
+`media_player` maps to `device_type="appliance"` -- the Fan/Cover/
+Vacuum/Humidifier pattern, not Climate's -- and reusing Vacuum +
+Humidifier's own `metadata["domain"]`-then-`["component"]` MQTT
+fallback locally, without touching the connector or
+`ApplianceService`) and Logic Contract -- see its own section below.
 **Not Complete**: Smart Home Core, Connectivity Layer, Connectivity
 REST + Smart Lighting, Smart Locks, Sensors, Energy Management's Core
 Energy Slice, Appliance Control's Core Appliance Slice/Climate/
-Thermostat Slice/Vacuum + Humidifier Core Slice, and Security &
-Safety's Read-Only Alert/Status Slice are eight of fifteen modules in
-M12's own feature list -- Connectivity Layer has both of its approved
-protocol adapters (Home Assistant, MQTT), closing that task group's
-three-phase plan; Smart Lighting, Smart Locks, Sensors, Energy
-Management (device control only), Appliance Control (Fan + Cover +
-Climate/Thermostat + Vacuum + Humidifier control only) and Security &
-Safety (read-only status only) are the first six of thirteen
-device-category modules with at least some shipped scope
-(motion/sunrise-sunset/scheduled automation, Auto Lock,
+Thermostat Slice/Vacuum + Humidifier Core Slice/Media Player Core
+Slice, and Security & Safety's Read-Only Alert/Status Slice are eight
+of fifteen modules in M12's own feature list -- Connectivity Layer has
+both of its approved protocol adapters (Home Assistant, MQTT), closing
+that task group's three-phase plan; Smart Lighting, Smart Locks,
+Sensors, Energy Management (device control only), Appliance Control
+(Fan + Cover + Climate/Thermostat + Vacuum + Humidifier + Media Player
+control only) and Security & Safety (read-only status only) are the
+first six of thirteen device-category modules with at least some
+shipped scope (motion/sunrise-sunset/scheduled automation, Auto Lock,
 sensor-triggered automation, all energy automation/history/analytics,
-three remaining appliance categories (Media Player, Water Heater,
-Smart Kitchen) plus fan percentage/cover position/fan mode/swing/
-presets/humidity mode/dual setpoint, and all of Security & Safety's
-action-taking half -- Panic Mode, Vacation Mode, Emergency Alerts,
-automated safety actions, scene/multi-device response, event-driven
-and scheduler-based security automation, notifications -- all
-explicitly deferred to Home Automation/Smart Home Memory/Smart Home
-Analytics/M7/future slices; two further appliance categories blocked on
-the current connector domain mapping) -- and seven M12 modules remain
-entirely unstarted. Full milestone definition — Objective, Dependencies,
-Complexity, 15-module feature list, Acceptance Criteria — lives in
+two remaining appliance categories (Water Heater, Smart Kitchen) plus
+fan percentage/cover position/fan mode/swing/presets/humidity mode/
+dual setpoint/Media Player's own play_media/join-unjoin/shuffle/
+repeat/sound mode/album/duration/playback position, and all of
+Security & Safety's action-taking half -- Panic Mode, Vacation Mode,
+Emergency Alerts, automated safety actions, scene/multi-device
+response, event-driven and scheduler-based security automation,
+notifications -- all explicitly deferred to Home Automation/Smart Home
+Memory/Smart Home Analytics/M7/future slices; two further appliance
+categories blocked on the current connector domain mapping) -- and
+seven M12 modules remain entirely unstarted. Full milestone definition
+— Objective, Dependencies, Complexity, 15-module feature list,
+Acceptance Criteria — lives in
 `MASTER_ROADMAP.md` §8/§9.)*
 
 ### Task Group A — Smart Home Core (✅ shipped, Aug 2026 — commits `d99a984`, `b0a531b`, no version bump)
@@ -3374,6 +3383,124 @@ built:** any other M12 module (Smart Cameras, Home Automation, AI Home
 Assistant, Remote Access, Smart Home Memory, Smart Home Analytics,
 Developer Tools), and the separate `ApplianceService`-own MQTT-gap
 follow-up this task group identified but did not implement.
+
+---
+
+### Task Group K — Appliance Control: Media Player Core Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a sixth read-only Phase 0 audit (`M12 PHASE 0 AUDIT —
+Media Player`), re-evaluating the remaining M12 candidates and
+confirming `media_player` maps to `device_type="appliance"` in both
+connectors — Fan/Cover/Vacuum/Humidifier's own pattern, not Climate's
+own-`device_type` one. No new connector gap was found this time;
+Vacuum + Humidifier's own `metadata["domain"]`-then-`["component"]`
+MQTT fallback template was reused, implemented locally inside this
+slice's own service, exactly as that precedent established. Two open
+design questions were resolved in the Logic Contract before any code:
+volume representation (HA-native `0.0`–`1.0`, no `brightness_pct`-style
+0–100 conversion — no such alternate native parameter exists for
+`volume_set`) and source validation (device-reported `source_list`
+only when non-empty, directly reusing Thermostat's `hvac_mode`/
+`hvac_modes` template, case preserved rather than lowercased since
+source names are often human-facing mixed-case labels).
+
+- [x] **Logic Contract** —
+      `docs/M12_APPLIANCE_MEDIA_PLAYER_LOGIC_CONTRACT.md`, written and
+      approved before any code, marking every claim EXISTING (with
+      `file:line`) or PROPOSED, and every HA service/attribute name
+      VERIFIED EXTERNALLY until checked against HA's real public
+      documentation this session (confirmed:
+      `media_play`/`media_pause`/`media_stop`/`media_next_track`/
+      `media_previous_track`, all zero-payload; `volume_set` with
+      payload key `volume_level`; `volume_mute` with payload key
+      `is_volume_muted`; `select_source` with payload key `source`).
+- [x] `MediaPlayerService` (`services/media_player_service.py`) — one
+      service, **deliberately not an `ApplianceService` extension**,
+      per that module's own docstring instruction. Depends only on
+      `SmartHomeService` + `ConnectivityService` + `PermissionModel` —
+      no `IDatabase`, no `EventBus`, no direct connector import.
+- [x] Reads — normalized payload (`state`, `available`,
+      `volume_level`, `is_volume_muted`, `source`, `source_list`,
+      `media_title`, `media_artist`). `state` an open pass-through
+      string, forced to `None` (never the literal `"unavailable"`
+      string) when unavailable, mirroring Vacuum's identical rule.
+      `media_title`/`media_artist` read-only, zero-cost informational
+      fields — the single highest conversational value ("what's
+      playing") for the lowest implementation cost. Every unreported
+      field defaults to `None`/`[]`, never fabricated.
+- [x] Transport — five independent, zero-payload commands (play/
+      pause/stop/next/previous), mirroring `VacuumCommand`'s shape —
+      five agent tools, one per verb, no merged mutation (independent
+      verbs, not combinable attributes).
+- [x] Merged state mutation — `set_media_player_state(volume?,
+      muted?, source?)`, mirroring `ThermostatService`'s shape. Empty
+      (all-`None`) mutation rejected before any wire call. HA
+      translation: three independent single-purpose services
+      (`volume_set`/`volume_mute`/`select_source`) executed in
+      declared order (volume, mute, source — a convention, not a
+      discovered dependency, since none of the three changes what
+      another means), stopping at the first failure and naming exactly
+      what already applied. MQTT translation: one merged `set_state`
+      call, mirroring Thermostat's/Humidifier's own MQTT convention.
+      Volume validated as a finite `0.0`–`1.0` float (`bool`/NaN/±inf
+      rejected) — HA's own protocol-level constraint on the parameter
+      itself, not an invented device limit. Source validated against
+      device-reported `source_list` only when non-empty, permissive
+      otherwise, case preserved.
+- [x] Media Player REST under the existing `/appliances` prefix —
+      `/appliances/media-players/*` (five verb-style transport
+      endpoints, matching Vacuum, plus one merged `/state` endpoint,
+      matching Thermostat/Humidifier).
+      `infrastructure/api/routes/media_players.py`.
+- [x] Eight agent tools —
+      `agents/tools/media_player_tools.py`: `list_media_players`,
+      `get_media_player_state`, `media_play`, `media_pause`,
+      `media_stop`, `media_next`, `media_previous`,
+      `set_media_player_state`, wired into the existing Tool Registry
+      and `AgentOrchestrator`.
+- [x] Permission — existing `PermissionModel`, existing `smart_home`
+      scope, new principal `core:media_players`. **Reads ungated**,
+      mutations (transport and merged state alike) gated, no
+      confirmation requirement — ordinary playback control carries no
+      comparable risk to `unlock_device`.
+- [x] DI — `media_player_service` singleton in `core/di/container.py`.
+- [x] 117 new tests, 0 failures, 0 errors, against real components
+      throughout (`FakeDeviceConnector`, real temp-file SQLite, real
+      `PermissionModel`) — covering domain resolution via both
+      `"domain"` and `"component"` keys, wrong-appliance-domain
+      rejection (a fan/cover/vacuum/humidifier id rejected by the
+      media-player API and vice versa), both connectors' translation
+      shapes, the merged-mutation ordering and every pairwise/full-
+      triple combination, volume range/type validation at both bounds,
+      mute type validation, source validation against a device-reported
+      list and its deliberate permissiveness when unreported,
+      unavailable-device `state=None` normalization, malformed/missing
+      attributes, wrong-device-type rejection for every foreign type,
+      and source-level tests confirming `ApplianceService` was not
+      extended, no `EventBus` reference exists in the new service, and
+      every §18 deferred item (`play_media`, `join`/`unjoin`, shuffle/
+      repeat/sound mode, etc.) has no route/tool/field/enum anywhere in
+      the implementation. Full backend regression: 3274 tests, 0
+      failures, 0 errors, 1 pre-existing skip (unrelated, platform
+      symlink permissions).
+
+**Explicitly out of scope, and not built:** `play_media`/arbitrary
+media-URI dispatch; `join`/`unjoin`/dynamic multi-speaker grouping;
+shuffle, repeat, sound mode; album, duration, playback position (+
+staleness timestamp); media content ID/type, artwork/image URL;
+queue/playlist management; room/output synchronization beyond existing
+static Room/Group; vendor-specific controls; scheduling and automation
+(blocked on M7's Scheduler, confirmed unstarted, and the
+event-publishing gap); AI recommendations; playback history, analytics.
+**The `EventBus` was not touched** — no `MediaPlayerUpdatedEvent`, no
+subscriptions, no background worker; the pre-existing device-command
+event-publishing gap remains unfixed. **Connectors were not touched** —
+the MQTT `component`/`domain` fallback was implemented locally in the
+new service only, reusing Vacuum + Humidifier's own template, never in
+`mqtt.py`. **`ApplianceService` was not extended** — enforced by a
+source-level test. **Not this task group, and not built:** any other
+M12 module (Smart Cameras, Home Automation, AI Home Assistant, Remote
+Access, Smart Home Memory, Smart Home Analytics, Developer Tools).
 
 ---
 
