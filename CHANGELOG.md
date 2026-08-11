@@ -3,6 +3,116 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Vacuum + Humidifier Core Slice (Task Group J)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Appliance Control — Vacuum + Humidifier Core
+Slice** scope -- **not the full Appliance Control module**. Preceded
+by a Phase 0 audit (`M12 PHASE 0 AUDIT — Vacuum + Humidifier`) that
+re-verified both domains map to `device_type="appliance"` in both
+connectors (the Fan/Cover pattern, not Climate's own-`device_type`
+pattern) and found `metadata["domain"]`/`metadata["component"]` already
+captured at discovery -- zero connector changes required. Preceded by a
+Logic Contract (`docs/M12_APPLIANCE_VACUUM_HUMIDIFIER_LOGIC_CONTRACT.md`),
+written and approved before any code, which corrected a prior
+assumption: `ApplianceService`'s own docstring already says a future
+category like vacuum/humidifier "likely" needs its own service, so
+this slice ships `VacuumHumidifierService`, **not** an
+`ApplianceService` extension. 105 new tests, 0 failures, 0 errors,
+against real components throughout (`FakeDeviceConnector`, real
+temp-file SQLite, real `PermissionModel`).
+
+### Added
+- **`VacuumHumidifierService`** (`services/vacuum_humidifier_service.py`)
+  -- one service covering both capabilities, distinguishing vacuum from
+  humidifier via `Device.metadata_json["domain"]`, the same
+  domain-discrimination mechanism `ApplianceService._domain_for`
+  established for Fan/Cover. Depends only on `SmartHomeService` +
+  `ConnectivityService` + `PermissionModel` -- no `IDatabase`, no
+  `EventBus`.
+- **A real, pre-existing MQTT gap found and locally worked around.**
+  `MqttConnector._handle_ha_discovery` writes
+  `metadata["component"]`, never `metadata["domain"]` -- a
+  latent gap in already-shipped `ApplianceService._domain_for` too,
+  unaddressed there. This module's own domain lookup reads
+  `metadata["domain"]`, falling back to `metadata["component"]` (MQTT's
+  `component` carries the identical domain vocabulary HA's own REST
+  connector calls `domain`) -- fixed locally, once, inside this new
+  service only. `ApplianceService` itself was deliberately **not**
+  touched; the identical fix for Fan/Cover is recorded as a separate,
+  narrower follow-up for future approval.
+- **Vacuum** -- four independent, zero-payload commands (`start`/
+  `stop`/`pause`/`return_to_base`), mirroring `FanCommand`/
+  `CoverCommand`'s shape. `state` is an open pass-through string, never
+  validated against a closed vocabulary (unlike Cover's small,
+  HA-standard set) -- Vacuum's real state vocabulary has zero
+  repository evidence beyond HA's public documentation, verified this
+  session (`docked`/`cleaning`/`paused`/`returning`/`error`/`idle`,
+  `start`/`stop`/`pause`/`return_to_base` services). `battery_level`
+  read when device-reported, `None` otherwise -- never fabricated.
+- **Humidifier** -- one merged mutation, `set_humidifier_state(on?,
+  target_humidity?)`, mirroring `ThermostatService`'s shape. No known
+  HA service accepts on/off and a humidity setpoint together, so a
+  combined update sends two sequential calls, **on/off first** (the
+  opposite of Thermostat's mode-first ordering -- a humidifier's on/off
+  state doesn't change what a humidity setpoint means, so the order is
+  a readability convention, not a correctness requirement). `mode` is
+  reported when the device provides it but is **read-only** in this
+  MVP -- mode-switching is adjacent to presets, already deferred, and
+  would need the same device-reported-vocabulary validation complexity
+  Thermostat's `hvac_mode` needed. `min_humidity`/`max_humidity`
+  enforced only when the device itself reports them -- no invented
+  limits.
+- **Vacuum+Humidifier REST** -- under the existing `/appliances`
+  prefix: `/api/v1/appliances/vacuums/*` (verb-style: `start`/`stop`/
+  `pause`/`dock`, matching Fan/Cover) and
+  `/api/v1/appliances/humidifiers/*` (merged `/state`, matching
+  Thermostat). `infrastructure/api/routes/vacuums_humidifiers.py`.
+- **Nine agent tools** -- `agents/tools/vacuum_humidifier_tools.py`:
+  six vacuum tools (one per verb, matching Fan/Cover's tool shape) and
+  three humidifier tools (merged mutation, matching Thermostat's tool
+  shape), wired into the existing Tool Registry and `AgentOrchestrator`.
+- **Permission enforcement (mutations only)** -- existing
+  `PermissionModel`, `smart_home` scope, new principal
+  `core:vacuum_humidifier` (named precisely, not the vaguer
+  `core:home_appliances` originally proposed, to avoid confusion with
+  the existing `core:appliances`). **Reads are ungated**, following
+  Fan/Cover/Switch/Thermostat's precedent. No confirmation requirement
+  -- neither capability rises to `unlock_device`'s risk tier.
+- **DI** -- `vacuum_humidifier_service` singleton in
+  `core/di/container.py`.
+
+### Not changed
+- `ApplianceService` -- **not extended**. A source-level test pins
+  that it contains no vacuum/humidifier functional symbol (its own
+  pre-existing docstring already, legitimately, names both as future
+  deferred categories -- unchanged since Task Group G).
+- `SmartHomeService`, `ConnectivityService`, `PermissionModel` --
+  reused verbatim. No new `DEVICE_TYPES` entry, no new ORM table/column.
+- `EventBus` -- untouched. No `VacuumUpdatedEvent`/
+  `HumidifierUpdatedEvent`, no subscriptions, no background workers.
+  The pre-existing device-command event-publishing gap remains
+  unfixed.
+- Both connectors -- zero code changes; `vacuum`/`humidifier` were
+  already mapped to `device_type="appliance"` in both, and
+  `metadata["domain"]`/`["component"]` were already captured at
+  discovery.
+
+### Explicitly out of scope
+- Vacuum: fan speed, cleaning mode, spot cleaning, locate, room
+  targeting, maps, live map streaming, path planning, vendor-specific
+  advanced modes, AI optimization.
+- Humidifier: mode *control*, presets, fan mode, water-level
+  automation.
+- Both: scheduling, automation (blocked on M7's Scheduler, confirmed
+  unstarted, and the event-publishing gap), environmental/predictive
+  optimization, multi-device orchestration, energy optimization.
+- Every other M12 device-category module (Smart Cameras, Home
+  Automation, AI Home Assistant, Remote Access, Smart Home Memory,
+  Smart Home Analytics, Developer Tools).
+
 ## M12: Appliance Control — Climate / Thermostat Slice (Task Group I)
 
 **No version bump**, matching this project's own established

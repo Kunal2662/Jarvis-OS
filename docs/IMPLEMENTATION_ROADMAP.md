@@ -2099,7 +2099,7 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
@@ -2152,26 +2152,36 @@ seven remaining M12 modules plus each partially-shipped module's own
 next-slice candidates, and identifying Climate as the highest-value
 fully-buildable candidate -- `device_type="thermostat"` was already
 reserved and both connectors already mapped `climate` to it) and Logic
+Contract -- see its own section below. Task Group J (Appliance Control
+-- Vacuum + Humidifier Core Slice) followed a further, eleventh,
+separate instruction preceded by its own Phase 0 audit (re-verifying
+both domains map to `device_type="appliance"` -- the Fan/Cover pattern,
+not Climate's -- and finding a real, pre-existing MQTT metadata-key
+mismatch between `ApplianceService._domain_for` and
+`MqttConnector._handle_ha_discovery`, worked around locally in the new
+service without touching the connector or `ApplianceService`) and Logic
 Contract -- see its own section below.
 **Not Complete**: Smart Home Core, Connectivity Layer, Connectivity
 REST + Smart Lighting, Smart Locks, Sensors, Energy Management's Core
-Energy Slice, Appliance Control's Core Appliance Slice and Climate/
-Thermostat Slice, and Security & Safety's Read-Only Alert/Status Slice
-are eight of fifteen modules in M12's own feature list -- Connectivity
-Layer has both of its approved protocol adapters (Home Assistant,
-MQTT), closing that task group's three-phase plan; Smart Lighting,
-Smart Locks, Sensors, Energy Management (device control only),
-Appliance Control (Fan + Cover + Climate/Thermostat control only) and
-Security & Safety (read-only status only) are the first six of thirteen
+Energy Slice, Appliance Control's Core Appliance Slice/Climate/
+Thermostat Slice/Vacuum + Humidifier Core Slice, and Security &
+Safety's Read-Only Alert/Status Slice are eight of fifteen modules in
+M12's own feature list -- Connectivity Layer has both of its approved
+protocol adapters (Home Assistant, MQTT), closing that task group's
+three-phase plan; Smart Lighting, Smart Locks, Sensors, Energy
+Management (device control only), Appliance Control (Fan + Cover +
+Climate/Thermostat + Vacuum + Humidifier control only) and Security &
+Safety (read-only status only) are the first six of thirteen
 device-category modules with at least some shipped scope
 (motion/sunrise-sunset/scheduled automation, Auto Lock,
 sensor-triggered automation, all energy automation/history/analytics,
-five remaining appliance categories plus fan percentage/cover position/
-fan mode/swing/presets/humidity/dual setpoint, and all of Security &
-Safety's action-taking half -- Panic Mode, Vacation Mode, Emergency
-Alerts, automated safety actions, scene/multi-device response,
-event-driven and scheduler-based security automation, notifications --
-all explicitly deferred to Home Automation/Smart Home Memory/Smart Home
+three remaining appliance categories (Media Player, Water Heater,
+Smart Kitchen) plus fan percentage/cover position/fan mode/swing/
+presets/humidity mode/dual setpoint, and all of Security & Safety's
+action-taking half -- Panic Mode, Vacation Mode, Emergency Alerts,
+automated safety actions, scene/multi-device response, event-driven
+and scheduler-based security automation, notifications -- all
+explicitly deferred to Home Automation/Smart Home Memory/Smart Home
 Analytics/M7/future slices; two further appliance categories blocked on
 the current connector domain mapping) -- and seven M12 modules remain
 entirely unstarted. Full milestone definition — Objective, Dependencies,
@@ -3263,6 +3273,107 @@ HTTP/MQTT surface. **`ApplianceService` was not extended** — enforced by
 a source-level test. **Not this task group, and not built:** any other
 M12 module (Smart Cameras, Home Automation, AI Home Assistant, Remote
 Access, Smart Home Memory, Smart Home Analytics, Developer Tools).
+
+---
+
+### Task Group J — Appliance Control: Vacuum + Humidifier Core Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a fifth read-only Phase 0 audit (`M12 PHASE 0 AUDIT —
+Vacuum + Humidifier`), re-evaluating the remaining M12 candidates and
+each partially-shipped module's own next-slice options, and confirming
+`vacuum`/`humidifier` both map to `device_type="appliance"` in both
+connectors — Fan/Cover's own pattern, not Climate's own-`device_type`
+one. Central finding: `MqttConnector._handle_ha_discovery` writes
+`metadata["component"]`, never `metadata["domain"]` — a real,
+pre-existing gap already present in shipped `ApplianceService.
+_domain_for` (Fan/Cover), never previously exercised by a real-discovery
+test. Three remediation options were evaluated in the Logic Contract;
+the chosen one — the new service's own domain lookup falls back to
+`metadata["component"]` when `["domain"]` is absent — requires **zero
+connector changes** and **zero changes to `ApplianceService`**, closing
+the gap locally for this slice only. The identical fix for Fan/Cover is
+recorded as a separate, narrower follow-up, not decided here.
+
+- [x] **Logic Contract** —
+      `docs/M12_APPLIANCE_VACUUM_HUMIDIFIER_LOGIC_CONTRACT.md`, written
+      and approved before any code, marking every claim EXISTING (with
+      `file:line`) or PROPOSED, and every HA service/attribute name
+      UNVERIFIED until checked against HA's real public documentation
+      this session (confirmed: `vacuum.start`/`stop`/`pause`/
+      `return_to_base`, all zero-payload; `humidifier.turn_on`/
+      `turn_off`/`set_humidity` with payload key `humidity`;
+      `target_humidity`/`min_humidity`/`max_humidity` as core
+      attributes; `current_humidity` found to be best-effort, not a
+      guaranteed core `HumidifierEntity` attribute — handled by the
+      design's existing "absent → `None`" rule with no code change
+      needed).
+- [x] `VacuumHumidifierService` (`services/vacuum_humidifier_service.py`)
+      — one service, two capabilities, **deliberately not an
+      `ApplianceService` extension** per that module's own docstring
+      instruction. Depends only on `SmartHomeService` +
+      `ConnectivityService` + `PermissionModel`.
+- [x] Vacuum — `state` open pass-through (no closed vocabulary, unlike
+      Cover — zero repository evidence for vacuum's real state set
+      beyond HA's public docs); `battery_level` device-reported only;
+      four zero-payload commands (start/stop/pause/return_to_base),
+      mirroring `FanCommand`/`CoverCommand`'s shape — six agent tools,
+      one per verb, no merged mutation (four independent verbs, not
+      combinable attributes).
+- [x] Humidifier — merged `set_humidifier_state(on?, target_humidity?)`,
+      mirroring `ThermostatService`'s shape; two-call HA fallback,
+      **on/off first** (the reverse of Thermostat's mode-first ordering
+      — a humidifier's on/off state doesn't change what a humidity
+      setpoint means, so order is a readability convention here, not a
+      correctness requirement); one merged MQTT `set_state` call. `mode`
+      reported when available, explicitly **read-only** in this MVP —
+      pinned by a signature-inspection test. `min_humidity`/
+      `max_humidity` enforced only when device-reported.
+- [x] Vacuum+Humidifier REST under the existing `/appliances` prefix —
+      `/appliances/vacuums/*` (verb-style, matching Fan/Cover) and
+      `/appliances/humidifiers/*` (merged `/state`, matching
+      Thermostat). `infrastructure/api/routes/vacuums_humidifiers.py`.
+- [x] Permission — existing `PermissionModel`, existing `smart_home`
+      scope, new principal `core:vacuum_humidifier` (chosen over the
+      originally-proposed `core:home_appliances` to avoid confusion
+      with the existing `core:appliances`). **Reads ungated**, mutations
+      gated, no confirmation requirement.
+- [x] DI — `vacuum_humidifier_service` singleton in
+      `core/di/container.py`.
+- [x] 105 new tests, 0 failures, against real components throughout
+      (`FakeDeviceConnector`, real temp-file SQLite, real
+      `PermissionModel`) — covering domain resolution via both
+      `"domain"` and `"component"` keys, wrong-appliance-domain
+      rejection (a fan/cover id rejected by the vacuum/humidifier API
+      and vice versa — the new "shares `device_type` with a sibling
+      category" case Thermostat never needed), both connectors'
+      translation shapes, the combined-mutation ordering, device-
+      reported bound validation and its deliberate absence when
+      unreported, malformed/missing attributes, wrong-device-type
+      rejection for every foreign type, and source-level tests
+      confirming `ApplianceService` was not extended and no `EventBus`
+      reference exists in the new service. One genuinely new ruff
+      finding (`PLR0915`, brand-new file, not inherited debt) was found
+      and fixed by extracting a shared helper for the four structurally
+      identical vacuum command tools.
+
+**Explicitly out of scope, and not built:** vacuum fan speed, cleaning
+mode, spot cleaning, locate, room targeting, maps, live map streaming,
+path planning, vendor-specific advanced modes, AI optimization;
+humidifier mode *control*, presets, fan mode, water-level automation;
+scheduling and automation for either (blocked on M7's Scheduler,
+confirmed unstarted, and the event-publishing gap), environmental/
+predictive optimization, multi-device orchestration, energy
+optimization. **The `EventBus` was not touched** — no
+`VacuumUpdatedEvent`/`HumidifierUpdatedEvent`, no subscriptions, no
+background worker; the pre-existing device-command event-publishing gap
+remains unfixed. **Connectors were not touched** — the MQTT
+`component`/`domain` gap was worked around locally in the new service
+only, never in `mqtt.py`. **`ApplianceService` was not extended** —
+enforced by a source-level test. **Not this task group, and not
+built:** any other M12 module (Smart Cameras, Home Automation, AI Home
+Assistant, Remote Access, Smart Home Memory, Smart Home Analytics,
+Developer Tools), and the separate `ApplianceService`-own MQTT-gap
+follow-up this task group identified but did not implement.
 
 ---
 
