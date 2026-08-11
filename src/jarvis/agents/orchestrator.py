@@ -73,6 +73,7 @@ if TYPE_CHECKING:
     from jarvis.services.smart_switch_service import SmartSwitchService
     from jarvis.services.system_service import SystemService
     from jarvis.services.thermostat_service import ThermostatService
+    from jarvis.services.vacuum_humidifier_service import VacuumHumidifierService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
@@ -103,6 +104,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         smart_switch: SmartSwitchService | None = None,
         appliances: ApplianceService | None = None,
         thermostats: ThermostatService | None = None,
+        vacuum_humidifier: VacuumHumidifierService | None = None,
         security: SecurityService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
@@ -158,6 +160,12 @@ class AgentOrchestrator(IAgentOrchestrator):
         # registry, converging on the same `ThermostatService` the REST
         # surface calls -- see `agents/tools/thermostat_tools.py`.
         self._thermostats = thermostats
+        # Milestone 12 Appliance Control (Vacuum + Humidifier Core
+        # Slice): vacuum/humidifier control reaches the agent as tools
+        # on the same registry, converging on the same
+        # `VacuumHumidifierService` the REST surface calls -- see
+        # `agents/tools/vacuum_humidifier_tools.py`.
+        self._vacuum_humidifier = vacuum_humidifier
         # Milestone 12 Security & Safety (Read-Only Alert/Status
         # Slice): read-only hazard/status aggregation reaches the agent
         # as tools on the same registry, converging on the same
@@ -208,6 +216,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 smart_switch=self._smart_switch,
                 appliances=self._appliances,
                 thermostats=self._thermostats,
+                vacuum_humidifier=self._vacuum_humidifier,
                 security=self._security,
             )
             saver = await self._checkpointer.open()

@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from jarvis.services.smart_switch_service import SmartSwitchService
     from jarvis.services.system_service import SystemService
     from jarvis.services.thermostat_service import ThermostatService
+    from jarvis.services.vacuum_humidifier_service import VacuumHumidifierService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
@@ -55,6 +56,7 @@ def build_tool_registry(
     smart_switch: SmartSwitchService | None = None,
     appliances: ApplianceService | None = None,
     thermostats: ThermostatService | None = None,
+    vacuum_humidifier: VacuumHumidifierService | None = None,
     security: SecurityService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
@@ -134,6 +136,15 @@ def build_tool_registry(
         from jarvis.agents.tools.thermostat_tools import build_thermostat_tools
 
         tools += build_thermostat_tools(thermostats)
+    if vacuum_humidifier is not None:
+        # Milestone 12 Appliance Control (Vacuum + Humidifier Core
+        # Slice). Nine tools: six vacuum verbs mirroring Fan/Cover's
+        # one-tool-per-command shape, three humidifier tools with a
+        # merged mutation mirroring Thermostat's shape -- see
+        # `agents/tools/vacuum_humidifier_tools.py`.
+        from jarvis.agents.tools.vacuum_humidifier_tools import build_vacuum_humidifier_tools
+
+        tools += build_vacuum_humidifier_tools(vacuum_humidifier)
     if security is not None:
         # Milestone 12 Security & Safety (Read-Only Alert/Status
         # Slice). Two read-only tools, mirroring Sensors' own
