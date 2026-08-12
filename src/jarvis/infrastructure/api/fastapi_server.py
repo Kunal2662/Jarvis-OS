@@ -90,6 +90,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         from jarvis.infrastructure.api.routes import smart_switches as smart_switches_routes
         from jarvis.infrastructure.api.routes import thermostats as thermostat_routes
         from jarvis.infrastructure.api.routes import vacuums_humidifiers as vacuum_humidifier_routes
+        from jarvis.infrastructure.api.routes import water_heaters as water_heater_routes
         from jarvis.infrastructure.api.routes import workspaces as workspace_routes
 
         app.state.runtime_ws_hub = container.runtime_ws_hub()
@@ -114,6 +115,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(thermostat_routes.router, prefix="/api/v1")
         app.include_router(vacuum_humidifier_routes.router, prefix="/api/v1")
         app.include_router(media_player_routes.router, prefix="/api/v1")
+        app.include_router(water_heater_routes.router, prefix="/api/v1")
         app.include_router(sensor_routes.router, prefix="/api/v1")
         app.include_router(security_routes.router, prefix="/api/v1")
         app.include_router(integration_routes.router, prefix="/api/v1")

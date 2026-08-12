@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from jarvis.services.vacuum_humidifier_service import VacuumHumidifierService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
+    from jarvis.services.water_heater_service import WaterHeaterService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 
@@ -59,6 +60,7 @@ def build_tool_registry(
     thermostats: ThermostatService | None = None,
     vacuum_humidifier: VacuumHumidifierService | None = None,
     media_players: MediaPlayerService | None = None,
+    water_heaters: WaterHeaterService | None = None,
     security: SecurityService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
@@ -156,6 +158,15 @@ def build_tool_registry(
         from jarvis.agents.tools.media_player_tools import build_media_player_tools
 
         tools += build_media_player_tools(media_players)
+    if water_heaters is not None:
+        # Milestone 12 Appliance Control (Water Heater Core Slice).
+        # Three tools: mutation is one merged `set_water_heater_state`,
+        # mirroring Thermostat's own single `set_thermostat_state`
+        # rather than one tool per attribute -- see
+        # `agents/tools/water_heater_tools.py`.
+        from jarvis.agents.tools.water_heater_tools import build_water_heater_tools
+
+        tools += build_water_heater_tools(water_heaters)
     if security is not None:
         # Milestone 12 Security & Safety (Read-Only Alert/Status
         # Slice). Two read-only tools, mirroring Sensors' own

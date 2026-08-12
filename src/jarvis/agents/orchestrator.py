@@ -77,6 +77,7 @@ if TYPE_CHECKING:
     from jarvis.services.vacuum_humidifier_service import VacuumHumidifierService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
+    from jarvis.services.water_heater_service import WaterHeaterService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 _logger = get_logger("jarvis.agents.orchestrator")
@@ -107,6 +108,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         thermostats: ThermostatService | None = None,
         vacuum_humidifier: VacuumHumidifierService | None = None,
         media_players: MediaPlayerService | None = None,
+        water_heaters: WaterHeaterService | None = None,
         security: SecurityService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
@@ -174,6 +176,12 @@ class AgentOrchestrator(IAgentOrchestrator):
         # REST surface calls -- see
         # `agents/tools/media_player_tools.py`.
         self._media_players = media_players
+        # Milestone 12 Appliance Control (Water Heater Core Slice):
+        # water heater control reaches the agent as tools on the same
+        # registry, converging on the same `WaterHeaterService` the
+        # REST surface calls -- see
+        # `agents/tools/water_heater_tools.py`.
+        self._water_heaters = water_heaters
         # Milestone 12 Security & Safety (Read-Only Alert/Status
         # Slice): read-only hazard/status aggregation reaches the agent
         # as tools on the same registry, converging on the same
@@ -226,6 +234,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 thermostats=self._thermostats,
                 vacuum_humidifier=self._vacuum_humidifier,
                 media_players=self._media_players,
+                water_heaters=self._water_heaters,
                 security=self._security,
             )
             saver = await self._checkpointer.open()
