@@ -2099,7 +2099,7 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped; Task Group K shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped; Task Group K shipped; Task Group L shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
@@ -2168,31 +2168,40 @@ Vacuum/Humidifier pattern, not Climate's -- and reusing Vacuum +
 Humidifier's own `metadata["domain"]`-then-`["component"]` MQTT
 fallback locally, without touching the connector or
 `ApplianceService`) and Logic Contract -- see its own section below.
+Task Group L (Appliance Control -- Water Heater Core Slice) followed a
+further, thirteenth, separate instruction preceded by its own Phase 0
+audit (re-verifying `water_heater` maps to `device_type="appliance"`
+-- the Fan/Cover/Vacuum/Humidifier/Media Player pattern, not Climate's
+-- confirming it is the last unblocked Appliance Control category, and
+reusing the identical local MQTT fallback template) and Logic Contract
+-- see its own section below.
 **Not Complete**: Smart Home Core, Connectivity Layer, Connectivity
 REST + Smart Lighting, Smart Locks, Sensors, Energy Management's Core
 Energy Slice, Appliance Control's Core Appliance Slice/Climate/
 Thermostat Slice/Vacuum + Humidifier Core Slice/Media Player Core
-Slice, and Security & Safety's Read-Only Alert/Status Slice are eight
-of fifteen modules in M12's own feature list -- Connectivity Layer has
-both of its approved protocol adapters (Home Assistant, MQTT), closing
-that task group's three-phase plan; Smart Lighting, Smart Locks,
-Sensors, Energy Management (device control only), Appliance Control
-(Fan + Cover + Climate/Thermostat + Vacuum + Humidifier + Media Player
-control only) and Security & Safety (read-only status only) are the
-first six of thirteen device-category modules with at least some
-shipped scope (motion/sunrise-sunset/scheduled automation, Auto Lock,
+Slice/Water Heater Core Slice, and Security & Safety's Read-Only
+Alert/Status Slice are eight of fifteen modules in M12's own feature
+list -- Connectivity Layer has both of its approved protocol adapters
+(Home Assistant, MQTT), closing that task group's three-phase plan;
+Smart Lighting, Smart Locks, Sensors, Energy Management (device
+control only), Appliance Control (Fan + Cover + Climate/Thermostat +
+Vacuum + Humidifier + Media Player + Water Heater control only) and
+Security & Safety (read-only status only) are the first six of
+thirteen device-category modules with at least some shipped scope
+(motion/sunrise-sunset/scheduled automation, Auto Lock,
 sensor-triggered automation, all energy automation/history/analytics,
-two remaining appliance categories (Water Heater, Smart Kitchen) plus
 fan percentage/cover position/fan mode/swing/presets/humidity mode/
 dual setpoint/Media Player's own play_media/join-unjoin/shuffle/
-repeat/sound mode/album/duration/playback position, and all of
-Security & Safety's action-taking half -- Panic Mode, Vacation Mode,
-Emergency Alerts, automated safety actions, scene/multi-device
-response, event-driven and scheduler-based security automation,
-notifications -- all explicitly deferred to Home Automation/Smart Home
-Memory/Smart Home Analytics/M7/future slices; two further appliance
-categories blocked on the current connector domain mapping) -- and
-seven M12 modules remain entirely unstarted. Full milestone definition
+repeat/sound mode/album/duration/playback position/Water Heater's own
+away-vacation-mode/dual-setpoint, and all of Security & Safety's
+action-taking half -- Panic Mode, Vacation Mode, Emergency Alerts,
+automated safety actions, scene/multi-device response, event-driven
+and scheduler-based security automation, notifications -- all
+explicitly deferred to Home Automation/Smart Home Memory/Smart Home
+Analytics/M7/future slices; the two remaining appliance categories
+(Smart Kitchen, Smart Pumps/Irrigation) both blocked on the current
+connector domain mapping) -- and seven M12 modules remain entirely
+unstarted. Full milestone definition
 — Objective, Dependencies, Complexity, 15-module feature list,
 Acceptance Criteria — lives in
 `MASTER_ROADMAP.md` §8/§9.)*
@@ -3501,6 +3510,136 @@ new service only, reusing Vacuum + Humidifier's own template, never in
 source-level test. **Not this task group, and not built:** any other
 M12 module (Smart Cameras, Home Automation, AI Home Assistant, Remote
 Access, Smart Home Memory, Smart Home Analytics, Developer Tools).
+
+### Task Group L — Appliance Control: Water Heater Core Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a seventh read-only Phase 0 audit (`M12 POST-TASK-GROUP-K
+PHASE 0 AUDIT`), re-evaluating the remaining M12 candidates from
+scratch against the current repository state and confirming
+`water_heater` maps to `device_type="appliance"` in both connectors —
+Fan/Cover/Vacuum/Humidifier/Media Player's own pattern, not Climate's
+own-`device_type` one — and that it is the **last** remaining
+Appliance Control category not blocked on the current connector domain
+mapping (Smart Kitchen and Smart Pumps/Irrigation both remain blocked,
+unchanged). No new connector gap was found; Vacuum + Humidifier's own
+`metadata["domain"]`-then-`["component"]` MQTT fallback template was
+reused, implemented locally inside this slice's own service. Two open
+design questions were resolved in the Logic Contract before any code,
+both requiring genuine Phase 2 wire-level verification against HA's
+actual `services.yaml` (not assumed by analogy): operation mode is
+writable and validated against device-reported `operation_list`
+(`water_heater.set_operation_mode`, confirmed payload key
+`operation_mode`) — the Thermostat `hvac_mode` template, not
+Humidifier's read-only `mode`, chosen because real evidence supported
+it here; and the scald-risk confirmation question, evaluated explicitly
+against `unlock_device`'s precedent and resolved against gating, on the
+grounds that no invented safety limit exists (only device-reported
+bounds are enforced) and a setpoint's thermal lag lacks unlock's
+immediate-consequence character — recorded as the closest call of any
+M12 appliance module to date, not a default.
+
+- [x] **Logic Contract** —
+      `docs/M12_APPLIANCE_WATER_HEATER_LOGIC_CONTRACT.md`, written and
+      approved before any code, marking every claim VERIFIED IN
+      REPOSITORY, VERIFIED EXTERNALLY (checked against HA's real
+      `services.yaml` and developer documentation this session), or
+      UNVERIFIED — MUST VERIFY DURING PHASE 2. Phase 2 then verified
+      the two flagged items directly against HA's actual
+      `services.yaml`: `set_temperature` (payload key `temperature`,
+      also optionally accepting `operation_mode` — a combined form
+      this module deliberately does not use, retaining the contract's
+      three-independent-calls design) and `set_operation_mode`
+      (payload key `operation_mode`); `turn_on`/`turn_off` confirmed
+      zero-payload.
+- [x] `WaterHeaterService` (`services/water_heater_service.py`) — one
+      service, **deliberately not an `ApplianceService` extension**,
+      per that module's own docstring instruction. Depends only on
+      `SmartHomeService` + `ConnectivityService` + `PermissionModel` —
+      no `IDatabase`, no `EventBus`, no direct connector import.
+- [x] Reads — normalized payload (`state`, `is_on`, `available`,
+      `current_temperature`, `target_temperature`, `operation_mode`,
+      `operation_list`, `min_temp`, `max_temp`). `state` an open
+      pass-through string (can be a plain on/off token or an
+      operation-mode token depending on device features), forced to
+      `None` (never the literal `"unavailable"` string) when
+      unavailable; `is_on` a derived convenience field, `None` when
+      not inferable from `state`. `operation_list`/`min_temp`/
+      `max_temp` survive unavailability as declared capabilities.
+      Every unreported field defaults to `None`/`[]`, never fabricated.
+- [x] Merged state mutation — `set_water_heater_state(temperature?,
+      operation_mode?, on?)`. Empty (all-`None`) mutation rejected
+      before any wire call. HA translation: up to three independent
+      single-purpose services (`turn_on`/`turn_off`, `set_operation_mode`,
+      `set_temperature`) executed in declared order (on/off, mode,
+      temperature — a stated convention, not a discovered dependency),
+      stopping at the first failure and naming exactly what already
+      applied. MQTT translation: one merged `set_state` call. Operation
+      mode validated against device-reported `operation_list` only
+      when non-empty, case-normalized to lowercase (mirroring
+      Thermostat's `hvac_mode`, unlike Media Player's case-preserved
+      `source`). Temperature validated as a finite number (`bool`/NaN/
+      ±inf rejected), bounded only when the device itself reports
+      `min_temp`/`max_temp` — no invented safety limit.
+- [x] Water Heater REST under the existing `/appliances` prefix — one
+      merged `/state` endpoint (matching Thermostat/Humidifier/Media
+      Player's merged-mutation shape; no independent transport verb
+      exists for this module). `infrastructure/api/routes/
+      water_heaters.py`.
+- [x] Three agent tools — `agents/tools/water_heater_tools.py`:
+      `list_water_heaters`, `get_water_heater_state`,
+      `set_water_heater_state`, wired into the existing Tool Registry
+      and `AgentOrchestrator`.
+- [x] Permission — existing `PermissionModel`, existing `smart_home`
+      scope, new principal `core:water_heaters`. **Reads ungated**,
+      mutation gated, no confirmation requirement (explicitly
+      evaluated against the scald-risk question, not auto-inherited —
+      see above).
+- [x] DI — `water_heater_service` singleton in `core/di/container.py`.
+- [x] 98 new tests, 0 failures, 0 errors, against real components
+      throughout (`FakeDeviceConnector`, real temp-file SQLite, real
+      `PermissionModel`) — covering domain resolution via both
+      `"domain"` and `"component"` keys, wrong-appliance-domain
+      rejection (a fan/cover/vacuum/humidifier/media-player id
+      rejected by the water-heater API and vice versa), both
+      connectors' translation shapes, the merged-mutation ordering and
+      every pairwise/full-triple combination with partial-failure
+      reporting at each position, temperature range/type validation,
+      operation-mode validation against a device-reported list and its
+      deliberate permissiveness when unreported, on/off inference from
+      an ambiguous `state` string, unavailable-device normalization,
+      malformed/missing attributes, wrong-device-type rejection for
+      every foreign type, and source-level tests confirming
+      `ApplianceService` was not extended, no `EventBus` reference
+      exists in the new service, and every deferred item (away/
+      vacation mode, dual setpoint, scheduling, etc.) has no route/
+      tool/field/enum anywhere in the implementation. Full backend
+      regression: 3372 tests, 0 failures, 0 errors, 1 pre-existing
+      skip (unrelated, platform symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_WATER_HEATER_FRONTEND_REQUIREMENTS.md`, a planning/
+      specification artifact only (no frontend source), derived from
+      the verified backend contract, distinguishing shipped backend
+      capability from required/deferred frontend work and backend
+      capability that does not exist. **Zero frontend files touched.**
+
+**Explicitly out of scope, and not built:** away/vacation mode
+(`set_away_mode`, `is_away_mode_on` — a real HA feature, deliberately
+excluded); dual/secondary setpoint (`target_temperature_high`/
+`_low`); scheduling and automation (blocked on M7's Scheduler,
+confirmed still unstarted, and the event-publishing gap); energy
+optimization, energy usage history/analytics; predictive/AI control;
+multi-device orchestration; scenes; leak detection, safety alerting,
+notifications; advanced heating profiles, multi-zone control; any
+Smart Kitchen functionality. **The `EventBus` was not touched** — no
+`WaterHeaterUpdatedEvent`, no subscriptions, no background worker; the
+pre-existing device-command event-publishing gap remains unfixed.
+**Connectors were not touched** — the MQTT `component`/`domain`
+fallback was implemented locally in the new service only, reusing
+Vacuum + Humidifier's own template, never in `mqtt.py`.
+**`ApplianceService` was not extended** — enforced by a source-level
+test. **Not this task group, and not built:** any other M12 module
+(Smart Cameras, Home Automation, AI Home Assistant, Remote Access,
+Smart Home Memory, Smart Home Analytics, Developer Tools).
 
 ---
 

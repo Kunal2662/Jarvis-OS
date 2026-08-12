@@ -3,6 +3,129 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Water Heater Core Slice (Task Group L)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Appliance Control — Water Heater Core Slice**
+scope -- **not the full Appliance Control module**. Preceded by a
+Phase 0 audit (`M12 POST-TASK-GROUP-K PHASE 0 AUDIT`) that re-audited
+the current repository state from scratch, re-verified `water_heater`
+maps to `device_type="appliance"` in both connectors (the Fan/Cover/
+Vacuum/Humidifier/Media Player pattern, not Climate's own-`device_type`
+pattern), and confirmed it is the **last** Appliance Control category
+not already blocked on the current connector domain mapping (Smart
+Kitchen and Smart Pumps/Irrigation both remain blocked). Preceded by a
+Logic Contract (`docs/M12_APPLIANCE_WATER_HEATER_LOGIC_CONTRACT.md`),
+written and approved before any code, which classified every
+protocol-specific claim as verified-in-repository, verified-externally,
+or explicitly unverified pending Phase 2 confirmation -- Phase 2 then
+verified the two flagged HA wire details directly against HA's actual
+`services.yaml` before writing the translator. 98 new tests, 0
+failures, 0 errors, against real components throughout
+(`FakeDeviceConnector`, real temp-file SQLite, real `PermissionModel`).
+
+### Added
+- **`WaterHeaterService`** (`services/water_heater_service.py`) -- one
+  service covering read state and one merged on/off + operation-mode +
+  temperature mutation, distinguishing water heaters from every other
+  appliance sharing `device_type="appliance"` via
+  `Device.metadata_json["domain"]` (falling back to `["component"]`
+  for MQTT HA-Discovery-sourced devices, reusing Vacuum + Humidifier's
+  own template). Depends only on `SmartHomeService` +
+  `ConnectivityService` + `PermissionModel` -- no `IDatabase`, no
+  `EventBus`.
+- **Operation mode, resolved as writable.** HA's real
+  `water_heater.set_operation_mode` service (payload key
+  `operation_mode`, confirmed against HA's actual `services.yaml` this
+  session) validates against the device's own reported
+  `operation_list` -- the same template `ThermostatService`'s
+  `hvac_mode`/`hvac_modes` already established, chosen deliberately
+  over Vacuum + Humidifier's read-only `mode` precedent because real
+  evidence supported a settable mechanism here. No fixed operation-mode
+  enum is invented anywhere; case is normalized to lowercase (modes are
+  short enum-like tokens, unlike Media Player's mixed-case `source`).
+- **Temperature** -- `current_temperature`/`target_temperature` pass
+  through in whatever unit/precision the device reports, with no
+  conversion performed anywhere. `min_temp`/`max_temp` bounds are
+  enforced only when the device itself reports them -- no invented
+  safety limit, matching every prior M12 numeric field's discipline.
+- **On/off**, verified as HA's `turn_on`/`turn_off` services (zero
+  payload, confirmed against HA's actual `services.yaml`). `state` is
+  an open pass-through string that can be either a plain on/off token
+  or an operation-mode token depending on which features a real
+  integration supports; a derived `is_on: bool | None` convenience
+  field is inferred only when `state` is a recognizable on/off token.
+- **Merged mutation** -- `set_water_heater_state(temperature?,
+  operation_mode?, on?)`, mirroring `ThermostatService`'s shape. HA
+  translation sequences up to three independent single-purpose
+  services (`turn_on`/`turn_off`, `set_operation_mode`,
+  `set_temperature`, all confirmed against HA's actual `services.yaml`)
+  in a stated-convention order -- on/off, then mode, then temperature
+  -- stopping at the first failure and naming exactly what already
+  applied. MQTT translation stays one merged `set_state` call.
+- **Water Heater REST** -- under the existing `/appliances` prefix:
+  `/api/v1/appliances/water-heaters/*` with one merged `/state`
+  endpoint (matching Thermostat/Humidifier/Media Player's merged-
+  mutation shape -- no independent transport verb exists for this
+  module). `infrastructure/api/routes/water_heaters.py`.
+- **Three agent tools** -- `agents/tools/water_heater_tools.py`:
+  `list_water_heaters`, `get_water_heater_state`,
+  `set_water_heater_state` (one merged tool, matching Thermostat's
+  shape, not Media Player's per-verb shape), wired into the existing
+  Tool Registry and `AgentOrchestrator`.
+- **Permission enforcement (mutation only)** -- existing
+  `PermissionModel`, `smart_home` scope, new principal
+  `core:water_heaters`. **Reads are ungated**, following every prior
+  Appliance Control category's precedent.
+- **Confirmation requirement, explicitly evaluated and rejected.**
+  Unlike every prior M12 setpoint, water heater temperature carries a
+  real, named scald-injury mechanism from ordinary use -- this was
+  weighed seriously against `unlock_device`'s precedent, not
+  dismissed, and the Logic Contract records why it still landed on no
+  confirmation: no invented safety limit exists (only device-reported
+  bounds are enforced), and a setpoint's thermal lag lacks unlock's
+  immediate-consequence character. Recorded as the closest call of any
+  M12 appliance module to date.
+- **DI** -- `water_heater_service` singleton in `core/di/container.py`.
+- **Frontend requirements document** -- `docs/
+  M12_WATER_HEATER_FRONTEND_REQUIREMENTS.md`, a planning/specification
+  artifact derived from the verified backend contract. Contains no
+  frontend source code and authorizes no frontend implementation.
+
+### Not changed
+- `ApplianceService` -- **not extended**. A source-level test pins
+  that it contains no water-heater functional symbol.
+- `SmartHomeService`, `ConnectivityService`, `PermissionModel` --
+  reused verbatim. No new `DEVICE_TYPES` entry, no new ORM table/column.
+- `EventBus` -- untouched. No `WaterHeaterUpdatedEvent`, no
+  subscriptions, no background workers. The pre-existing device-command
+  event-publishing gap remains unfixed.
+- Both connectors -- zero code changes; `water_heater` was already
+  mapped to `device_type="appliance"` in both, and
+  `metadata["domain"]`/`["component"]` were already captured at
+  discovery.
+- **Frontend** -- zero files touched under `frontend/` or
+  `Jarvis-Frontend-main/frontend`. No component, API client, route,
+  state management, hook, type, CSS, test, dependency, or
+  configuration change of any kind.
+
+### Explicitly out of scope
+- Away/vacation mode (`set_away_mode`/`is_away_mode_on`) -- a real HA
+  feature, deliberately excluded from this MVP.
+- Dual/secondary setpoint (`target_temperature_high`/`_low`).
+- Scheduling, automation (blocked on M7's Scheduler, confirmed still
+  unstarted, and the event-publishing gap), energy optimization/
+  analytics, predictive/AI control, multi-device orchestration, scenes,
+  leak detection, safety alerting, notifications, advanced heating
+  profiles, multi-zone control.
+- Smart Kitchen Devices -- a different, still-blocked appliance
+  category (no consistent HA/MQTT domain model).
+- Every other M12 device-category module (Smart Cameras, Home
+  Automation, AI Home Assistant, Remote Access, Smart Home Memory,
+  Smart Home Analytics, Developer Tools).
+
 ## M12: Appliance Control — Media Player Core Slice (Task Group K)
 
 **No version bump**, matching this project's own established

@@ -533,35 +533,82 @@ new principal (`core:media_players`) — reads **ungated**. See
 `docs/M12_APPLIANCE_MEDIA_PLAYER_LOGIC_CONTRACT.md` for the full Logic
 Contract.
 
+**M12 — Appliance Control (Water Heater Core Slice) shipped Aug
+2026.** A Phase 0 audit re-verified `water_heater` maps to
+`device_type="appliance"` in both connectors (`home_assistant.py:86`,
+`mqtt.py:167`) — Fan/Cover/Vacuum/Humidifier/Media Player's own
+pattern, not Climate's — and reused Vacuum + Humidifier's own
+`metadata["domain"]`-then-`metadata["component"]` MQTT fallback,
+implemented locally inside the new service only, exactly as every
+prior appliance-category slice did — **zero connector changes, zero
+changes to `ApplianceService`**. A Logic Contract (`docs/
+M12_APPLIANCE_WATER_HEATER_LOGIC_CONTRACT.md`), separately approved
+before any code, resolved the slice's open design questions: operation
+mode is writable and validated against the device's own reported
+`operation_list` (HA's real `water_heater.set_operation_mode` service,
+verified against HA's actual `services.yaml` this session, rather than
+assumed) — the identical template Thermostat's `hvac_mode` already
+established, not Humidifier's read-only `mode`; temperature stays
+whatever unit/precision the device reports, bounded only when the
+device itself reports `min_temp`/`max_temp`; and the scald-risk
+confirmation question was evaluated explicitly and resolved against
+adding a `confirm_required_tools` entry, recorded as the closest call
+of any M12 appliance module to date rather than a reflexive default. A
+new `WaterHeaterService` (`services/water_heater_service.py`) ships —
+**deliberately not an `ApplianceService` extension**, enforced by a
+source-level test. Up to three independent HA services (`turn_on`/
+`turn_off`, `set_operation_mode`, `set_temperature`, all verified
+against HA's actual `services.yaml` this session) sequence into one
+merged `set_water_heater_state(temperature?, operation_mode?, on?)`
+mutation, ordered on/off, then mode, then temperature — a stated
+convention, not a discovered HA dependency — with honest
+partial-failure reporting; MQTT's own envelope stays one merged
+`set_state` call. `state` is an open pass-through string (can be
+either a plain on/off token or an operation-mode token depending on
+device features), forced to `None` when unavailable; a derived `is_on`
+convenience field is inferred only when recognizable. Exposed under
+the existing `/appliances` prefix and three agent tools, gated by the
+existing `PermissionModel` under a new principal
+(`core:water_heaters`) — reads **ungated**. 98 new tests, 0 failures,
+0 errors. See `docs/M12_APPLIANCE_WATER_HEATER_LOGIC_CONTRACT.md` for
+the full Logic Contract and `docs/
+M12_WATER_HEATER_FRONTEND_REQUIREMENTS.md` for the (planning-only, no
+code) frontend requirements this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
 Appliance Control's Core Appliance Slice/Climate/Thermostat Slice/
-Vacuum + Humidifier Core Slice/Media Player Core Slice, and Security &
-Safety's Read-Only Alert/Status Slice are now shipped; seven of this
-milestone's fifteen modules remain entirely unstarted (Smart Cameras,
-Home Automation, AI Home Assistant, Remote Access, Smart Home Memory,
-Smart Home Analytics, Developer Tools) — Energy Management, Appliance
-Control and Security & Safety themselves each remain only partially
-shipped (Energy Management: device control only, History/Analytics/
-Optimization/Scheduling all deferred; Appliance Control: Fan + Cover +
-Climate/Thermostat + Vacuum + Humidifier + Media Player control only —
-fan percentage/cover position, Climate's own fan mode/swing/presets/
+Vacuum + Humidifier Core Slice/Media Player Core Slice/Water Heater
+Core Slice, and Security & Safety's Read-Only Alert/Status Slice are
+now shipped; seven of this milestone's fifteen modules remain entirely
+unstarted (Smart Cameras, Home Automation, AI Home Assistant, Remote
+Access, Smart Home Memory, Smart Home Analytics, Developer Tools) —
+Energy Management, Appliance Control and Security & Safety themselves
+each remain only partially shipped (Energy Management: device control
+only, History/Analytics/Optimization/Scheduling all deferred;
+Appliance Control: Fan + Cover + Climate/Thermostat + Vacuum +
+Humidifier + Media Player + Water Heater control only — fan
+percentage/cover position, Climate's own fan mode/swing/presets/
 humidity/dual setpoint/scheduling, Humidifier's own mode control/
-presets/water-level automation, and Media Player's own play_media/
-join-unjoin/shuffle/repeat/sound mode/album/duration/playback position
-all deferred, two appliance categories (Water Heater, Smart Kitchen)
-still entirely unbuilt, two blocked on the current connector mapping;
-Security & Safety: read-only status only, every action-taking item
-deferred). **No version bump accompanied any of the thirteen
-task-group passes** -- unlike M22's own task groups (each of which
-shipped real code and bumped the version in turn), all thirteen ship
-real code at `0.38.0` unchanged. Recorded here as a deliberate
-exception to this project's usual pattern, not a claim that the pattern
-changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task Group B
-Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task Group E, Task
-Group F, Task Group G, Task Group H, Task Group I, Task Group J, and
-Task Group K entries for the full implementation account.
+presets/water-level automation, Media Player's own play_media/
+join-unjoin/shuffle/repeat/sound mode/album/duration/playback
+position, and Water Heater's own away/vacation mode/dual setpoint all
+deferred; the two remaining named appliance categories (Smart Kitchen,
+Smart Pumps/Irrigation) are both blocked on the current connector
+domain mapping, not merely unbuilt -- no further Appliance Control
+category remains buildable without a connector or domain-model change;
+Security & Safety: read-only status only,
+every action-taking item deferred). **No version bump accompanied any
+of the fourteen task-group passes** -- unlike M22's own task groups
+(each of which shipped real code and bumped the version in turn), all
+fourteen ship real code at `0.38.0` unchanged. Recorded here as a
+deliberate exception to this project's usual pattern, not a claim that
+the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A,
+Task Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
+Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
+Group J, Task Group K, and Task Group L entries for the full
+implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -4474,12 +4521,20 @@ mutation, volume HA-native `0.0`-`1.0`, source validated against
 device-reported `source_list` only when non-empty. `play_media`,
 join/unjoin, shuffle/repeat/sound mode, album/duration/playback
 position and queue management all deliberately deferred. Water Heater
-remains deferred to a future, separately-scoped Appliance Control
-slice. Smart Pumps/Irrigation is blocked: HA's `valve` domain --
-irrigation's natural mapping -- currently maps to `device_type=
-"other"`, not `"appliance"`. Smart Kitchen Devices is blocked: no
-single HA/MQTT domain represents "kitchen appliance" as a consistent
-category.)*
+Core Slice shipped Task Group L, Aug 2026 -- a further separate
+`WaterHeaterService` (also not an `ApplianceService` extension),
+sharing Fan/Cover/Vacuum/Humidifier/Media Player's own
+`device_type="appliance"` category, reusing the identical
+`metadata["domain"]`/`["component"]` fallback locally -- zero
+connector changes. Merged on/off + operation-mode + temperature
+mutation (up to three sequential HA calls, one merged MQTT call),
+operation mode writable and validated against device-reported
+`operation_list`, temperature bounded only when device-reported.
+Away/vacation mode and dual setpoint deliberately deferred. Smart
+Pumps/Irrigation is blocked: HA's `valve` domain -- irrigation's
+natural mapping -- currently maps to `device_type="other"`, not
+`"appliance"`. Smart Kitchen Devices is blocked: no single HA/MQTT
+domain represents "kitchen appliance" as a consistent category.)*
 - Smart Fans ✅
 - Smart AC ✅ *(read/write current+target temperature, HVAC mode -- fan mode/swing/presets/humidity/scheduling deferred)*
 - Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, now-playing title/artist -- play_media/join-unjoin/shuffle/repeat/sound mode deferred)*
@@ -4487,7 +4542,7 @@ category.)*
 - Smart Blinds ✅ *(via the cover entity)*
 - Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level -- fan speed/cleaning modes/maps/scheduling deferred)*
 - Smart Humidifiers ✅ *(on/off, target humidity, mode read-only -- mode control/presets/water-level automation deferred)*
-- Smart Geysers
+- Smart Geysers ✅ *(via the water_heater entity -- on/off, operation mode, target temperature -- away/vacation mode/dual setpoint deferred)*
 - Smart Pumps
 - Smart Irrigation *(blocked -- HA's `valve` domain maps to `device_type="other"`, not `"appliance"`)*
 - Smart Kitchen Devices *(blocked -- no consistent HA/MQTT domain model)*
