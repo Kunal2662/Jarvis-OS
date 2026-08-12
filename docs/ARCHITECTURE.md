@@ -29,6 +29,19 @@ built (Priority/Retry on the event bus, the WebSocket protocol, the
 FastAPI layer itself), it is marked **(new, M8+)** so no reader
 mistakes a standard for a shipped guarantee.
 
+> **Read §24 first.** [Project Development Principles](#24-project-development-principles)
+> is this document's highest-level policy — the twelve rules every
+> other section, and every implementation decision on this project,
+> operates under. Every numbered standard below (§1–§23) is a specific
+> instantiation of one or more of those twelve; where a standard and a
+> principle appear to disagree, the principle is correct and the
+> standard is drift to be fixed. It sits last in reading order (§24)
+> rather than first only because renumbering twenty-three
+> already-cross-referenced sections to make room for it at the front
+> would itself have violated principle #3 (Documentation is
+> Authoritative) by breaking every existing anchor this document and
+> its companions point to.
+
 ---
 
 ## Table of contents
@@ -54,6 +67,9 @@ mistakes a standard for a shipped guarantee.
 19. [Performance standards](#19-performance-standards)
 20. [Governance — how this document changes](#20-governance--how-this-document-changes)
 21. [Domain architecture map](#21-domain-architecture-map)
+22. [Approved architecture decisions (Aug 2026)](#22-approved-architecture-decisions-aug-2026)
+23. [Milestone Lifecycle](#23-milestone-lifecycle)
+24. [Project Development Principles](#24-project-development-principles) — **read this first; see the note above the table of contents**
 
 ---
 
@@ -1288,6 +1304,11 @@ ships and real measurements replace estimates.
 
 ## 20. Governance — how this document changes
 
+*(This section is the detailed, document-specific instantiation of
+§24's principle #1 Architecture First and principle #3 Documentation
+is Authoritative. Read §24 for the philosophy; this section for the
+mechanics of applying it to `ARCHITECTURE.md` specifically.)*
+
 - This document is updated in the same change that introduces a new
   standard, not after — mirroring `MASTER_ROADMAP.md` §4's
   documentation-discipline rule.
@@ -1339,9 +1360,860 @@ repeated here.
 | Workspace Architecture | 🟡 Partial | **M11** (Intelligent Workspace & Productivity, Task Groups A + B + C + D shipped) | `domain/workspace/` — `WorkspaceSettings` (JSON column) + `WorkspaceMetadata` (derived, never stored); `infrastructure/database/models.py` — `Workspace`/`Project`/`Note`; `repositories/workspace_repository.py` — three repositories; `services/workspace_service.py` — the domain; `services/workspace_manager.py` — composition with Knowledge/Search/Memory; `routes/workspaces.py` — CRUD + `/overview` + `/context`. `domain/productivity/` — `RecurrenceRule` (rules stored, occurrences computed); `models.py` — `Task`/`Calendar`/`CalendarEvent`/`Reminder`; `repositories/productivity_repository.py`; `services/task_service.py`, `calendar_service.py`, `reminder_service.py`, `productivity_managers.py`; `routes/productivity.py` (Task Group B). `domain/files/` — `safe_join`/`validate_name`/`extract_text` (pure, and the single place path containment is decided); `models.py` — `Folder`/`File`/`FileTag`/`FileMetadata`/`IndexRecord`/`WorkspaceAttachment`; `repositories/file_repository.py` — four repositories; `services/file_service.py` — `FolderService`/`FileService`/`AttachmentService`; `services/file_managers.py`; `routes/files.py` — `/files` + `/folders` + `/attachments` (Task Group C). `domain/ai_workspace/` — the context value objects, the character-budget packing and the prompt construction, all pure; `models.py` — `WorkspaceKnowledgeLink` (four nullable narrow foreign keys plus the workspace's own); `repositories/ai_workspace_repository.py`; `services/workspace_ai_service.py` — `WorkspaceKnowledgeService` (links + ingestion) and `WorkspaceAssistantService` (grounded summarize/ask/next-actions); `services/workspace_ai_managers.py` — `WorkspaceContextManager` and `WorkspaceRetriever`; `agents/tools/workspace_tools.py` — five tools on the *existing* registry; `routes/ai_workspace.py` — `/workspace-ai/{id}/*` + `/knowledge-links` (Task Group D). Task Group F (UI) not started. **No scheduler**: reminders record metadata and fire nothing, and ingestion is on-demand only (M7 Phase 6). **No cloud storage in the *file platform***: its files are local; Drive is reached through Task Group E's integration platform instead, as a vendor API rather than as a second local store. **No semantic indexing**: seven extensions read as plain text, no OCR/PDF/embeddings, and workspace retrieval is the shared keyword index narrowed by `workspace_id`, not a vector search |
 | Integration Platform | 🟡 Partial | **M11 Task Group E** (platform + Phase 1 shipped) | `core/integrations/models.py` — connectors as declarative `IntegrationSpec`/`OperationSpec` data, with path rendering as the security boundary (a caller supplies parameters, never a path); `gateway.py` — the single audited egress point: one `httpx` pool, retry for idempotent methods only, a short account-keyed response cache, `Retry-After` handling; `provider.py` — `RestIntegrationProvider`, an `IMCPProvider` for vendor REST APIs registered in the *same* `MCPProviderRegistry`; `google.py` — Phase 1 (11 integrations, 65 operations); `core/mcp/auth/oauth2.py` — the authorization-code (PKCE) and client-credentials grants M10.5 deferred, registered into the *existing* `AuthStrategyRegistry`; `services/integration_service.py`; `routes/integrations.py`. **No second anything**: retrieval narrows M10A's `SearchService`, extraction of vendors' own search uses their endpoints, the agent is M10's `AgentOrchestrator` reached as four tools, and health rides the provider manager's existing collector. **Phases 2–6 (Microsoft 365, GitHub/GitLab, Slack/Discord/Teams, Notion/Jira/Trello/ClickUp/Linear/Asana, Dropbox/Box) are catalogue entries against this engine, not built** |
 | MCP Architecture | ✅ Real | **M10.5** (MCP & Integration Platform, complete) | `core/mcp/` — Capability Registry, client/server runtimes, negotiation, heartbeat, `diagnostics.py`; `core/mcp/transports/` — stdio/websocket/http/ipc + factory; `core/mcp/providers/` — provider registry, lifecycle manager, metadata/config; `core/mcp/auth/` — credential model, encrypted store, strategies, sessions, permission bridge; `core/mcp/sdk/` — builders, validation framework, runnable examples; `core/interfaces/mcp.py` (ports); `infrastructure/cli/mcp_cli.py` (`jarvis mcp`). All five task groups shipped. The *substrate* is complete; a real provider, the OAuth flow and a server-side listener are M11 |
+| Smart Home Architecture | 🟡 Partial | **M12** (Smart Home & IoT Platform — Task Group A shipped, Task Group B Phases 1–3 shipped) | `domain/smart_home/` — closed vocabularies, derived `HomeMetadata`; `infrastructure/database/models.py` — `Home`/`Zone`/`Room`/`Device`/`DeviceGroup`; `repositories/smart_home_repository.py`; `services/smart_home_service.py` — CRUD, Discovery/Pairing as domain status transitions (Task Group A). `core/interfaces/connectivity.py` — `IDeviceConnector` port, mirroring `IMCPTransport`; `core/connectivity/` — `ConnectorFactoryRegistry`, encrypted `ConnectorCredentialStore` (a structural sibling of MCP's own, not a shared instance); `services/connectivity_service.py` — connect/discover/refresh-state/send-command orchestration (Task Group B, Phase 1 — foundation). `core/connectivity/connectors/home_assistant.py` — `HomeAssistantConnector`, the first real `IDeviceConnector` (REST over `httpx`; Task Group B, Phase 2). `core/connectivity/connectors/mqtt.py` — `MqttConnector`, the second real `IDeviceConnector` (`gmqtt`, chosen over the originally-approved `aiomqtt` after empirical Windows `ProactorEventLoop` incompatibility with this project's existing subprocess-based MCP `StdioTransport`; HA MQTT Discovery + a new JARVIS-native envelope, `core/connectivity/connectors/mqtt_envelope.py`; Task Group B, Phase 3). Both `CONNECTOR_TYPES` entries are now registered, closing Task Group B's three-phase plan. Thirteen of this milestone's fifteen modules remain entirely unstarted |
 | Self-Healing Architecture | 🔴 Planned | **M13B** (foundation) → M18 (full platform) | `MASTER_ROADMAP.md` §8 M13B — Self-Healing & Observability; §8 M18 — Self-Healing & Diagnostics Platform |
 | Observability | 🔴 Planned | **M13B** (foundation) → M20A (full platform) | `MASTER_ROADMAP.md` §8 M13B; §8 M20A — Analytics & Observability Platform |
 | Cloud Architecture | 🟠 Partial | M11 | §1 above (Cloud box — Oracle Cloud, optional, outbound-only); `docs/TECH_STACK.md` §5 — MongoDB sync target not yet started |
 | Mobile Architecture | 🔴 Planned | M21 | `MASTER_ROADMAP.md` §8 M21 — Mobile Platform (Mobile Companion, Wearable integration); `docs/TECH_STACK.md` §10 |
 | Enterprise Architecture | 🔴 Planned | No single dedicated milestone — cross-cutting scope distributed across M15/M16/M18/M19/M20/M23 | `MASTER_ROADMAP.md` — "Enterprise collaboration" under M23 Distributed JARVIS is the primary owner; Personality/Plugin-Health/Model marketplaces (M15/M18/M22) are the marketplace-shaped pieces |
 | Future Extension Points | — | Ongoing, every milestone | §20 Governance above; the `ISearchSource`/`IPlatformAdapter`/provider-registry pattern this document's standards require at every external boundary is itself the extension mechanism — a future capability is a new adapter/source/provider, never a parallel system |
+
+---
+
+## 22. Approved architecture decisions (Aug 2026)
+
+**Status: approved, not built.** Every decision in this section has been
+signed off as the target architecture. None of it exists in code today.
+It is recorded here so that the milestones which do build it have a
+binding specification to build against, and so that no one implements a
+competing design in the meantime.
+
+Read this section as a contract for future work, not as a description of
+the running system. Where a decision constrains something that *does*
+exist today, that is called out explicitly.
+
+**Development policy in force alongside these decisions:**
+
+| Area | Status |
+|---|---|
+| Backend architecture | 🔒 **Frozen** |
+| API contracts | 🔒 **Frozen** |
+| Database schema | 🔒 **Frozen** |
+| Core backend modules | 🔒 **Frozen** |
+| Milestone structure | 🔒 **Frozen** |
+| Frontend / UI / UX | 🟢 Continues |
+
+No additional backend architecture is introduced unless explicitly
+approved after UI validation. Architecture changes require explicit
+approval — §20's governance rules apply to this section as to every
+other.
+
+---
+
+### 22.1 Local AI First
+
+**Global principle: JARVIS must never depend solely on cloud AI.**
+
+Every installation includes a local LLM. Cloud AI *enhances* JARVIS; it
+never *replaces* local AI. An installation with no network must remain a
+working assistant, not a degraded shell — this is the same local-first
+commitment §1 already makes for storage and state, extended to
+inference.
+
+Execution priority is fixed:
+
+```
+Local AI  →  Cloud AI  →  Failover
+```
+
+A hard ordering, not a preference: a request escalates to cloud only
+when local execution cannot satisfy it (§22.3), and failover is reached
+only when a selected cloud provider fails.
+
+**What this constrains today:** nothing shipped violates it, because no
+routing layer exists yet — `services/llm_service.py`'s provider
+selection is configuration-driven. That selection becomes an *input* to
+the Calibration Engine rather than a competing mechanism.
+
+---
+
+### 22.2 Universal AI/API Calibration Engine
+
+**Every external API call passes through the Calibration Engine. No API
+is called directly.**
+
+The same rule §8 already applies to services and §5 to REST routes,
+extended to outbound calls: one audited path, not one per feature.
+`core/integrations/gateway.py` (M11 Task Group E) is the existing
+precedent — a single egress point with pooling, retry and caching — and
+the Calibration Engine is that idea generalised with a routing decision
+in front of it.
+
+**Applies to:** LLM, Voice, Vision, OCR, Search, Translation,
+Automation, and every future API category. A new category joins by
+registering, not by bypassing.
+
+**Decision inputs:**
+
+| Class | Inputs |
+|---|---|
+| Hardware | CPU, GPU, RAM, NPU, Storage, Battery |
+| Network | Internet availability, Latency |
+| Provider | Provider health |
+| Budget | Monthly budget, Daily budget |
+| Request | Confidence score, Request complexity |
+| Policy | User policy, Administrator policy |
+
+The engine returns a routing decision — which tier, which provider, under
+what budget — and the caller executes it. A caller that inspects these
+inputs and decides for itself is the duplicate-mechanism failure this
+rule exists to prevent.
+
+---
+
+### 22.3 AI Cost Optimizer
+
+Before any cloud request:
+
+```
+Can Local AI complete this?
+        │
+       YES ──→ Use Local
+        │
+        NO
+        ↓
+Compare: Quality · Latency · Cost · Provider Health
+        ↓
+   Select Provider
+```
+
+**Goal: every cloud request must justify its cost.** "The cloud model is
+better" is not a justification on its own — it must be better *enough*
+for this request, against the budget inputs in §22.2.
+
+---
+
+### 22.4 Three-tier AI strategy
+
+| Tier | Scope | Contents |
+|---|---|---|
+| **Tier 1** | Local execution | Local LLM, Memory, Knowledge Graph, Piper, Whisper, OCR, Automation, Tasks, Calendar, File Search |
+| **Tier 2** | Cloud providers | OpenAI, Gemini, Groq, ElevenLabs, Search APIs, Vision APIs |
+| **Tier 3** | Enterprise AI *(future)* | Self-hosted GPU, Private AI |
+
+Tier 1 is the floor, not the fallback: those capabilities run locally in
+every installation. Tier 3 is explicitly future scope with no milestone
+assigned.
+
+---
+
+### 22.5 Oracle Cloud architecture
+
+Oracle Cloud Free Tier serves: Authentication · Admin Dashboard ·
+Synchronization · Analytics · Logging · PostgreSQL · Redis · Vector
+database · WebSocket coordination.
+
+**No AI inference by default.** The cloud tier coordinates and stores; it
+does not think. That is what preserves §22.1 — an installation that
+loses its cloud tier loses sync and analytics, not its assistant.
+
+Consistent with §1's existing Cloud box: optional, outbound-only.
+
+---
+
+### 22.6 Voice platform
+
+Voice runs through a **provider abstraction**, never a provider-specific
+implementation:
+
+| Role | Provider |
+|---|---|
+| Primary cloud TTS | ElevenLabs |
+| Primary local TTS | Piper |
+| Speech recognition | Faster Whisper |
+
+**Persistent voice identity: JARVIS always sounds like JARVIS.** The
+voice is a property of the product, not of whichever provider answered.
+Three binding consequences:
+
+- **Users never select providers.** There is no voice-provider dropdown.
+- **Automatic failover**, with automatic voice mapping across providers —
+  a failover must not change how JARVIS sounds mid-sentence.
+- **Administrators manage providers** (§22.11), not end users.
+
+---
+
+### 22.7 AI providers
+
+| Role | Providers |
+|---|---|
+| Primary | Local LLM |
+| Cloud | OpenAI, Gemini, Groq, and future providers |
+
+**Provider abstraction only. No provider-specific implementation above
+the adapter layer.** This is §8's existing ports-and-adapters rule stated
+for AI providers specifically: a feature that branches on "if provider is
+OpenAI" has broken it.
+
+---
+
+### 22.8 Hardware calibration
+
+During installation JARVIS detects CPU, GPU, RAM, VRAM, Storage,
+Internet, Battery and Temperature, and computes an **AI Capability
+Score**.
+
+From that score it automatically configures: local model selection, AI
+usage policy, performance profile, API usage policy.
+
+Automatically, not as a questionnaire — the installer measures the
+machine rather than asking the user to characterise it.
+
+---
+
+### 22.9 Universal Performance Engine
+
+**Goal: the same user experience across all hardware — a different
+execution strategy, not different features.**
+
+A low-powered machine runs smaller local models and leans harder on
+cloud within its budget. It does not lose capabilities and does not get a
+visibly different product. Feature parity is the invariant; execution
+strategy is the variable.
+
+---
+
+### 22.10 Installation platform
+
+Supported platforms: **Windows, Linux, macOS.**
+
+```
+Welcome
+   ↓
+Personal  OR  Administrator
+   ↓
+Hardware Scan
+   ↓
+AI Calibration
+   ↓
+Local Model Download
+   ↓
+Voice Setup
+   ↓
+Memory Initialization
+   ↓
+Ready
+```
+
+One flow across all three platforms. Local Model Download is a step in
+the standard installation, not an optional extra — that is what makes
+§22.1's "every installation includes a local LLM" true in practice.
+
+> **Implementation status (v0.34.0, M22 Task Groups A–B).** The flow and
+> its calibration ship (TG-A); the provisioning engine behind it ships
+> (TG-B) — dependency detection, resumable checksum-verified downloads, a
+> durable journal, parallel verification and an `installation.json`
+> manifest. **Packaging does not yet exist**: no MSI, EXE or code
+> signing, and Linux and macOS are detected and warned about rather than
+> supported.
+>
+> Two rules from that work are worth binding here, because both were
+> learned by running against real hardware and a real mirror:
+>
+> - **A registry identifier is not a filename.** `qwen2.5:14b` cannot
+>   name a file on NTFS. Anything that addresses an artefact and anything
+>   that stores one must use different strings.
+> - **No download URL may be hardcoded.** The source registry ships
+>   empty; with nothing configured the installer names the environment
+>   variable to set rather than falling back to a vendor host. A silent
+>   fallback would defeat the abstraction on the default path, which is
+>   the only path most installations take.
+>
+> **Update (v0.35.0, installer UI).** The wizard is wired to the engine
+> and reachable at `/install`. The engine streams progress as NDJSON
+> (`provision --stream`); the UI stores what it receives and derives only
+> transfer speed and time remaining, since a rate is a property of an
+> observer rather than a fact about a download.
+>
+> The **host bridge remains unbuilt and is deferred to M22 Task Group C**
+> — nothing spawns the Python process from the desktop shell yet. The
+> frontend defines that boundary as a contract (command
+> `run_provisioning`, event `provisioning://event`) and fails with a
+> readable reason when the host cannot satisfy it. This is the same rule
+> as the two above, applied to a transport: **an unavailable capability
+> reports itself rather than being simulated.** A resolving stub, or
+> invented progress, would make an installer look complete while
+> installing nothing.
+
+---
+
+### 22.11 Personal and Administrator accounts
+
+**Exactly two account types: Personal and Administrator.**
+
+> **Frontend status (v0.31.0):** the *modes* are modelled and enforced
+> (`core/user-mode.ts`), and the Administrator Dashboard exists. The
+> **account model itself is not built** — the frozen backend has no user
+> table, no roles and no `/api/v1/users`, so `administrator` is reachable
+> only through the same session-only Developer Mode unlock. When a real
+> account model ships, `resolveUserMode()` is the single function that
+> changes; every gate in the UI reads through it.
+>
+> The Administrator Dashboard therefore ships **six panels with a real
+> API** (AI health, API usage, provider health, voice providers, secrets
+> status, audit log) and **names the seven that have none** — users,
+> daily/monthly budgets, provider priority, calibration status,
+> analytics, synchronization. Each of those belongs to §22.2/§22.3/
+> §22.5/§22.8/§22.11, all approved and not built. Showing an estimated
+> budget would be a fabrication; naming the gap is the honest answer and
+> the more useful one.
+
+**No feature differences — only management differences.** An
+Administrator does not get a better JARVIS; they get control over how a
+fleet of them is configured.
+
+Administrators control: Users · API keys · Provider priority · Budgets ·
+AI health · Analytics · Voice providers · Calibration policies.
+
+**Normal users never see provider information.** Not as a hidden setting,
+not behind an "advanced" toggle — it is not part of the personal user's
+product.
+
+---
+
+### 22.12 Hidden backend operations
+
+Users never see provider names, routing decisions, internal agents,
+backend execution, API switching, or failover. They see progress:
+
+> Working… · Thinking… · Preparing response… · Checking information… ·
+> Almost ready…
+
+A product decision with an architectural consequence: **status surfaces
+must not leak routing detail.**
+
+**Implemented in M8 Phase 5 (v0.31.0).** `core/user-mode.ts` is the
+single gate: three modes (`personal` / `developer` / `administrator`)
+and the seven restricted classes above, each surface asking one function
+rather than re-deciding what "advanced" means. It is enforced in two
+independent places — the workspace panel *menu* filters restricted
+panels out, and each restricted component refuses to render — because a
+workspace layout can be exported from a developer's machine and imported
+on a personal one.
+
+It is a **render** gate, not a security boundary: the routes behind it
+are session-authenticated like every other route, and §22.12 is a
+product rule about what a personal user's JARVIS *contains*, not a claim
+that these endpoints are secret. The backend authenticates; the frontend
+decides what to show.
+
+Two findings from implementing it, recorded because both were previously
+asserted the other way round in this document:
+
+- **M8 Phase 3's Activity Center did leak**, rendering `agent.step`'s
+  raw `node` field (`planner`, `tool_executor`, `critic`) to every
+  audience. Fixed in Phase 5: personal users see the progress vocabulary
+  above, with step count, ordering and status identical in both modes.
+- **The Status Bar's "AI Provider" item never leaked.** An earlier
+  revision of this section said it names a provider; it renders "Not
+  configured" (`NotConfiguredItem`) because no provider-state API
+  exists.
+
+---
+
+### 22.13 Cross-agent collaboration
+
+**Approved.** Agents collaborate internally, backend-only, invisible to
+users — consistent with §22.12. Collaboration is an implementation detail
+of producing an answer, never a surface.
+
+---
+
+### 22.14 AI Health Dashboard
+
+**Administrator only.** Displays provider health, latency, failures,
+usage, cost, API budget, success rate, and the local-vs-cloud ratio.
+
+The local-vs-cloud ratio is the direct measure of whether §22.1 and
+§22.3 are actually holding in production, which is why it is a
+first-class metric rather than something derived on request.
+
+---
+
+### 22.15 Cross-platform distribution (M22)
+
+Windows · Linux · macOS · Portable edition · Installer · Enterprise
+installer · Auto-update · Code signing · OS abstraction layer.
+
+Assigned to **M22**. The OS abstraction layer is the load-bearing piece:
+it is what keeps §22.10's single installation flow honest across three
+platforms rather than three flows wearing one name.
+
+**Windows (M22 Task Groups C, D and E, v0.36.0/v0.37.0/v0.38.0) is
+Implementation Complete — Build Verification Pending** (§23.4/§23.7
+below govern exactly what that leaves open). Linux, macOS, the portable
+edition, the enterprise installer, auto-update and code signing are
+Planned — not started.
+
+*The host bridge* (`frontend/src-tauri/src/installer.rs`) is where the
+webview meets the operating system. It spawns
+`python -m jarvis.installer provision --stream` and relays its NDJSON
+stdout to the UI as `provisioning://event`; Task Group D added five
+more commands (`check_dependencies`, `get_installation_status`,
+`verify_installation`, `repair_installation`, `open_log_folder`), each
+a non-streaming wrapper around an already-shipped CLI subcommand. Two
+boundaries are worth recording here because they generalise past
+Windows:
+
+- **stdout is data, stderr is diagnostics.** The installer CLI reserves
+  stdout for JSON so a log line can never be parsed as a progress
+  event. Any future platform's bridge inherits this rule rather than
+  inventing its own framing.
+- **The host holds the install location, so the contract stays
+  argument-free.** `launch_application` and `open_installation_folder`
+  take no arguments; the host remembers where it just installed. This
+  keeps the frontend contract identical across platforms whose notions
+  of "launch" and "open a folder" differ entirely.
+
+No JavaScript-facing process-spawning capability is granted. Spawning
+happens in Rust, behind named commands with fixed shapes — a webview
+that could spawn arbitrary processes is a larger capability than an
+installer needs, on the surface with the largest attack area.
+
+**Branding at small raster sizes (M22 Task Group E, v0.38.0).** A
+single master brand asset does not automatically survive downscaling.
+JARVIS OS's master logo, rendered directly at 32×32, was tested and
+found near-illegible — its detail is real evidence for a rule worth
+generalising, not an assumption: **a platform's icon pipeline needs two
+variants, not one.** A *premium* form (the master asset, unmodified)
+for sizes where its detail actually resolves — 128px and above, and any
+large in-app placement — and a *small-icon* form, deliberately
+simplified for legibility (flatter colour, thicker strokes, less or no
+gradient/blur) for the 16–48px range a taskbar, system tray or Explorer
+actually renders at. The simplification is a reinterpretation of the
+same silhouette, not a redesign and not an automated trace — no vector-
+tracing tool was available in this environment, and none is assumed to
+be available on a future platform's build machine either.
+
+Where a target format needs one multi-resolution file combining both
+(Windows' `.ico`) and the platform's own icon-generation tooling cannot
+mix two source images into a single output, the fallback is to hand-pack
+the container format directly rather than compromise on one variant for
+every size — `.ico` specifically is an `ICONDIR` header plus one
+`ICONDIRENTRY` and one already-rasterized PNG per frame (PNG-in-ICO,
+valid since Windows Vista), which any platform's build step can
+construct with a general-purpose language's standard library alone.
+Whichever concrete technique macOS's `.icns` or a Linux desktop's icon
+theme needs, the two-variant *decision* — verify legibility at the
+smallest real target size before trusting one asset everywhere — is the
+part that generalises and is recorded here for that reason.
+
+---
+
+### 22.16 JARVIS Core Intelligence — deferred to Future Vision
+
+**Status: deferred. Not part of the v1 roadmap.**
+
+Reason: requires a mature AI ecosystem, a large user base, more
+infrastructure and more compute than the product will have. Recorded as
+Future Vision rather than dropped, so it does not silently reappear as
+scope in a nearer milestone.
+
+---
+
+### 22.17 Recommended free infrastructure
+
+Oracle Cloud Free Tier · Cloudflare · GitHub · GitHub Actions ·
+PostgreSQL · Redis · Qdrant · Docker
+
+Recommended defaults for *development*, not a production dependency
+list. §22.5 governs what the cloud tier is actually for.
+
+---
+
+### 22.18 Where these decisions get built
+
+This document schedules none of §22 into a milestone. §22.15 names M22
+because that assignment came with the decision; the rest await milestone
+assignment under §20's governance process, and `MASTER_ROADMAP.md`
+remains the single source of truth for sequencing.
+
+Until then the rule is: **do not build a competing design.** A feature
+that needs provider routing, cost control, voice-provider selection or
+hardware profiling before the Calibration Engine exists should raise that
+as a blocker, not solve it locally.
+
+---
+
+## 23. Milestone Lifecycle
+
+*(Added Aug 2026, after M22 Task Group C's status was described five
+different ways across five documents — "code complete but unbuilt",
+"code complete but unverified", "not verified", "unbuilt" — before
+this section existed to name it once. This is now the only vocabulary
+a milestone, task group, or phase status may use anywhere in this
+project's documentation. §20 governs how *this document* changes;
+this section governs what a *status word* is allowed to mean,
+everywhere it appears.)*
+
+A milestone, task group, or phase carries **exactly one** of the six
+statuses below at any time. A document that describes status in any
+other words is not more precise — it is drift waiting to be noticed by
+the next person who has to reconcile it, the way this section had to
+be written to reconcile M22 TG-C's five.
+
+Most work moves **Planned → In Progress → Implementation Complete →
+Complete**. **Build Verification Pending** is not a fifth stop on that
+line — it is what "Implementation Complete" is called for work that
+also has a platform-verification obligation under §23.5, until that
+obligation is discharged. Work with no such obligation (most backend
+and frontend milestones) never carries it and goes Implementation
+Complete → Complete directly. **Production Ready** applies only to
+work intended for an end-user release artifact, not to every
+milestone.
+
+### 23.1 Planned
+
+Work has not started. No code has been written for this scope.
+
+Status tables in this project's documents render this status as
+either **"Planned"** or **"Not Started"** — the two are the same
+status under two spellings in use before this section unified the
+vocabulary, and both remain valid display text. What is not valid is
+a third phrase (e.g. "pending", "queued", "TBD") standing in for this
+status; use one of the two.
+
+### 23.2 In Progress
+
+Implementation is actively being developed. Some functionality may
+work; none of it has been declared finished.
+
+### 23.3 Implementation Complete
+
+All four of the following hold:
+
+- All planned functionality for this milestone/task group has been
+  implemented.
+- Code has passed the required quality gates (§18 Testing standards,
+  §19 Performance standards, and this project's standard gate:
+  pytest, vitest, lint, typecheck, build).
+- Documentation has been updated, per the Documentation Synchronization
+  Policy (`MASTER_ROADMAP.md` §20).
+- The implementation has been merged.
+
+**Platform verification may still be pending.** This status alone does
+not claim a working, installable, end-user artifact exists — only that
+the code behind one is finished, gated, documented and merged. Whether
+that claim needs anything further depends on §23.5.
+
+### 23.4 Build Verification Pending
+
+Implementation is complete (§23.3 holds in full) but platform-specific
+verification has not yet been performed. This includes:
+
+- Packaging (building the actual installer/package artifact)
+- Installer verification (the artifact installs, and does what it
+  claims)
+- Platform validation (behavior confirmed on the real target platform,
+  not reasoned about)
+- Deployment verification (the built artifact runs where it is meant
+  to run)
+
+A milestone in this status has working, reviewed, tested source code
+and an **unverified** delivery mechanism for it. The two are not the
+same claim, and this status exists so that a document can make the
+first claim honestly without being read as also making the second.
+
+See §23.6 (Build Verification Policy) for what specifically must be
+checked, and `MILESTONE_REPORT.md`'s per-milestone reports for the
+worked example (M22 Task Group C, §9 there: ten named, numbered
+checks, none yet run).
+
+### 23.5 Complete
+
+All five of the following hold:
+
+- Implementation (§23.3's four conditions)
+- Testing
+- Documentation
+- Platform Verification (§23.4's four checks, where applicable — see
+  §23.6 for which milestones this applies to)
+- Acceptance Criteria (the milestone's own stated criteria — see
+  `MASTER_ROADMAP.md` §18 and `IMPLEMENTATION_ROADMAP.md`'s
+  Acceptance Criteria sections for the worked example, M22's)
+
+A milestone does not reach this status by having most of the five;
+it reaches this status by having all five, and a document claiming
+this status for a milestone that is missing one is the exact failure
+this section exists to prevent.
+
+### 23.6 Production Ready
+
+Verified on supported production platforms. Ready for release.
+
+This is the status furthest to the right, and it is not a synonym for
+Complete: Complete means the milestone's own scope and acceptance
+criteria are satisfied; Production Ready means the result has been
+checked against the platforms this project actually ships to. A
+milestone with no release artifact of its own (most backend-only
+milestones) has no meaningful path to this status and stops at
+Complete.
+
+### 23.7 Build Verification Policy
+
+*(This section is the detailed instantiation of §24's principle #11
+Platform Verification. Read §24 for the one-line rule; this section
+for exactly which categories it applies to and what does and does not
+satisfy it.)*
+
+Any milestone or task group whose deliverable includes a
+platform-specific artifact — a compiled binary, an installer, a
+packaged application — is **platform-specific work**, and platform
+verification is **mandatory** before it may carry the Complete status
+(§23.5), regardless of how thoroughly its source has been reviewed or
+unit-tested. Review and unit tests establish that the code is
+*correct*; only running the actual toolchain and the actual artifact
+establishes that it *builds and works*, and the two are not
+substitutes for each other. Categories this applies to:
+
+- **Rust** — the project's Tauri/desktop-shell code (`src-tauri/`)
+  must actually compile. No amount of text-level or unit-level
+  checking substitutes for `cargo build` succeeding.
+- **Windows Installer** — the NSIS/MSI artifact must actually be
+  produced and actually install, upgrade and uninstall cleanly on a
+  real Windows machine.
+- **Linux Packages** — AppImage, Flatpak, DEB, RPM: each format
+  verified on the distributions this project targets, not assumed
+  from the packaging config alone.
+- **macOS Packages** — DMG, PKG: verified on both Apple Silicon and
+  Intel where the project claims to support both.
+- **Code Signing** — a signed build verified to install without a
+  Gatekeeper/SmartScreen warning, not merely that the signing step
+  in a build script exits 0.
+- **Release Validation** — the built artifact exercised end to end
+  (install → run → the milestone's core user-facing flow → uninstall)
+  on the actual target platform.
+
+**What does *not* satisfy this policy:** reading a bundled schema to
+confirm a config key is spelled correctly; a test suite that reads
+source code as text rather than compiling it; reasoning through what a
+default template is documented to do. These are legitimate, valuable
+checks — M22 Task Group C used all three — and none of them is a
+substitute for the platform check itself. A document that reports
+these checks as if they closed the platform-verification gap is
+exactly the ambiguity this section exists to close off.
+
+A milestone in the Build Verification Pending status (§23.4) moves to
+Complete only once every applicable category above has been checked
+against a real build, on a real target platform, and the result
+recorded — not asserted from the implementation alone.
+
+---
+
+## 24. Project Development Principles
+
+*(Added Aug 2026 as the final governance addition to this document.
+After this section, governance is considered stable: §1–§23 are the
+detailed standards; this section is the philosophy they all serve.
+Further governance restructuring — adding, removing, or renumbering a
+principle here — is out of scope for ordinary milestone work and
+requires an explicit request, the same way changing a standard
+elsewhere in this document does. Ordinary work applies these twelve
+principles; it does not add new ones.)*
+
+This is the highest-level engineering guidance in this project. Where
+any other document, standard, or specific instruction appears to
+conflict with a principle below, that conflict is drift to be raised
+and fixed, not a signal that the principle has an unstated exception.
+Twelve principles, not eleven or thirteen — each is stated once here;
+detailed sections elsewhere are pointed to rather than restated, so
+there is exactly one place each principle is explained and many places
+it is applied.
+
+### 1. Architecture First
+
+Architecture decisions always take precedence over implementation
+convenience. Implementations may evolve — a function can be
+rewritten, a library swapped, a query optimized — freely and often.
+Architecture should remain stable unless a change to it is explicitly
+approved; it is not something an implementation detail should be
+allowed to quietly erode. See §20 for how this applies specifically to
+keeping this document itself honest about what has and has not been
+approved.
+
+### 2. Roadmap First
+
+Only implement functionality that belongs to the approved roadmap.
+Do not introduce roadmap expansion. Do not introduce feature creep —
+including well-intentioned feature creep, the kind that looks like an
+obvious improvement while the surrounding code is already open. If a
+gap is found, it is raised as a roadmap question, not solved locally
+ahead of approval. See `MASTER_ROADMAP.md` §19 (Roadmap Governance) for
+the detailed rules this principle governs: no renumbering, no silent
+redefinition of a completed milestone, and `MASTER_ROADMAP.md` as the
+tie-breaker when a sequencing question arises.
+
+### 3. Documentation is Authoritative
+
+Documentation must accurately reflect implementation. Implementation
+must follow approved architecture. Documentation drift must be
+corrected **immediately** whenever discovered — not filed for a later
+pass, not left standing because the code itself is correct. A
+correct implementation described by a wrong document is still a
+project in an inconsistent state, because the document is what the
+next person — human or agent — will trust first. See
+`MASTER_ROADMAP.md` §20 (Documentation Synchronization Policy) for
+which documents this applies to and why synchronization is a
+precondition of completion, not a follow-up task.
+
+### 4. Verify Before Assuming
+
+Never assume:
+
+- APIs
+- Routes
+- Events
+- Contracts
+- Database fields
+- Platform capabilities
+- Existing functionality
+
+Verify using the implementation before making changes — read the
+route, run the query, call the CLI, open the file. This project's own
+history is the argument for this principle, not an abstract ideal: M22
+Task Group C's `launch_application` was written to take an argument no
+caller sent, compiling cleanly on both sides, because the assumption
+was never checked against the call site; M8 Phase 2 shipped eleven
+invented WebSocket event names because a client was written against a
+document instead of a running system. Both were caught by verification
+this principle now requires as standard practice, not as a
+lucky extra pass.
+
+### 5. Never Fake Functionality
+
+If functionality does not exist:
+
+- document the limitation
+- expose the limitation clearly
+- avoid simulated production behaviour
+
+Production features should never be represented by placeholder logic.
+A progress bar that moves without real progress behind it, a field
+that shows a plausible-looking default instead of `null` when nothing
+was actually measured, a button that appears to work and silently does
+nothing — each of these is worse than an honest "not available",
+because each one costs the next reader the time it takes to discover
+the deception. `src/jarvis/installer/`'s own governing rule — a field
+is either measured or `None`, never estimated or inferred — is this
+principle applied to one subsystem; it is not that subsystem's private
+rule, it is this one, locally instantiated.
+
+### 6. Evidence-Based Engineering
+
+Engineering decisions should be based on:
+
+- implementation
+- runtime verification
+- tests
+- architecture
+- documentation
+
+Never on assumptions. This is principle #4 applied to *decisions*
+rather than to individual facts: a design choice justified by "this
+should work" or "this is probably how it's structured" is not
+evidence, and a decision built on it inherits everything wrong with
+the guess underneath it. Where evidence cannot be gathered — no
+toolchain available, no production environment reachable — the
+decision is recorded as unverified (§23.4, Build Verification Pending)
+rather than treated as equivalent to a verified one.
+
+### 7. Backward Compatibility
+
+Preserve existing contracts whenever practical. Breaking changes
+require:
+
+- documentation
+- migration notes
+- explicit approval
+
+A contract — an API shape, an event name, a database column, a CLI
+flag — is a promise to whatever already depends on it. M22's own
+provisioning transport is the worked example: the contract was written
+before the host bridge existed specifically so the bridge's arrival
+would not force a UI change, and it did not (`MASTER_ROADMAP.md`'s
+M22 entry, Task Group C). Where breaking a contract is genuinely the
+right call, that call is made visibly — documented, with a migration
+note for whatever it displaces, and approved before it ships — not
+discovered by whatever broke downstream.
+
+### 8. Single Source of Truth
+
+| Document | Authoritative for |
+|---|---|
+| `MASTER_ROADMAP.md` | The roadmap — scope, sequencing, milestone status. Resolves roadmap disputes. |
+| `ARCHITECTURE.md` (this document) | Architecture and engineering standards. Resolves architectural disputes. |
+| `IMPLEMENTATION_ROADMAP.md` | Execution tracking — the active, checklist-level record of what a milestone's work actually involves. |
+| `CHANGELOG.md` | The historical record. Entries are added, never rewritten (`MASTER_ROADMAP.md` §19). |
+| `README.md` | The current project overview — a summary for a new reader, kept in sync with the four documents above rather than stating anything they do not already say. |
+
+If conflicts exist, `MASTER_ROADMAP.md` resolves roadmap disputes and
+`ARCHITECTURE.md` resolves architectural disputes. Neither document
+defers to a summary of itself: where `README.md` or any other document
+disagrees with one of the four above about something that document
+owns, the owning document is correct and the other is drift.
+
+### 9. Frontend / Backend Synchronization
+
+Frontend and backend should evolve together. Neither should
+permanently diverge from the approved architecture. A frontend built
+against a payload shape the backend no longer sends, or a backend
+change that silently stops satisfying a contract the frontend still
+assumes, is the same failure principle #7 names — the divergence is
+tolerable only as a documented, temporary, in-flight state, never as a
+permanent condition either side is simply expected to work around.
+
+### 10. Quality Before Completion
+
+Implementation alone does not complete a milestone. Completion
+requires:
+
+- implementation
+- testing
+- documentation
+- verification
+- acceptance criteria
+
+This is principle #3, #4, and #11 read together as a gate rather than
+as three separate checks: a milestone with finished code and nothing
+else is Implementation Complete (§23.3), not Complete (§23.5) — the
+distinction §23 draws exists specifically so "the code is done" and
+"the milestone is done" are never treated as the same claim.
+
+### 11. Platform Verification
+
+Platform-specific milestones require platform validation. Examples:
+
+- Windows
+- Linux
+- macOS
+- Installer
+- Packaging
+- Deployment
+
+Compilation alone is insufficient. Code that type-checks, lints, and
+passes every unit test can still fail the moment it is actually built
+and run on the target platform — M22 Task Group C's own inactivity
+timeout, written to look correct and checked entirely by static
+reading, silently could never fire in practice; only a real
+run would have shown it. See §23.7 for the full policy this principle
+governs, including exactly what does and does not count as platform
+verification.
+
+### 12. Continuous Synchronization
+
+Every completed milestone should finish with:
+
+- Implementation Review
+- Documentation Review
+- Architecture Review
+- Roadmap Review
+- Version Review
+- Acceptance Criteria Review
+
+Only after synchronization should a milestone be submitted for
+approval. This is the closing check that principles #3, #8, #9, and
+#10 were actually followed, not assumed to have been — the same role
+`MASTER_ROADMAP.md` §20's six-document table plays for documentation
+specifically, generalized here to cover architecture, roadmap status,
+version numbers, and acceptance criteria as one review, not four
+separate afterthoughts.

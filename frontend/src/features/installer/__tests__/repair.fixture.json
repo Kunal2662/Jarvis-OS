@@ -1,0 +1,15 @@
+{
+  "root": "C:\\Users\\DELL-5~1\\AppData\\Local\\Temp\\jarvis-tgd-fixtures",
+  "resumed": true,
+  "succeeded": false,
+  "completed_steps": [
+    "directories",
+    "configuration"
+  ],
+  "skipped_steps": [
+    "dependencies"
+  ],
+  "errors": [
+    "model_download: 1 download(s) did not complete."
+  ]
+}

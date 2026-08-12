@@ -16,14 +16,23 @@ from typing import TYPE_CHECKING
 from langchain_core.tools import BaseTool
 
 if TYPE_CHECKING:
+    from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
+    from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.security_service import SecurityService
+    from jarvis.services.sensor_service import SensorService
+    from jarvis.services.smart_lighting_service import SmartLightingService
+    from jarvis.services.smart_lock_service import SmartLockService
+    from jarvis.services.smart_switch_service import SmartSwitchService
     from jarvis.services.system_service import SystemService
+    from jarvis.services.thermostat_service import ThermostatService
+    from jarvis.services.vacuum_humidifier_service import VacuumHumidifierService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
@@ -42,6 +51,15 @@ def build_tool_registry(
     intelligence: IntelligenceService | None = None,
     workspace_assistant: WorkspaceAssistantService | None = None,
     integrations: IntegrationService | None = None,
+    smart_lighting: SmartLightingService | None = None,
+    smart_lock: SmartLockService | None = None,
+    sensors: SensorService | None = None,
+    smart_switch: SmartSwitchService | None = None,
+    appliances: ApplianceService | None = None,
+    thermostats: ThermostatService | None = None,
+    vacuum_humidifier: VacuumHumidifierService | None = None,
+    media_players: MediaPlayerService | None = None,
+    security: SecurityService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -74,6 +92,78 @@ def build_tool_registry(
         from jarvis.agents.tools.integration_tools import build_integration_tools
 
         tools += build_integration_tools(integrations)
+    if smart_lighting is not None:
+        # Milestone 12 Connectivity REST + Smart Lighting. One tool per
+        # normalized operation -- see `agents/tools/smart_lighting_tools.py`
+        # for why this differs from the integrations catalogue's
+        # discover-then-invoke pair.
+        from jarvis.agents.tools.smart_lighting_tools import build_smart_lighting_tools
+
+        tools += build_smart_lighting_tools(smart_lighting)
+    if smart_lock is not None:
+        # Milestone 12 Smart Locks. Four tools, mirroring Smart
+        # Lighting's own registration exactly -- see
+        # `agents/tools/smart_lock_tools.py`.
+        from jarvis.agents.tools.smart_lock_tools import build_smart_lock_tools
+
+        tools += build_smart_lock_tools(smart_lock)
+    if sensors is not None:
+        # Milestone 12 Sensors. Four read-only tools, mirroring Smart
+        # Locks' own registration exactly -- see
+        # `agents/tools/sensor_tools.py`.
+        from jarvis.agents.tools.sensor_tools import build_sensor_tools
+
+        tools += build_sensor_tools(sensors)
+    if smart_switch is not None:
+        # Milestone 12 Energy Management (Core Energy Slice). Four
+        # tools, mirroring Smart Locks' own registration exactly -- see
+        # `agents/tools/smart_switch_tools.py`.
+        from jarvis.agents.tools.smart_switch_tools import build_smart_switch_tools
+
+        tools += build_smart_switch_tools(smart_switch)
+    if appliances is not None:
+        # Milestone 12 Appliance Control (Core Appliance Slice: Fans +
+        # Covers). Eight tools, mirroring Smart Switches' own
+        # registration, doubled for the two capabilities -- see
+        # `agents/tools/appliance_tools.py`.
+        from jarvis.agents.tools.appliance_tools import build_appliance_tools
+
+        tools += build_appliance_tools(appliances)
+    if thermostats is not None:
+        # Milestone 12 Appliance Control (Climate / Thermostat Slice).
+        # Three tools -- mutation is one merged `set_thermostat_state`,
+        # mirroring Smart Lighting's own single `set_light_state` rather
+        # than one tool per attribute -- see
+        # `agents/tools/thermostat_tools.py`.
+        from jarvis.agents.tools.thermostat_tools import build_thermostat_tools
+
+        tools += build_thermostat_tools(thermostats)
+    if vacuum_humidifier is not None:
+        # Milestone 12 Appliance Control (Vacuum + Humidifier Core
+        # Slice). Nine tools: six vacuum verbs mirroring Fan/Cover's
+        # one-tool-per-command shape, three humidifier tools with a
+        # merged mutation mirroring Thermostat's shape -- see
+        # `agents/tools/vacuum_humidifier_tools.py`.
+        from jarvis.agents.tools.vacuum_humidifier_tools import build_vacuum_humidifier_tools
+
+        tools += build_vacuum_humidifier_tools(vacuum_humidifier)
+    if media_players is not None:
+        # Milestone 12 Appliance Control (Media Player Core Slice).
+        # Eight tools: five transport verbs mirroring Vacuum's
+        # one-tool-per-command shape, one merged state tool mirroring
+        # Thermostat's shape -- see
+        # `agents/tools/media_player_tools.py`.
+        from jarvis.agents.tools.media_player_tools import build_media_player_tools
+
+        tools += build_media_player_tools(media_players)
+    if security is not None:
+        # Milestone 12 Security & Safety (Read-Only Alert/Status
+        # Slice). Two read-only tools, mirroring Sensors' own
+        # "terse re-shaping of one underlying call" registration -- see
+        # `agents/tools/security_tools.py`.
+        from jarvis.agents.tools.security_tools import build_security_tools
+
+        tools += build_security_tools(security)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

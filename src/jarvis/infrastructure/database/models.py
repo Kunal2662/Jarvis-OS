@@ -991,3 +991,246 @@ class WorkspaceKnowledgeLink(Base):
     # entity is deleted. Adding a one-sided relationship here would make
     # this table look ORM-managed from one direction and constraint-
     # managed from the other.
+
+
+# ---------------------------------------------------------------------------
+# Milestone 12 Task Group A -- Smart Home Core
+# ---------------------------------------------------------------------------
+# Home -> Zone -> Room -> Device, plus DeviceGroup as a cross-cutting
+# grouping independent of that physical hierarchy (a group can span
+# rooms and zones -- "all lights", not "everything in the kitchen").
+# Mirrors ``Workspace``/``Project``/``Note``'s shape deliberately: a
+# top-level container, an organizing unit beneath it, and a leaf entity,
+# with the same status-column-plus-closed-vocabulary discipline
+# (``domain/smart_home/models.py``) rather than a free-form string.
+
+
+class Home(Base):
+    """A single home -- **Home Profiles** and **Multi-Home Support**
+    (Smart Home Core's own module list) are both this table: a profile
+    is a row's name/description/settings, and multi-home support is
+    simply not constraining how many rows may exist.
+    """
+
+    __tablename__ = "homes"
+    __table_args__ = (Index("ix_homes_status", "status"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="active")  # active|archived
+    settings_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    zones: Mapped[list[Zone]] = relationship(
+        back_populates="home", cascade="all, delete-orphan", order_by="Zone.created_at"
+    )
+    rooms: Mapped[list[Room]] = relationship(
+        back_populates="home", cascade="all, delete-orphan", order_by="Room.created_at"
+    )
+    devices: Mapped[list[Device]] = relationship(
+        back_populates="home", cascade="all, delete-orphan", order_by="Device.created_at"
+    )
+    device_groups: Mapped[list[DeviceGroup]] = relationship(
+        back_populates="home", cascade="all, delete-orphan", order_by="DeviceGroup.created_at"
+    )
+
+
+class Zone(Base):
+    """A logical grouping of rooms within a home -- **Zone Management**.
+
+    Distinct from ``Room``, which is physical: "Downstairs" is a zone
+    that might span the Living Room and Kitchen rooms. A room's own
+    ``zone_id`` is nullable because not every room needs one on day
+    one -- zones are an organizing convenience a household adds when it
+    wants them, not a mandatory hierarchy level.
+    """
+
+    __tablename__ = "smart_home_zones"
+    __table_args__ = (Index("ix_smart_home_zones_home", "home_id"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    home_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("homes.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    home: Mapped[Home] = relationship(back_populates="zones")
+    rooms: Mapped[list[Room]] = relationship(back_populates="zone")
+
+
+class Room(Base):
+    """A physical room within a home -- **Room Management**."""
+
+    __tablename__ = "smart_home_rooms"
+    __table_args__ = (
+        Index("ix_smart_home_rooms_home", "home_id"),
+        Index("ix_smart_home_rooms_zone", "zone_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    home_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("homes.id", ondelete="CASCADE"), nullable=False
+    )
+    zone_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("smart_home_zones.id", ondelete="SET NULL"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    home: Mapped[Home] = relationship(back_populates="rooms")
+    zone: Mapped[Zone | None] = relationship(back_populates="rooms")
+    devices: Mapped[list[Device]] = relationship(
+        back_populates="room", order_by="Device.created_at"
+    )
+
+
+class Device(Base):
+    """A single smart-home device -- **Device Manager** / **Device
+    Registry**.
+
+    ``status`` and ``external_id`` are the two fields a later
+    Connectivity Layer task group will populate for real; see
+    ``domain/smart_home/models.py``'s module docstring for why this
+    task group only models the lifecycle rather than driving it.
+    ``room_id`` is nullable: a device can be registered (even paired)
+    before anyone assigns it to a room, the same way a note can exist
+    before it is filed into a project.
+    """
+
+    __tablename__ = "smart_home_devices"
+    __table_args__ = (
+        Index("ix_smart_home_devices_home", "home_id"),
+        Index("ix_smart_home_devices_room", "room_id"),
+        Index("ix_smart_home_devices_status", "status"),
+        Index("ix_smart_home_devices_type", "device_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    home_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("homes.id", ondelete="CASCADE"), nullable=False
+    )
+    room_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("smart_home_rooms.id", ondelete="SET NULL"), nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    device_type: Mapped[str] = mapped_column(String(32), default="other")
+    status: Mapped[str] = mapped_column(String(32), default="discovered")
+    manufacturer: Mapped[str] = mapped_column(String(128), default="")
+    model: Mapped[str] = mapped_column(String(128), default="")
+    #: The eventual Connectivity Layer's own protocol-specific
+    #: identifier (an MQTT topic, a Zigbee/Z-Wave address, a Matter
+    #: node id). Nullable and unpopulated by this task group -- the
+    #: column exists now so that later task group has somewhere to
+    #: write, not because anything here computes a value for it.
+    external_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    home: Mapped[Home] = relationship(back_populates="devices")
+    room: Mapped[Room | None] = relationship(back_populates="devices")
+    group_memberships: Mapped[list[DeviceGroupMember]] = relationship(
+        back_populates="device", cascade="all, delete-orphan"
+    )
+
+
+class DeviceGroup(Base):
+    """A named, cross-cutting set of devices -- **Device Groups**.
+
+    Independent of the Home/Zone/Room hierarchy on purpose: "All
+    Lights" or "Movie Night" groups devices by what they have in
+    common or how they are used together, not by where they physically
+    sit.
+    """
+
+    __tablename__ = "smart_home_device_groups"
+    __table_args__ = (Index("ix_smart_home_device_groups_home", "home_id"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    home_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("homes.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    home: Mapped[Home] = relationship(back_populates="device_groups")
+    members: Mapped[list[DeviceGroupMember]] = relationship(
+        back_populates="group", cascade="all, delete-orphan"
+    )
+
+
+class DeviceGroupMember(Base):
+    """Join row between :class:`DeviceGroup` and :class:`Device`.
+
+    A real mapped entity rather than a plain ``Table()`` association
+    object, so it carries ``added_at`` and declares its two
+    relationships the same explicit way every other model in this file
+    does -- consistent with this module's own style throughout, not
+    with a bare many-to-many secondary table it does not otherwise use.
+    """
+
+    __tablename__ = "smart_home_device_group_members"
+
+    device_group_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("smart_home_device_groups.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    device_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("smart_home_devices.id", ondelete="CASCADE"), primary_key=True
+    )
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    group: Mapped[DeviceGroup] = relationship(back_populates="members")
+    device: Mapped[Device] = relationship(back_populates="group_memberships")
+
+
+class LightingScene(Base):
+    """A named, stored set of target light states -- Smart Lighting's own
+    scene-application capability (Milestone 12 Connectivity REST + Smart
+    Lighting). ``targets_json`` is a JSON array of ``{"device_id": ...,
+    "on": ..., "brightness": ..., "color_temp_kelvin": ..., "color": ...}``
+    objects, each optional field applied only if present -- the same
+    "sparse, additive payload" shape ``Device.metadata_json`` already
+    uses elsewhere in this file.
+
+    No relationship object to ``Device``: a scene target that outlives
+    its device (deleted, or belonging to another home) is *applied* by
+    ``SmartLightingService`` at scene-apply time, not enforced at the
+    schema level -- the same "detect at use, not at rest" choice this
+    module's own device-unavailable handling already makes.
+    """
+
+    __tablename__ = "smart_lighting_scenes"
+    __table_args__ = (Index("ix_smart_lighting_scenes_home", "home_id"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    home_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("homes.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    targets_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )

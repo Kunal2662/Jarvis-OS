@@ -1,8 +1,10 @@
-import { Bell, Command } from "lucide-react";
+import { Bell, Command, LayoutGrid } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { applicationRegistry } from "@/core/application-registry";
 import { useCommandPaletteStore } from "@/stores/command-palette.store";
 import { useNotificationsStore } from "@/stores/notifications.store";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout.store";
 import { useWorkspaceStore } from "@/stores/workspace.store";
 
 /**
@@ -12,9 +14,14 @@ import { useWorkspaceStore } from "@/stores/workspace.store";
  * layer.tsx`, Phase 3 Task Group G) via `command-palette.store.ts`,
  * the same store the global `Ctrl+K`/`Ctrl+Shift+P` shortcut
  * (`providers/command-palette-provider.tsx`) toggles -- one open/close
- * source of truth, not a second one this button invents. The
- * notification bell still has no handler; a Notification Center is a
- * later task group's job.
+ * source of truth, not a second one this button invents.
+ *
+ * The notification bell got its handler in M8 Phase 3: it opens the
+ * Notification Center panel in the workspace and navigates there. That
+ * is the whole reason the bell had none before -- there was nowhere for
+ * it to go. It opens the panel rather than a popover so there is one
+ * Notification Center, in one place, rather than a second rendering of
+ * the same list that could scroll and mark-as-read independently.
  *
  * Reads the active module from `WorkspaceManager`'s own state
  * (`stores/workspace.store.ts`), the same single source of truth
@@ -28,6 +35,13 @@ export function Header() {
   const unreadCount = useNotificationsStore((s) => s.unreadCount());
   const activeModule = activeModuleId ? applicationRegistry.get(activeModuleId) : undefined;
   const openCommandPalette = useCommandPaletteStore((s) => s.open);
+  const openPanel = useWorkspaceLayoutStore((s) => s.openPanel);
+  const navigate = useNavigate();
+
+  function showPanel(panelId: string) {
+    openPanel(panelId);
+    navigate("/workspace");
+  }
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-border border-b bg-background px-6">
@@ -45,7 +59,22 @@ export function Header() {
           <kbd className="rounded border border-border px-1.5 text-caption">Ctrl+K</kbd>
         </Button>
 
-        <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Open workspace"
+          onClick={() => navigate("/workspace")}
+        >
+          <LayoutGrid className="size-icon-md" aria-hidden="true" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Notifications"
+          className="relative"
+          onClick={() => showPanel("core.notifications")}
+        >
           <Bell className="size-icon-md" aria-hidden="true" />
           {unreadCount > 0 && (
             <span

@@ -1,19 +1,17 @@
-import type { ReactElement } from "react";
+import { Suspense, type ReactElement } from "react";
 import type { RouteObject } from "react-router-dom";
 import { createBrowserRouter } from "react-router-dom";
+import { LoadingState } from "@/components/common/loading-spinner";
 import { DesktopShell } from "@/components/layout/desktop-shell";
 import { DashboardGrid } from "@/features/dashboard/dashboard-grid";
-import { SettingsPage } from "@/features/settings/settings-page";
-import { VoicePage } from "@/features/voice/voice-page";
 import { MODULE_DEFINITIONS } from "@/modules/module-definitions";
+import { InstallerRoute, SettingsRoute, VoiceRoute, WorkspaceRoute } from "@/routes/lazy-routes";
 import { PlaceholderRoute } from "@/routes/placeholder-route";
 
 /**
  * One route per registered module (`modules/module-definitions.ts`),
- * all rendering the shared placeholder for now -- see
- * MASTER_ROADMAP.md section 8 for which implementation phase actually
- * builds each module's real route element. `routes/nav-items.ts` is no
- * longer this file's source; it's read by nothing in the app anymore.
+ * plus the workspace route M8 Phase 3 adds. See MASTER_ROADMAP.md §8 for
+ * which implementation phase builds each module's real route element.
  * `createBrowserRouter` (not `HashRouter`) since Tauri serves the app
  * from its own asset protocol, which supports real paths.
  *
@@ -24,31 +22,35 @@ import { PlaceholderRoute } from "@/routes/placeholder-route";
  * content still rendered. `RouteObject`'s index/non-index shapes are a
  * discriminated union for a reason.
  *
- * Performance foundation note (Task 17): every route below intentionally
- * imports `PlaceholderRoute` eagerly, not via `React.lazy()` -- splitting
- * a single ~1KB component shared by all 14 routes would add a network
- * round-trip for zero benefit. Once a route gets its own real,
- * substantial feature module, replace its `element` with:
+ * **Code splitting (M8 Phase 3).** Phase 1's note here said to switch a
+ * route to `React.lazy()` "once a route gets its own real, substantial
+ * feature module". Three now have: Workspace, Voice and Settings, each
+ * landing in its own chunk (see `routes/lazy-routes.ts`, which holds the
+ * components so this file can keep exporting `router` without breaking
+ * their Fast Refresh). Two deliberately stay eager:
  *
- *   const GmailModule = lazy(() => import("@/features/gmail"));
- *   element: <Suspense fallback={<LoadingState />}><GmailModule /></Suspense>
- *
- * -- one lazy import per real feature module, following
- * `components/common/loading-spinner.tsx`'s `LoadingState` as the
- * fallback, consistent with every other module's own code-split chunk.
- *
- * `home` and `voice` are the first modules to actually take this path
- * (Phase 3 Task Group F's Dashboard Widget Grid; Phase 4 Task Group H's
- * Voice String) -- both imported eagerly rather than lazily: `home` is
- * the app's own landing route, and `voice` is small enough (two
- * components) that splitting it would add a round-trip for no real
- * benefit, same reasoning `PlaceholderRoute` itself gets eager-imported
- * above.
+ * - `PlaceholderRoute` -- ~1KB shared by eleven routes; splitting it
+ *   would add a round-trip per route for no benefit.
+ * - `DashboardGrid` -- the app's own landing route. Lazily loading the
+ *   first thing every user sees trades a smaller initial bundle for a
+ *   visible delay on the one screen that must feel instant.
+ *   `core/panel-registry.ts` imports it statically for the same reason;
+ *   importing it dynamically there while importing it statically here
+ *   would produce a build warning and no second chunk, since a module
+ *   statically imported anywhere cannot be split out.
  */
+
+/** Every lazy route shares one fallback, so a route loading looks the
+ *  same wherever it happens -- and the same as a panel loading, which
+ *  `components/workspace/panel-frame.tsx` renders identically. */
+function lazyRoute(element: ReactElement): ReactElement {
+  return <Suspense fallback={<LoadingState />}>{element}</Suspense>;
+}
+
 const REAL_ROUTE_ELEMENTS: Partial<Record<string, ReactElement>> = {
   home: <DashboardGrid />,
-  voice: <VoicePage />,
-  settings: <SettingsPage />,
+  voice: lazyRoute(<VoiceRoute />),
+  settings: lazyRoute(<SettingsRoute />),
 };
 
 const childRoutes: RouteObject[] = MODULE_DEFINITIONS.map((manifest) => {
@@ -57,7 +59,34 @@ const childRoutes: RouteObject[] = MODULE_DEFINITIONS.map((manifest) => {
   return route === "/" ? { index: true, element } : { path: route.slice(1), element };
 });
 
+/**
+ * `/workspace` is not a module route.
+ *
+ * It has no `MODULE_DEFINITIONS` entry deliberately: the workspace is
+ * the shell's own surface for arranging *other* modules' panels, not a
+ * module that could be disabled, and giving it a manifest would put it
+ * in the Sidebar's module list as a peer of the things it contains.
+ * Reached from the Header instead.
+ */
+childRoutes.push({ path: "workspace", element: lazyRoute(<WorkspaceRoute />) });
+
 export const router = createBrowserRouter([
+  /**
+   * `/install` sits **outside** `DesktopShell`, unlike every other
+   * route.
+   *
+   * M22 Task Groups A and B built the wizard and the provisioning
+   * engine but left the wizard mounted nowhere -- it had no route, so
+   * nothing in the running application could reach it. Adding it as a
+   * child of the shell made it reachable and wrong: the installer
+   * rendered inside the sidebar, header and status bar of the
+   * application it is installing, which is both visually incoherent and
+   * an invitation to navigate away mid-installation.
+   *
+   * A sibling route gets the whole viewport, which is what the wizard's
+   * own `h-svh` layout assumes.
+   */
+  { path: "/install", element: lazyRoute(<InstallerRoute />) },
   {
     path: "/",
     element: <DesktopShell />,

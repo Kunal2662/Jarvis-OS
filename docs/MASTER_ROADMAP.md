@@ -6,9 +6,29 @@
 > into other docs.
 
 **Document owner:** project lead
-**Version:** 3.0 · Jul 2026 — reorganized long-term engineering roadmap
-(see the changelog note at the very end of this file for what changed
-and why).
+**Version:** 3.1 · Aug 2026 — records the approved architecture
+decisions (Local AI First, the AI/API Calibration Engine, the three-tier
+AI strategy, and the development freeze) and points to
+[`ARCHITECTURE.md` §22](ARCHITECTURE.md#22-approved-architecture-decisions-aug-2026)
+for their full specification. Version 3.0 · Jul 2026 reorganized the
+long-term engineering roadmap (see the changelog note at the very end of
+this file for what changed and why).
+
+> ### Development policy (Aug 2026)
+>
+> | Area | Status |
+> |---|---|
+> | Backend architecture | 🔒 **Frozen** |
+> | API contracts | 🔒 **Frozen** |
+> | Database schema | 🔒 **Frozen** |
+> | Core backend modules | 🔒 **Frozen** |
+> | Milestone structure | 🔒 **Frozen** |
+> | Frontend / UI / UX | 🟢 **Continues** |
+>
+> No additional backend architecture is introduced unless explicitly
+> approved **after UI validation**. Architecture changes require explicit
+> approval. Frozen does not mean finished — it means the shape is settled
+> and further change needs a decision, not a commit.
 **Companion docs:** [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`ARCHITECTURE_LEGACY.md`](ARCHITECTURE_LEGACY.md) · [`TECH_STACK.md`](TECH_STACK.md) · [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) · [`CONFIGURATION.md`](CONFIGURATION.md) · [`DEPENDENCY_INJECTION.md`](DEPENDENCY_INJECTION.md) · [`THEMING.md`](THEMING.md) · [`LOGGING.md`](LOGGING.md)
 **Delivery records:** [`MILESTONE_4_DELIVERY.md`](../MILESTONE_4_DELIVERY.md) · [`MILESTONE_5_DELIVERY.md`](../MILESTONE_5_DELIVERY.md) · [`MILESTONE_5_AGENTS_DELIVERY.md`](../MILESTONE_5_AGENTS_DELIVERY.md) · [`AUDIT_REPORT_M0-M5.md`](../AUDIT_REPORT_M0-M5.md) · [`AUDIT_REPORT_M5-AGENTS.md`](../AUDIT_REPORT_M5-AGENTS.md) · [`CHANGELOG.md`](../CHANGELOG.md)
 
@@ -33,6 +53,9 @@ and why).
 15. [Technical debt](#15-technical-debt)
 16. [Recommended development order](#16-recommended-development-order)
 17. [Appendix — companion documents](#17-appendix--companion-documents)
+18. [M22 Acceptance Criteria](#18-m22-acceptance-criteria)
+19. [Roadmap Governance](#19-roadmap-governance)
+20. [Documentation Synchronization Policy](#20-documentation-synchronization-policy)
 
 ---
 
@@ -69,9 +92,521 @@ where the product is going. It exists so that:
 *(Reconciled Aug 2026 — see the changelog addendum for the full
 reconciliation pass. Every milestone below now carries exactly one of
 four states: ✅ Completed, 🟡 Active, 🟠 Deferred, 🔴 Planned — §14's
-version timeline uses the same four symbols consistently.)*
+version timeline uses the same four symbols consistently. These four
+mark a milestone's **position in the roadmap** — is it being worked
+on at all — and are a coarser, complementary axis to the six-status
+Milestone Lifecycle (`ARCHITECTURE.md` §23: Planned, In Progress,
+Implementation Complete, Build Verification Pending, Complete,
+Production Ready) that §18's M22 Acceptance Criteria uses for
+task-group-level detail. A milestone marked 🟡 Active here can — and
+in M22 TG-C's case does — have a task group whose own status is
+Implementation Complete — Build Verification Pending underneath it;
+the two vocabularies describe different granularities, not competing
+answers to the same question.)*
 
-**Current version:** `0.25.0`
+**Current version:** `0.38.0`
+
+*(Corrected a second time, Aug 2026. This line read `0.25.0` while the
+package was at `0.35.0` (ten releases of drift), was corrected to
+`0.36.0`, and then drifted again to the same stale value while real
+work shipped three more releases past it — found during a full
+roadmap audit, not by design. `pyproject.toml` and
+`src/jarvis/__version__.py` are the source of truth, and
+`frontend/src-tauri/tauri.conf.json` is held to the same number by
+`tests/unit/test_version_consistency.py`. This document is not
+machine-checked; when it disagrees with those files, they are right.
+Given this line has now drifted twice, it is being **removed as a
+narrative claim** in favor of the single authoritative table
+immediately below — see the Single Source of Truth note there.)*
+
+### Execution order — Current Project Status
+
+> **Single Source of Truth (governance rule, added Aug 2026 after a
+> roadmap audit found six independently-drifting status surfaces
+> across this document and `IMPLEMENTATION_ROADMAP.md`).** The
+> diagram and "Active (🟡)" list immediately below are **the one
+> authoritative milestone-status record for this entire project.**
+> Every other status summary — this section's own now-removed
+> "Current version" narrative line above, §14's Version Timeline
+> table, `IMPLEMENTATION_ROADMAP.md`'s own "Status:" line and its §1
+> table — is a **secondary, non-authoritative view**, kept for a
+> different purpose (a historical shipped-version log; a narrower
+> day-to-day checklist) and **explicitly marked as deferring to this
+> section** wherever it appears. If any of them ever disagrees with
+> what is written here, this section is right and the other one is
+> stale. This rule exists because the six-way drift an Aug 2026 audit
+> found was not one document disagreeing with another — it was
+> multiple summaries *within the same document* narrating the same
+> fact independently and going out of sync with each other on
+> different schedules. The fix is structural: stop narrating the same
+> fact in more than one place that claims authority.
+
+The order work is actually being done in, which is **not** ascending
+numeric order. Status words below are the six defined in
+`ARCHITECTURE.md` §23 (Milestone Lifecycle); "Not Started" is that
+section's alternate spelling for Planned, used here because it is the
+form this table already used before §23 unified the vocabulary.
+
+```
+Completed
+  M1  M2  M3  M4  M5  M6  M7  M8
+
+Current
+  M22
+    TG-A  Complete
+    TG-B  Complete
+    TG-C  Implementation Complete
+          Build Verification Pending
+    TG-D  Implementation Complete
+          Build Verification Pending
+    TG-E  Implementation Complete
+          Build Verification Pending
+    TG-F  Implementation Complete
+          Build Verification Pending
+    TG-G  Not Started
+
+After M22, resume with
+  M9 → M10 → M11 → M12 → M13 → M14 → M15
+     → M16 → M17 → M18 → M19 → M20 → M21
+
+  (M9, M10A, M10B and M10.5 -- the lettered milestones that sit
+  between M9 and M11 in this sequence -- are already fully shipped;
+  they are named in this line only to keep the numeric sequence
+  readable, not because any of them is still waiting. M10 and M11 are
+  the two genuinely still-open items in this line -- see the Active
+  list below.)
+
+Also active (deliberate exception -- see below)
+  M12 — Smart Home & IoT Platform
+    TG-A  Shipped (Smart Home Core -- commits d99a984, b0a531b)
+    TG-C  Shipped (Connectivity REST + Smart Lighting -- device
+          control/scenes only; on/off, brightness, color, color temp,
+          room/group fan-out, scene application; motion/sunrise-sunset/
+          scheduled automation explicitly out of scope, deferred to
+          Home Automation)
+    TG-D  Shipped (Smart Locks -- lock/unlock/state/availability only;
+          no guest access codes, no Auto Lock automation, deferred to
+          Home Automation; "unlock_device" added to
+          agent.confirm_required_tools' default)
+    TG-E  Shipped (Sensors -- read-only; motion/presence/occupancy/
+          door/window/temperature/humidity/air-quality/water-leak/
+          smoke/gas/light-level/vibration via device_class; reads
+          themselves permission-gated under smart_home, a deliberate
+          departure from Lighting/Locks; no automation, no energy
+          logic, no security response)
+    TG-F  Shipped (Energy Management -- Core Energy Slice only: Smart
+          Switch/Plug control (on/off/state/availability), mirroring
+          Smart Locks exactly; reads ungated, following Lighting/Locks'
+          precedent, not Sensors'. Power/Energy/Load Monitoring already
+          provided by the shipped Sensors module -- not rebuilt.
+          Consumption History/Analytics/Optimization/Scheduling all
+          deferred to Smart Home Memory/Analytics/Home Automation/M7)
+    TG-G  Shipped (Appliance Control -- Core Appliance Slice only: Fan
+          control (on/off/state/availability) and Cover/Blind/Curtain
+          control (open/close/state/availability), mirroring Smart
+          Locks/Smart Switches exactly; zero connector changes -- both
+          domains already mapped to device_type="appliance" and
+          metadata["domain"] already captured at discovery. Reads
+          ungated, following Lighting/Locks/Switches' precedent. Fan
+          percentage and cover position deliberately deferred, not
+          built. Climate/AC, Media Players, Vacuum, Water Heater,
+          Humidifier deferred to future Appliance Control slices; Smart
+          Pumps/Irrigation blocked on the "valve" domain mapping to
+          device_type="other"; Smart Kitchen Devices blocked on no
+          consistent domain model)
+
+Deferred
+  M23 — Core Intelligence
+```
+
+**Why M22 runs out of order:** it owns installation and packaging.
+Until it ships there is no way to *deliver* M1–M8 to a machine that is
+not a development checkout, so every milestone after it would be built
+on top of software nobody can install.
+
+**M12 status (Aug 2026):** a roadmap audit found M12 is the next
+milestone in the sequence above genuinely marked Not Started (M10 is
+Partial and M11 is Active, so neither qualifies). Task Group A (Smart
+Home Core) was built, tested, and **is now committed** — implementation
+in `d99a984`, documentation in `b0a531b` — a second deliberate
+exception to "one active milestone at a time," the same kind this
+document's introduction records for M8/M9 running in parallel. Task
+Group B (Connectivity Layer) has since started: **Phase 1 (foundation)
+shipped** — the port/adapter contract (`IDeviceConnector`), the
+connector factory registry, the encrypted credential store, and
+`ConnectivityService` orchestration, with no protocol adapter behind
+any of it yet. **Phase 2 (Home Assistant connector) shipped** —
+`HomeAssistantConnector` (`core/connectivity/connectors/
+home_assistant.py`), the first real `IDeviceConnector`, speaking Home
+Assistant's REST API over `httpx`; registered into
+`ConnectorFactoryRegistry` at the DI composition root
+(`build_default_connector_registry`). **Phase 3 (MQTT connector) has
+since shipped** — `MqttConnector` (`core/connectivity/connectors/
+mqtt.py`), the second real `IDeviceConnector`, built on `gmqtt` (not
+the originally-approved `aiomqtt`: empirically verified during
+implementation to fail on Windows' default `ProactorEventLoop`, which
+this project already depends on for MCP's subprocess-based
+`StdioTransport` — `gmqtt` connects cleanly on the same loop with no
+workaround; see `MILESTONE_REPORT.md`'s Phase 3 entry for the full
+comparison). Speaks both Home Assistant MQTT Discovery (interoperating
+with Zigbee2MQTT/zwave-js-to-mqtt/Tasmota/ESPHome with no dedicated
+connector for any of them) and a new JARVIS-native envelope
+(`core/connectivity/connectors/mqtt_envelope.py`) for bespoke firmware.
+State is push-based and cached rather than pulled; reconnection is
+automatic (`gmqtt`'s own retry, this connector's own unconditional
+resubscribe on every `on_connect`). `CONNECTOR_TYPES` now has both
+approved names registered — `home_assistant` and `mqtt` — closing
+Connectivity Layer's three-phase implementation plan.
+
+**Task Group C (Connectivity REST + Smart Lighting) shipped, Aug
+2026**, no version bump. Two things, both thin orchestration over the
+already-shipped Task Group A/B services, never a second execution path:
+(1) `ConnectivityService` exposed over REST
+(`infrastructure/api/routes/connectivity.py` —
+`/api/v1/connectivity/*`: connector connect/disconnect, discovery,
+device state refresh, and a generic uninterpreted `send_command`
+passthrough); (2) a new, genuinely new `SmartLightingService`
+(`services/smart_lighting_service.py`) providing normalized light
+control — on/off, brightness (0-100), color temperature (Kelvin), RGB
+color, room/group fan-out, and lighting scenes (a new
+`smart_lighting_scenes` table + `SceneRepository`) — translated into
+each connector's own wire format (Home Assistant: a single
+`light.turn_on` service call merging every changed attribute, using
+`brightness_pct`/`color_temp_kelvin`/`rgb_color`; MQTT: a JARVIS-native
+`turn_off`/`set_state` command vocabulary defined by this task group,
+since `mqtt_envelope.py`'s own command/args shape was previously
+undefined for lighting) and exposed both over REST
+(`infrastructure/api/routes/smart_lighting.py` —
+`/api/v1/smart-lighting/*`) and as seven agent tools
+(`agents/tools/smart_lighting_tools.py`, wired into the existing Tool
+Registry/`AgentOrchestrator` — no parallel execution path). Every
+side-effecting operation is gated by the existing `PermissionModel`
+under a fixed principal (`core:smart_lighting`, scope `smart_home`),
+reusing the same generic, already-shipped grant route Milestone 9's
+Plugin Platform provides (`POST /api/v1/plugins/{id}/permissions/
+{scope}/grant`) — no new authorization mechanism. Out of the box this
+permission is `PENDING` (denied) until an operator grants it, the same
+interim posture M11's own integrations ship with. Explicitly **not**
+in scope: motion-activated lighting, sunrise/sunset automation and
+scheduled lighting — all deferred to the separate, unstarted Home
+Automation module, per this task group's own Logic Contract
+(`docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md`).
+
+**Task Group D (Smart Locks) shipped, Aug 2026**, no version bump. A
+new `SmartLockService` (`services/smart_lock_service.py`) providing
+normalized lock/unlock control and state/availability reporting for
+`device_type="lock"` devices — the second of M12's device-category
+modules, mirroring Task Group C's own architecture exactly (same
+`ConnectivityService.send_command` chokepoint, same `PermissionModel`/
+`smart_home`-scope pattern under a new principal `core:smart_locks`,
+same REST/Tool-Registry shape). Home Assistant translation: HA's own
+`lock.lock`/`lock.unlock` domain services, no payload. MQTT
+translation: a new JARVIS-native `lock`/`unlock` command vocabulary
+this task group defines, mirroring HA's own service names for
+cross-connector predictability. **Because locks are physically
+safety-relevant**, `unlock_device` (but not `lock_device`) was added to
+`AgentSettings.confirm_required_tools`'s existing default set
+(`core/config/settings.py`) — reusing `AgentPermissionGate`'s existing
+confirmation mechanism, not a new one — so an agent cannot unlock a
+door without interactive user confirmation by default; locking remains
+unattended-friendly for a future "Auto Lock" feature. Explicitly **not**
+built: guest access codes, temporary PINs, access history (no existing
+mechanism captures a queryable "who unlocked when" trail without new
+infrastructure this task group was not asked to add), or any
+automation trigger — see
+`docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md` for the full account.
+
+**Task Group E (Sensors) shipped, Aug 2026**, no version bump. The
+first **read-only** M12 module: a new `SensorService` (`services/
+sensor_service.py`) reporting normalized state for `device_type=
+"sensor"` devices — motion, presence, occupancy, door, window,
+temperature, humidity, air quality, water leak, smoke, gas, light
+level, vibration, keyed by HA's own `device_class` vocabulary (`moisture`
+for water leak, `illuminance` for light level — not invented names).
+No command translation exists in this module at all (nothing to
+mutate); `HomeAssistantConnector`/`MqttConnector` both gained one
+additive, symmetric enhancement — capturing `device_class` (already
+present in the same discovery payload each already parses) into
+`Device.metadata_json` — no new request, no new topic. **Deliberate
+departure from Smart Lighting/Smart Locks**: reads themselves, not
+just mutations, require the `smart_home` grant (new principal
+`core:sensors`) — because for a sensor, observing *is* the product,
+unlike a light or lock's comparatively low-stakes observable state; no
+new permission scope was created, and no per-device-class granularity
+was added either, after the Logic Contract explicitly weighed and
+rejected that finer split (see `docs/M12_SENSORS_LOGIC_CONTRACT.md`
+§20 for the full reasoning). Exposed over `/api/v1/sensors/*` (`GET`
+only — no mutation route exists) and as four read-only agent tools.
+Explicitly not built: any automation/trigger logic, energy-specific
+logic, or security-response logic — all deferred to their own
+still-unstarted modules; sensors expose normalized data only.
+
+**Task Group F (Energy Management — Core Energy Slice) shipped, Aug
+2026**, no version bump. **Not the full Energy Management module** —
+only Smart Switch/Plug control: a new `SmartSwitchService` mirroring
+`SmartLockService`'s exact architecture (`turn_on`/`turn_off`, no
+attribute-merge case, same `ConnectivityService.send_command`
+chokepoint, same `PermissionModel`/`smart_home`-scope pattern under a
+new principal `core:smart_switch`). Reads are **ungated**, following
+Smart Lighting/Smart Locks' own precedent rather than Sensors' —
+a switch's on/off state carries no comparable privacy weight to sensor
+data. Preceded by a read-only Energy Management dependency audit
+confirming Power/Energy/Load Monitoring are **already fully provided
+by the shipped Sensors module** (HA's own numeric `power`/`energy`/
+`voltage`/`current` device classes normalize through Sensors' existing
+generic numeric path with zero new code) — no `EnergySensorService`/
+`EnergyTelemetryService`/`EnergyRegistry` was created. A physical smart
+plug is represented as one `switch` `Device` row plus sibling `sensor`
+rows, never a combined "SmartPlug" entity. Consumption History, Energy
+Dashboard/Analytics/Trends, Energy Optimization, Automatic Power
+Saving, Load Scheduling and Energy-based Automations are all
+explicitly out of scope, deferred respectively to Smart Home Memory,
+Smart Home Analytics/M20A, and Home Automation/M7 — all four still
+unstarted/unshipped.
+
+**Task Group G (Appliance Control — Core Appliance Slice) shipped, Aug
+2026**, no version bump. **Not the full Appliance Control module** —
+only Fan control and Cover/Blind/Curtain control: a new
+`ApplianceService` covering both capabilities under one `device_type=
+"appliance"` category, distinguished by `Device.metadata_json["domain"]`
+(`"fan"` vs `"cover"`) — the same domain-discrimination mechanism
+Sensors already established for `binary_sensor` vs `sensor`. Mirrors
+`SmartSwitchService`'s exact architecture doubled (`turn_on`/`turn_off`
+for fans, `open_cover`/`close_cover` for covers, same
+`ConnectivityService.send_command` chokepoint, same `PermissionModel`/
+`smart_home`-scope pattern under a new principal `core:appliances`).
+Reads are **ungated**, following Smart Lighting/Smart Locks/Smart
+Switches' own precedent rather than Sensors'. Preceded by a read-only
+post-Energy-Management module audit confirming **zero connector code
+changes are required** — both `HomeAssistantConnector` and
+`MqttConnector` already map `fan`/`cover` to `device_type="appliance"`
+and already capture `metadata["domain"]` for every entity, not only
+sensors. Fan percentage (`fan.set_percentage`) and cover position
+(`cover.set_cover_position`) were evaluated and **deliberately
+deferred**, not built — architecturally supportable via
+`SmartLightingService`'s existing attribute-merge translator pattern,
+but out of this pass's approved scope. Climate/AC, Media Players/Smart
+TVs, Vacuum, Water Heater/Geysers and Humidifier are deferred to future
+Appliance Control slices (each spans a structurally different HA
+domain/command vocabulary). Smart Pumps/Irrigation is **blocked**: HA's
+`valve` domain — the natural mapping for irrigation — currently maps to
+`device_type="other"`, not `"appliance"`. Smart Kitchen Devices is
+**blocked**: no single HA/MQTT domain represents "kitchen appliance" as
+a category.
+
+**M12 — Security & Safety (Read-Only Alert/Status Slice) shipped Aug
+2026.** A read-only post-Task-G audit re-evaluated all eight remaining
+M12 candidates and found Security & Safety the only fully-buildable
+one: its entire data substrate already shipped (motion, presence,
+occupancy, door, window, smoke, gas, water-leak via `SensorService`;
+lock state via `SmartLockService`), and a **pull-based** read-only
+aggregate needs neither M7's Scheduler (confirmed entirely unstarted —
+no scheduler file exists anywhere in `src/jarvis/`) nor the
+device-command event-publishing gap the same audit surfaced (none of
+the five per-category command services publishes `DeviceUpdatedEvent`
+on actuation), both of which block Home Automation. A new
+`SecurityService` (`services/security_service.py`) aggregates the two
+already-shipped services — never a connector, never
+`ConnectivityService`/`SmartHomeService`, no `EventBus` dependency —
+exposed over a single `GET /api/v1/security/status` and two read-only
+agent tools, gated by the existing `PermissionModel` under a new
+principal (`core:security`). Alert semantics are **closed and
+non-inferred**: only `smoke`/`gas`/`moisture` can raise an alert;
+door/window/motion/presence/occupancy/vibration and lock state are
+factual status only, never intrusion. Overall status is
+`CRITICAL > WARNING > UNKNOWN > NORMAL`, with `UNKNOWN` deliberately
+outranking `NORMAL` so unavailable monitoring is never presented as
+safe. Reads are **gated**, following Sensors' precedent rather than
+Lighting/Locks/Switches/Appliances' — this module recombines the exact
+data Sensors gates — and `core:security`/`core:sensors` remain
+independently grantable, with a propagated `SensorPermissionError`
+deliberately not swallowed. **Informational only**: no mutation route,
+no mutation tool, no actuator path. Panic Mode, Vacation Mode,
+Emergency Alerts, automated safety actions, scene/multi-device
+response, event-driven and scheduler-based security automation, and
+notifications are all explicitly deferred. See
+`docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md` for the full Logic
+Contract.
+
+**M12 — Appliance Control (Climate / Thermostat Slice) shipped Aug
+2026.** A Phase 0 post-Security audit re-evaluated all seven remaining
+M12 modules, plus each partially-shipped module's own next-slice
+candidates, and found Climate the highest-value fully-buildable
+candidate: `device_type="thermostat"` was already reserved in
+`DEVICE_TYPES`, and both connectors already mapped HA's `climate`
+domain to it (`home_assistant.py:78`, `mqtt.py:159`) — zero connector
+changes required. A Logic Contract
+(`docs/M12_APPLIANCE_CLIMATE_LOGIC_CONTRACT.md`), separately approved
+before any code, corrected a scoping assumption left implicit by
+Appliance Control's own contract: a thermostat is **not** a
+`device_type="appliance"` device, so this slice ships its own
+`ThermostatService` (`services/thermostat_service.py`) — deliberately
+**not** an `ApplianceService` extension, enforced by a source-level
+test. Depends only on `SmartHomeService` + `ConnectivityService` +
+`PermissionModel` — no `IDatabase`, no `EventBus`, no connector import.
+One merged mutation, `set_thermostat_state(temperature?, hvac_mode?)`,
+mirroring `SmartLightingService`'s own attribute-merge shape. **Two
+structurally different wire translations, by design**: HA models
+climate as two distinct services, so a combined update sends
+`set_hvac_mode` then `set_temperature` sequentially — the repository
+carried zero prior evidence that HA's `set_temperature` accepts an
+optional `hvac_mode`, so the unverifiable merged form was not relied on;
+MQTT's own envelope has no such constraint, so it stays one merged,
+newly-defined `set_state` call. A combined update that partially fails
+reports `success: false` naming exactly what already applied — never a
+false full success. **No invented limits or vocabulary**: temperature
+bounds are enforced only when the device itself reports
+`min_temp`/`max_temp`; HVAC mode is validated against the device's own
+reported `hvac_modes` when present, permissive when absent. Because an
+HA climate entity's own state string *is* its HVAC mode, an unavailable
+thermostat reports `hvac_mode: null`, never the literal `"unavailable"`
+string — the one genuinely new normalization case in M12. Exposed over
+`/api/v1/thermostats/*` and three agent tools (merged, not split into
+per-attribute tools), gated by the existing `PermissionModel` under a
+new principal (`core:thermostats`) — reads **ungated**, following
+Lighting/Locks/Switches/Appliances' precedent. See
+`docs/M12_APPLIANCE_CLIMATE_LOGIC_CONTRACT.md` for the full Logic
+Contract.
+
+**M12 — Appliance Control (Vacuum + Humidifier Core Slice) shipped Aug
+2026.** A Phase 0 audit re-verified `vacuum`/`humidifier` both map to
+`device_type="appliance"` in both connectors (`home_assistant.py:87-88`,
+`mqtt.py:167-168`) — Fan/Cover's own pattern, not Climate's — and found
+a real, pre-existing gap: `MqttConnector._handle_ha_discovery` writes
+`metadata["component"]`, never `metadata["domain"]`, a mismatch
+already latent in shipped `ApplianceService._domain_for` (Fan/Cover),
+never previously exercised by a real-discovery test. A Logic Contract
+(`docs/M12_APPLIANCE_VACUUM_HUMIDIFIER_LOGIC_CONTRACT.md`), separately
+approved before any code, resolved this by having the new service's own
+domain lookup fall back to `metadata["component"]` when `["domain"]` is
+absent — MQTT's `component` carries the identical domain vocabulary
+HA's own REST connector calls `domain` — **zero connector changes,
+zero changes to `ApplianceService`**; the identical fix for Fan/Cover
+is recorded as a separate, narrower follow-up. A new
+`VacuumHumidifierService` (`services/vacuum_humidifier_service.py`)
+ships both capabilities — **deliberately not an `ApplianceService`
+extension**, per that module's own docstring instruction, enforced by a
+source-level test. Vacuum: four zero-payload commands (start/stop/
+pause/return_to_base), `state` an open pass-through string with zero
+invented vocabulary. Humidifier: one merged
+`set_humidifier_state(on?, target_humidity?)`, a two-call HA fallback
+ordered on/off-first (the reverse of Thermostat's mode-first ordering —
+a humidifier's on/off state doesn't change what a humidity setpoint
+means), `mode` reported but explicitly read-only in this MVP, no
+invented humidity limits. Exposed under the existing `/appliances`
+prefix and nine agent tools, gated by the existing `PermissionModel`
+under a new principal (`core:vacuum_humidifier`) — reads **ungated**.
+See `docs/M12_APPLIANCE_VACUUM_HUMIDIFIER_LOGIC_CONTRACT.md` for the
+full Logic Contract.
+
+**M12 — Appliance Control (Media Player Core Slice) shipped Aug
+2026.** A Phase 0 audit re-verified `media_player` maps to
+`device_type="appliance"` in both connectors (`home_assistant.py:84`,
+`mqtt.py:165`) — Fan/Cover/Vacuum/Humidifier's own pattern, not
+Climate's — and reused Vacuum + Humidifier's own
+`metadata["domain"]`-then-`metadata["component"]` MQTT fallback,
+implemented locally inside the new service only, exactly as that slice
+did — **zero connector changes, zero changes to `ApplianceService`**.
+A Logic Contract (`docs/M12_APPLIANCE_MEDIA_PLAYER_LOGIC_CONTRACT.md`),
+separately approved before any code, resolved the slice's two open
+design questions: volume stays HA-native `0.0`–`1.0` (no
+`brightness_pct`-style 0–100 conversion exists for HA's `volume_set`),
+and `source` validates against the device's own reported `source_list`
+only when non-empty, directly reusing Thermostat's `hvac_mode`/
+`hvac_modes` template. A new `MediaPlayerService`
+(`services/media_player_service.py`) ships — **deliberately not an
+`ApplianceService` extension**, enforced by a source-level test. Five
+independent, zero-payload transport commands (play/pause/stop/next/
+previous), mirroring `VacuumCommand`'s shape, plus one merged attribute
+mutation (`set_media_player_state(volume?, muted?, source?)`),
+mirroring `ThermostatService`'s shape — HA's three independent
+single-purpose services (`volume_set`/`volume_mute`/`select_source`)
+execute in declared order (volume, mute, source) with honest
+partial-failure reporting naming exactly what already applied, MQTT's
+own envelope staying one merged `set_state` call. `state` is an open
+pass-through string with zero invented vocabulary, forced to `None`
+(never the literal `"unavailable"` string) when the device is
+unavailable; `media_title`/`media_artist` are read-only, zero-cost
+informational fields. Exposed under the existing `/appliances` prefix
+and eight agent tools, gated by the existing `PermissionModel` under a
+new principal (`core:media_players`) — reads **ungated**. See
+`docs/M12_APPLIANCE_MEDIA_PLAYER_LOGIC_CONTRACT.md` for the full Logic
+Contract.
+
+**M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
+Connectivity Layer (all three phases), Connectivity REST + Smart
+Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
+Appliance Control's Core Appliance Slice/Climate/Thermostat Slice/
+Vacuum + Humidifier Core Slice/Media Player Core Slice, and Security &
+Safety's Read-Only Alert/Status Slice are now shipped; seven of this
+milestone's fifteen modules remain entirely unstarted (Smart Cameras,
+Home Automation, AI Home Assistant, Remote Access, Smart Home Memory,
+Smart Home Analytics, Developer Tools) — Energy Management, Appliance
+Control and Security & Safety themselves each remain only partially
+shipped (Energy Management: device control only, History/Analytics/
+Optimization/Scheduling all deferred; Appliance Control: Fan + Cover +
+Climate/Thermostat + Vacuum + Humidifier + Media Player control only —
+fan percentage/cover position, Climate's own fan mode/swing/presets/
+humidity/dual setpoint/scheduling, Humidifier's own mode control/
+presets/water-level automation, and Media Player's own play_media/
+join-unjoin/shuffle/repeat/sound mode/album/duration/playback position
+all deferred, two appliance categories (Water Heater, Smart Kitchen)
+still entirely unbuilt, two blocked on the current connector mapping;
+Security & Safety: read-only status only, every action-taking item
+deferred). **No version bump accompanied any of the thirteen
+task-group passes** -- unlike M22's own task groups (each of which
+shipped real code and bumped the version in turn), all thirteen ship
+real code at `0.38.0` unchanged. Recorded here as a deliberate
+exception to this project's usual pattern, not a claim that the pattern
+changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task Group B
+Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task Group E, Task
+Group F, Task Group G, Task Group H, Task Group I, Task Group J, and
+Task Group K entries for the full implementation account.
+
+**None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
+Implementation Complete — written, reviewed, gated and merged — and
+all four are waiting on the same thing: TG-C's Build Verification
+Tasks (build the installer, confirm both shortcuts, replace Tauri's
+placeholder branding with real JARVIS artwork, and more — now twelve
+in total, `docs/PACKAGING.md`) have not been run on this machine for
+want of a Rust toolchain. TG-D's five new Rust commands live in the
+same `installer.rs` file, and TG-E's real icon assets are inputs to
+that same build, so all four are proven or not proven together. TG-E
+carries one further open item beyond the shared Rust gate: its
+startup-animation SVG has never been watched running in a real
+compositing browser — this session's sandboxed preview pane does not
+fire `requestAnimationFrame` at all, confirmed directly rather than
+assumed, so nothing built on Framer Motion could be observed in it.
+**TG-F is the task group named to close this gate, and its own report
+found it cannot be closed here** — everything it could verify without
+a Rust toolchain was verified for real (fresh install, resume, a
+deliberately induced failure, repair, re-verification, all run against
+a real scratch install target rather than re-trusted from unit tests),
+and everything downstream of a real `tauri build` remains exactly
+where TG-C left it. TG-F also added two Build Verification Tasks of
+its own (`Cargo.lock` does not exist yet; the startup animation still
+needs to be watched) and audited — without implementing — what a
+future Linux/macOS task group would need to change, recorded as a
+migration checklist in `docs/PACKAGING.md`. See §18 (M22 Acceptance
+Criteria) for the exact gate and `MILESTONE_REPORT.md` for all four
+task groups' reports.
+
+**TG-D began before the condition its own predecessor's report
+named.** TG-C's report said TG-D would not start until TG-C's Build
+Verification Tasks passed and that was explicitly approved. Neither
+had happened when TG-D's brief arrived — it was issued anyway, by the
+authority that report was deferring to in the first place. Recorded as
+a deviation because the earlier plan said otherwise, not because
+proceeding was wrong; see `MILESTONE_REPORT.md`'s Task Group D entry
+§8 for the full account.
+
+Numbering is unchanged — this is a sequencing decision, not a
+renumbering. Individual entries below keep their own detailed status,
+including scope explicitly deferred within a milestone (M7's Phases
+4–6, M8's Deferred Backlog, M10's M14/M16-dependent remainder). A
+milestone marked completed here means its *planned scope for this pass*
+shipped, not that every idea ever filed under its number is built; the
+deferrals are tracked in each entry rather than erased by the summary.
 
 **Milestones shipped (✅ Completed):** M0 Foundation → M6 Vision &
 Multimodal (Architecture Layer) (10 completed milestones, all
@@ -93,18 +628,95 @@ future work; see M6's own §3 entry for the full scope note.
   actively blocked on anything further. See M7's own §8 entry for the
   full phase-by-phase status, including acceptance-criteria detail.
 - **M8 — React Frontend & Desktop Experience** (see §8) — Phase 1
-  (React Foundation) and Phase 4 (Voice Experience & Motion, in full —
+  (React Foundation), Phase 2 (Universal Application Framework & Logic,
+  v0.29.0 — everything except its API Integration Rework sub-block,
+  which is backend provider-lifecycle work belonging to M11's API Center
+  Architecture module) and Phase 4 (Voice Experience & Motion, in full —
   the Premium UI & Voice Experience initiative's five task groups
-  H–L) shipped; Phase 3 (Desktop Workspace) partially shipped (Dashboard,
+  H–L) shipped; Phase 3 (Desktop Workspace) largely shipped — Dashboard,
   Sidebar, Dock, Status Bar, Command Palette shell, Dashboard Widget
-  Grid); Phases 2, 5, 6, 7 and the remainder of Phase 3 (Notification
-  Center, Context Menu system, Background Task Manager, Workspace
-  views, Window management, Developer Mode's 9 read-only viewers,
-  Responsive/DPI/Multi-monitor) are 🟠 **deferred to the Deferred
-  Backlog** (see the new subsection under M8's §8 entry) — none of
-  this blocks M9, which has no real dependency on it (see
-  `IMPLEMENTATION_ROADMAP.md` §5's own Dependencies note). **M8 is not
-  100% complete** — do not treat it as shipped.
+  Grid, and as of v0.30.0 the **Universal Workspace Framework**
+  (dockable/resizable panels, multi-workspace layouts, Notification
+  Center, Activity Center, Global Search, responsive layout); **Phase 5
+  (AI Workspace & Module Integration) and Phase 6's production-UX half
+  shipped at v0.31.0** — the AI, Developer and Administrator dashboards,
+  the §22.12 audience gate, skeletons, per-widget state handling and
+  connection recovery. **Phase 7 (Production Readiness) shipped at
+  v0.32.0**, closing M8's planned scope: the security review against
+  §22.11/§22.12, the release-readiness checklist, and four defects a
+  live-backend audit found that code review had not — a three-release
+  version drift, five widgets instructing the user to use a control
+  that did not exist, a health selector reporting "degraded" for a
+  collector that was simply absent, and default-emptiness logic that
+  did not understand a paginated payload. **M8 is complete** as of
+  v0.32.0 in the sense §2's Execution order defines: its planned scope
+  for this pass shipped. Phase 6's visual-design pass, Settings & User
+  Profiles, and the remainder of Phase 3 (Context Menu system,
+  Background Task Manager, Workspace views, Window management, Developer
+  Mode's 9 read-only viewers, DPI/Multi-monitor) remain 🟠 **deferred to
+  the Deferred Backlog** (see the subsection under M8's §8 entry) — none
+  of it blocks M22 or M9 (see `IMPLEMENTATION_ROADMAP.md` §5's own
+  Dependencies note).
+- **M22 — Cross-Platform Distribution & Universal Installer** (§8's
+  "M22 — Edge AI Platform" entry; the milestone absorbed cross-platform
+  distribution in Aug 2026) — 🟡 **current, running out of numeric
+  order** per §2's Execution order. Task Group A (Universal Installer
+  Foundation, v0.33.0) and Task Group B (Runtime Provisioning, v0.34.0)
+  shipped, followed by the Installer UI integration (v0.35.0) that
+  connected them. **Task Group C (Windows Packaging & Host Bridge,
+  v0.36.0) is Implementation Complete — Build Verification Pending**:
+  the code is written, reviewed and unit-tested, but ten Build
+  Verification Tasks that need a Rust toolchain (build the installer,
+  both shortcuts, official JARVIS branding in place of Tauri's default,
+  metadata, uninstall entry, Launch/Open Folder, the packaged
+  provisioning bridge) have not been run on this machine. **Task Group
+  D (Universal Installation Experience, v0.37.0) is likewise
+  Implementation Complete — Build Verification Pending**: five more
+  Rust bridge commands wiring an already-built verification/repair/
+  diagnostics surface to the frontend, sharing TG-C's exact build gate
+  since both live in the same `installer.rs`. TG-D began before TG-C's
+  ten tasks passed and before the explicit approval its own
+  predecessor's report said that would need — a deviation from the
+  plan as previously written, made on direct instruction from the
+  authority that plan was deferring to; see
+  `MILESTONE_REPORT.md`'s Task Group D entry §8. **Task Group E
+  (Windows Packaging & Installer Distribution, v0.38.0) is likewise
+  Implementation Complete — Build Verification Pending**: the official
+  JARVIS master logo, supplied and approved by the user mid-task-group,
+  replaced Tauri's placeholder across the full icon set (two
+  deliberate variants — a premium form for 128px and above, a
+  hand-simplified high-contrast form for 16-48px, combined into one
+  hybrid `icon.ico`), and the startup animation was recreated as a
+  scalable, Framer-Motion-driven SVG using the same master geometry.
+  Shares TG-C/TG-D's Rust build gate, plus its own open item: the
+  startup animation's actual motion has never been observed, since
+  this session's sandboxed browser pane does not composite frames at
+  all (confirmed directly, not assumed). See
+  `MILESTONE_REPORT.md`'s Task Group E entry §7 for the full
+  proven/unproven split. **Task Group F (Final Build Verification,
+  Cross-Platform Readiness & Release Validation, v0.38.0, no version
+  bump — a verification pass ships no application change) is likewise
+  Implementation Complete — Build Verification Pending**: every item
+  provable without a Rust toolchain was run for real against a scratch
+  install target (fresh install, resume, a deliberately corrupted
+  journal, an induced configuration failure, repair, re-verification)
+  rather than re-trusted from existing unit tests, and a genuine
+  documentation defect was found and fixed (`docs/PACKAGING.md` still
+  described TG-E's branding as unstarted after TG-E had shipped it).
+  Everything downstream of a real `tauri build` remains open, now
+  totaling twelve Build Verification Tasks after TG-F added two of its
+  own. TG-F also audited — without implementing, per its own brief —
+  every Windows-specific assumption in the codebase and produced a
+  concrete migration checklist for a future Linux/macOS task group,
+  in `docs/PACKAGING.md`'s new "Cross-platform readiness" section. See
+  `MILESTONE_REPORT.md`'s Task Group F entry for the full evidence and
+  its §10 recommendation: **M22 cannot yet be marked Complete.** Task
+  Group G is not started; the Linux/macOS packaging and cross-platform
+  QA implementation scope, displaced once TG-F's own letter resolved
+  to verification work rather than that scope, sits there in full. See
+  §18 for the formal Acceptance Criteria gate and
+  `IMPLEMENTATION_ROADMAP.md` / `MILESTONE_REPORT.md` for the
+  checklists.
 - **M9 — Runtime & Core Services** (see §8) — ✅ **100% complete, all
   five task groups shipped:** Task Group A (Runtime Manager,
   Application Lifecycle), Task Group B (Service Manager, Session
@@ -153,6 +765,182 @@ future work; see M6's own §3 entry for the full scope note.
   (`GoalSearchSource`). One key feature explicitly deferred: automatic
   scheduled Daily Briefing delivery (needs M7's Scheduler Phase 6, not
   started) — see M10B's own entry for the full Deferred list.
+- **M10.5 — MCP & Integration Platform** (see §8) — ✅ **Completed
+  (`0.20.0`), all five task groups.** *(Added to this list Aug 2026,
+  during the roadmap reconciliation pass — it had shipped in full but
+  was missing from this specific list, one of the drift points that
+  pass found.)* Capability Registry, all four transports, provider
+  framework, authentication foundation, SDK/developer experience —
+  see §14 rows `0.16`–`0.20` for the full task-group breakdown.
+- **M11 — Intelligent Workspace & Productivity** (see §8) — 🟡
+  **Active, not closed.** *(Added to this list Aug 2026, same
+  reconciliation pass — six real shipped task groups were missing
+  from this list entirely.)* Task Groups A–F shipped (`0.23.0`–
+  `0.28.0`): Workspace Foundation, Productivity Core, File Platform,
+  AI Workspace, Integration Platform (OAuth2, API Gateway, Google
+  Workspace Phase 1), and a Task Group F cross-cutting audit that
+  found and fixed four real defects (a session-id-as-Bearer-token
+  security gap, silent pagination truncation, a duplicate DI binding,
+  missing health reporting). **Not closed**: Task Group F's own brief
+  paired backend integration with a React/Tauri UI half that belongs
+  to M8, which remains deferred — see M11's own §8 entry for the full
+  account.
+- **M12 — Smart Home & IoT Platform** (see §8) — 🟡 **Active, not
+  Complete.** *(Added to this list Aug 2026 on commit — see this
+  section's own "M12 status" note above for the full account.)* Task
+  Group A (Smart Home Core) shipped: Home/Zone/Room/Device/DeviceGroup
+  CRUD, Multi-Home Support, derived health/status metadata, Discovery/
+  Pairing modeled as domain status transitions. Task Group B
+  (Connectivity Layer) Phase 1 shipped: `IDeviceConnector` port,
+  `ConnectorFactoryRegistry`, encrypted `ConnectorCredentialStore`,
+  `ConnectivityService` orchestration. Phase 2 shipped:
+  `HomeAssistantConnector`, the first real protocol adapter (REST over
+  `httpx`), registered into `ConnectorFactoryRegistry`. Phase 3
+  shipped: `MqttConnector` (`gmqtt`, chosen over the originally-planned
+  `aiomqtt` after it failed empirically on Windows' `ProactorEventLoop`
+  — see this task group's own Phase 3 milestone report), speaking both
+  Home Assistant MQTT Discovery and a new JARVIS-native envelope —
+  both `CONNECTOR_TYPES` entries are now registered, closing this task
+  group's three-phase plan. Task Group C (Connectivity REST + Smart
+  Lighting) shipped: `ConnectivityService` exposed over
+  `/api/v1/connectivity/*`; a new `SmartLightingService` providing
+  normalized on/off, brightness, color temperature and RGB control,
+  room/group fan-out and lighting scenes, exposed over
+  `/api/v1/smart-lighting/*` and as seven agent tools, translated per
+  connector (Home Assistant service calls; a new JARVIS-native MQTT
+  command vocabulary), gated by the existing `PermissionModel` under a
+  new principal (`core:smart_lighting`) via the existing generic grant
+  route — no new permission mechanism. Motion/sunrise-sunset/scheduled
+  lighting automation explicitly deferred to the unstarted Home
+  Automation module. Task Group D (Smart Locks) shipped: a new
+  `SmartLockService` mirroring Task Group C's own architecture exactly
+  — normalized lock/unlock control and state/availability reporting,
+  `/api/v1/smart-locks/*`, four agent tools, gated by the same
+  `PermissionModel` under a new principal (`core:smart_locks`). Because
+  locks are physically safety-relevant, `unlock_device` (not
+  `lock_device`) was added to `AgentSettings.confirm_required_tools`'s
+  existing default set, reusing `AgentPermissionGate`'s existing
+  confirmation mechanism. No guest access codes, no access history, no
+  automation triggers — deferred/out of scope, same as Smart Lighting's
+  own carve-outs. Task Group E (Sensors) shipped: the first read-only
+  M12 module — a new `SensorService` reporting normalized state
+  (motion/presence/occupancy/door/window/temperature/humidity/air
+  quality/water leak/smoke/gas/light level/vibration, via HA's own
+  `device_class`) for `device_type="sensor"` devices, exposed over
+  `/api/v1/sensors/*` (`GET` only) and four agent tools. No command
+  translation exists in this module — nothing to mutate. Unlike
+  Lighting/Locks, reads themselves require the `smart_home` grant (new
+  principal `core:sensors`) — a deliberate privacy-driven departure
+  documented and justified in its own Logic Contract, not a new
+  permission scope. `HomeAssistantConnector`/`MqttConnector` both
+  gained a small, symmetric, additive enhancement capturing
+  `device_class` at discovery (already present in the same payload
+  each already parses). Task Group F (Energy Management — Core Energy
+  Slice) shipped: a new `SmartSwitchService` mirroring Smart Locks'
+  exact architecture for `device_type="switch"` control, exposed over
+  `/api/v1/switches/*` and four agent tools, gated by the same
+  `PermissionModel` under a new principal (`core:smart_switch`) —
+  reads ungated, following Lighting/Locks' precedent rather than
+  Sensors'. Power/Energy/Load Monitoring already fully provided by the
+  shipped Sensors module — no duplicate telemetry service created; a
+  smart plug is one `switch` row plus sibling `sensor` rows, never a
+  combined entity. Consumption History/Analytics/Optimization/
+  Scheduling/energy automations all deferred to Smart Home
+  Memory/Analytics/Home Automation/M7 (all unstarted). **Not the full
+  Energy Management module.** Task Group G (Appliance Control — Core
+  Appliance Slice) shipped: a new `ApplianceService` covering Fan
+  control and Cover/Blind/Curtain control under one `device_type=
+  "appliance"` category, distinguished by the existing
+  `metadata["domain"]` discovery field (already captured for every
+  device, not only sensors) — zero connector changes required, exposed
+  over `/api/v1/appliances/fans/*` and `/api/v1/appliances/covers/*`
+  and eight agent tools, gated by the same `PermissionModel` under a
+  new principal (`core:appliances`) — reads ungated, following
+  Lighting/Locks/Switches' precedent. Fan percentage and cover position
+  evaluated and deliberately deferred. Climate/AC, Media Players,
+  Vacuum, Water Heater, Humidifier deferred to future Appliance Control
+  slices; Smart Pumps/Irrigation and Smart Kitchen Devices blocked on
+  the current connector domain mapping. **Not the full Appliance
+  Control module.** Task Group H (Security & Safety — Read-Only Alert/
+  Status Slice) shipped: a new `SecurityService` aggregating the
+  already-shipped `SensorService` and `SmartLockService` **pull-based**
+  — no connector access, no `ConnectivityService`/`SmartHomeService`,
+  and no `EventBus` dependency — exposed over a single `GET
+  /api/v1/security/status` and two read-only agent tools, gated by the
+  same `PermissionModel` under a new principal (`core:security`) with
+  reads **gated**, following Sensors' precedent rather than Lighting/
+  Locks/Switches/Appliances'. `core:security` and `core:sensors` stay
+  independently grantable, and a propagated `SensorPermissionError` is
+  deliberately not swallowed. Alert semantics are closed and
+  non-inferred — only smoke/gas/water-leak can raise an alert; door,
+  window, motion, presence, occupancy and lock state are factual status
+  only, **never** inferred as intrusion. Overall status is
+  `CRITICAL > WARNING > UNKNOWN > NORMAL`, with unavailable monitoring
+  never presented as safe. **Informational only** — no mutation route,
+  no mutation tool, no actuator path; Panic Mode, Vacation Mode,
+  Emergency Alerts, automated safety actions, scene response,
+  event-driven/scheduler-based security automation and notifications
+  are all deferred. The pre-existing device-command event-publishing
+  gap was deliberately **not** fixed here. **Not the full Security &
+  Safety module.** Task Group I (Appliance Control — Climate /
+  Thermostat Slice) shipped: a new `ThermostatService` — deliberately
+  **not** an `ApplianceService` extension, since a thermostat is its own
+  `device_type`, not a `device_type="appliance"` device — depending only
+  on `SmartHomeService`, `ConnectivityService` and `PermissionModel`, no
+  `EventBus`. One merged mutation
+  (`set_thermostat_state(temperature?, hvac_mode?)`), mirroring Smart
+  Lighting's attribute-merge shape; HA's two-service climate model means
+  a combined update sends `set_hvac_mode` then `set_temperature`
+  sequentially (no repository evidence supported a merged HA call), while
+  MQTT's own envelope stays one newly-defined merged `set_state` call.
+  No invented temperature limits or HVAC vocabulary — both are validated
+  only against what the device itself reports. Exposed over
+  `/api/v1/thermostats/*` and three merged (not per-attribute) agent
+  tools, gated by the same `PermissionModel` under a new principal
+  (`core:thermostats`) — reads **ungated**, following Lighting/Locks/
+  Switches/Appliances' precedent. **Not the full Appliance Control
+  module.** Task Group J (Appliance Control — Vacuum + Humidifier Core
+  Slice) shipped: a new `VacuumHumidifierService` covering Vacuum
+  control and Humidifier control under the same `device_type=
+  "appliance"` category as Fan/Cover, distinguished by the existing
+  `metadata["domain"]` discovery field — **found and locally worked
+  around a real, pre-existing gap**: `MqttConnector._handle_ha_discovery`
+  writes `metadata["component"]`, never `["domain"]`, a mismatch
+  already latent in shipped `ApplianceService._domain_for` too; the new
+  service's own domain lookup falls back to `["component"]`, needing
+  zero connector changes and zero changes to `ApplianceService` (whose
+  identical gap is recorded as a separate follow-up, not fixed here).
+  Deliberately **not** an `ApplianceService` extension, per that
+  module's own docstring instruction. Vacuum: four zero-payload
+  commands (start/stop/pause/return_to_base), open pass-through `state`
+  with no invented vocabulary. Humidifier: one merged
+  `set_humidifier_state(on?, target_humidity?)`, two-call HA fallback
+  ordered on/off-first (unlike Thermostat's mode-first — a humidifier's
+  on/off state doesn't change what a humidity setpoint means), `mode`
+  reported but explicitly read-only in this MVP, no invented humidity
+  limits. Exposed under the existing `/appliances/*` prefix and nine
+  agent tools, gated by the same `PermissionModel` under a new
+  principal (`core:vacuum_humidifier`) — reads **ungated**. **Not the
+  full Appliance Control module.** Task Group K (Appliance Control —
+  Media Player Core Slice) shipped: a new `MediaPlayerService` covering
+  play/pause/stop/next/previous transport and a merged volume/mute/
+  source mutation for `media_player` devices, sharing Fan/Cover/
+  Vacuum/Humidifier's own `device_type="appliance"` category, reusing
+  Vacuum + Humidifier's own `metadata["domain"]`-then-`["component"]`
+  fallback locally inside the new service. Deliberately **not** an
+  `ApplianceService` extension. Five independent, zero-payload
+  transport commands mirroring `VacuumCommand`'s shape; one merged
+  `set_media_player_state(volume?, muted?, source?)` mutation
+  mirroring `ThermostatService`'s shape, three ordered HA calls
+  (volume, mute, source) with a single merged MQTT `set_state` call.
+  Volume stays HA-native `0.0`–`1.0` (no invented 0–100 scale);
+  `source` validated against the device's own reported `source_list`
+  only when non-empty, directly reusing Thermostat's `hvac_mode`
+  template. Exposed under the existing `/appliances/*` prefix and
+  eight agent tools, gated by the same `PermissionModel` under a new
+  principal (`core:media_players`) — reads **ungated**. **Not the
+  full Appliance Control module.** **Not Complete**: seven of fifteen
+  M12 modules remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
 from PySide6 to React + Tauri, starting at M8 — see
@@ -1076,6 +1864,32 @@ asked to remove.
 
 ## 8. Future roadmap
 
+> **Approved architecture decisions (Aug 2026) apply across this whole
+> section.** Local AI First, the Universal AI/API Calibration Engine, the
+> AI Cost Optimizer, the three-tier AI strategy, the Oracle Cloud role,
+> the voice provider abstraction, hardware calibration, the Universal
+> Performance Engine, the installation platform, the two-account model,
+> and the hidden-backend-operations rule are specified in full in
+> [`ARCHITECTURE.md` §22](ARCHITECTURE.md#22-approved-architecture-decisions-aug-2026).
+>
+> They are **approved but not built**, and none is scheduled into a
+> milestone by that section — except Cross-Platform Distribution, which
+> joins **M22** (§22.15). The rest await milestone assignment under §20's
+> governance process; this document remains the single source of truth
+> for sequencing.
+>
+> **JARVIS Core Intelligence is deferred to Future Vision** and is not
+> part of the v1 roadmap (§22.16) — it needs a mature AI ecosystem, a
+> large user base, and more infrastructure and compute than the product
+> will have. Recorded rather than dropped, so it cannot silently
+> reappear as scope in a nearer milestone.
+>
+> Until the Calibration Engine exists, the binding rule for every
+> milestone below is: **do not build a competing design.** A feature
+> needing provider routing, cost control, voice-provider selection or
+> hardware profiling raises that as a blocker rather than solving it
+> locally.
+
 Every milestone below lists: **Objective**, **Key features**,
 **Dependencies**, **Complexity** (T-shirt size: S/M/L/XL), and
 **Acceptance criteria**. Lettered companion milestones (`M11A`,
@@ -1206,7 +2020,7 @@ Hook Form, Zod, the Inter font, design tokens, a Theme Engine
 equivalent to M5's, and a base component library. Full technology
 rationale in `TECH_STACK.md`.
 
-#### Phase 2 — Universal Application Framework & Logic
+#### Phase 2 — Universal Application Framework & Logic ✅ *(v0.29.0)*
 The mandatory shape every application in the new frontend follows:
 Business Logic → State Machine → Service Layer → React Hooks → State
 Store → Authentication → Permissions → Storage → Settings → API Layer
@@ -1217,11 +2031,54 @@ redesigning it (see §7's own frontend migration note). **No fake
 data** — every screen renders a real value, a real loading state, or a
 real empty state; never a placeholder dressed up to look real.
 
+*Shipped v0.29.0.* The phase's substantive finding: Phase 1's REST and
+WebSocket layers had been written against `ARCHITECTURE.md`'s
+*illustrative* examples before the backend routes existed, and had
+drifted — eleven of fourteen client event names named nothing that is
+emitted, the error envelope matched no route, and pagination expected
+cursors the backend does not send. Fixed, and pinned against drift by a
+contract generated from `EVENT_TYPE_NAMES` and asserted by both test
+suites (`scripts/export_ws_contract.py`). The phase also found and
+closed a latent OAuth client-secret leak in `SettingsService.snapshot()`
+— see `CHANGELOG.md` 0.29.0. **The API Integration Rework sub-block is
+not included**: those ten items are backend provider-lifecycle work
+belonging to M11's API Center Architecture module, and remain open in
+`IMPLEMENTATION_ROADMAP.md` §2.
+
 #### Phase 3 — Desktop Workspace
 Dashboard, Sidebar, Dock, Workspace views (one per M5 workspace:
 Voice, Files & Drive, Browser, Coding, Finance, Smart Home, Calendar,
 Gmail, Spotify), Window Management, Command Palette, Responsive
 Layout, DPI Scaling, Multi-Monitor support.
+
+**Universal Workspace Framework** *(added Aug 2026, shipped v0.30.0)*:
+the dockable panel system the rest of this phase composes into. Four
+dock zones plus a floating layer; every module's content can be a panel
+alongside any other's; panels open, close, resize, collapse, detach,
+move and restore. Multiple named workspaces, each a saved arrangement,
+with create/rename/delete/duplicate/reset/import/export.
+
+Three things now called "workspace" in this system, kept deliberately
+distinct — conflating them would be a real defect, not a naming quibble:
+
+| Concept | Owner | What it is |
+|---|---|---|
+| Active module | `core/workspace-manager.ts` | Which module the current route has mounted. One at a time. |
+| `Workspace` entity | Backend, M11 Task Group A | A data scope owning projects, notes, tasks, files. `/api/v1/workspaces`. |
+| Workspace layout | `stores/workspace-layout.store.ts` | A named arrangement of panels. Device-local. |
+
+The layout links to the backend entity through `backendWorkspaceId` — an
+id, never a copy of backend data — so panels can scope to a real
+workspace without mirroring it. Layouts persist to `localStorage`: there
+is no endpoint for panel geometry, the backend contract is frozen, and
+an arrangement that suits a 34" monitor is wrong on a laptop, so
+per-device is where this state belongs.
+
+Shipped alongside it, as panels: the **Notification Center** (previously
+deferred for want of a container), the **Activity Center** (background
+tasks + `agent.step` + `automation.step`, merged live rather than
+copied), and **Global Search** (the real `POST /api/v1/search`, distinct
+from the Command Palette's local navigation).
 
 **Dynamic Sidebar & Dashboard Widget Grid** *(added Aug 2026 per the
 UI Architecture Update review — see the changelog addendum)*: both
@@ -1345,10 +2202,49 @@ Premium UI & Voice Experience initiative's five task groups (H–L).
 Conversation Timeline and the broader motion pass (hover, Sidebar,
 Dock, Cards, Notifications) remain pending.
 
-#### Phase 5 — Settings & User Profiles
+#### Phase 5 — AI Workspace & Module Integration ✅ *(v0.31.0)*
+*(Aug 2026 — this slot was "Settings & User Profiles"; that scope moved
+below to keep phase numbers aligned with the delivered work.)*
+
+Every backend module with real content reaches the user, through the
+**existing** `panelRegistry` and `dashboardWidgetRegistry` — no
+duplicate registries. Three audience-specific dashboards:
+
+- **AI Dashboard** — 11 widgets, every one on real backend data.
+- **Developer Dashboard** — providers & routing, outbound API counters,
+  API inspector, performance metrics, agent trace, the 61-event relay
+  vocabulary, runtime state.
+- **Administrator Dashboard** — AI health, API usage, provider health,
+  voice providers, secrets status, audit log.
+
+**The phase began with an API audit of all 172 REST operations, and the
+audit changed the plan.** Three findings are worth carrying forward:
+
+1. `GET /health` is a bare liveness probe; the rich subsystem data lives
+   in the `health.updated` **WebSocket** event, which nothing on the
+   frontend was reading. The dashboards subscribe rather than poll.
+2. **Seven Administrator panels have no backend** — users, budgets,
+   provider priority, calibration status, analytics, synchronization.
+   All are §22, approved and not built. They are **named on screen, not
+   mocked**: an administrator seeing "Budget: $0.00" would reasonably
+   conclude nothing had been spent.
+3. Two AI Dashboard widgets have no data source — Recent Conversations
+   (no conversation-history route) and Pinned Projects (`Project` has no
+   `pinned` column; **Pinned Notes** ships instead).
+
+**Personal Mode (§22.12) is enforced by `core/user-mode.ts`**, one gate
+for three modes and seven restricted classes of information, checked in
+two independent places — the panel menu filters, and each dashboard
+component refuses — because a workspace layout can be exported from a
+developer's machine and imported on a personal one.
+
+#### Phase 5A — Settings & User Profiles *(deferred)*
 Dynamic Settings (schema-driven, preserving M5's self-registering
 Settings-page pattern), Developer Mode (ports M5's full gated panel
 set), Profile Service, Guest Mode, Profile Switching, Profile Storage.
+
+Profiles depend on the account model in §22.11, which is approved and
+not built.
 
 **Settings page structure** *(added Aug 2026 per the UI Architecture
 Update review — see the changelog addendum)*: General, Appearance,
@@ -1365,16 +2261,64 @@ install/uninstall experience over M9's Marketplace. A module can be
 states Phase 3's "installed and enabled" sidebar/dashboard rule
 depends on.
 
-#### Phase 6 — Premium UI Polish
-Spacing, Typography, Cards, Animations, and Icons audited against the
-design-token scale; a production-quality pass across every view built
-in Phases 1–5.
+#### Phase 6 — UI Polish, Performance & Production UX 🟡 *(production-UX half shipped v0.31.0)*
 
-#### Phase 7 — Optimization & QA
+**Shipped:** skeleton loaders shaped like the content they replace;
+loading, empty, error and offline states per widget through one shared
+`ResourceView`; **connection recovery** that re-runs ping → session →
+socket (the socket's own retry reuses a token a *restarted* backend will
+refuse forever, which is the most common real outage); responsive
+layout; keyboard navigation, ARIA labels and focus management; lazy
+loading, code splitting, memoization, virtual lists, Suspense.
+
+**Remaining:** the visual-design pass — Spacing, Typography, Cards,
+Animations and Icons audited against the design-token scale across every
+view built in Phases 1–5; Conversation Timeline (blocked — no
+conversation-history API); image optimization (nothing to optimise yet);
+window state persistence beyond `@tauri-apps/plugin-window-state`; DPI
+scaling and multi-monitor, both blocked on the same Tauri window APIs as
+Phase 3's Window Management item.
+
+#### Phase 7 — Production Readiness 🟡 *(v0.32.0 — audit complete, cross-platform QA open)*
+
 Accessibility, performance, lazy loading, bundle optimization,
 responsive testing, regression testing, cross-platform testing. See
 `TECH_STACK.md` §6 for the testing-tool assignment (Vitest, React
 Testing Library, Playwright).
+
+**Shipped v0.32.0.** A production-readiness audit run **against a live
+backend** — the real `create_app` with a real DI container and a real
+`HealthMonitor` poll, driven from the React client, with the backend
+killed mid-session and restarted. Reading code would not have found what
+it found.
+
+Four defects, all fixed:
+
+1. **Version drift, three releases deep.** `GET /api/v1/health` reported
+   `0.28.0` while `pyproject.toml` said `0.31.0`; `__version__.py` had
+   not been bumped since v0.28.0. Now guarded by a test — nothing
+   compared the two before, which is why they drifted.
+2. **A dead-end journey.** Five Phase 5 widgets told the user to bind a
+   workspace; no control existed to do it.
+3. **A status selector reporting a fault that did not exist** — "the
+   collector is not reporting" conflated with "this source is missing".
+4. **Two stories for one condition** — health widgets said "waiting"
+   while their neighbours correctly said "offline".
+
+Also added an **executable guard for §22.12**: a source-level test that
+fails if any module reads provider names, routing or debug state without
+consulting the audience gate. The behavioural tests cover existing
+surfaces; this covers the *next* one somebody adds, which is how the
+Phase 3 Activity Center leak survived a whole milestone. Mutation-tested.
+
+Verified live: no stale numbers survive a backend outage, and the client
+reconnects automatically without a page reload.
+
+**Open, and stated plainly:** no cross-browser testing (Chromium only —
+the Tauri shell uses WebKit on macOS and WebView2 on Windows, neither
+exercised), no screen-reader pass, no contrast-ratio measurement.
+Cross-platform QA belongs with **M22**, which owns the platform
+abstraction those browsers sit behind.
 
 #### Deferred Backlog *(Aug 2026 — added by the roadmap reconciliation
 pass, see the changelog addendum)*
@@ -1837,9 +2781,11 @@ item's own reason, not silently dropped):
 - **Learning & Feedback** -- needs **M16** (Reflection Engine), not
   started; M10's own spec routes this through M16, not a second
   learning mechanism.
-- **Intent Engine gating graph routing** -- needs real signal from
+- ~~**Intent Engine gating graph routing**~~ -- needs real signal from
   **M10A/M10B**, neither started; today the classification is recorded
-  but diagnostic-only.
+  but diagnostic-only. *(No longer deferred -- M10A and M10B have both
+  since shipped, and this gate is now real. See the Conversational
+  Orchestration Routing pass below.)*
 - **Final streaming optimizations** -- `tool_selector`'s "final"
   (no-tool-needed) shortcut still replays precomposed text rather than
   streaming real tokens, since its answer is embedded inside a JSON
@@ -1944,6 +2890,29 @@ M10A (knowledge/context substrate), M14 (Permission Validation).
    enforcement policy itself is interim (`AgentPermissionGate`,
    settings-driven) pending M14's Authorization Engine, per this
    milestone's own Permission Validation key feature above.
+
+**Conversational Orchestration Routing (Aug 2026, ✅ shipped, no
+version bump):** closes two of the Deferred items above -- Intent
+Engine gating graph routing (its cited blockers, M10A/M10B, have both
+since shipped) and Remaining UI integration (Chat and Voice now reach
+`AgentOrchestrator` at the composition layer, rather than waiting on
+M8's still-deferred frontend phases). Preceded by a read-only Phase 0
+audit that confirmed, by direct code inspection, that both Chat
+(`ConversationController.send()` → `ChatService.stream()`) and Voice
+(wired to the same `send()`) bypassed `AgentOrchestrator` entirely, and
+that none of `agents/graph.py`'s three existing conditional-edge
+functions read `state["intent"]`. **Not a new orchestrator, AI Core, or
+planning logic** -- `agents/graph.py` gained one new conditional edge
+consuming the already-computed Intent Engine output;
+`ConversationController` gained a settings-driven branch between two
+already-shipped backends. `ChatService`/`ConversationService`/
+`VoiceService` (M0–M6, frozen) are unmodified. A new
+`AgentSettings.conversation_routing` flag
+(`legacy`/`hybrid`/`orchestrator`, default `legacy`) makes the change
+fully opt-in; existing behaviour is preserved byte-for-byte by
+default. See `docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md` and
+`IMPLEMENTATION_ROADMAP.md` §5A for the full account. 22 new tests;
+full regression 2499 passed, 1 skipped (pre-existing), 0 failed.
 
 ### M10A — Universal Search & Knowledge Platform
 
@@ -2446,8 +3415,48 @@ XL "platform" milestones, e.g. M8, M12, M13, M14)*.
 > bullet above from credential CRUD into a governed, self-activating
 > provider surface. It is a module within M11 — it does not introduce
 > a new milestone code and does not change M11's numbering,
-> dependencies, or acceptance criteria above. Planning only; no
-> implementation exists yet.
+> dependencies, or acceptance criteria above. ~~Planning only; no
+> implementation exists yet.~~
+
+**Status (Aug 2026): ✅ shipped, for its actual scope — the**
+**catalogue-backed vendor-integration slice only. No version bump**
+**(see `CHANGELOG.md`).** Implemented as its own seven-part sequence —
+Task Groups A–G, internal to this module and distinct from M11's own
+Task Groups A–F above — after a dedicated Phase 0 audit and Logic
+Contract. Full design, boundary and per-item classification:
+`docs/M11_API_CENTER_ARCHITECTURE_DECISIONS.md`,
+`docs/M11_API_CENTER_SCOPE_MATRIX.md`,
+`docs/M11_API_CENTER_LOGIC_CONTRACT.md`.
+
+**Shipped:** M5/M11 credential-plane boundary made explicit (TG-A);
+local-only Health surface, never a vendor call (TG-C); Runtime
+Registration/Activation, reusing `install()`/`connect()`/`disconnect()`
+verbatim, no second mechanism (TG-D); real, bounded, read-only
+Connection Testing against the actual vendor, superseding the mock
+validator as *this module's* production path (TG-B); narrowly-scoped
+Runtime Switching and vendor Failover — user-triggered or
+single-candidate-caller-named only, never chained, never automatic
+(TG-E); Automatic Discovery of the catalogue only, discover + register,
+never auto-activate (TG-F); a consolidated observability snapshot and
+cross-cutting REST/event validation (TG-G). 410 tests.
+
+**Explicitly out of scope, and not shipped by this module:** the
+*Built-in Providers* taxonomy below (Memory, Automation, Workflow, …)
+is unchanged — still reachable only through `ServiceManager`, not a
+unified registry. "Automatic Provider Discovery" and "Runtime Provider
+Switching" apply **only** to catalogued vendor integrations (Google
+Workspace today) — never to `ILLMProvider` adapters, and never to any
+AI/voice/vision provider ranking, routing, cost-optimization, or
+fallback; those remain exclusively reserved for the unscheduled
+Universal AI/API Calibration Engine (`ARCHITECTURE.md` §22) and were
+at no point implemented here. M5's own `ApiCenterService` (the
+credential-CRUD "API Center" referenced in the status table above) is
+unchanged and still uses its mock validator by default for
+generic/uncatalogued credentials — fixing that remains a separate,
+still-open item, distinct from this module's own (real, non-mock)
+Connection Testing. Version-compatibility policy for discovered
+integrations and a global API rate-limiting layer both remain open,
+explicitly deferred architecture decisions, not solved here.
 
 **Objective:** one governed registry for every provider JARVIS talks
 to — built-in (internal services) and external (credential-backed) —
@@ -2988,6 +3997,282 @@ M11's own complexity reasoning)*.
 
 ### M12 — Smart Home & IoT Platform
 
+**Status: 🟡 Active — Task Group A (Smart Home Core) shipped, Aug
+2026** (implementation `d99a984`, documentation `b0a531b`; no version
+bump, version remains `0.38.0`). Home/Zone/Room/Device/DeviceGroup
+CRUD, Multi-Home Support, derived Device Health Monitoring/Status
+Dashboard metadata, and Device Discovery/Pairing modeled as domain
+status transitions with no real hardware behind them yet.
+
+**Task Group B (Connectivity Layer) — Phase 1 (foundation) shipped,
+Aug 2026**, no version bump. The port/adapter contract every future
+protocol plugs into (`IDeviceConnector`, mirroring MCP's own
+`IMCPTransport` shape): `ConnectorFactoryRegistry`, an encrypted
+`ConnectorCredentialStore` (Fernet, sibling to MCP's own credential
+store), and `ConnectivityService` orchestration (idempotent connect/
+discover/refresh-state/send-command), wired into DI and the WebSocket
+relay (`ConnectivityStatusChangedEvent`).
+
+**Task Group B — Phase 2 (Home Assistant connector) shipped, Aug
+2026**, no version bump. The first real `IDeviceConnector`:
+`HomeAssistantConnector` (`core/connectivity/connectors/
+home_assistant.py`) speaks Home Assistant's REST API over `httpx`
+(reachability probe on `connect`, entity listing via `/api/states`,
+per-entity state via `/api/states/{entity_id}`, commands via `POST
+/api/services/{domain}/{service}`). Entity-to-`Device` mapping is a
+closed allowlist of physical-device domains (light/switch/lock/
+climate/camera/binary_sensor/sensor/fan/cover/media_player/vacuum/
+water_heater/humidifier/siren/select/number/valve/
+alarm_control_panel) onto Task Group A's own `DEVICE_TYPES` — a
+domain outside that set (`automation`, `script`, `scene`, `zone`,
+`person`, ...) is skipped, never registered as a device. Registered
+into `ConnectorFactoryRegistry` at the DI composition root
+(`core/connectivity/connectors/factory.py`'s
+`build_default_connector_registry`).
+
+**Task Group B — Phase 3 (MQTT connector) shipped, Aug 2026**, no
+version bump. The second real `IDeviceConnector`: `MqttConnector`
+(`core/connectivity/connectors/mqtt.py`). **Library choice corrected
+during implementation, not assumed**: the approved plan named
+`aiomqtt` (wraps `paho-mqtt`, the same client Home Assistant's own
+core integration uses); connecting it against a real local broker
+before writing any connector logic — required by this project's
+"audit before implementing" discipline — found it raises
+`NotImplementedError` on Windows' default `ProactorEventLoop`, since
+`paho-mqtt`'s asyncio bridge needs `loop.add_reader`/`add_writer`,
+which only `SelectorEventLoop` implements on Windows, and
+`SelectorEventLoop` cannot run `core/mcp/transports/stdio.py`'s
+subprocess-based `StdioTransport`, which this project already depends
+on. `gmqtt` (built on `asyncio.Protocol`/`create_connection`, not
+`add_reader`/`add_writer`) connected cleanly on the same
+`ProactorEventLoop` with zero workaround, verified the same way — this
+module uses `gmqtt`. Speaks two discovery conventions: **Home
+Assistant MQTT Discovery** (`<prefix>/<component>/[<node_id>/]
+<object_id>/config`, retained) — the convention Zigbee2MQTT,
+zwave-js-to-mqtt, Tasmota and ESPHome already speak, so those
+ecosystems become reachable with no dedicated connector for any of
+them — and a new **JARVIS-native envelope**
+(`core/connectivity/connectors/mqtt_envelope.py`: one JSON shape,
+`{schema_version, device_id, type, timestamp, payload}`, covering
+state/command/discovery/availability/error) for bespoke firmware, the
+canonical protocol a future JARVIS ESP32 sketch targets. State is
+push-based and cached (`read_state()` returns the last received value,
+or raises — genuinely weaker than Phase 2's live REST pull, documented
+rather than hidden); `send_command()`'s success means "handed to
+`gmqtt` for delivery," not "device executed," since MQTT 3.1.1's QoS-1
+PUBACK carries no application-level outcome. Reconnection is
+`gmqtt`'s own automatic retry, paired with this connector's own
+unconditional resubscribe on every `on_connect` (including automatic
+reconnects) — silent to the event bus by deliberate, documented scope
+boundary, not an oversight. Registered into `ConnectorFactoryRegistry`
+alongside Home Assistant — **both of `CONNECTOR_TYPES`' approved names
+are now registered**, closing this task group's three-phase
+implementation plan. See `MILESTONE_REPORT.md`'s M12 Task Group B,
+Phase 1/Phase 2/Phase 3 entries and
+`docs/CONNECTIVITY_LAYER_LOGIC_CONTRACT.md` for the full account.
+
+**Task Group C (Connectivity REST + Smart Lighting) shipped, Aug
+2026**, no version bump. `ConnectivityService` exposed over REST
+(`/api/v1/connectivity/*` — connect/disconnect, discovery, device
+state refresh, generic `send_command` passthrough) and a new
+`SmartLightingService` (`services/smart_lighting_service.py`) providing
+normalized on/off, brightness (0-100), color temperature (Kelvin) and
+RGB control, room/group fan-out, and lighting scenes (new
+`smart_lighting_scenes` table), exposed over REST
+(`/api/v1/smart-lighting/*`) and as seven agent tools
+(`agents/tools/smart_lighting_tools.py`), converging on the same
+`ConnectivityService.send_command` chokepoint from every path — REST,
+UI and agent tool calls never diverge. Home Assistant translation is a
+single merged `light.turn_on` service call
+(`brightness_pct`/`color_temp_kelvin`/`rgb_color`); MQTT translation is
+a new JARVIS-native `turn_off`/`set_state` command vocabulary this task
+group defines (`mqtt_envelope.py`'s command/args shape was previously
+undefined for lighting). Every side-effecting operation requires the
+existing `PermissionModel`'s `smart_home` scope, granted for a new
+fixed principal (`core:smart_lighting`) via the same generic,
+already-shipped grant route Milestone 9's Plugin Platform provides — no
+new authorization mechanism, and denied (`PENDING`) by default until an
+operator grants it. Motion-activated lighting, sunrise/sunset
+automation and scheduled lighting are explicitly out of scope, deferred
+to the unstarted Home Automation module. See
+`docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md` for the
+full Logic Contract.
+
+**Task Group D (Smart Locks) shipped, Aug 2026**, no version bump. A
+new `SmartLockService` (`services/smart_lock_service.py`) providing
+normalized lock/unlock control and state/availability reporting for
+`device_type="lock"` devices, mirroring Task Group C's own architecture
+exactly — same `ConnectivityService.send_command` chokepoint, same
+`PermissionModel`/`smart_home`-scope pattern under a new principal
+(`core:smart_locks`), exposed over `/api/v1/smart-locks/*` and as four
+agent tools. Home Assistant translation: HA's own `lock.lock`/
+`lock.unlock` domain services, no payload. MQTT translation: a new
+JARVIS-native `lock`/`unlock` command vocabulary this task group
+defines, mirroring HA's own service names. **Because locks are
+physically safety-relevant**, `unlock_device` (not `lock_device`) was
+added to `AgentSettings.confirm_required_tools`'s existing default set
+— reusing `AgentPermissionGate`'s existing confirmation mechanism, not
+a new one — so an agent cannot unlock a door without interactive user
+confirmation by default; locking remains unattended-friendly for a
+future "Auto Lock" feature. Explicitly not built: guest access codes,
+temporary PINs, access history (no existing mechanism captures a
+queryable trail without new infrastructure this task group was not
+asked to add), or any automation trigger. See
+`docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md` for the full Logic Contract.
+
+**Task Group E (Sensors) shipped, Aug 2026**, no version bump. The
+first read-only M12 module — a new `SensorService` (`services/
+sensor_service.py`) reporting normalized state for `device_type=
+"sensor"` devices: motion, presence, occupancy, door, window,
+temperature, humidity, air quality, water leak, smoke, gas, light
+level, vibration — keyed by Home Assistant's own real `device_class`
+vocabulary (`moisture` for water leak, `illuminance` for light level;
+"air quality" is not one HA class, so pollutant-specific classes like
+`aqi`/`pm25` normalize generically rather than being unified into a
+fabricated bucket). No command translation exists anywhere in this
+module — there is exactly one capability, reading current state, so
+unlike Lighting/Locks there is no wire-format table at all.
+`HomeAssistantConnector`/`MqttConnector` both gained one small,
+symmetric, additive enhancement: capturing `device_class` (already
+present in the same discovery payload each already parses — no new
+request, no new topic) into `Device.metadata_json`. Exposed over
+`/api/v1/sensors/*` (`GET /sensors`, `GET /sensors/{id}` — no mutation
+route anywhere) and four read-only agent tools (`list_sensors`,
+`get_sensor_state`, `get_sensor_value`, `get_sensor_status`).
+**Deliberate departure from Smart Lighting/Smart Locks**: reads
+themselves, not just mutations, require the existing `PermissionModel`'s
+`smart_home` grant (new principal `core:sensors`) — because for a
+sensor, *observing* is the entire product (motion/presence/occupancy
+data can reveal who is home and when), unlike a light or lock's
+comparatively low-stakes observable state. No new permission scope was
+created, and a finer, per-device-class split (gating only
+motion/presence/occupancy) was explicitly considered and rejected as
+architecturally inconsistent with every other M12 module's single
+`smart_home` grant — see `docs/M12_SENSORS_LOGIC_CONTRACT.md` §20 for
+the full reasoning. A `GET /sensors/{id}` can now fail for two
+distinct reasons (not found vs. permission not granted); resolved with
+a local `SensorPermissionError(ServiceError)` subclass the route
+catches by type, not by sniffing the message — mirroring
+`core/exceptions.py`'s own `AutomationPermissionDeniedError` precedent.
+Explicitly not built: any automation/trigger logic, energy-specific
+logic (optimization, billing, dashboards), or security-response logic
+— all deferred to their own still-unstarted modules; sensors expose
+normalized data only, never a reaction.
+
+**Task Group F (Energy Management — Core Energy Slice) shipped, Aug
+2026**, no version bump. Preceded by a read-only dependency audit
+(`M12 POST-SENSORS — ENERGY MANAGEMENT DEPENDENCY AUDIT`) that
+evaluated all ten items in the roadmap's own Energy Management feature
+list and found only Smart Switch/Plug control genuinely unblocked and
+worth new code — **Power Monitoring, Energy Monitoring and Load
+Monitoring were found to already be fully provided by the shipped
+Sensors module** (HA's own numeric `power`/`energy`/`voltage`/
+`current`/`power_factor` device classes normalize through
+`SensorService`'s existing, fully generic numeric path with zero
+changes) — and Consumption History, Energy Dashboard/Analytics/Trends,
+Energy Optimization, Automatic Power Saving and Load Scheduling all
+found blocked on Smart Home Memory, Smart Home Analytics/M20A, or Home
+Automation/M7 (all still unstarted/unshipped, unchanged since the
+Home Automation and Sensors audits). A new `SmartSwitchService`
+(`services/smart_switch_service.py`) was built, mirroring
+`SmartLockService`'s architecture exactly for `device_type="switch"`:
+`turn_on`/`turn_off` (HA's own switch-domain services, no attribute
+merge — a switch has one property, same as a lock), exposed over
+`/api/v1/switches/*` and four agent tools, gated by the existing
+`PermissionModel` under a new principal (`core:smart_switch`). Reads
+are **ungated**, deliberately following Smart Lighting/Smart Locks'
+precedent rather than Sensors' — a switch's on/off state carries no
+comparable privacy weight. No connector code changes were needed (both
+connectors already map HA's `switch` domain to `device_type="switch"`,
+unchanged since Task Group B). A physical smart plug is represented as
+one `switch` `Device` row for control plus sibling `sensor` rows for
+readings — the existing per-entity model, never a combined "SmartPlug"
+entity. See `docs/M12_ENERGY_MANAGEMENT_LOGIC_CONTRACT.md` for the
+full Logic Contract.
+
+**M12 — Appliance Control (Core Appliance Slice) shipped Aug 2026.** A
+read-only post-Energy-Management module audit re-ranked the nine
+remaining M12 candidates and recommended Appliance Control, scoped down
+to Fans + Covers only — the audit found both domains **already** map to
+`device_type="appliance"` in both connectors and both already have
+their sub-kind captured via the existing `metadata["domain"]` discovery
+field (the same field Sensors reused for `binary_sensor` vs `sensor`,
+predating this module) — **zero connector code changes required**. A
+new `ApplianceService` (`services/appliance_service.py`) was built as
+one service covering both capabilities (not two separate services, and
+not a generic multi-category abstraction) — `fan_on`/`fan_off` (HA's
+`fan.turn_on`/`fan.turn_off`) and `cover_open`/`cover_close` (HA's
+`cover.open_cover`/`cover.close_cover`), exposed over
+`/api/v1/appliances/fans/*` and `/api/v1/appliances/covers/*` (two
+sibling resource collections, not one generic command endpoint — a fan
+and a cover have genuinely different command vocabularies) and eight
+agent tools, gated by the existing `PermissionModel` under a new
+principal (`core:appliances`). Reads are **ungated**, following Smart
+Lighting/Smart Locks/Smart Switches' precedent. Fan percentage
+(`fan.set_percentage`) and cover position (`cover.set_cover_position`)
+were evaluated — both architecturally supportable via
+`SmartLightingService`'s existing attribute-merge translator pattern —
+and **deliberately deferred**, kept out of this pass's approved scope.
+Climate/AC, Media Players/Smart TVs, Vacuum, Water Heater/Geysers and
+Humidifier are deferred to future, separately-scoped Appliance Control
+slices, each spanning a structurally different HA domain and command
+vocabulary. Smart Pumps/Irrigation is **blocked**: HA's `valve` domain
+— the natural mapping for irrigation valves — currently maps to
+`device_type="other"`, not `"appliance"`. Smart Kitchen Devices is
+**blocked**: no single HA/MQTT domain represents "kitchen appliance" as
+a consistent category. See `docs/M12_APPLIANCE_CONTROL_LOGIC_CONTRACT.md`
+for the full Logic Contract.
+
+**M12 — Security & Safety (Read-Only Alert/Status Slice) shipped Aug
+2026.** A read-only post-Task-G audit re-ranked the eight remaining M12
+candidates and found Security & Safety the only fully-buildable one —
+its whole data substrate already shipped in Task Groups D/E, and a
+**pull-based** read-only aggregate needs neither M7's Scheduler
+(confirmed entirely unstarted) nor the device-command
+event-publishing gap the same audit surfaced, both of which block Home
+Automation, Smart Home Memory and Developer Tools' Event Viewer. A new
+`SecurityService` (`services/security_service.py`) aggregates
+`SensorService` + `SmartLockService` only — never a connector, never
+`ConnectivityService`/`SmartHomeService`, and with **no `EventBus`
+dependency at all** — over a single `GET /api/v1/security/status` and
+two read-only agent tools (`get_security_status`,
+`list_active_security_alerts`), gated by the existing `PermissionModel`
+under a new principal (`core:security`). **Alert semantics are closed
+and non-inferred**: only `smoke`/`gas`/`moisture` (HA's real class name
+for water leak) can raise an alert, because their `value=True` reading
+*is* HA's own "hazard detected" meaning; door, window, garage_door,
+motion, presence, occupancy, vibration and lock state are reported as
+factual status only and are **never** classified as intrusion. Overall
+status is `CRITICAL > WARNING > UNKNOWN > NORMAL`, with `UNKNOWN`
+deliberately ranking above `NORMAL` so that unavailable, offline or
+entirely-absent hazard monitoring is never presented as safe. Reads are
+**gated** — following Sensors' precedent rather than Smart Lighting/
+Smart Locks/Smart Switches/Appliance Control's ungated one, since this
+module recombines the very motion/presence/occupancy data Sensors
+gates — and `core:security`/`core:sensors` remain independently
+grantable, with a propagated `SensorPermissionError` deliberately not
+swallowed. **Informational only**: no mutation route, no mutation tool,
+no actuator code path, no automatic action of any kind. See
+`docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md` for the full Logic
+Contract.
+
+**Not Complete**: seven of this milestone's fifteen modules remain
+entirely unstarted (Smart Cameras, Home Automation, AI Home Assistant,
+Remote Access, Smart Home Memory, Smart Home Analytics, Developer
+Tools) — and Energy Management, Appliance Control and Security & Safety
+each remain only partially shipped: Energy Management's Consumption
+History, Energy Dashboard/Analytics/Trends, Energy Optimization,
+Automatic Power Saving, Load Scheduling and Energy-based Automations
+are all still outstanding, deferred to the modules named above;
+Appliance Control's five deferred categories and two blocked categories
+(above) remain outstanding; and Security & Safety's entire
+action-taking half — Panic Mode, Vacation Mode, Emergency Alerts, Fire/
+Gas/Water-leak *response* (as opposed to reporting), automated safety
+actions, scene/multi-device response, event-driven and scheduler-based
+security automation, and notifications — remains outstanding, deferred
+to Home Automation/M7/future separately-scoped slices. See
+`IMPLEMENTATION_ROADMAP.md` §5H for the full account of what was built.
+
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
 single-bus device bridge into a complete enterprise-grade Smart Home
 platform — see the changelog addendum at the end of this document for
@@ -3023,31 +4308,60 @@ Analytics, Developer Tools.
 - Device Status Dashboard
 
 #### Connectivity Layer
-- ESP32
-- MQTT
+*(Phase 1 — the port/adapter foundation — Phase 2 — the Home Assistant
+connector — and Phase 3 — the MQTT connector — all shipped Aug 2026,
+closing this module's three-phase implementation plan. See this
+section's own Task Group B status note above.)*
+- ESP32 *(no dedicated code — reachable through `MqttConnector`'s
+  JARVIS-native envelope once real firmware exists; see Phase 3)*
+- MQTT ✅ *(Phase 3 — `MqttConnector`, `gmqtt`; HA MQTT Discovery +
+  JARVIS-native envelope)*
 - Wi-Fi
 - Bluetooth LE
-- Zigbee
-- Z-Wave
+- Zigbee *(no dedicated code — reachable via Zigbee2MQTT through
+  `MqttConnector`'s HA-discovery support; see Phase 3)*
+- Z-Wave *(no dedicated code — reachable via zwave-js-to-mqtt through
+  `MqttConnector`'s HA-discovery support; see Phase 3)*
 - Matter
 - Thread
-- Home Assistant Integration
+- Home Assistant Integration ✅ *(Phase 2 — `HomeAssistantConnector`, REST over `httpx`)*
 - Local Network Discovery
 - Secure Device Provisioning
+- REST exposure ✅ *(Task Group C — `/api/v1/connectivity/*`: connect/
+  disconnect, discovery, state refresh, generic command passthrough)*
 
 #### Smart Lighting
-- On / Off Control
-- Brightness
-- RGB Control
-- Color Temperature
-- Lighting Scenes
+*(On/Off, Brightness, RGB, Color Temperature, Lighting Scenes, Group
+Lighting and Room Lighting shipped Task Group C, Aug 2026 — device
+control and scene application only, over both REST
+(`/api/v1/smart-lighting/*`) and seven agent tools. Adaptive Lighting,
+Motion Activated Lighting and Sunrise/Sunset Automation are explicitly
+out of scope for this task group — see its own status note above —
+and remain unstarted, deferred to the Home Automation module.)*
+- On / Off Control ✅
+- Brightness ✅
+- RGB Control ✅
+- Color Temperature ✅
+- Lighting Scenes ✅ *(apply only; scene creation via REST, not yet an agent tool)*
 - Adaptive Lighting
 - Motion Activated Lighting
 - Sunrise / Sunset Automation
-- Group Lighting
-- Room Lighting
+- Group Lighting ✅
+- Room Lighting ✅
 
 #### Smart Locks
+*(Lock/unlock control and state/availability reporting shipped Task
+Group D, Aug 2026 -- device-agnostic: works through whichever
+connector already discovered the lock (Wi-Fi/Bluetooth/etc. are a
+connector-level concern, not distinguished by this module), over both
+REST (`/api/v1/smart-locks/*`) and four agent tools. Temporary Access
+Codes, Guest Access, Auto Lock, Access History and Access Notifications
+are explicitly out of scope for this task group -- no schema exists for
+access codes, and no existing infrastructure captures a queryable
+access-history trail without new tables/event plumbing this task group
+was not asked to add; Auto Lock is trigger-based, deferred to the
+unstarted Home Automation module, same carve-out Smart Lighting already
+established.)*
 - Wi-Fi Locks
 - Bluetooth Locks
 - Fingerprint Locks
@@ -3055,25 +4369,35 @@ Analytics, Developer Tools.
 - NFC Locks
 - Temporary Access Codes
 - Guest Access
-- Remote Unlock
+- Remote Unlock ✅
 - Auto Lock
 - Access History
 - Access Notifications
 
 #### Sensors
-- Motion Sensors
-- Presence Sensors
+*(Normalized, read-only state reporting shipped Task Group E, Aug
+2026 — via HA's own `device_class` vocabulary, over both REST
+(`/api/v1/sensors/*`) and four agent tools. "LD2410B Support" names a
+specific mmWave radar chip/module, not a device_class — any such
+sensor integrated through Home Assistant or MQTT already reports
+generically as `presence`/`occupancy`, which this module already
+supports; no LD2410B-specific handling was added or tested. "Air
+Quality" is supported generically — HA has no single unified
+`air_quality` class, only pollutant-specific ones (`aqi`, `pm25`,
+...), each of which normalizes through the same generic numeric path.)*
+- Motion Sensors ✅
+- Presence Sensors ✅
 - LD2410B Support
-- Door Sensors
-- Window Sensors
-- Temperature
-- Humidity
-- Air Quality
-- Water Leak Detection
-- Smoke Detection
-- Gas Detection
-- Light Sensors
-- Vibration Sensors
+- Door Sensors ✅
+- Window Sensors ✅
+- Temperature ✅
+- Humidity ✅
+- Air Quality ✅ *(generic numeric normalization, not a unified category — see note above)*
+- Water Leak Detection ✅ *(HA's own `moisture` device_class)*
+- Smoke Detection ✅
+- Gas Detection ✅
+- Light Sensors ✅ *(HA's own `illuminance` device_class)*
+- Vibration Sensors ✅
 
 #### Smart Cameras
 - Camera Integration
@@ -3088,27 +4412,85 @@ Analytics, Developer Tools.
 - Snapshot Capture
 
 #### Energy Management
-- Smart Plugs
-- Smart Switches
-- Energy Monitoring
+*(Core Energy Slice only shipped Task Group F, Aug 2026 -- Smart
+Plug/Switch **control** via a new `SmartSwitchService` mirroring Smart
+Locks exactly, over both REST (`/api/v1/switches/*`) and four agent
+tools. Energy Monitoring/UPS/Battery/Solar/Generator Monitoring were
+found **already provided by the shipped Sensors module** -- HA's own
+numeric device classes (`power`/`energy`/`voltage`/`current`/
+`battery`/...) normalize through `SensorService`'s existing generic
+numeric path with zero new code; no duplicate telemetry service was
+built. "Power Usage Analytics" (trends/aggregation, not raw current
+values) remains unbuilt, deferred to Smart Home Analytics/M20A, same
+as every other analytics item in this roadmap. Automatic Power Saving
+and Load Scheduling are trigger/rule-engine-shaped, deferred to Home
+Automation/M7, both still unstarted/unshipped.)*
+- Smart Plugs ✅ *(control only, via the switch entity; readings via Sensors)*
+- Smart Switches ✅
+- Energy Monitoring ✅ *(via Sensors -- see note above)*
 - Power Usage Analytics
-- UPS Monitoring
-- Battery Monitoring
-- Solar Monitoring
-- Generator Monitoring
+- UPS Monitoring ✅ *(via Sensors, generic numeric normalization)*
+- Battery Monitoring ✅ *(via Sensors, generic numeric normalization)*
+- Solar Monitoring ✅ *(via Sensors, generic numeric normalization)*
+- Generator Monitoring ✅ *(via Sensors, generic numeric normalization)*
 - Automatic Power Saving
 - Load Scheduling
 
 #### Appliance Control
-- Smart Fans
-- Smart AC
-- Smart TV
-- Smart Curtains
-- Smart Blinds
+*(Core Appliance Slice shipped Task Group G, Aug 2026 -- Fan and
+Cover/Blind/Curtain **control** via a new `ApplianceService` mirroring
+Smart Switches' architecture, over both REST
+(`/api/v1/appliances/fans/*`, `/api/v1/appliances/covers/*`) and eight
+agent tools. Zero connector code changes required -- both domains
+already mapped to `device_type="appliance"` and already had their
+sub-kind captured via the existing `metadata["domain"]` discovery
+field. Fan percentage and cover position evaluated and deliberately
+deferred. Climate/Thermostat Slice shipped Task Group I, Aug 2026 -- a
+separate `ThermostatService` (not an `ApplianceService` extension: a
+thermostat is its own `device_type`, already reserved and already
+mapped from HA's `climate` domain in both connectors -- zero connector
+changes here either), read/write current+target temperature and HVAC
+mode over `/api/v1/thermostats/*` and three merged agent tools, reads
+ungated like every other Appliance Control category. Fan mode, swing,
+presets, humidity, auxiliary/emergency heat, dual setpoint and
+scheduling evaluated and deliberately deferred, same discipline as fan
+percentage/cover position. Vacuum + Humidifier Core Slice shipped Task
+Group J, Aug 2026 -- a further separate `VacuumHumidifierService` (also
+not an `ApplianceService` extension), both domains sharing Fan/Cover's
+own `device_type="appliance"` category. Found and locally worked around
+a real, pre-existing `metadata["domain"]`/`metadata["component"]`
+mismatch in MQTT HA-Discovery-sourced devices (already latent in
+shipped `ApplianceService` too, unfixed there, recorded as a separate
+follow-up) -- zero connector changes. Vacuum: start/stop/pause/
+return_to_base, open pass-through state. Humidifier: merged on/off +
+target-humidity mutation, mode read-only. Media Player Core Slice
+shipped Task Group K, Aug 2026 -- a further separate
+`MediaPlayerService` (also not an `ApplianceService` extension),
+sharing Fan/Cover/Vacuum/Humidifier's own `device_type="appliance"`
+category, reusing the identical `metadata["domain"]`/`["component"]`
+fallback locally -- zero connector changes. Five zero-payload transport
+commands (play/pause/stop/next/previous); merged volume/mute/source
+mutation, volume HA-native `0.0`-`1.0`, source validated against
+device-reported `source_list` only when non-empty. `play_media`,
+join/unjoin, shuffle/repeat/sound mode, album/duration/playback
+position and queue management all deliberately deferred. Water Heater
+remains deferred to a future, separately-scoped Appliance Control
+slice. Smart Pumps/Irrigation is blocked: HA's `valve` domain --
+irrigation's natural mapping -- currently maps to `device_type=
+"other"`, not `"appliance"`. Smart Kitchen Devices is blocked: no
+single HA/MQTT domain represents "kitchen appliance" as a consistent
+category.)*
+- Smart Fans ✅
+- Smart AC ✅ *(read/write current+target temperature, HVAC mode -- fan mode/swing/presets/humidity/scheduling deferred)*
+- Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, now-playing title/artist -- play_media/join-unjoin/shuffle/repeat/sound mode deferred)*
+- Smart Curtains ✅ *(via the cover entity)*
+- Smart Blinds ✅ *(via the cover entity)*
+- Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level -- fan speed/cleaning modes/maps/scheduling deferred)*
+- Smart Humidifiers ✅ *(on/off, target humidity, mode read-only -- mode control/presets/water-level automation deferred)*
 - Smart Geysers
 - Smart Pumps
-- Smart Irrigation
-- Smart Kitchen Devices
+- Smart Irrigation *(blocked -- HA's `valve` domain maps to `device_type="other"`, not `"appliance"`)*
+- Smart Kitchen Devices *(blocked -- no consistent HA/MQTT domain model)*
 
 #### Home Automation
 - Rule Engine
@@ -3143,17 +4525,33 @@ automation are exposed as M5A agent tools, following the same
 tool-registry pattern every other service uses (`agents/tools/`).
 
 #### Security & Safety
-- Intrusion Detection
+*(Read-Only Alert/Status Slice only shipped Task Group H, Aug 2026 --
+a new `SecurityService` aggregating the already-shipped `SensorService`
+and `SmartLockService` **pull-based**, over one REST route
+(`/api/v1/security/status`) and two read-only agent tools. Hazard
+**reporting** for smoke/gas/water-leak ships; hazard **response** does
+not. Reads are permission-gated (`core:security`, following Sensors'
+precedent). The module is **informational only** -- no mutation route,
+no mutation tool, no actuator path, no automatic action. Every
+action-taking item below is deferred to Home Automation/M7/future
+separately-scoped slices, all still unstarted. Zero `EventBus`,
+connector, `DEVICE_TYPES` or schema changes.)*
+- Intrusion Detection *(read-only inputs only -- door/window/motion/
+  presence/occupancy state is reported factually and **deliberately
+  never inferred as intrusion**; any actual detection logic is
+  outstanding)*
 - Emergency Alerts
-- Fire Detection Integration
-- Gas Leak Alerts
-- Water Leak Alerts
+- Fire Detection Integration ✅ *(smoke-sensor alert reporting; response is deferred)*
+- Gas Leak Alerts ✅ *(reporting only; response is deferred)*
+- Water Leak Alerts ✅ *(reporting only, via HA's `moisture` device_class; response is deferred)*
 - Panic Mode
 - Vacation Mode
-- Home Status Dashboard
+- Home Status Dashboard ✅ *(backend aggregate: overall status, active alerts, hazard/status sensors, lock state, unavailable counts)*
 
 Every item in this module is `safety_critical` by default (see
-Architecture notes) — none of it silently auto-executes.
+Architecture notes) — none of it silently auto-executes. The shipped
+slice honours that by taking **no** action at all: it reports, and a
+human or a future, separately-approved module decides what to do.
 
 #### Remote Access
 - Secure Remote Access
@@ -6607,6 +8005,136 @@ milestone — extending the existing Ollama local-first story to real
 edge deployment — into a complete enterprise-grade platform. See the
 changelog addendum at the end of this document.)*
 
+**Task Group A — Universal Installer Foundation 🟡 shipped v0.33.0.**
+The installer experience and the hardware calibration that drives it:
+an eleven-step wizard, real hardware detection (CPU, RAM, storage,
+GPU/VRAM, battery, temperature, internet, NPU), an AI Capability Score,
+a local-model recommendation across four tiers, a voice plan, and seven
+pre-flight checks.
+
+*Architecture note.* The installer reaches its Python detection through
+a **JSON-emitting CLI** (`python -m jarvis.installer`), not a REST
+route: an installer cannot call an API served by the application it is
+installing, and adding a route would have modified a frozen contract.
+`src/jarvis/installer/` imports no service, repository or container —
+it runs before any of them exist.
+
+*Its governing rule.* A field is either measured or `null`, never
+estimated. The UI renders "Not detected" and records why. Running it on
+real hardware found three defects reading the code would not have —
+free space measured on the wrong drive, a 16 GB machine that could never
+reach the 16 GB tier (RAM is sold in decimal GB; 16 GB = 15.7 GiB), and
+a React effect that cancelled every scan it started.
+
+*Not built here, by design:* nothing is downloaded, no installation is
+performed, and there is no Windows packaging (MSI, shortcuts,
+auto-start, portable edition, code signing) — all Task Group B. Linux
+and macOS are detected and warned about, per "Windows is the primary
+platform".
+
+**Task Group B — Runtime Provisioning 🟡 shipped v0.34.0.** Turns the
+planning wizard into a provisioning system: dependency detection, a
+resumable checksum-verified download manager, a durable journal, parallel
+verification, first-run preparation and an `installation.json` manifest.
+
+*One engine, three behaviours.* `provision` skips whatever the journal
+records as complete, so install, resume-after-crash and repair are the
+same code path — a resume with its own path would be the least-exercised
+and most often broken.
+
+*No URL exists in the package.* The source registry ships empty; with
+nothing configured it names the environment variable rather than falling
+back to a vendor host, which is what makes "all downloads use provider
+abstraction" true rather than stated. `file://` sources are marked as
+needing no network, so an air-gapped installation is possible.
+
+*Honesty rules carried forward from TG-A.* A file is verified as `.part`
+and renamed last, so its final name is proof it passed; a source
+publishing no checksum yields *unverifiable*, never a quiet pass.
+
+Running it end to end found four defects the unit tests had not,
+including a model id that cannot be a Windows filename and a source
+specification whose separators made voice downloads silently find no
+source while model downloads worked.
+
+*Not built here:* packaging (MSI, EXE, code signing), any configured
+download source, and the Tauri bridge from the wizard to the engine —
+all Task Group C.
+
+**Installer UI integration ✅ shipped v0.35.0.** Connects Task Group A's
+wizard to Task Group B's engine. The installation screen, per-item
+download view, resume, failure recovery and completion all render from
+the engine's own event stream, and `/install` is reachable for the first
+time -- Task Groups A and B had left the wizard mounted nowhere.
+
+*Three additive hooks*, leaving the existing path byte-identical: a
+`--stream` NDJSON mode (the events existed only as a Python callback, so
+a UI could not show live progress from a value delivered after the run),
+a `VERIFYING` per-item state, and `kind` for grouping. The engine itself
+is unchanged -- pytest, black, ruff and mypy identical to v0.34.0.
+
+*The backend stays authoritative.* Step, percent, per-item state and byte
+counts are stored as received; there is no client-side step machine to
+disagree with the engine. Speed and time remaining are the two derived
+values, computed in the UI because a rate is a property of an observer
+over an interval rather than a fact about a download.
+
+**Task Group C — Windows Packaging & Host Bridge 🟡 v0.36.0,
+Implementation Complete — Build Verification Pending.** The bridge TG-B
+deferred: `installer.rs` spawns
+the Python engine, relays its stdout as `provisioning://event`, and
+implements the four contract commands. **Not one payload, command name
+or event name changed** when it landed — the contract was written first
+precisely so the UI would need no edit on the day the host arrived, and
+it did not.
+
+*Cancellation became reachable.* The frontend had modelled a cancelled
+run since v0.35.0 — classifier, label, icon — with nothing able to
+trigger it. TG-C's scope names cancellation, so the host command and the
+control that calls it close that loop rather than leaving a state no
+user could reach.
+
+*The planned `@tauri-apps/plugin-shell` dependency was not added, and
+planning it was the error.* A Rust command spawning a process needs no
+plugin; the shell plugin exists to let *JavaScript* spawn processes,
+which is a strictly larger capability than this needs and one worth
+withholding from a webview.
+
+*Three hang guards, one of which did not work.* The inactivity timeout
+was checked after reading a line — so a process that hung producing no
+output, the one case it exists for, never reached it. stdout now feeds a
+channel and the loop waits with a timeout, which makes both the timeout
+and prompt cancellation real. A second defect in the same pass: `Child`
+detaches rather than kills on drop, so closing the window mid-run left
+Python downloading gigabytes invisibly.
+
+**This task group's status is Implementation Complete — Build
+Verification Pending, not the terminal Complete status.**
+There is no Rust toolchain on the build machine, so nothing here has
+been compiled and no installer has been produced. Ten explicit **Build
+Verification Tasks** gate it to Complete — build the installer,
+confirm it builds, confirm both shortcuts, replace Tauri's default logo
+with real JARVIS branding (unstarted, not merely unverified), confirm
+installer metadata, the uninstall entry, Launch JARVIS, Open
+Installation Folder, and the provisioning bridge inside the packaged
+app. None has run. See `IMPLEMENTATION_ROADMAP.md` and
+`MILESTONE_REPORT.md` §9 for the full list and current state of each.
+TG-D does not begin until all ten pass **and** that is explicitly
+approved. The contract between Rust and TypeScript *is* tested, by a
+suite that reads the Rust as text and needs no compiler; it caught a
+`launch_application` written to take an argument no caller sends.
+
+*(Aug 2026 — **Cross-Platform Distribution added to this milestone** per
+the approved architecture decisions: Windows, Linux and macOS builds, a
+Portable edition, an Installer and an Enterprise installer, Auto-update,
+Code signing, and an **OS abstraction layer**. Filed here because the OS
+abstraction layer is the same substrate M22's hardware backends already
+need, and splitting "run locally on this hardware" from "ship to this
+platform" across two milestones would give one concern two owners. Full
+specification: `ARCHITECTURE.md` §22.15. The OS abstraction layer is the
+load-bearing piece — it is what keeps §22.10's single installation flow
+honest across three platforms instead of three flows wearing one name.)*
+
 **Objective:** enable JARVIS to execute AI models locally with strong
 privacy, low latency, offline capability, hardware acceleration, and
 intelligent hybrid execution. The platform abstracts model providers,
@@ -8673,8 +10201,8 @@ lives inside one of the 15 module rows that follow.)*
 
 | Feature                       | Status | Milestone |
 |-------------------------------|--------|-----------|
-| Home Assistant integration    | 🟡     | M12       |
-| MQTT                          | 🟡     | M12       |
+| Home Assistant integration    | ✅ *(Phase 2 — `HomeAssistantConnector`)* | M12 |
+| MQTT                          | ✅ *(Phase 3 — `MqttConnector`, `gmqtt`)*  | M12 |
 | Matter (read-only)            | 🟡     | M12       |
 | Zigbee (via Z2M)              | 🟡     | M12       |
 | Shelly                        | 🟡     | M12       |
@@ -9318,6 +10846,25 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 
 ## 13. AI provider roadmap
 
+> **Governed by the approved Local AI First architecture (Aug 2026).**
+> Every provider below is reached through the **AI/API Calibration
+> Engine**, never called directly, and provider *selection* is the
+> engine's decision rather than a per-feature one. The execution
+> priority is fixed — **Local AI → Cloud AI → Failover** — and every
+> installation ships with a local LLM, so the table below describes what
+> is *available*, not what is preferred. Full specification:
+> `ARCHITECTURE.md` §22.1–§22.4 and §22.7.
+>
+> Two consequences for this table specifically: no provider-specific
+> implementation exists above the adapter layer, and **normal users never
+> see provider information at all** (§22.11–§22.12) — this is an
+> engineering reference, not a user-facing menu.
+>
+> **Status: approved, not built.** No routing layer exists yet; today's
+> selection remains configuration-driven via
+> `JARVIS_LLM_DEFAULT_PROVIDER`/`JARVIS_LLM_FALLBACK_PROVIDER`, which
+> becomes an *input* to the engine rather than a competing mechanism.
+
 ### Chat providers
 
 | Provider    | Status     | Milestone | Adapter path                                        |
@@ -9421,6 +10968,17 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 
 ## 14. Version timeline
 
+> **Not authoritative — see §2's Single Source of Truth note.** This
+> table is a historical log of what shipped under which version
+> number, kept for that purpose. It is not the current-status record;
+> §2's execution-order diagram and Active list are. Two rows below
+> were found stale during the Aug 2026 reconciliation pass (pre-
+> redesign milestone names/statuses, contradicted by real shipped
+> rows for the same milestone under its current name a few rows
+> above) and are marked accordingly rather than silently corrected —
+> the *(next)* placeholder section below this table's real-shipped
+> rows was never meant to assert current status in the first place.
+
 | Version | Milestone | Theme                          | Status  |
 |---------|-----------|---------------------------------|---------|
 | **0.1** | M0 · M1   | Foundation + Chat Engine        | ✅ Shipped |
@@ -9453,7 +11011,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | **0.26** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group D (AI Workspace) shipped: a pure `domain/ai_workspace/` (context value objects, character-budget packing, prompt construction), one table (`WorkspaceKnowledgeLink`), one repository, `WorkspaceKnowledgeService` (links + on-demand ingestion) and `WorkspaceAssistantService` (grounded summarize/ask/next-actions), `WorkspaceContextManager` and `WorkspaceRetriever`, five agent tools on the existing registry, two relay events, DI, and `/api/v1/workspace-ai/*` + `/api/v1/knowledge-links`. **No second anything**: retrieval narrows M10A's `SearchService`, extraction is `KnowledgeService.learn_from_text`, and the agent is M10's `AgentOrchestrator` reached as tools. **Nothing is scheduled** (ingestion is on demand — M7 Phase 6 owns scheduling) and **no assist call is persisted** (`ConversationService` owns transcripts). **No embeddings over workspace content.** Task Groups E–F not started. |
 | **0.27** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group E (Integration Platform) shipped: OAuth2 authorization-code with mandatory PKCE and the client-credentials grant (closing M10.5 Task Group D's explicit deferral, registered into the *existing* `AuthStrategyRegistry`); one audited API gateway (single pool, retry for idempotent methods only, `Retry-After`, account-keyed response cache); connectors as declarative `IntegrationSpec` data executed by `RestIntegrationProvider`, an `IMCPProvider` in the *same* `MCPProviderRegistry` with the same lifecycle, events, capability registry and permission gates; Google Workspace Phase 1 (11 integrations, 65 operations); per-integration search sources on M10A's registry; four agent tools; and `/api/v1/integrations/*` including the one deliberately session-free route in the application, the OAuth callback, protected by a single-use `state`. **Phases 2–6 (Microsoft 365, GitHub/GitLab, Slack/Discord/Teams, Notion/Jira/Trello/ClickUp/Linear/Asana, Dropbox/Box) are catalogue entries against this engine and are not built** — deliberately not written from memory, because a subtly wrong endpoint ships a connector that fails at the first real call. **No two-way sync** (needs a conflict policy and M7's Scheduler), no webhooks, no durable outbound queue, no resumable upload. Task Group F not started. |
 | **0.28** | M11       | Intelligent Workspace & Productivity | 🟡 **Active** — Task Group F (Platform Integration) shipped: a cross-cutting audit of 170 REST routes, 66 event classes, 88 DI providers, 13 search sources and 37 settings sections, plus the four defects it found. **Security:** `GET`/`DELETE /sessions/{id}` required no token although a session id *is* the Bearer token, so anyone who learned one could confirm it live or close it; both now require that session's own token and answer `404` for another's. **Pagination:** every repository already capped at 200/500 but nothing exposed the cap and `meta` reported only `count`, so a 250-note workspace silently returned 200 — all nine M11 collections now take `limit`/`offset` and report `has_more` through one shared helper. **DI:** `memory_recall_hook` was bound twice; the dead binding removed. **Health:** M11's subsystems reported nothing to `HealthMonitor`; one collector on the existing extension point now carries the storage root, AI switches, egress counters and live search sources. Everything else audited was already consistent and is recorded as verified. **The React/Tauri UI half is not built** — it is M8's, which is deferred, so M11 is not closed. |
-| *(next)* | M11       | Integrations & Cloud Platform    | 🔴 Planned |
+| *(superseded)* | M11 | ~~Integrations & Cloud Platform~~ | Stale leftover — M11 was retitled "Intelligent Workspace & Productivity" and is 🟡 Active (see rows `0.23`–`0.28` above and §2); this row predates that redesign and was never removed |
 | *(next)* | M11A      | SEO Intelligence                | 🔴 Planned |
 | *(next)* | M11B      | Productivity Suite               | 🔴 Planned |
 | *(next)* | M12       | Smart Home                      | 🔴 Planned |
@@ -9471,7 +11029,7 @@ Persistent client anchored at `<data_dir>/vectorstore/`. Collections:
 | *(next)* | M20       | Predictive Intelligence Platform | 🔴 Planned |
 | *(next)* | M20A      | Analytics & Observability Platform | 🔴 Planned |
 | *(next)* | M21       | Mobile Platform                 | 🔴 Planned |
-| *(next)* | M22       | Edge AI Platform                | 🔴 Planned |
+| *(superseded)* | M22 | ~~Edge AI Platform~~ | Stale leftover — M22 was redefined "Cross-Platform Distribution & Universal Installer" and is 🟡 Active (shipped `0.33.0`–`0.38.0`; see §2 and §18); this row predates that redefinition and was never removed |
 | *(next)* | M23       | Distributed JARVIS              | 🔴 Planned |
 | *(next)* | M23A      | Robotics & Hardware Control Platform | 🔴 Planned |
 | *(next)* | M23B      | Autonomous Planning & Decision Engine | 🔴 Planned |
@@ -13843,3 +15401,205 @@ pre-existing symlink case Windows will not grant). mypy 263 -> 262 --
 the deleted legacy factory carried an untyped parameter, so removing it
 resolved a baseline error as well. Ruff
 21 categories, unchanged. Version bumped `0.27.0` -> `0.28.0`.
+
+---
+
+## 18. M22 Acceptance Criteria
+
+*(Added Aug 2026, as the worked example the Milestone Lifecycle
+(`ARCHITECTURE.md` §23) and Build Verification Policy
+(`ARCHITECTURE.md` §23.7) point to. Mirrored, not duplicated in spirit,
+in `IMPLEMENTATION_ROADMAP.md`'s own M22 Acceptance Criteria section —
+that copy carries the task-group-level checklist detail; this one is
+the milestone-level status of record.)*
+
+| Task Group | Status |
+|---|---|
+| **TG-A** — Universal Installer Foundation | **Complete** (v0.33.0) |
+| **TG-B** — Runtime Provisioning | **Complete** (v0.34.0) |
+| **TG-C** — Windows Packaging & Host Bridge | **Implementation Complete — Build Verification Pending** (v0.36.0) |
+| **TG-D** — Universal Installation Experience | **Implementation Complete — Build Verification Pending** (v0.37.0) |
+| **TG-E** — Windows Packaging & Installer Distribution | **Implementation Complete — Build Verification Pending** (v0.38.0) |
+| **TG-F** — Final Build Verification, Cross-Platform Readiness & Release Validation | **Implementation Complete — Build Verification Pending** (v0.38.0, no version bump) |
+| **TG-G** | **Not Started** |
+
+*(The Installer UI integration that connected TG-A to TG-B, shipped at
+v0.35.0, is not a lettered task group in its own right — see §2's M22
+entry — and is not a row here for that reason; it is folded into TG-A/
+TG-B's own Complete status above.)*
+
+**TG-D's, TG-E's and TG-F's scopes are now resolved: Universal
+Installation Experience, Windows Packaging & Installer Distribution,
+and Final Build Verification, Cross-Platform Readiness & Release
+Validation** (all Aug 2026, replacing the earlier undivided
+"TG-D/E/F, not yet finalized" placeholder for those letters
+specifically). TG-D's status row above reads Implementation Complete —
+Build Verification Pending because its five new Rust bridge commands
+live in the same `installer.rs` TG-C's five do, and share TG-C's
+exact, still-unrun build gate — one `cargo build` proves all four task
+groups. TG-E's row reads the same for the same underlying reason (its
+real icon assets are inputs to that same unbuilt `tauri build`), plus
+one item specific to TG-E: its startup-animation SVG has never been
+observed running, since this session's sandboxed browser preview does
+not composite frames at all — confirmed directly, not assumed. TG-F's
+row reads the same because it is, by design, the task group whose job
+is closing that exact gate, and it could not: every item verifiable
+without a Rust toolchain was run for real against a scratch install
+target (see `MILESTONE_REPORT.md`'s Task Group F entry §3 for the full
+evidence), and TG-F added two further Build Verification Tasks of its
+own rather than closing any. **TG-G's scope is now the entire
+remaining Linux/macOS/cross-platform-QA block**, no longer attached to
+TG-F once TG-F's own letter resolved to verification work instead —
+Linux packaging (AppImage, Flatpak, DEB, RPM), macOS packaging (DMG,
+PKG), and cross-platform/cross-browser QA, documented in
+`IMPLEMENTATION_ROADMAP.md`'s "Task Group G" entry and grounded in
+TG-F's own migration checklist (`docs/PACKAGING.md`).
+
+### M22 is considered COMPLETE only when
+
+- TG-A: **Complete**
+- TG-B: **Complete**
+- TG-C: **Build Verification Passed** (i.e. its status has advanced
+  from Implementation Complete — Build Verification Pending, per
+  `ARCHITECTURE.md` §23.4, to Complete, per §23.5 — not merely
+  "the code looks done")
+- TG-D: **Build Verification Passed** — same gate as TG-C, proven by
+  the same build
+- TG-E: **Build Verification Passed** — same Rust gate as TG-C/TG-D,
+  plus the startup animation actually watched running in a real
+  compositing browser, which this session's sandboxed preview pane
+  cannot do
+- TG-F: **Build Verification Passed** — same Rust gate, plus
+  `Cargo.lock` committed and upgrade installation exercised against a
+  real, configured download source (this environment's registry ships
+  empty by design, so even the CLI-level provisioning engine could not
+  reach a complete installation to upgrade over)
+- TG-G: **Complete**
+
+Every row above at **Complete** and nothing less is what this document
+means, everywhere else it says "M22 is complete." A partial reading —
+"TG-A through TG-D are done, call it complete" — is exactly the
+ambiguity this section exists to foreclose.
+
+**TG-D began before this section's original gate wording was
+satisfied.** That wording read "TG-D does not begin until TG-C's row
+reads Complete and that is explicitly approved" — neither was true
+when TG-D's brief arrived. It was issued anyway, by the authority the
+wording was itself deferring to. Recorded in
+`MILESTONE_REPORT.md`'s Task Group D entry §8 as a deviation from the
+plan as previously written, not as a violation of it discovered after
+the fact.
+
+---
+
+## 19. Roadmap Governance
+
+*(Added Aug 2026, as a permanent section — not a milestone-specific
+note, and not superseded by any future milestone's own governance
+text. Rules here apply to every milestone this document has ever
+described or will ever describe. This section is the detailed
+instantiation of `ARCHITECTURE.md` §24's principle #2 Roadmap First
+and principle #8 Single Source of Truth — read §24 for the one-line
+philosophy, this section for the specific rules it expands into for
+this document.)*
+
+- **The roadmap numbering represents architectural organization, not
+  a work schedule.** M9 being numbered before M22 records that M9's
+  scope was architecturally sequenced there when this document's
+  milestone numbers were assigned — it does not mean M9 is built
+  before M22. §2's Execution order is the work schedule; the numbers
+  are a stable index into the architecture, not a queue.
+- **The implementation order may differ from the numeric order, and
+  when it does, that must always be documented** — not left for a
+  reader to infer from which milestone's checkboxes happen to be
+  ticked. §2's Execution order section is where that documentation
+  lives for the current pass; it names which milestone is active and
+  states plainly why the numeric order was departed from (M22 owns
+  installation, and every later milestone needs something installable
+  to run on).
+- **This document — `MASTER_ROADMAP.md` — is the single source of
+  truth for planning and sequencing.** `ROADMAP.md` says as much about
+  itself already ("explicitly *not* the source of truth"); this rule
+  generalizes it to every document that describes status or order,
+  including `IMPLEMENTATION_ROADMAP.md`, `ARCHITECTURE.md`'s milestone
+  cross-references, and `README.md`'s roadmap summary. Where any of
+  them disagrees with this document about sequencing, this document is
+  correct and the other is drift to be fixed, not a second opinion to
+  be weighed.
+- **No milestone may be renumbered.** A milestone's number is assigned
+  once, when it is first added to this roadmap, and is permanent
+  regardless of when it is actually built, how its scope evolves, or
+  whether it is later merged with, or absorbs, another milestone's
+  content (as M22 absorbed Cross-Platform Distribution, Aug 2026 — the
+  content moved; the number M22 did not change and neither did the
+  numbers around it).
+- **No completed milestone may be silently redefined.** A milestone
+  marked Complete (`ARCHITECTURE.md` §23.5) keeps the scope it was
+  completed against. Extending or narrowing that scope later is a new
+  milestone, or an explicitly-labeled amendment to the old one's
+  entry in §3 — never an unlabeled edit that changes what "M4 is
+  complete" retroactively means.
+- **Historical CHANGELOG entries must never be rewritten.** A shipped
+  version's entry in `CHANGELOG.md` records what was true when it
+  shipped. If a later pass finds that entry was wrong or incomplete
+  (as happened with v0.34.0's host-bridge note — see its correction in
+  the v0.35.0 entry), the fix is a **new entry that says so**, not an
+  edit to the old one. `CHANGELOG.md`'s own v0.35.0 entry is the
+  worked example of this rule already in practice.
+- **Corrections must be clearly identified as corrections.** Whether
+  in a CHANGELOG entry, a milestone report, or this document, a
+  statement that fixes an earlier statement says so explicitly — "this
+  corrects §2's previous claim that…" — rather than quietly replacing
+  the old text with no trace that anything changed. A reader
+  comparing two versions of a claim needs to be able to tell a
+  correction from a contradiction.
+
+---
+
+## 20. Documentation Synchronization Policy
+
+*(Added Aug 2026, as a permanent section, prompted by M22 Task Group
+C's status having drifted across five documents before a single
+canonical status vocabulary existed — see `ARCHITECTURE.md` §23's own
+opening note. That drift was a process gap, not a one-off mistake;
+this section closes the gap rather than the mistake. This section is
+the detailed instantiation of `ARCHITECTURE.md` §24's principle #3
+Documentation is Authoritative and principle #12 Continuous
+Synchronization — read §24 for the one-line philosophy, this section
+for exactly which documents it applies to and what "synchronized"
+means in practice.)*
+
+**Every completed milestone must update all six of the following
+before it may be marked complete anywhere:**
+
+| Document | What it must reflect |
+|---|---|
+| `README.md` | Current version, current milestone, and status wording matching the canonical vocabulary (`ARCHITECTURE.md` §23) exactly. |
+| `CHANGELOG.md` | A new version-tagged entry — added, never edited into an old one (§19 above). |
+| `ARCHITECTURE.md` | Any new or changed standard the milestone introduced; any milestone cross-reference the milestone's status affects. |
+| `MASTER_ROADMAP.md` | §2 Current status, §3 (once genuinely complete) or the milestone's §8 entry, and — for a milestone with task groups — its own Acceptance Criteria section (§18 is M22's). |
+| `IMPLEMENTATION_ROADMAP.md` | The milestone's own checklist, task-group statuses, and Acceptance Criteria section, kept in the same terms as `MASTER_ROADMAP.md`'s. |
+| `MILESTONE_REPORT.md` | A report for the specific piece of work just completed — what was built, what was verified, what was not, in the vocabulary this policy requires everywhere else. |
+
+**No implementation may be considered complete until documentation is
+synchronized.** This is not a suggestion to update docs "when
+convenient" — it is a precondition of the Implementation Complete
+status itself (`ARCHITECTURE.md` §23.3's third bullet). Code that is
+finished, tested and merged, with any of the six documents above still
+describing the old state, has not met §23.3 and may not be reported as
+Implementation Complete until it does.
+
+**Terminology consistency is part of synchronization, not a
+separate, optional pass.** All six documents must use the exact
+status words defined in `ARCHITECTURE.md` §23 — Planned, In Progress,
+Implementation Complete, Build Verification Pending, Complete,
+Production Ready — and no synonym for any of them ("done", "finished",
+"shipped", "verified", "code complete", "fully complete") in a status
+declaration. Descriptive prose may still say a bridge "works" or a
+suite "passes"; the **status field** itself uses only the six words.
+This document's own M22 entries were found using "code complete but
+unbuilt" and "Fully Complete" — two synonyms this policy would have
+caught before they were ever written — and were corrected to the
+canonical vocabulary in the same pass that added this section. See
+`MILESTONE_REPORT.md`'s Governance Verification Report for the full
+list of what that correction touched.

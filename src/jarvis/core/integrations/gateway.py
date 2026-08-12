@@ -76,13 +76,25 @@ class GatewayError(IntegrationError):
 
     Carries the HTTP status when there was one, so a caller can tell a
     vendor's ``403 insufficient scope`` from a DNS failure without
-    parsing a message string.
+    parsing a message string. ``kind`` distinguishes a *timeout*
+    (``httpx.TimeoutException``) from any other transport failure (DNS,
+    connection refused, TLS, ...) when no status code was ever received
+    -- M11 Task Group B's Connection Testing needs this to classify a
+    slow vendor differently from an unreachable one.
     """
 
-    def __init__(self, message: str, *, status_code: int | None = None, retryable: bool = False):
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        retryable: bool = False,
+        kind: str = "http",
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.retryable = retryable
+        self.kind = kind
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +114,19 @@ class GatewayRequest:
     #: not a wildcard.
     account_key: str = ""
     cacheable: bool = True
+    #: Overrides the gateway's configured timeout for this call only.
+    #: ``None`` means "use the gateway's own timeout" -- every existing
+    #: caller leaves this unset. M11 Task Group B's Connection Testing
+    #: sets a shorter, caller-facing bound here, enforced by ``httpx``
+    #: at the actual socket, not by wrapping the call in a higher-level
+    #: ``asyncio.wait_for``.
+    timeout_seconds: float | None = None
+    #: One attempt, no retry, even for an otherwise-retryable GET.
+    #: Mirrors the existing "mutating calls never retry" rule for a
+    #: different reason: a Connection Test is a diagnostic, and retrying
+    #: it would turn "is this broken right now" into "keep trying until
+    #: it isn't" -- see ``_attempts_for``.
+    single_attempt: bool = False
 
     @property
     def mutating(self) -> bool:
@@ -271,6 +296,7 @@ class ApiGateway:
 
         started = time.monotonic()
         last_error: str = ""
+        last_kind: str = "network"
         status_code: int | None = None
 
         for attempt in range(1, self._attempts_for(request) + 1):
@@ -278,6 +304,7 @@ class ApiGateway:
                 status_code, data, retry_after = await self._attempt(request)
             except Exception as err:  # transport-level: DNS, TLS, timeout
                 last_error = str(err)
+                last_kind = "timeout" if _is_timeout(err) else "network"
                 if attempt >= self._attempts_for(request):
                     break
                 self._retries += 1
@@ -307,6 +334,7 @@ class ApiGateway:
             f"{request.integration_id}.{request.operation} failed: {last_error}",
             status_code=status_code,
             retryable=status_code in RETRYABLE_STATUSES if status_code else True,
+            kind=last_kind if status_code is None else "http",
         )
 
     # ------------------------------------------------------------------
@@ -342,8 +370,11 @@ class ApiGateway:
     # Internals
     # ------------------------------------------------------------------
     def _attempts_for(self, request: GatewayRequest) -> int:
-        """One attempt for anything that changes remote state."""
-        return 1 if request.mutating else self._max_attempts
+        """One attempt for anything that changes remote state, or that
+        must not be silently retried (``single_attempt`` -- M11 Task
+        Group B's Connection Testing: a retry would turn a diagnostic
+        into "try until it works")."""
+        return 1 if request.mutating or request.single_attempt else self._max_attempts
 
     def _lookup_cache(self, request: GatewayRequest) -> GatewayResult | None:
         if request.mutating or not request.cacheable:
@@ -381,15 +412,31 @@ class ApiGateway:
         )
 
     async def _attempt(self, request: GatewayRequest) -> tuple[int, Any, float | None]:
-        """One HTTP round trip. Returns ``(status, parsed, retry_after)``."""
+        """One HTTP round trip. Returns ``(status, parsed, retry_after)``.
+
+        ``timeout_seconds``, when set, overrides the client's default
+        for this one request -- ``httpx`` enforces it at the actual
+        socket read/connect/write boundary, not as a wrapper around
+        this coroutine.
+        """
+        kwargs: dict[str, Any] = {}
+        if request.timeout_seconds is not None:
+            kwargs["timeout"] = request.timeout_seconds
         response = await self._client.request(
             request.method,
             request.url,
             params=request.query or None,
             json=request.body if request.body is not None else None,
             headers=request.headers or None,
+            **kwargs,
         )
         return response.status_code, _parse(response), _retry_after(response.headers)
+
+
+def _is_timeout(err: Exception) -> bool:
+    import httpx
+
+    return isinstance(err, httpx.TimeoutException)
 
 
 def _parse(response: Any) -> Any:

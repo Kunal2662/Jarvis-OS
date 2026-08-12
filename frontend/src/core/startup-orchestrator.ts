@@ -1,6 +1,12 @@
 import { registerCoreStatusBarItems } from "@/components/layout/status-bar-contributions";
+import { registerAiDashboardWidgets } from "@/features/dashboard/ai-dashboard-registration";
 import { registerCoreDashboardWidgets } from "@/features/dashboard/dashboard-widgets";
 import { registerPlaceholderModules } from "@/modules/register-modules";
+import { registerCorePanels } from "@/core/panel-registry";
+import { installConnectionRecovery } from "@/services/backend-connection";
+import { ensureRealtimeBridge } from "@/services/realtime-bridge";
+import { useConnectionStore } from "@/stores/connection.store";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout.store";
 
 export type StartupPriority = "high" | "medium" | "low";
 
@@ -39,11 +45,50 @@ export interface StartupTask {
  *   honestly empty rather than padded with fabricated delays just to
  *   fill out three tiers -- it becomes real once a real background
  *   service (cache cleanup, analytics, etc.) actually exists.
+ *
+ * **M8 Phase 2 makes the `low` tier real.** `backend-connection` reaches
+ * the Python process, obtains a session and opens the WebSocket; it sits
+ * in `low` because nothing above it needs the backend to have answered,
+ * and it never rejects -- a backend that is not running resolves to an
+ * explicit `unreachable` state that the UI renders, rather than throwing
+ * and stalling the reveal. `realtime-bridge` runs *before* it, in
+ * `medium`, so no relayed event can arrive before a handler exists.
  */
 const STARTUP_TASKS: StartupTask[] = [
   { id: "status-bar", label: "Status Bar", priority: "high", run: registerCoreStatusBarItems },
   { id: "dashboard-widgets", label: "Dashboard Shell", priority: "high", run: registerCoreDashboardWidgets },
+  // M8 Phase 5's eleven AI Dashboard widgets, joining the *same*
+  // `dashboardWidgetRegistry` as the four above -- a second call into
+  // one registry, not a second registry.
+  { id: "ai-dashboard", label: "AI Dashboard", priority: "high", run: registerAiDashboardWidgets },
+  // Register panels, *then* restore saved layouts -- in that order, in
+  // one task, because the store's rehydrate drops panels whose
+  // contribution is unknown. Restoring first would silently empty every
+  // saved workspace. `workspace-layout.store.ts` sets `skipHydration`
+  // for exactly this reason; this is the explicit trigger.
+  {
+    id: "panels",
+    label: "Workspace Panels",
+    priority: "high",
+    run: () => {
+      registerCorePanels();
+      void useWorkspaceLayoutStore.persist.rehydrate();
+    },
+  },
   { id: "modules", label: "Modules", priority: "medium", run: registerPlaceholderModules },
+  { id: "realtime-bridge", label: "Live Events", priority: "medium", run: ensureRealtimeBridge },
+  {
+    id: "backend-connection",
+    label: "JARVIS Backend",
+    priority: "low",
+    run: async () => {
+      // Recovery is installed *before* the first connect, so an attempt
+      // that fails at startup (backend not up yet) is retried rather
+      // than leaving the app offline until the user reloads.
+      installConnectionRecovery();
+      await useConnectionStore.getState().connect();
+    },
+  },
 ];
 
 async function runTier(priority: StartupPriority): Promise<void> {

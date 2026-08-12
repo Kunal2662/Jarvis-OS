@@ -11,8 +11,11 @@ export interface NotificationRecord {
 
 interface NotificationsState {
   items: NotificationRecord[];
-  /** Populated by the `notification.created` WebSocket event (see
-   *  services/websocket/) -- never fabricated client-side. */
+  /** Populated by the `notification.plugin` WebSocket event, via
+   *  `services/realtime-bridge.ts` -- never fabricated client-side.
+   *  (Phase 1's comment here named `notification.created`, which no
+   *  backend event has ever been; corrected in M8 Phase 2 along with the
+   *  rest of the invented event vocabulary.) */
   add: (item: NotificationRecord) => void;
   markRead: (id: string) => void;
   clear: () => void;

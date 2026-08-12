@@ -31,6 +31,11 @@ class ApiAuthType(str, Enum):
 
 
 class ApiCategory(str, Enum):
+    #: Stored and validated here permanently (M5/M11 boundary, Task
+    #: Group A) -- credential *storage* for an LLM vendor is ordinary
+    #: credential management, not AI routing, and M11's catalogue-backed
+    #: Integration Platform never reads this category. See
+    #: ``docs/M11_API_CENTER_ARCHITECTURE_DECISIONS.md`` §10.
     LLM = "llm"
     SEARCH = "search"
     DEVELOPER_TOOLS = "developer_tools"

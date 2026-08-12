@@ -69,13 +69,16 @@ from jarvis.core.events.events import (
     CalendarEventUpdatedEvent,
     CalendarUpdatedEvent,
     ConfigurationUpdatedEvent,
+    ConnectivityStatusChangedEvent,
     CrashRecoveredEvent,
     DailyBriefingGeneratedEvent,
+    DeviceUpdatedEvent,
     Event,
     FileUpdatedEvent,
     FolderUpdatedEvent,
     GoalUpdatedEvent,
     HealthUpdatedEvent,
+    HomeUpdatedEvent,
     IntegrationCallCompletedEvent,
     KnowledgeCorrectionAppliedEvent,
     KnowledgeEntityUpdatedEvent,
@@ -228,6 +231,16 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
     # `mcp.auth_changed` rather than through a second set of names for
     # the same transitions.
     IntegrationCallCompletedEvent: "integration.call_completed",
+    # Milestone 12 Task Group A -- Smart Home Core. Same one-name-
+    # per-entity-with-an-action-field shape M11's Workspace/Project/
+    # Note relay entries already established. Zone/Room/DeviceGroup
+    # publish no event of their own in this task group and so have no
+    # relay entry -- a Home or a Device is what a dashboard actually
+    # watches; a room rename has no real-time subscriber yet.
+    HomeUpdatedEvent: "home.updated",
+    DeviceUpdatedEvent: "device.updated",
+    # Milestone 12 Task Group B -- Connectivity Layer.
+    ConnectivityStatusChangedEvent: "connectivity.status_changed",
 }
 
 #: Declared but never published, so deliberately absent from the relay
@@ -238,11 +251,29 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
 #: ``PluginCrashedEvent`` to the supervisor M9 Task Group C deferred.
 #: Listed by name so the omission reads as a decision rather than an
 #: oversight the next audit re-discovers.
+#:
+#: ``IntegrationConnectionTestEvent``, ``IntegrationSwitchEvent``,
+#: ``IntegrationFailoverEvent`` and ``IntegrationDiscoveryEvent`` are a
+#: different case from the other four -- all four *are* published (by
+#: ``IntegrationService`` on every M11 Connection Test / Runtime Switch
+#: / Failover attempt / Discovery sweep, Task Groups B, E and F) -- but
+#: relaying them is a separate, deliberately deferred decision: wiring
+#: a new relayed event also means regenerating the frontend WS contract
+#: and its four pinned tests (``export_ws_contract.py``,
+#: ``event-contract.generated.json``, ``types.ts``'s
+#: ``RELAYED_EVENTS``, the contract test), which is a frontend-touching
+#: change outside those task groups' backend-only scope. Internal
+#: subscribers (audit, a future observability consumer) can still
+#: receive them from the event bus today.
 UNPUBLISHED_EVENT_TYPES: tuple[str, ...] = (
     "WorkflowStepEvent",
     "ScheduledJobFiredEvent",
     "VisionProviderStatusEvent",
     "PluginCrashedEvent",
+    "IntegrationConnectionTestEvent",
+    "IntegrationSwitchEvent",
+    "IntegrationFailoverEvent",
+    "IntegrationDiscoveryEvent",
 )
 
 #: ``DebugLogCapturedEvent`` is published (by ``DebugConsole``) and is

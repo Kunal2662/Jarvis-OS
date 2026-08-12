@@ -1,0 +1,33 @@
+<svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    JARVIS OS "small icon" variant — M22 Task Group E.
+
+    A bold, high-contrast simplification of master-logo.png (the
+    approved master brand asset), for the sizes where the master's
+    metallic gradients and fine blade taper stop reading altogether —
+    confirmed empirically: the master rasterized to plain 32×32 renders
+    as a near-invisible dark blur. This variant is for exactly those
+    contexts: taskbar, system tray, window title bar, Explorer small/
+    list view, 16 through 48px.
+
+    Same identity, deliberately not a redesign: a vertical center blade
+    flanked by two hook-shaped "horns" with a glowing inner channel —
+    the same silhouette and colour language as the master. What changed
+    for legibility: flat fills instead of gradients, no blur/glow
+    filter, thicker strokes throughout, and darker, higher-contrast
+    outer colour so the shape holds up against both light and dark
+    Windows themes rather than the master's paler mid-tones. This is a
+    hand-authored approximation of the master's proportions, not a
+    vector trace — no tracing tool was available, and the two are close
+    in spirit rather than mathematically derived from one another.
+
+    Regenerate the small-size PNGs with (run from `frontend/`):
+        npx tauri icon src-tauri/icons/small-icon-source.svg \
+          -o <output-dir> -p 16 -p 24 -p 32 -p 48
+  -->
+  <path d="M49,18 Q10,64 47,96" fill="none" stroke="#1b222c" stroke-width="20" stroke-linecap="round" />
+  <path d="M79,18 Q118,64 81,96" fill="none" stroke="#1b222c" stroke-width="20" stroke-linecap="round" />
+  <path d="M51,25 Q22,64 49,90" fill="none" stroke="#00e5ff" stroke-width="9" stroke-linecap="round" />
+  <path d="M77,25 Q106,64 79,90" fill="none" stroke="#00e5ff" stroke-width="9" stroke-linecap="round" />
+  <path d="M64,10 L72,58 L72,104 L64,120 L56,104 L56,58 Z" fill="#f2f5f8" stroke="#1b222c" stroke-width="2" />
+</svg>

@@ -69,6 +69,7 @@ def test_the_authenticated_routes_require_a_session(client) -> None:
         "/api/v1/integrations",
         "/api/v1/integrations/catalogue",
         "/api/v1/integrations/gateway/stats",
+        "/api/v1/integrations/google_gmail/health",
     ):
         assert client.get(path).status_code in (401, 403)
 
@@ -157,6 +158,132 @@ def test_installing_an_unknown_integration_is_a_400(client, auth) -> None:
         "/api/v1/integrations", json={"integration_id": "acme_mail"}, headers=auth
     )
     assert response.status_code == 400
+
+
+# --- health (M11 Task Group C) ---------------------------------------------
+
+
+def test_health_reports_locally_known_state_for_an_installed_integration(client, auth) -> None:
+    """Distinct from status: a thin, health-focused view -- see
+    docs/M11_API_CENTER_LOGIC_CONTRACT.md §11/§13 for why this is
+    deliberately not Connection Testing."""
+    _install(client, auth)
+
+    health = client.get("/api/v1/integrations/google_gmail/health", headers=auth).json()["data"]
+
+    assert health["integration_id"] == "google_gmail"
+    assert health["vendor"] == "google"
+    assert health["healthy"] is False
+    assert health["credential_status"] == "missing"
+
+
+def test_health_for_an_uninstalled_integration_is_a_404(client, auth) -> None:
+    response = client.get("/api/v1/integrations/google_gmail/health", headers=auth)
+    assert response.status_code == 404
+
+
+def test_health_makes_no_network_call(client, auth) -> None:
+    """A health read must never touch the gateway's egress path."""
+    _install(client, auth)
+    client.get("/api/v1/integrations/google_gmail/health", headers=auth)
+
+    stats = client.get("/api/v1/integrations/gateway/stats", headers=auth).json()["data"]
+    assert stats["calls"] == 0
+
+
+# --- registration / activation / deactivation auth (M11 Task Group D) ------
+#
+# install() / connect() / disconnect() *are* TG-D's Register / Activate /
+# Deactivate operations -- see docs/M11_API_CENTER_LOGIC_CONTRACT.md §10/§14.
+# No new routes were added for them.
+
+
+def test_registration_activation_deactivation_routes_require_a_session(client) -> None:
+    unauthenticated = (
+        client.post("/api/v1/integrations", json={"integration_id": "google_gmail"}),
+        client.post("/api/v1/integrations/google_gmail/connect"),
+        client.post("/api/v1/integrations/google_gmail/disconnect"),
+    )
+    for response in unauthenticated:
+        assert response.status_code in (401, 403)
+
+
+# --- connection testing (M11 Task Group B) ----------------------------------
+#
+# No fake vendor server here -- these prove the REST surface (auth,
+# envelope, 404-vs-structured-failure) without a credential configured,
+# which never reaches the network. Real vendor-request behavior (success,
+# 401/403/429/500, timeout, malformed response) is covered against a real
+# local aiohttp fake vendor in tests/unit/test_m11_connection_testing.py.
+
+
+def test_connection_test_route_requires_a_session(client) -> None:
+    response = client.post("/api/v1/integrations/google_gmail/test-connection")
+    assert response.status_code in (401, 403)
+
+
+def test_connection_test_for_an_uninstalled_integration_is_a_404(client, auth) -> None:
+    response = client.post("/api/v1/integrations/google_gmail/test-connection", headers=auth)
+    assert response.status_code == 404
+
+
+def test_connection_test_reaches_the_real_service_and_returns_a_safe_structured_result(
+    client, auth
+) -> None:
+    """No credential is configured, so this never reaches the network
+    (see test_connection_test_makes_no_network_call below) -- it still
+    proves the route wires through to IntegrationService.test_connection()
+    and returns the documented envelope shape, not a raw exception."""
+    _install(client, auth)
+
+    response = client.post("/api/v1/integrations/google_gmail/test-connection", headers=auth)
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["integration_id"] == "google_gmail"
+    assert body["outcome"] == "failure"
+    assert body["error_code"] == "credential_missing"
+    assert "access_token" not in body
+    assert "Authorization" not in str(body)
+
+
+def test_connection_test_makes_no_network_call_without_a_credential(client, auth) -> None:
+    _install(client, auth)
+    client.post("/api/v1/integrations/google_gmail/test-connection", headers=auth)
+
+    stats = client.get("/api/v1/integrations/gateway/stats", headers=auth).json()["data"]
+    assert stats["calls"] == 0
+
+
+def test_connection_test_rejects_an_unknown_operation_name(client, auth) -> None:
+    _install(client, auth)
+
+    response = client.post(
+        "/api/v1/integrations/google_gmail/test-connection",
+        json={"operation": "not_a_real_operation"},
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["outcome"] == "failure"
+    assert body["error_code"] == "unsupported_capability"
+
+
+def test_connection_test_request_accepts_no_url_field(client, auth) -> None:
+    """SSRF guard at the schema level: an extra 'url' field is simply
+    ignored by the Pydantic model, never reaching anything that could
+    dispatch a request to it."""
+    _install(client, auth)
+
+    response = client.post(
+        "/api/v1/integrations/google_gmail/test-connection",
+        json={"url": "http://169.254.169.254/latest/meta-data/"},
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["integration_id"] == "google_gmail"
 
 
 def test_installed_integrations_are_listed(client, auth) -> None:
@@ -373,3 +500,133 @@ def test_integrations_appear_in_mcp_health(client, auth) -> None:
     health = asyncio.run(client.container.mcp_provider_manager().collect_health())
 
     assert "google_gmail" in {row["provider_id"] for row in health["providers"]}
+
+
+# --- runtime switching / failover history (M11 Task Group E) ---------------
+
+
+def test_switch_route_requires_a_session(client) -> None:
+    response = client.post(
+        "/api/v1/integrations/switch",
+        json={
+            "operation": "messages.list",
+            "from_integration_id": "google_gmail",
+            "to_integration_id": "google_gmail",
+        },
+    )
+    assert response.status_code in (401, 403)
+
+
+def test_failover_history_route_requires_a_session(client) -> None:
+    assert client.get("/api/v1/integrations/failover/history").status_code in (401, 403)
+
+
+def test_switch_with_an_unknown_source_is_a_404(client, auth) -> None:
+    response = client.post(
+        "/api/v1/integrations/switch",
+        json={
+            "operation": "messages.list",
+            "from_integration_id": "not_installed",
+            "to_integration_id": "google_gmail",
+        },
+        headers=auth,
+    )
+    assert response.status_code == 404
+
+
+def test_switch_with_an_unregistered_target_is_a_structured_failure_not_a_500(client, auth) -> None:
+    _install(client, auth)
+
+    response = client.post(
+        "/api/v1/integrations/switch",
+        json={
+            "operation": "messages.list",
+            "from_integration_id": "google_gmail",
+            "to_integration_id": "not_installed",
+        },
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["outcome"] == "failure"
+    assert body["error_code"] == "target_not_registered"
+
+
+def test_switch_request_model_accepts_no_url_or_provider_class(client, auth) -> None:
+    """SSRF/arbitrary-code guard at the schema level: extra fields are
+    simply ignored, never reaching anything that could act on them."""
+    _install(client, auth)
+
+    response = client.post(
+        "/api/v1/integrations/switch",
+        json={
+            "operation": "messages.list",
+            "from_integration_id": "google_gmail",
+            "to_integration_id": "google_gmail",
+            "url": "http://169.254.169.254/latest/meta-data/",
+            "provider_class": "os.system",
+        },
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+
+
+def test_failover_history_starts_empty_and_returns_the_documented_envelope(client, auth) -> None:
+    body = client.get("/api/v1/integrations/failover/history", headers=auth).json()
+
+    assert body["data"] == []
+    assert body["meta"]["count"] == 0
+
+
+# --- automatic discovery (M11 Task Group F) ---------------------------------
+
+
+def test_discover_route_requires_a_session(client) -> None:
+    assert client.post("/api/v1/integrations/discover").status_code in (401, 403)
+
+
+def test_discover_registers_the_real_catalogue(client, auth) -> None:
+    response = client.post("/api/v1/integrations/discover", headers=auth)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["meta"]["registered"] == 11
+    assert body["meta"]["already_registered"] == 0
+    assert body["meta"]["rejected"] == 0
+    ids = {row["integration_id"] for row in body["data"]}
+    assert "google_gmail" in ids
+    installed = client.get("/api/v1/integrations", headers=auth).json()["data"]
+    assert len(installed) == 11
+
+
+def test_repeated_discover_reports_already_registered_not_duplicates(client, auth) -> None:
+    client.post("/api/v1/integrations/discover", headers=auth)
+
+    second = client.post("/api/v1/integrations/discover", headers=auth).json()
+
+    assert second["meta"]["registered"] == 0
+    assert second["meta"]["already_registered"] == 11
+    installed = client.get("/api/v1/integrations", headers=auth).json()["data"]
+    assert len(installed) == 11
+
+
+# --- observability (M11 Task Group G) ---------------------------------------
+
+
+def test_observability_route_requires_a_session(client) -> None:
+    assert client.get("/api/v1/integrations/observability").status_code in (401, 403)
+
+
+def test_observability_reports_real_counters(client, auth) -> None:
+    _install(client, auth)
+    client.post("/api/v1/integrations/discover", headers=auth)
+
+    body = client.get("/api/v1/integrations/observability", headers=auth).json()["data"]
+
+    assert body["installed_count"] == 11
+    assert body["discovery_run_count"] == 1
+    assert body["connection_test_count"] == 0
+    assert "calls" in body["gateway"]
+    assert "access_token" not in str(body)

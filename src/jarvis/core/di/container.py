@@ -198,6 +198,7 @@ def _build_search_service(
     file_service: Any,
     folder_service: Any,
     attachment_service: Any,
+    smart_home_service: Any,
 ) -> Any:
     """Wires the Search Provider Registry (Milestone 10A, Additional
     Requirement #1): resolves the *existing* Tool Registry and Plugin
@@ -211,9 +212,11 @@ def _build_search_service(
         AttachmentSearchSource,
         CalendarSearchSource,
         CommandSearchSource,
+        DeviceSearchSource,
         FileSearchSource,
         FolderSearchSource,
         GoalSearchSource,
+        HomeSearchSource,
         KnowledgeSearchSource,
         MemorySearchSource,
         NoteSearchSource,
@@ -256,6 +259,13 @@ def _build_search_service(
     service.register_source(FileSearchSource(file_service))
     service.register_source(FolderSearchSource(folder_service))
     service.register_source(AttachmentSearchSource(attachment_service))
+    # Milestone 12 Task Group A -- two more, same registry, still no
+    # change to SearchService. Zones/rooms/device groups are not
+    # registered as their own sources: they are organizing units found
+    # by browsing a home, not the kind of thing a global search query
+    # is likely to name directly, unlike a device or a home itself.
+    service.register_source(HomeSearchSource(smart_home_service))
+    service.register_source(DeviceSearchSource(smart_home_service))
     return service
 
 
@@ -478,6 +488,157 @@ def _build_workspace_manager(
         search_service=search_service,
         memory_service=memory_service,
         knowledge_links=workspace_knowledge_service,
+    )
+
+
+def _build_smart_home_service(*, database: Any, event_bus: Any) -> Any:
+    from jarvis.services.smart_home_service import SmartHomeService
+
+    return SmartHomeService(database=database, event_bus=event_bus)
+
+
+def _build_connectivity_registry() -> Any:
+    """Milestone 12 Task Group B. Phase 1 shipped this empty and
+    documented that a later phase would populate it here -- Phase 2 is
+    that call: the real Home Assistant connector, registered the same
+    way ``_build_mcp_transport_registry`` populates MCP's own registry.
+    ``mqtt`` stays unregistered pending Phase 3's own separately-
+    approved pass."""
+    from jarvis.core.connectivity.connectors.factory import build_default_connector_registry
+
+    return build_default_connector_registry()
+
+
+def _build_connectivity_credential_store(*, settings: Settings) -> Any:
+    """Reuses the existing config-dir convention and the app's own
+    Fernet key -- no second crypto stack, no new location. A sibling
+    of ``_build_mcp_credential_store``, not a shared instance; see
+    ``core/connectivity/credential_store.py``'s own docstring for why."""
+    from jarvis.core.config import paths as _paths
+    from jarvis.core.connectivity.credential_store import ConnectorCredentialStore
+
+    return ConnectorCredentialStore(
+        _paths.config_dir(settings.resolved_data_dir) / "connectivity_credentials.json",
+        secret_key=settings.security.secret_key.get_secret_value(),
+    )
+
+
+def _build_connectivity_service(
+    *, connectivity_registry: Any, smart_home_service: Any, event_bus: Any
+) -> Any:
+    from jarvis.services.connectivity_service import ConnectivityService
+
+    return ConnectivityService(
+        registry=connectivity_registry, smart_home=smart_home_service, event_bus=event_bus
+    )
+
+
+def _build_smart_lighting_service(
+    *, database: Any, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.smart_lighting_service import SmartLightingService
+
+    return SmartLightingService(
+        database=database,
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
+def _build_smart_lock_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.smart_lock_service import SmartLockService
+
+    return SmartLockService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
+def _build_sensor_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.sensor_service import SensorService
+
+    return SensorService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
+def _build_smart_switch_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.smart_switch_service import SmartSwitchService
+
+    return SmartSwitchService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
+def _build_appliance_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.appliance_service import ApplianceService
+
+    return ApplianceService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
+def _build_thermostat_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.thermostat_service import ThermostatService
+
+    return ThermostatService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
+def _build_vacuum_humidifier_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.vacuum_humidifier_service import VacuumHumidifierService
+
+    return VacuumHumidifierService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
+def _build_media_player_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.media_player_service import MediaPlayerService
+
+    return MediaPlayerService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
+def _build_security_service(
+    *, sensor_service: Any, smart_lock_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.security_service import SecurityService
+
+    return SecurityService(
+        sensors=sensor_service,
+        smart_lock=smart_lock_service,
+        permissions=permission_model,
     )
 
 
@@ -951,6 +1112,15 @@ def _build_agent_orchestrator(
     intelligence: Any,
     workspace_assistant: Any,
     integrations: Any,
+    smart_lighting: Any,
+    smart_lock: Any,
+    sensors: Any,
+    smart_switch: Any,
+    appliances: Any,
+    thermostats: Any,
+    vacuum_humidifier: Any,
+    media_players: Any,
+    security: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -969,6 +1139,15 @@ def _build_agent_orchestrator(
         intelligence=intelligence,
         workspace_assistant=workspace_assistant,
         integrations=integrations,
+        smart_lighting=smart_lighting,
+        smart_lock=smart_lock,
+        sensors=sensors,
+        smart_switch=smart_switch,
+        appliances=appliances,
+        thermostats=thermostats,
+        vacuum_humidifier=vacuum_humidifier,
+        media_players=media_players,
+        security=security,
         event_bus=event_bus,
     )
 
@@ -1059,6 +1238,26 @@ class Container(containers.DeclarativeContainer):
     workspace_service = providers.Singleton(
         _build_workspace_service,
         database=database,
+        event_bus=event_bus,
+    )
+
+    # ---- Milestone 12 Task Group A -- Smart Home Core ----------------------
+    smart_home_service = providers.Singleton(
+        _build_smart_home_service,
+        database=database,
+        event_bus=event_bus,
+    )
+
+    # ---- Milestone 12 Task Group B -- Connectivity Layer, Phase 1 ---------
+    connectivity_registry = providers.Singleton(_build_connectivity_registry)
+    connectivity_credential_store = providers.Singleton(
+        _build_connectivity_credential_store,
+        settings=settings,
+    )
+    connectivity_service = providers.Singleton(
+        _build_connectivity_service,
+        connectivity_registry=connectivity_registry,
+        smart_home_service=smart_home_service,
         event_bus=event_bus,
     )
 
@@ -1240,6 +1439,94 @@ class Container(containers.DeclarativeContainer):
         settings=settings,
     )
 
+    # ---- Milestone 12 Connectivity REST + Smart Lighting ------------------
+    # Declared here, after `permission_model` (Milestone 9 Task Group D,
+    # above) and `smart_home_service`/`connectivity_service` (Milestone 12
+    # Task Groups A/B, above) -- `DeclarativeContainer` providers must
+    # reference an already-bound name, so this cannot sit next to
+    # `connectivity_service` itself.
+    smart_lighting_service = providers.Singleton(
+        _build_smart_lighting_service,
+        database=database,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Smart Locks ------------------------------------------
+    smart_lock_service = providers.Singleton(
+        _build_smart_lock_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Sensors -----------------------------------------------
+    sensor_service = providers.Singleton(
+        _build_sensor_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Energy Management (Core Energy Slice) ---------------
+    smart_switch_service = providers.Singleton(
+        _build_smart_switch_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Appliance Control (Core Appliance Slice) ------------
+    appliance_service = providers.Singleton(
+        _build_appliance_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Appliance Control (Climate / Thermostat Slice) ------
+    # Its own device_type ("thermostat"), so deliberately a separate
+    # service rather than an ApplianceService extension -- see
+    # docs/M12_APPLIANCE_CLIMATE_LOGIC_CONTRACT.md §3.
+    thermostat_service = providers.Singleton(
+        _build_thermostat_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Appliance Control (Vacuum + Humidifier Slice) -------
+    # Its own service, deliberately not an ApplianceService extension --
+    # see docs/M12_APPLIANCE_VACUUM_HUMIDIFIER_LOGIC_CONTRACT.md §14.
+    vacuum_humidifier_service = providers.Singleton(
+        _build_vacuum_humidifier_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Appliance Control (Media Player Core Slice) --------
+    # Its own service, deliberately not an ApplianceService extension --
+    # see docs/M12_APPLIANCE_MEDIA_PLAYER_LOGIC_CONTRACT.md §3.
+    media_player_service = providers.Singleton(
+        _build_media_player_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Security & Safety (Read-Only Alert/Status Slice) ----
+    # Pull-based aggregation over sensor_service/smart_lock_service only --
+    # deliberately NOT smart_home_service/connectivity_service, per
+    # docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md §13.
+    security_service = providers.Singleton(
+        _build_security_service,
+        sensor_service=sensor_service,
+        smart_lock_service=smart_lock_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 10.5 Task Group A -- MCP & Integration Platform --------
     mcp_server_runtime = providers.Singleton(
         _build_mcp_server_runtime,
@@ -1320,6 +1607,7 @@ class Container(containers.DeclarativeContainer):
         file_service=file_service,
         folder_service=folder_service,
         attachment_service=attachment_service,
+        smart_home_service=smart_home_service,
     )
 
     # Declared after `search_service` because it composes it -- the
@@ -1512,5 +1800,14 @@ class Container(containers.DeclarativeContainer):
         intelligence=intelligence_service,
         workspace_assistant=workspace_assistant_service,
         integrations=integration_service,
+        smart_lighting=smart_lighting_service,
+        smart_lock=smart_lock_service,
+        sensors=sensor_service,
+        smart_switch=smart_switch_service,
+        appliances=appliance_service,
+        thermostats=thermostat_service,
+        vacuum_humidifier=vacuum_humidifier_service,
+        media_players=media_player_service,
+        security=security_service,
         event_bus=event_bus,
     )

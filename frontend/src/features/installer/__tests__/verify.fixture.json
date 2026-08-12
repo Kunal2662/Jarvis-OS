@@ -1,0 +1,77 @@
+{
+  "healthy": false,
+  "results": [
+    {
+      "key": "directories",
+      "label": "Application folders",
+      "verdict": "fail",
+      "detail": "9 folder(s) missing: data, data/memory, data/knowledge\u2026",
+      "repairable": true,
+      "repair_step": "directories"
+    },
+    {
+      "key": "configuration",
+      "label": "Configuration",
+      "verdict": "fail",
+      "detail": "Configuration file is missing.",
+      "repairable": true,
+      "repair_step": "configuration"
+    },
+    {
+      "key": "database",
+      "label": "Database location",
+      "verdict": "fail",
+      "detail": "Data folder is missing.",
+      "repairable": true,
+      "repair_step": "directories"
+    },
+    {
+      "key": "memory_storage",
+      "label": "Memory storage",
+      "verdict": "fail",
+      "detail": "Memory folder is missing.",
+      "repairable": true,
+      "repair_step": "directories"
+    },
+    {
+      "key": "permissions",
+      "label": "Permissions",
+      "verdict": "pass",
+      "detail": "Writable.",
+      "repairable": false,
+      "repair_step": null
+    },
+    {
+      "key": "disk",
+      "label": "Disk space",
+      "verdict": "pass",
+      "detail": "154.5 GB free.",
+      "repairable": false,
+      "repair_step": null
+    },
+    {
+      "key": "models",
+      "label": "Local AI",
+      "verdict": "pass",
+      "detail": "Nothing was scheduled for installation.",
+      "repairable": false,
+      "repair_step": null
+    },
+    {
+      "key": "voice",
+      "label": "Voice components",
+      "verdict": "pass",
+      "detail": "Nothing was scheduled for installation.",
+      "repairable": false,
+      "repair_step": null
+    },
+    {
+      "key": "version",
+      "label": "Version",
+      "verdict": "warn",
+      "detail": "No installation manifest found; this installation predates manifests.",
+      "repairable": false,
+      "repair_step": null
+    }
+  ]
+}

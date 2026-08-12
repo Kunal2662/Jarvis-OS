@@ -58,14 +58,23 @@ if TYPE_CHECKING:
     from jarvis.core.events.event_bus import EventBus
     from jarvis.core.interfaces.llm_provider import ILLMProvider
     from jarvis.features.automation.permission import ConfirmationCallback
+    from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
+    from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.security_service import SecurityService
+    from jarvis.services.sensor_service import SensorService
+    from jarvis.services.smart_lighting_service import SmartLightingService
+    from jarvis.services.smart_lock_service import SmartLockService
+    from jarvis.services.smart_switch_service import SmartSwitchService
     from jarvis.services.system_service import SystemService
+    from jarvis.services.thermostat_service import ThermostatService
+    from jarvis.services.vacuum_humidifier_service import VacuumHumidifierService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
@@ -90,6 +99,15 @@ class AgentOrchestrator(IAgentOrchestrator):
         intelligence: IntelligenceService | None = None,
         workspace_assistant: WorkspaceAssistantService | None = None,
         integrations: IntegrationService | None = None,
+        smart_lighting: SmartLightingService | None = None,
+        smart_lock: SmartLockService | None = None,
+        sensors: SensorService | None = None,
+        smart_switch: SmartSwitchService | None = None,
+        appliances: ApplianceService | None = None,
+        thermostats: ThermostatService | None = None,
+        vacuum_humidifier: VacuumHumidifierService | None = None,
+        media_players: MediaPlayerService | None = None,
+        security: SecurityService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -114,6 +132,54 @@ class AgentOrchestrator(IAgentOrchestrator):
         # Milestone 11 Task Group E: external vendors reach the agent
         # as four discovery-and-invoke tools, on the same registry.
         self._integrations = integrations
+        # Milestone 12 Connectivity REST + Smart Lighting: normalized
+        # light control reaches the agent as tools on the same registry,
+        # converging on the same `SmartLightingService` the REST surface
+        # calls -- see `agents/tools/smart_lighting_tools.py`.
+        self._smart_lighting = smart_lighting
+        # Milestone 12 Smart Locks: normalized lock/unlock reaches the
+        # agent as tools on the same registry, converging on the same
+        # `SmartLockService` the REST surface calls -- see
+        # `agents/tools/smart_lock_tools.py`.
+        self._smart_lock = smart_lock
+        # Milestone 12 Sensors: read-only sensor data reaches the agent
+        # as tools on the same registry, converging on the same
+        # `SensorService` the REST surface calls -- see
+        # `agents/tools/sensor_tools.py`.
+        self._sensors = sensors
+        # Milestone 12 Energy Management (Core Energy Slice): switch
+        # control reaches the agent as tools on the same registry,
+        # converging on the same `SmartSwitchService` the REST surface
+        # calls -- see `agents/tools/smart_switch_tools.py`.
+        self._smart_switch = smart_switch
+        # Milestone 12 Appliance Control (Core Appliance Slice): fan
+        # and cover control reach the agent as tools on the same
+        # registry, converging on the same `ApplianceService` the REST
+        # surface calls -- see `agents/tools/appliance_tools.py`.
+        self._appliances = appliances
+        # Milestone 12 Appliance Control (Climate / Thermostat Slice):
+        # thermostat control reaches the agent as tools on the same
+        # registry, converging on the same `ThermostatService` the REST
+        # surface calls -- see `agents/tools/thermostat_tools.py`.
+        self._thermostats = thermostats
+        # Milestone 12 Appliance Control (Vacuum + Humidifier Core
+        # Slice): vacuum/humidifier control reaches the agent as tools
+        # on the same registry, converging on the same
+        # `VacuumHumidifierService` the REST surface calls -- see
+        # `agents/tools/vacuum_humidifier_tools.py`.
+        self._vacuum_humidifier = vacuum_humidifier
+        # Milestone 12 Appliance Control (Media Player Core Slice):
+        # media player control reaches the agent as tools on the same
+        # registry, converging on the same `MediaPlayerService` the
+        # REST surface calls -- see
+        # `agents/tools/media_player_tools.py`.
+        self._media_players = media_players
+        # Milestone 12 Security & Safety (Read-Only Alert/Status
+        # Slice): read-only hazard/status aggregation reaches the agent
+        # as tools on the same registry, converging on the same
+        # `SecurityService` the REST surface calls -- see
+        # `agents/tools/security_tools.py`.
+        self._security = security
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -152,6 +218,15 @@ class AgentOrchestrator(IAgentOrchestrator):
                 intelligence=self._intelligence,
                 workspace_assistant=self._workspace_assistant,
                 integrations=self._integrations,
+                smart_lighting=self._smart_lighting,
+                smart_lock=self._smart_lock,
+                sensors=self._sensors,
+                smart_switch=self._smart_switch,
+                appliances=self._appliances,
+                thermostats=self._thermostats,
+                vacuum_humidifier=self._vacuum_humidifier,
+                media_players=self._media_players,
+                security=self._security,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(
@@ -165,6 +240,9 @@ class AgentOrchestrator(IAgentOrchestrator):
                 "permission_gate": permission_gate,
                 "confirm": self._confirm,
                 "max_parallel_steps": self._settings.agent.max_parallel_steps,
+                "intent_direct_route_confidence": (
+                    self._settings.agent.intent_direct_route_confidence
+                ),
             }
             self._graph = build_agent_graph(checkpointer=saver, **graph_kwargs)
             self._stream_graph = build_agent_graph(

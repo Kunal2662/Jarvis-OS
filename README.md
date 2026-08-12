@@ -277,15 +277,158 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) §8.
 
 ## Roadmap
 
-**Current version:** `0.28.0` · **Current milestone:** M11 — Intelligent
-Workspace & Productivity (🟡 active; Task Groups A — Workspace
-Foundation — B — Productivity Core — C — File Platform — D — AI
-Workspace — E — Integration Platform — and F — Platform Integration —
-shipped; F's React/Tauri UI half belongs to M8 and remains deferred).
-M10.5 completed across five task groups; `0.21.0` and `0.22.0` were
+**Current version:** `0.38.0` · **Current milestone:** M22 —
+Cross-Platform Distribution & Universal Installer (🟡 active; Task Groups
+A and B complete, the installer UI wired to the engine, and Task Groups
+C, D, E and F — Windows Packaging & Host Bridge, Universal Installation
+Experience, Windows Packaging & Installer Distribution, and Final Build
+Verification & Cross-Platform Readiness — all
+**Implementation Complete — Build Verification Pending**, see below).
+Status vocabulary throughout this README is the six terms
+`docs/ARCHITECTURE.md` §23 defines.
+
+**Work is not proceeding in numeric order.** M1–M8 are complete; M22
+runs next because it owns installation and packaging, and until it ships
+there is no way to deliver the first eight milestones to a machine that
+is not a development checkout. Within M22: TG-A and TG-B are Complete,
+TG-C through TG-F are Implementation Complete — Build Verification
+Pending, and TG-G is Not Started. Development resumes at M9 once **all**
+of M22 reaches Complete (`docs/MASTER_ROADMAP.md` §18's Acceptance
+Criteria state the exact gate), then runs M9 → M21 in order. M23 —
+Core Intelligence is deferred. This is a sequencing decision, not a
+renumbering — see `docs/MASTER_ROADMAP.md` §19, Roadmap Governance,
+which remains authoritative over this summary.
+
+M8 — React Frontend & Desktop Experience is complete for this pass, with
+Phase 1 (React Foundation), Phase 2 (Universal Application Framework &
+Logic), Phase 3 (Universal Workspace Framework), Phase 4 (Voice
+Experience & Motion), Phase 5 (AI Workspace & Module Integration), Phase
+6's production-UX half and Phase 7's Production Readiness audit shipped.
+Its Deferred Backlog is tracked in `docs/MASTER_ROADMAP.md`.
+
+M11 — Intelligent Workspace & Productivity completed across six task
+groups (A Workspace Foundation, B Productivity Core, C File Platform,
+D AI Workspace, E Integration Platform, F Platform Integration) at
+`0.28.0`; M10.5 completed across five. `0.21.0` and `0.22.0` were
 backlog completion passes over already-completed milestones, and
 `0.24.1` was a database integrity pass that turned on SQLite
 foreign-key enforcement.
+
+`0.29.0` connected the React client to the FastAPI backend — and found
+that the client's REST and WebSocket layers, written in Phase 1 against
+`ARCHITECTURE.md`'s *illustrative* examples before the routes existed,
+had drifted from the running server in three places. `0.30.0` built the
+workspace framework the UI arranges itself in. `0.31.0` filled it: three
+audience-specific dashboards (AI, Developer, Administrator) on real
+backend data, and the §22.12 gate that keeps provider names, routing and
+internal agent names out of a personal user's JARVIS.
+
+`0.32.0` audited the result against a **live backend** — real container,
+real health poll, backend killed mid-session and restarted — and found
+four defects reading the code had missed, including
+`GET /api/v1/health` reporting a version three releases stale.
+
+`0.33.0` began M22 with the Universal Installer Foundation: an
+eleven-step wizard, real hardware detection and an AI Capability Score
+that picks a local model tier to suit the machine. Its governing rule is
+that a field is either measured or `null` — never estimated — and
+running it on real hardware found three defects that reading the code
+would not have. `0.34.0` made it provision: a resumable,
+checksum-verified download manager, a durable journal that survives a
+power cut, parallel verification and an `installation.json` manifest —
+with no URL hardcoded anywhere, so an air-gapped mirror is a
+configuration change. `0.35.0` connected the wizard to that engine: live
+progress, per-item download state, resume, friendly failure recovery and
+completion, all rendered from the engine's own event stream.
+
+`0.36.0` built the **host bridge** Task Group B had deliberately left
+out: a Rust command that spawns the installer's Python process and
+relays its output to the UI, plus the Windows/NSIS packaging
+configuration. No payload, command name or event name changed — the
+contract was written first so the UI would need no edit when the host
+arrived, and it needed none.
+
+**TG-C status: Implementation Complete — Build Verification Pending.**
+This machine has no Rust toolchain, so none of it has been compiled, no
+installer has been produced, and no shortcut or icon has been observed.
+The Rust/TypeScript contract *is* tested — by a suite that reads the
+Rust as text and needs no compiler, which caught a command written to
+take an argument no caller sends. Ten **Build Verification Tasks** gate
+this to Complete: build the installer, confirm it builds, confirm
+the desktop and Start Menu shortcuts, **replace Tauri's default logo
+with real JARVIS branding** (unstarted, not just unverified), confirm
+installer metadata, the uninstall entry, Launch JARVIS, Open
+Installation Folder, and the provisioning bridge inside the packaged
+app. `CHANGELOG.md` and `MILESTONE_REPORT.md` §9 carry the full list.
+
+`0.37.0` wired what TG-A–C's own backends had already built and no
+frontend ever called: **component verification with repair** (the
+completion screen now shows all nine post-install checks, not only
+warnings, each with a Repair button when fixable — repair re-verifies
+afterward rather than trusting its own result), an **installer
+diagnostics dialog** reachable from any step (existing-installation
+detection, journal progress, a dependency report, log-folder access),
+and **proactive update detection** (the wizard notices an existing or
+partially-completed installation as soon as a location is chosen).
+Deliberately not built: a fourth "rollback" mechanism — the journal's
+resume, NSIS's own uninstaller, and repair already cover that three
+ways.
+
+**TG-D status: Implementation Complete — Build Verification Pending**,
+for the same reason as TG-C: its five new Rust commands live in the
+same `installer.rs` file, so one `cargo build` proves both task
+groups' Rust together. TG-D began before TG-C's ten tasks passed and
+before the explicit approval TG-C's own report said that would need —
+a deviation from the plan as it read before this milestone, made on
+direct instruction; see `MILESTONE_REPORT.md`'s Task Group D entry §8.
+
+`0.38.0` closed the branding gap TG-C's own report had flagged and left
+unstarted: **every icon in the project was still Tauri's own
+placeholder.** The user supplied and approved an official JARVIS master
+logo mid-task-group, which is now the single source of truth across the
+installer, the application icon, the taskbar, and the startup animation.
+Rendering it directly at 32×32 was tested and found near-illegible, so
+two deliberate variants exist — the master logo as-is above 128px, and a
+hand-simplified, high-contrast form built specifically for 16–48px —
+combined into one hand-packed hybrid `icon.ico` (Tauri's own generator
+cannot mix two source images into one multi-resolution file). The
+startup animation was recreated as a scalable, Framer-Motion-driven SVG
+using the same master geometry, fitted into the existing choreography's
+phase window rather than changing that system's own API.
+
+**TG-E status: Implementation Complete — Build Verification Pending**,
+for the same underlying reason as TG-C/TG-D — the new icons are real
+inputs to a `tauri build` that has not run on this machine — plus one
+item specific to this task group: the startup animation's actual motion
+has never been observed. This session's sandboxed browser preview does
+not composite frames at all (confirmed directly: a bare
+`requestAnimationFrame` loop never fired), so nothing built on Framer
+Motion could be watched running in it. See `MILESTONE_REPORT.md`'s Task
+Group E entry §7 for the full proven/unproven account.
+
+**TG-F (no version bump — a verification pass, not a shipped change)
+is the task group named to close the shared Rust build gate above, and
+its own report concludes it cannot be closed here.** Everything
+provable without a Rust toolchain was run for real rather than
+re-trusted from unit tests: `python -m jarvis.installer` against a real
+scratch install target — a fresh install that genuinely created the
+directory tree and completed real steps, a resumed run that correctly
+skipped what was already done, a deliberately truncated provisioning
+journal (confirmed, by reading `journal.py`, to fail safe by design
+rather than being a defect), an induced configuration failure that
+`verify` caught and `repair` then fixed, re-verified immediately after.
+One genuine documentation defect was found and fixed:
+`docs/PACKAGING.md` still described TG-E's branding work as unstarted
+after TG-E had shipped it. TG-F also audited, without implementing, the
+codebase's Windows-specific assumptions and produced a concrete
+migration checklist in `docs/PACKAGING.md` for a future Linux/macOS
+task group. See `MILESTONE_REPORT.md`'s Task Group F entry for the
+full evidence — its own conclusion is that **M22 cannot yet be marked
+Complete.**
+
+Also still open: cross-browser testing (Chromium only so far; the Tauri
+shell uses WebKit/WebView2), a screen-reader pass, and contrast
+measurement.
 
 Full, current milestone plan and status in
 [`docs/MASTER_ROADMAP.md`](docs/MASTER_ROADMAP.md) (the single source
@@ -294,12 +437,38 @@ of truth) and [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md)
 lighter-weight, non-authoritative summary covering only M0–M6 — check
 the two documents above for anything current.
 
+### Development policy (Aug 2026)
+
+| Area | Status |
+|---|---|
+| Backend architecture · API contracts · Database schema · Core backend modules · Milestone structure | 🔒 **Frozen** |
+| Frontend / UI / UX | 🟢 **Continues** |
+
+No additional backend architecture is introduced unless explicitly
+approved after UI validation.
+
+**Approved target architecture** — Local AI First (every installation
+ships a local LLM; cloud enhances, never replaces), the Universal
+AI/API Calibration Engine (no external API is called directly), the AI
+Cost Optimizer, the three-tier AI strategy, hardware calibration at
+install time, Personal/Administrator accounts, and the rule that users
+never see provider names or routing — is specified in full in
+[`docs/ARCHITECTURE.md` §22](docs/ARCHITECTURE.md#22-approved-architecture-decisions-aug-2026).
+
+**It is approved, not built.** None of it exists in code yet; §22 is a
+contract for the milestones that will build it, and exists so nobody
+implements a competing design in the meantime.
+
 As of this writing: **M0–M6 shipped** (Foundation, Chat, Voice,
 Memory, Automation, Desktop Platform, Vision & Multimodal
 architecture layer); **M7 — Workflow Intelligence** active (Phases
 1–2 shipped); **M8 — React Frontend & Desktop Experience** active
 (migrating the UI from PySide6 to React + Tauri — the PySide6 UI
-above remains the one that actually runs today); **M9 — Runtime &
+above remains the one that actually runs today. Phases 1, 2 and 4
+shipped, and Phase 3's Universal Workspace Framework: dockable and
+resizable panels, multiple named workspace layouts with
+import/export, a Notification Center, an Activity Center, and Global
+Search over the real `/api/v1/search`); **M9 — Runtime &
 Core Services shipped in full** — Runtime/Service/Session/Configuration
 Managers, Health Monitor, Background Task Manager, Crash Recovery,
 Resource Manager, a real `/api/v1/ws` WebSocket API, a full plugin

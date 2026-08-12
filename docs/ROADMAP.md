@@ -130,3 +130,21 @@ live in the issue tracker; this file only pins the *order* of work.
 * Auto-update channel.
 * Crash reporter (opt-in).
 * First-run wizard (pick default LLM, download Ollama models, grant hotkey).
+
+---
+
+## Milestone 7 onward — see `MASTER_ROADMAP.md`
+
+This file stops at Milestone 6. Everything after it — M7 (Advanced
+Automation), M8 (React Frontend & Desktop Experience), M9 (Runtime &
+Core Services), M10/M10A/M10B (AI Orchestrator, Knowledge & Memory,
+Intelligence), M10.5 (MCP Platform), M11 (Workspace, Productivity,
+Files, AI Workspace, Integrations) — is tracked in
+[`MASTER_ROADMAP.md`](MASTER_ROADMAP.md) §1–2 for status and §8 for
+scope, with the checkbox-level execution plan in
+[`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md).
+
+Rather than duplicate those entries here — which is how this file
+drifted before — this section is a pointer. Current release: **v0.29.0**
+(M8 Phase 2, Universal Application Framework & Logic). See
+[`CHANGELOG.md`](../CHANGELOG.md) for the per-release detail.
