@@ -1118,6 +1118,18 @@ def _build_state_inspector(
     )
 
 
+def _build_devtools_connectivity_service(
+    *, connectivity_service: Any, connectivity_registry: Any, smart_home_service: Any
+) -> Any:
+    from jarvis.services.devtools_connectivity_service import DevtoolsConnectivityService
+
+    return DevtoolsConnectivityService(
+        connectivity=connectivity_service,
+        connectivity_registry=connectivity_registry,
+        smart_home=smart_home_service,
+    )
+
+
 def _build_agent_orchestrator(
     *,
     settings: Settings,
@@ -1786,6 +1798,16 @@ class Container(containers.DeclarativeContainer):
         service_manager=service_manager,
         plugin_registry=plugin_registry,
         runtime_manager=runtime_manager,
+    )
+
+    # ---- Milestone 12 Developer Tools (Connectivity / Integration Health) --
+    # A services/-layer class, not a core/devtools/ component -- see
+    # docs/M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md §5.
+    devtools_connectivity_service = providers.Singleton(
+        _build_devtools_connectivity_service,
+        connectivity_service=connectivity_service,
+        connectivity_registry=connectivity_registry,
+        smart_home_service=smart_home_service,
     )
 
     # ---- Milestone 5 -- UI / Developer Mode / API Center / Update Center --

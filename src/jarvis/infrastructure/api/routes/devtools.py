@@ -1,4 +1,5 @@
-"""Developer Platform Tools API -- Milestone 9 Task Group E.
+"""Developer Platform Tools API -- Milestone 9 Task Group E, extended by
+Milestone 12 Developer Tools (Connectivity / Integration Health Slice).
 
 Debug Console/Live Logs, Performance Profiler, State Inspector, API
 Inspector, and Plugin Diagnostics, all as thin REST reads over the real
@@ -11,13 +12,24 @@ query side.
 Every route requires the same ``Depends(get_current_session)`` Bearer
 auth and ``{data, meta}`` envelope as ``routes/plugins.py`` -- these are
 developer-facing, not public, surfaces.
+
+**Connectivity / Integration Health** (``docs/
+M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md``) is a thin REST
+read over ``DevtoolsConnectivityService`` (``services/
+devtools_connectivity_service.py``) -- a ``services/``-layer class, not
+a ``core/devtools/`` component, since it depends on ``ConnectivityService``/
+``SmartHomeService`` and every existing ``core/devtools/`` component
+depends only on other ``core/``-layer objects. Its route lives here
+regardless, for URL-namespace consistency with every other Developer
+Mode capability. No ``PermissionModel`` gate, matching this router's
+other four capabilities exactly -- session auth only.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
 
@@ -28,6 +40,7 @@ if TYPE_CHECKING:
     from jarvis.core.devtools.state_inspector import StateInspector
     from jarvis.core.plugins.permissions import PermissionModel
     from jarvis.core.plugins.registry import PluginRegistry
+    from jarvis.services.devtools_connectivity_service import DevtoolsConnectivityService
 
 router = APIRouter(tags=["devtools"], dependencies=[Depends(get_current_session)])
 
@@ -57,6 +70,12 @@ def _plugin_registry(request: Request) -> PluginRegistry:
 
 def _permission_model(request: Request) -> PermissionModel:
     return cast("PermissionModel", request.app.state.container.permission_model())
+
+
+def _devtools_connectivity(request: Request) -> DevtoolsConnectivityService:
+    return cast(
+        "DevtoolsConnectivityService", request.app.state.container.devtools_connectivity_service()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -193,3 +212,27 @@ async def get_plugin_diagnostics(plugin_id: str, request: Request) -> Envelope[d
         ],
     }
     return envelope(payload)
+
+
+# ---------------------------------------------------------------------------
+# Connectivity / Integration Health -- Milestone 12 Developer Tools
+# ---------------------------------------------------------------------------
+@router.get("/devtools/connectivity", response_model=Envelope[dict[str, Any]])
+async def get_connectivity_health(
+    request: Request, home_id: str | None = None
+) -> Envelope[dict[str, Any]]:
+    """Connector registration/connection state plus per-home device-
+    health counts. No ``home_id`` -> every home; a given ``home_id``
+    that does not exist -> 404 (the only failure mode here -- no
+    permission gate exists on this route, matching every other
+    devtools capability)."""
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        overview = await _devtools_connectivity(request).get_overview(home_id)
+    except ServiceError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+    return envelope(
+        overview,
+        meta={"connector_count": len(overview["connectors"]), "home_count": len(overview["homes"])},
+    )
