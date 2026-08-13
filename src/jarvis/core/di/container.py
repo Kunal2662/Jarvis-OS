@@ -643,13 +643,22 @@ def _build_water_heater_service(
 
 
 def _build_security_service(
-    *, sensor_service: Any, smart_lock_service: Any, permission_model: Any
+    *,
+    sensor_service: Any,
+    smart_lock_service: Any,
+    smart_lighting_service: Any,
+    thermostat_service: Any,
+    smart_home_service: Any,
+    permission_model: Any,
 ) -> Any:
     from jarvis.services.security_service import SecurityService
 
     return SecurityService(
         sensors=sensor_service,
         smart_lock=smart_lock_service,
+        smart_lighting=smart_lighting_service,
+        thermostats=thermostat_service,
+        smart_home=smart_home_service,
         permissions=permission_model,
     )
 
@@ -1548,6 +1557,9 @@ class Container(containers.DeclarativeContainer):
         _build_security_service,
         sensor_service=sensor_service,
         smart_lock_service=smart_lock_service,
+        smart_lighting_service=smart_lighting_service,
+        thermostat_service=thermostat_service,
+        smart_home_service=smart_home_service,
         permission_model=permission_model,
     )
 

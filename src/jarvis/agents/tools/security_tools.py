@@ -1,6 +1,7 @@
 """Agent tools wrapping
 :class:`~jarvis.services.security_service.SecurityService` (Milestone
-12 Security & Safety -- Read-Only Alert/Status Slice).
+12 Security & Safety -- Read-Only Alert/Status Slice + Manual/
+On-Demand Action Slice).
 
 Two read-only tools, mirroring ``sensor_tools.py``'s "terse re-shaping
 of one underlying call" structure (``docs/
@@ -10,15 +11,25 @@ M12_SECURITY_SAFETY_LOGIC_CONTRACT.md`` §11).
 ``get_sensor_value``/``get_sensor_status`` already established -- not a
 second aggregation path.
 
-**No mutation tool exists.** This module is informational only -- see
-the Logic Contract §17. There is nothing to gate behind a confirmation
-requirement.
+**Two action tools, added by Task Group M** (``docs/
+M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md``): ``trigger_panic_mode``/
+``trigger_vacation_mode``, each one call to the identically-named
+``SecurityService`` method. **Both require interactive confirmation by
+default** (``AgentSettings.confirm_required_tools``) -- the first M12
+tools added to that set since ``unlock_device``, because each call
+affects every lock/light (and, for Vacation Mode, every eco-capable
+thermostat) in an entire home at once, a materially larger blast
+radius than any single-device mutation (Action Slice Logic Contract
+§11). Both return the **complete** result JSON, per-device detail
+included -- a caller must never see only a collapsed pass/fail.
 
 **Every tool calls the same ``SecurityService`` the REST route does**,
 so both trip the same ``core:security`` permission check -- and,
 through it, ``SensorService``'s own independent ``core:sensors`` check
-(Logic Contract §3). Neither tool bypasses ``SecurityService`` to call
-``SensorService``/``SmartLockService`` directly.
+for reads, or ``SmartLockService``'s/``SmartLightingService``'s/
+``ThermostatService``'s own independent checks per device for actions
+(Logic Contract §3; Action Slice Logic Contract §7). No tool bypasses
+``SecurityService`` to call another service directly.
 """
 
 from __future__ import annotations
@@ -74,7 +85,47 @@ def build_security_tools(security: SecurityService) -> list[BaseTool]:
             return "No active alerts."
         return _clip(json.dumps(alerts, indent=2, default=str))
 
-    return [get_security_status, list_active_security_alerts]
+    @tool
+    async def trigger_panic_mode(home_id: str) -> str:
+        """Lock every lock and turn on every light in a home, once.
+        Affects every lock/light in the whole home -- always confirm
+        with the user yourself regardless, this tool also requires
+        interactive confirmation before it runs. Never unlocks, never
+        turns anything off, never touches thermostats. Returns the
+        full per-device result (which devices succeeded, failed, or
+        were unavailable) -- report partial failures honestly, never
+        as a simple success."""
+        try:
+            result = await security.trigger_panic_mode(home_id)
+        except Exception as err:
+            _logger.warning("trigger_panic_mode tool failed: {}", err)
+            return f"Couldn't trigger panic mode: {err}"
+        return _clip(json.dumps(result, indent=2, default=str))
+
+    @tool
+    async def trigger_vacation_mode(home_id: str) -> str:
+        """Lock every lock, turn off every light, and best-effort
+        eco-adjust thermostats that report support for it, in a home,
+        once. Affects every lock/light (and eco-capable thermostat) in
+        the whole home -- always confirm with the user yourself
+        regardless, this tool also requires interactive confirmation
+        before it runs. A thermostat with no eco-adjacent mode is
+        skipped, never forced. Returns the full per-device result --
+        report partial failures and skipped devices honestly, never as
+        a simple success."""
+        try:
+            result = await security.trigger_vacation_mode(home_id)
+        except Exception as err:
+            _logger.warning("trigger_vacation_mode tool failed: {}", err)
+            return f"Couldn't trigger vacation mode: {err}"
+        return _clip(json.dumps(result, indent=2, default=str))
+
+    return [
+        get_security_status,
+        list_active_security_alerts,
+        trigger_panic_mode,
+        trigger_vacation_mode,
+    ]
 
 
 def _clip(text: str) -> str:

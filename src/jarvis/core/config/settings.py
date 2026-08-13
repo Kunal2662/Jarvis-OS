@@ -510,7 +510,18 @@ class AgentSettings(BaseSettings):
     # fail-safe direction) deliberately is not, so an unattended "Auto
     # Lock"-style feature stays possible later. See
     # docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md §14 for the full reasoning.
-    confirm_required_tools: frozenset[str] = frozenset({"run_automation", "unlock_device"})
+    # "trigger_panic_mode"/"trigger_vacation_mode" (Milestone 12 Security &
+    # Safety -- Manual/On-Demand Action Slice) were added for a different
+    # reason: neither individual constituent action (locking, turning a
+    # light on/off) has ever needed confirmation, but each call affects
+    # every lock/light (and, for Vacation Mode, every eco-capable
+    # thermostat) in an entire home at once -- a materially larger blast
+    # radius than any prior single-device mutation. See
+    # docs/M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md §11 for the full
+    # reasoning.
+    confirm_required_tools: frozenset[str] = frozenset(
+        {"run_automation", "unlock_device", "trigger_panic_mode", "trigger_vacation_mode"}
+    )
     # Conversational Orchestration Routing (M10 -- see
     # docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md). "legacy" preserves
     # today's behaviour byte-for-byte (Chat/Voice call ChatService
