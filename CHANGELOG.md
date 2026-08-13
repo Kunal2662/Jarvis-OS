@@ -3,6 +3,121 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Security & Safety — Manual/On-Demand Action Slice (Task Group M)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Security & Safety — Manual/On-Demand Action Slice**
+scope -- **not the full Security & Safety module**. Preceded by a
+Phase 0 audit (`M12 PHASE 0 POST-WATER-HEATER AUDIT`) that found
+Appliance Control's device-category expansion exhausted and
+recommended Security & Safety's remaining action-taking scope over
+Smart Home Memory (blocked on the same device-command event-publishing
+gap this session re-confirmed at the source level). Preceded by a
+Logic Contract (`docs/M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md`),
+written and approved before any code, which independently evaluated
+three architectures (extend `SecurityService`, a new
+`SecurityActionService` sibling, or fold into
+`SmartLockService`/`SmartLightingService` directly) and chose to
+**extend the already-shipped `SecurityService`** — the first M12 task
+group whose own decision is "extend a previously-shipped class," not
+"add a new sibling," because Panic Mode/Vacation Mode are a second
+capability over the same "home security posture" concept the read-only
+slice already owns, not a new device category. 98 new tests, 0
+failures, 0 errors, against real components throughout
+(`FakeDeviceConnector`, real temp-file SQLite, real `PermissionModel`).
+
+### Added
+- **Two new `SecurityService` methods** —
+  `trigger_panic_mode(home_id)` (locks every lock, then turns on every
+  light) and `trigger_vacation_mode(home_id)` (locks every lock, turns
+  off every light, then best-effort eco-adjusts every thermostat whose
+  own reported `hvac_modes` contains an `"eco"` token). Both
+  synchronous, on-demand, home-scoped, single-shot -- never scheduled,
+  randomized, or event-driven.
+- **A genuinely new multi-device result model** -- `status`
+  (`SUCCESS`/`PARTIAL_SUCCESS`/`FAILED`/`NO_TARGETS`, derived
+  deterministically), `requested_count`/`attempted_count`/
+  `succeeded_count`/`failed_count`/`unavailable_count`/
+  `skipped_count`, and full per-device detail for locks, lights, and
+  (Vacation Mode only) thermostats -- deliberately not a copy of the
+  existing 2--3-field merged-mutation shape, since this is the first
+  M12 action operating over an unbounded device list rather than a
+  handful of fixed fields. No atomicity is ever claimed.
+- **A real, directly-verified read-model asymmetry found and worked
+  around.** `SmartLockService`'s read model exposes `available`;
+  `SmartLightingService`'s does not, at all. Worked around by using
+  `Device.status` (present on both) as the uniform unavailability
+  signal for locks/lights, while thermostats use their own live-read
+  `available` (already needed for eco-detection) -- fixed locally,
+  inside the action slice's own orchestration code only. Neither
+  `SmartLockService` nor `SmartLightingService` was modified; the
+  identical fix for `SmartLightingService`'s own missing `available`
+  field is recorded as a separate, narrower follow-up, not decided
+  here.
+- **Honest eco-detection, nothing invented.** HA's real "eco" value is
+  a `preset_mode`, which `ThermostatService` does not expose today
+  (deferred by that module's own Logic Contract). Rather than
+  extending `ThermostatService` (out of this slice's scope) or
+  inventing a temperature-offset fallback (explicitly rejected -- would
+  fabricate a capability no device reported), Vacation Mode checks
+  each thermostat's own reported `hvac_modes` for a case-insensitive
+  exact-token `"eco"` match; a thermostat without one is honestly
+  **skipped**, never defaulted.
+- **Nested permission boundary preserved.** A missing
+  `core:smart_locks`/`core:smart_lighting`/`core:thermostats` grant is
+  never bypassed and never aborts the whole call -- it surfaces as an
+  ordinary per-device failure, mirroring the read-only slice's own
+  "propagate honestly, never swallow" precedent for a missing
+  `core:sensors` grant.
+- **Security Action REST** -- `POST /api/v1/security/panic-mode` and
+  `POST /api/v1/security/vacation-mode` under the existing
+  `/api/v1/security` prefix. `infrastructure/api/routes/security.py`.
+- **Two agent tools** -- `agents/tools/security_tools.py`:
+  `trigger_panic_mode`, `trigger_vacation_mode`.
+- **Confirmation requirement, independently evaluated.** Unlike every
+  prior M12 setpoint mutation (each reasoning its own blast radius was
+  one device), Panic Mode/Vacation Mode affect every lock/light (and,
+  for Vacation Mode, every eco-capable thermostat) in an entire home
+  at once. `AgentSettings.confirm_required_tools` gains
+  `"trigger_panic_mode"`/`"trigger_vacation_mode"` -- the first
+  addition since Smart Locks' `unlock_device`.
+- **DI** -- `security_service`'s existing provider extended with three
+  new dependencies (`SmartLightingService`, `ThermostatService`,
+  `SmartHomeService`); no new provider.
+- **Frontend requirements document** -- `docs/
+  M12_SECURITY_ACTION_SLICE_FRONTEND_REQUIREMENTS.md`, planning/
+  specification only, written after the backend was fully verified.
+
+### Not changed
+- `SmartLockService`, `SmartLightingService`, `ThermostatService` --
+  **not modified**. This slice calls their existing public methods
+  only.
+- `EventBus` -- untouched. No new event class, no subscriptions, no
+  background worker. The pre-existing device-command event-publishing
+  gap remains unfixed, re-confirmed at the source level this session
+  across all ten prior device-category services.
+- Both connectors -- zero code changes.
+- No new permission scope, no new principal -- reuses the existing
+  `core:security` principal under `smart_home`.
+- No database/schema changes.
+
+### Explicitly out of scope
+- Scheduled or recurring Panic/Vacation Mode; randomized presence
+  simulation; geofencing or occupancy-triggered activation.
+- Emergency Alerts, SMS, email, push notifications -- no notification
+  transport exists for smart home today.
+- Siren/alarm-panel integration -- `device_type="other"` has zero
+  service built against it, a real, separate, still-unaddressed gap.
+- Camera/vision integration, AI optimization/predictive behavior,
+  multi-home orchestration, scenes, user-defined routines, automatic
+  remediation, emergency-service integration.
+- `preset_mode` support on `ThermostatService`.
+- Every other M12 device-category module (Smart Cameras, Home
+  Automation, AI Home Assistant, Remote Access, Smart Home Memory,
+  Smart Home Analytics, Developer Tools).
+
 ## M12: Appliance Control — Water Heater Core Slice (Task Group L)
 
 **No version bump**, matching this project's own established

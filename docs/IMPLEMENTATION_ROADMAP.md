@@ -2099,7 +2099,7 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped; Task Group K shipped; Task Group L shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped; Task Group K shipped; Task Group L shipped; Task Group M shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
@@ -2174,34 +2174,42 @@ audit (re-verifying `water_heater` maps to `device_type="appliance"`
 -- the Fan/Cover/Vacuum/Humidifier/Media Player pattern, not Climate's
 -- confirming it is the last unblocked Appliance Control category, and
 reusing the identical local MQTT fallback template) and Logic Contract
+-- see its own section below. Task Group M (Security & Safety --
+Manual/On-Demand Action Slice) followed a further, fourteenth,
+separate instruction preceded by its own Phase 0 audit (finding
+Appliance Control's device-category expansion exhausted and
+independently evaluating -- not assuming -- whether Security &
+Safety's own action-taking half should extend the already-shipped
+`SecurityService` or ship as a new sibling service) and Logic Contract
 -- see its own section below.
 **Not Complete**: Smart Home Core, Connectivity Layer, Connectivity
 REST + Smart Lighting, Smart Locks, Sensors, Energy Management's Core
 Energy Slice, Appliance Control's Core Appliance Slice/Climate/
 Thermostat Slice/Vacuum + Humidifier Core Slice/Media Player Core
 Slice/Water Heater Core Slice, and Security & Safety's Read-Only
-Alert/Status Slice are eight of fifteen modules in M12's own feature
-list -- Connectivity Layer has both of its approved protocol adapters
-(Home Assistant, MQTT), closing that task group's three-phase plan;
-Smart Lighting, Smart Locks, Sensors, Energy Management (device
-control only), Appliance Control (Fan + Cover + Climate/Thermostat +
-Vacuum + Humidifier + Media Player + Water Heater control only) and
-Security & Safety (read-only status only) are the first six of
-thirteen device-category modules with at least some shipped scope
-(motion/sunrise-sunset/scheduled automation, Auto Lock,
+Alert/Status Slice **and** Manual/On-Demand Action Slice are eight of
+fifteen modules in M12's own feature list -- Connectivity Layer has
+both of its approved protocol adapters (Home Assistant, MQTT), closing
+that task group's three-phase plan; Smart Lighting, Smart Locks,
+Sensors, Energy Management (device control only), Appliance Control
+(Fan + Cover + Climate/Thermostat + Vacuum + Humidifier + Media Player
++ Water Heater control only) and Security & Safety (read-only status
+plus Panic Mode/a narrowly-scoped Vacation Mode only) are the first
+six of thirteen device-category modules with at least some shipped
+scope (motion/sunrise-sunset/scheduled automation, Auto Lock,
 sensor-triggered automation, all energy automation/history/analytics,
 fan percentage/cover position/fan mode/swing/presets/humidity mode/
 dual setpoint/Media Player's own play_media/join-unjoin/shuffle/
 repeat/sound mode/album/duration/playback position/Water Heater's own
-away-vacation-mode/dual-setpoint, and all of Security & Safety's
-action-taking half -- Panic Mode, Vacation Mode, Emergency Alerts,
-automated safety actions, scene/multi-device response, event-driven
-and scheduler-based security automation, notifications -- all
-explicitly deferred to Home Automation/Smart Home Memory/Smart Home
-Analytics/M7/future slices; the two remaining appliance categories
-(Smart Kitchen, Smart Pumps/Irrigation) both blocked on the current
-connector domain mapping) -- and seven M12 modules remain entirely
-unstarted. Full milestone definition
+away-vacation-mode/dual-setpoint, and the remainder of Security &
+Safety's action-taking half -- Emergency Alerts, scheduled/randomized
+Vacation Mode, geofencing, siren/alarm-panel integration, and every
+notification channel -- all explicitly deferred to Home
+Automation/Smart Home Memory/Smart Home Analytics/M7/M21/future
+slices; the two remaining appliance categories (Smart Kitchen, Smart
+Pumps/Irrigation) both blocked on the current connector domain
+mapping) -- and seven M12 modules remain entirely unstarted. Full
+milestone definition
 — Objective, Dependencies, Complexity, 15-module feature list,
 Acceptance Criteria — lives in
 `MASTER_ROADMAP.md` §8/§9.)*
@@ -3640,6 +3648,152 @@ Vacuum + Humidifier's own template, never in `mqtt.py`.
 test. **Not this task group, and not built:** any other M12 module
 (Smart Cameras, Home Automation, AI Home Assistant, Remote Access,
 Smart Home Memory, Smart Home Analytics, Developer Tools).
+
+### Task Group M — Security & Safety: Manual/On-Demand Action Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by an eighth read-only Phase 0 audit (`M12 PHASE 0
+POST-WATER-HEATER AUDIT`), re-evaluating the remaining M12 candidates
+from scratch and finding Appliance Control's device-category expansion
+now exhausted (every domain mapped to `device_type="appliance"` has a
+shipped service) — the audit's own top-ranked, recommended candidate
+was Security & Safety's remaining action-taking scope, chosen over
+Smart Home Memory (whose real value is blocked on the same
+device-command event-publishing gap this session re-confirmed at the
+source level across all ten prior device-category services) on the
+grounds of zero missing infrastructure and real architectural novelty
+rather than ease alone. A Logic Contract
+(`docs/M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md`), separately
+approved before any code, resolved the one open architectural
+question by independently evaluating — not assuming — three options:
+extending the already-shipped `SecurityService`, a new
+`SecurityActionService` sibling, or folding the two halves into
+`SmartLockService`/`SmartLightingService` directly. **Extension won**:
+Panic Mode and Vacation Mode are a second capability over the same
+"home security posture" concept the read-only slice already owns, not
+a new device category the way each Appliance Control sibling is — the
+first M12 task group whose own architectural decision is "extend a
+previously-shipped class," not "add a new one."
+
+- [x] **Logic Contract** —
+      `docs/M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md`, written and
+      approved before any code, grounding every claimed method
+      signature and read-model field in the actual current source of
+      `SmartLockService`/`SmartLightingService`/`ThermostatService`
+      (not assumed) — including a real, directly-verified asymmetry:
+      `SmartLockService`'s read model exposes `available`;
+      `SmartLightingService`'s does not, at all. Worked around by using
+      `Device.status` (present on both) as the uniform unavailability
+      signal for locks/lights, while thermostats use their own live-
+      read `available` (already needed for eco-detection).
+- [x] `SecurityService` (`services/security_service.py`) — **extended
+      in place**, not a new sibling service. Gained three new
+      constructor dependencies: `SmartLightingService`,
+      `ThermostatService`, and `SmartHomeService` (a refinement Phase 1
+      found beyond Phase 0's own assumption, needed to validate a
+      `home_id` actually exists before acting).
+      `SmartLockService`/`SmartLightingService`/`ThermostatService`
+      themselves were **not** modified — only their existing public
+      methods are called.
+- [x] `trigger_panic_mode(home_id)` — locks every lock, then turns on
+      every light, in the given home. Deterministic order (locks
+      before lights — a stated convention, not a discovered
+      dependency), continues past individual device failure, never
+      touches thermostats.
+- [x] `trigger_vacation_mode(home_id)` — locks every lock, turns off
+      every light, then best-effort eco-adjusts every thermostat whose
+      own reported `hvac_modes` contains an `"eco"` token
+      (case-insensitive exact-token match, not substring). A
+      thermostat with no eco-adjacent mode is **skipped**, never
+      defaulted — no temperature fallback and no `preset_mode` use
+      exist anywhere (HA's real "eco" value is a `preset_mode`,
+      which `ThermostatService` does not expose today; extending it
+      to do so is explicitly out of this slice's scope).
+- [x] New multi-device result model — `status`
+      (`SUCCESS`/`PARTIAL_SUCCESS`/`FAILED`/`NO_TARGETS`, derived
+      deterministically), `requested_count`/`attempted_count`/
+      `succeeded_count`/`failed_count`/`unavailable_count`/
+      `skipped_count`, and full per-device (`locks`/`lights`/
+      `thermostats`) detail — deliberately not a copy of the existing
+      2–3-field merged-mutation shape, since this is the first M12
+      action whose device count is unbounded rather than a handful of
+      fixed fields.
+- [x] Nested permission boundary preserved — a missing
+      `core:smart_locks`/`core:smart_lighting`/`core:thermostats`
+      grant is never bypassed and never aborts the whole call; it
+      surfaces as an ordinary per-device failure, mirroring the
+      read-only slice's own "propagate honestly, never swallow"
+      precedent for a missing `core:sensors` grant.
+- [x] Security Action REST — `POST /api/v1/security/panic-mode`,
+      `POST /api/v1/security/vacation-mode`, both under the existing
+      `/api/v1/security` prefix. `infrastructure/api/routes/
+      security.py`. Unknown `home_id` → 404 (via exception-type
+      dispatch on `SecurityPermissionError` vs. plain `ServiceError`,
+      not string-matching); permission not granted → 400; every
+      outcome status (including `PARTIAL_SUCCESS`/`FAILED`/
+      `NO_TARGETS`) → 200.
+- [x] Two new agent tools — `agents/tools/security_tools.py`:
+      `trigger_panic_mode`, `trigger_vacation_mode` (registry/
+      orchestrator wiring unchanged — `SecurityService`'s own external
+      signature to those files did not change, only its internal
+      dependencies did).
+- [x] Permission — reuses the existing `core:security` principal and
+      `smart_home` scope, no new scope, no new principal. **Both
+      actions require interactive confirmation** — independently
+      evaluated against the blast-radius question (an entire home's
+      locks/lights/thermostats in one call), not auto-inherited from
+      any single-device precedent — the first `confirm_required_tools`
+      addition since Smart Locks' `unlock_device`.
+      `AgentSettings.confirm_required_tools` now reads
+      `{"run_automation", "unlock_device", "trigger_panic_mode",
+      "trigger_vacation_mode"}`.
+- [x] DI — `security_service`'s existing provider in
+      `core/di/container.py` extended with the three new dependencies;
+      no new provider.
+- [x] 98 new tests, 0 failures, 0 errors, against real components
+      throughout (`FakeDeviceConnector`, real temp-file SQLite, real
+      `PermissionModel`) — covering empty/nonexistent home, one and
+      multiple locks/lights/thermostats, Panic/Vacation Mode success/
+      partial-failure/total-failure, eco-capable and non-eco-capable
+      thermostats, mixed-case eco-token matching, unavailable devices,
+      nested permission failure surfacing as a per-device failure,
+      deterministic execution order, and an exact-count assertion
+      across a single mixed-outcome scenario (2 locks — one succeeds,
+      one fails with no recorded connector; 1 unavailable light; 1
+      skipped thermostat). Two tests initially failed for a
+      self-inflicted reason — an over-broad "term must not appear
+      anywhere in source" guard tripping on this module's own
+      explanatory docstrings (which explicitly discuss, in prose,
+      exactly the deferred terms the guard was checking for) — fixed
+      with a proper AST-based docstring-stripping helper, not by
+      weakening the documentation. Full backend regression: 3417
+      tests, 0 failures, 0 errors, 1 pre-existing skip (unrelated,
+      platform symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_SECURITY_ACTION_SLICE_FRONTEND_REQUIREMENTS.md`, a planning/
+      specification artifact only (no frontend source), derived from
+      the verified backend contract, distinguishing shipped backend
+      capability from required/deferred frontend work and backend
+      capability that does not exist. **Zero frontend files touched.**
+
+**Explicitly out of scope, and not built:** scheduled or recurring
+Panic/Vacation Mode; randomized presence simulation; geofencing or
+occupancy-triggered activation; Emergency Alerts, SMS, email, push
+notifications (no notification transport exists for smart home today);
+siren/alarm-panel integration (`device_type="other"` has zero service
+built against it — a real, separate, still-unaddressed gap); camera/
+vision integration; AI optimization/predictive behavior; multi-home
+orchestration (one `home_id` per call, no fan-out across homes);
+scenes; user-defined routines; automatic remediation; emergency-service
+integration; `preset_mode` support on `ThermostatService`. **The
+`EventBus` was not touched** — no new event class, no subscriptions,
+no background worker; the pre-existing device-command event-publishing
+gap remains unfixed, re-confirmed at the source level this session
+across all ten prior device-category services. **Connectors were not
+touched.** **`SmartLockService`/`SmartLightingService`/
+`ThermostatService` were not modified** — only their existing public
+methods are called. **Not this task group, and not built:** any other
+M12 module (Smart Cameras, Home Automation, AI Home Assistant, Remote
+Access, Smart Home Memory, Smart Home Analytics, Developer Tools).
 
 ---
 
