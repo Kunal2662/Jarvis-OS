@@ -2099,7 +2099,7 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped; Task Group K shipped; Task Group L shipped; Task Group M shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped; Task Group K shipped; Task Group L shipped; Task Group M shipped; Task Group N shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
@@ -2181,34 +2181,45 @@ Appliance Control's device-category expansion exhausted and
 independently evaluating -- not assuming -- whether Security &
 Safety's own action-taking half should extend the already-shipped
 `SecurityService` or ship as a new sibling service) and Logic Contract
--- see its own section below.
+-- see its own section below. Task Group N (Developer Tools --
+Connectivity / Integration Health Slice) followed a further,
+fifteenth, separate instruction preceded by its own Phase 0 audit
+(finding Security & Safety's own two named slices both shipped, and
+re-reading M9's Developer Platform Tools infrastructure fresh rather
+than assuming its shape from naming alone) and Logic Contract -- see
+its own section below.
 **Not Complete**: Smart Home Core, Connectivity Layer, Connectivity
 REST + Smart Lighting, Smart Locks, Sensors, Energy Management's Core
 Energy Slice, Appliance Control's Core Appliance Slice/Climate/
 Thermostat Slice/Vacuum + Humidifier Core Slice/Media Player Core
-Slice/Water Heater Core Slice, and Security & Safety's Read-Only
-Alert/Status Slice **and** Manual/On-Demand Action Slice are eight of
+Slice/Water Heater Core Slice, Security & Safety's Read-Only
+Alert/Status Slice **and** Manual/On-Demand Action Slice, and
+Developer Tools' Connectivity / Integration Health Slice are nine of
 fifteen modules in M12's own feature list -- Connectivity Layer has
 both of its approved protocol adapters (Home Assistant, MQTT), closing
 that task group's three-phase plan; Smart Lighting, Smart Locks,
 Sensors, Energy Management (device control only), Appliance Control
 (Fan + Cover + Climate/Thermostat + Vacuum + Humidifier + Media Player
-+ Water Heater control only) and Security & Safety (read-only status
-plus Panic Mode/a narrowly-scoped Vacation Mode only) are the first
-six of thirteen device-category modules with at least some shipped
-scope (motion/sunrise-sunset/scheduled automation, Auto Lock,
++ Water Heater control only), Security & Safety (read-only status plus
+Panic Mode/a narrowly-scoped Vacation Mode only), and Developer Tools
+(Connectivity/Integration Health only) are the first seven of thirteen
+device-category/capability modules with at least some shipped scope
+(motion/sunrise-sunset/scheduled automation, Auto Lock,
 sensor-triggered automation, all energy automation/history/analytics,
 fan percentage/cover position/fan mode/swing/presets/humidity mode/
 dual setpoint/Media Player's own play_media/join-unjoin/shuffle/
 repeat/sound mode/album/duration/playback position/Water Heater's own
-away-vacation-mode/dual-setpoint, and the remainder of Security &
-Safety's action-taking half -- Emergency Alerts, scheduled/randomized
-Vacation Mode, geofencing, siren/alarm-panel integration, and every
-notification channel -- all explicitly deferred to Home
-Automation/Smart Home Memory/Smart Home Analytics/M7/M21/future
-slices; the two remaining appliance categories (Smart Kitchen, Smart
-Pumps/Irrigation) both blocked on the current connector domain
-mapping) -- and seven M12 modules remain entirely unstarted. Full
+away-vacation-mode/dual-setpoint, the remainder of Security & Safety's
+action-taking half -- Emergency Alerts, scheduled/randomized Vacation
+Mode, geofencing, siren/alarm-panel integration, and every
+notification channel --, and Developer Tools' own MQTT Debug
+Console/Device Simulator/Event Viewer/Automation Tester -- all
+explicitly deferred to Home Automation/Smart Home Memory/Smart Home
+Analytics/M7/M21/future slices, Event Viewer specifically blocked (not
+merely deferred) on the still-unresolved device-command EventBus
+publishing gap; the two remaining appliance categories (Smart Kitchen,
+Smart Pumps/Irrigation) both blocked on the current connector domain
+mapping) -- and six M12 modules remain entirely unstarted. Full
 milestone definition
 — Objective, Dependencies, Complexity, 15-module feature list,
 Acceptance Criteria — lives in
@@ -3794,6 +3805,117 @@ touched.** **`SmartLockService`/`SmartLightingService`/
 methods are called. **Not this task group, and not built:** any other
 M12 module (Smart Cameras, Home Automation, AI Home Assistant, Remote
 Access, Smart Home Memory, Smart Home Analytics, Developer Tools).
+
+### Task Group N — Developer Tools: Connectivity / Integration Health Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a ninth read-only Phase 0 audit (`M12 PHASE 0
+POST-TASK-GROUP-M AUDIT`), re-evaluating the remaining M12 candidates
+from scratch and ranking this slice #1 for reusing a proven M9
+Developer Platform Tools pattern rather than repeating another
+device-control shape. A Logic Contract
+(`docs/M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md`), written
+and approved before any code, first **freshly re-read** (not assumed
+from naming) M9's own `infrastructure/api/routes/devtools.py` and all
+four `core/devtools/*.py` components, and found two things the Phase 0
+summary had not stated precisely: none of M9's five existing devtools
+capabilities carries a `PermissionModel` gate (session auth only,
+`Depends(get_current_session)`, matching every other resource route's
+baseline); and every existing `core/devtools/` component depends only
+on other `core/`-layer objects (`ServiceManager`, `PluginRegistry`,
+`RuntimeManager`), never on `services/`. Both findings resolved the
+Logic Contract's own architecture question: a new **`services/`-layer**
+`DevtoolsConnectivityService` (not a `core/devtools/` component, which
+would have inverted this codebase's own core-to-services layering
+direction), whose *route* nonetheless lives in the existing
+`routes/devtools.py` file for URL-namespace consistency, and whose
+authorization deliberately matches M9's own precedent exactly.
+
+- [x] **Logic Contract** —
+      `docs/M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md`,
+      written and approved before any code, sourcing every response
+      field to an already-shipped method (`ConnectorFactoryRegistry.
+      registered_types`, `ConnectivityService.is_connected`,
+      `SmartHomeService.metadata(home_id)` — the exact `HomeMetadata`
+      aggregate Task Group A built for Device Health Monitoring and no
+      REST route had exposed until now) and explicitly marking
+      latency/uptime/reconnect/error-count telemetry as unavailable
+      rather than inventing it, since none of it is tracked anywhere
+      in `ConnectivityService` or either connector.
+- [x] `DevtoolsConnectivityService`
+      (`services/devtools_connectivity_service.py`) — depends only on
+      the already-shipped `ConnectivityService` + `ConnectorFactoryRegistry`
+      + `SmartHomeService`; no `IDatabase`, no `EventBus`, no direct
+      connector import, no `ConnectorCredentialStore`, no
+      `Device.metadata_json` read.
+- [x] `get_connector_status()` — one row per registered connector
+      type (`registered: true` always, since the registry only lists
+      types with a factory) with a live `connected` re-check, not
+      inferred from registration alone.
+- [x] `get_device_health(home_id?)` — one `HomeMetadata` row for a
+      given home, or every home (`SmartHomeService.list_homes()`) when
+      omitted. Propagates `SmartHomeService.metadata`'s own
+      `ServiceError` for an unknown `home_id`, uncaught.
+- [x] `GET /api/v1/devtools/connectivity` —
+      `infrastructure/api/routes/devtools.py`, added alongside M9's
+      existing five capabilities in the same file. **No
+      `PermissionModel` gate** — session auth only, matching every
+      other devtools route exactly, a deliberate consistency decision
+      rather than importing the `smart_home`-scope pattern M12
+      device-control modules use. Unknown `home_id` → 404 (the only
+      failure mode, since no permission check exists to also map to
+      400).
+- [x] No agent tools — the Logic Contract did not specify any, and
+      none were invented.
+- [x] DI — `devtools_connectivity_service` singleton in
+      `core/di/container.py`, positioned alongside the existing
+      Milestone 9 Task Group E devtools providers.
+- [x] 44 new tests, 0 failures, 0 errors, against real components
+      throughout (`FakeDeviceConnector`, real temp-file SQLite) —
+      covering zero/one/multiple registered connectors,
+      connected/never-connected/disconnected-after-connect states,
+      zero/single/multiple homes, unknown `home_id`, real device-count
+      reflection (paired/offline device mix), no fabricated telemetry
+      fields (an explicit field-set assertion on every response row),
+      no credential/secret exposure (both a source-level guard and a
+      REST-response text scan), and source-level guards confirming no
+      `EventBus` reference, no direct connector import, no database
+      dependency, and no `send_command` call exist anywhere in the new
+      service. The pre-existing M9 devtools test suite
+      (`test_devtools_route.py`) was re-run and confirmed unaffected —
+      not modified, still green. Full backend regression: 3450 tests,
+      0 failures, 0 errors, 1 pre-existing skip (unrelated, platform
+      symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_DEVELOPER_TOOLS_CONNECTIVITY_FRONTEND_REQUIREMENTS.md`, a
+      planning/specification artifact only (no frontend source),
+      derived from the verified backend contract. **Zero frontend
+      files touched.**
+
+**Explicitly out of scope, and not built:** MQTT Debug Console
+(needs raw message inspection/subscription infrastructure that
+doesn't exist); Device Simulator (needs a fake-device generation
+mechanism with no current analog); **Event Viewer, explicitly
+blocked, not merely deferred** — the device-command EventBus
+publishing gap remains unresolved, re-confirmed at the source level
+this session (`ConnectivityService.send_command` still publishes
+nothing); command tracing/replay, packet capture, raw MQTT message
+inspection; latency/uptime/reconnect-history metrics (not tracked
+anywhere); device command history (no history table exists for any
+device category); automation/scheduler debugging (M7's Scheduler
+execution layer still unshipped); camera diagnostics (`VisionService`
+remains a stub); Analytics/Memory (M20A unshipped; `MemoryService` has
+zero device coupling); Remote Access (M21 unshipped); any frontend
+dashboard. **No `core/devtools/*.py` file was modified, and none
+imports from `services/`** — the new service lives in `services/`
+exclusively, enforced by a source-level test. **`ConnectivityService`/
+`SmartHomeService`/every existing `core/devtools/` component were not
+modified** — only their existing public methods are called. **The
+`EventBus` was not touched.** **Connectors were not touched** — no
+connector limitation was found; every required field was already
+reachable through existing service methods. **Not this task group,
+and not built:** any other M12 module (Smart Cameras, Home Automation,
+AI Home Assistant, Remote Access, Smart Home Memory, Smart Home
+Analytics).
 
 ---
 

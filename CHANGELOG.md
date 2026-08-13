@@ -3,6 +3,107 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Developer Tools — Connectivity / Integration Health Slice (Task Group N)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Developer Tools — Connectivity / Integration
+Health Slice** scope -- **not the full Developer Tools module**.
+Preceded by a Phase 0 audit (`M12 PHASE 0 POST-TASK-GROUP-M AUDIT`)
+that found Appliance Control's device-category expansion exhausted
+and Security & Safety's own two named slices both shipped, ranking
+this slice #1 for reusing a proven M9 Developer Platform Tools
+pattern. Preceded by a Logic Contract (`docs/
+M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md`), written and
+approved before any code, which **freshly re-read** M9's actual
+`routes/devtools.py` and all four `core/devtools/*.py` components
+rather than assuming their shape from naming, and found two things
+worth recording precisely: none of M9's five existing devtools
+capabilities carries a `PermissionModel` gate (session auth only),
+and every `core/devtools/` component depends only on other
+`core/`-layer objects, never `services/`. Both findings resolved the
+contract's architecture decision. 44 new tests, 0 failures, 0 errors,
+plus the pre-existing M9 devtools test suite re-verified green
+unmodified.
+
+### Added
+- **`DevtoolsConnectivityService`**
+  (`services/devtools_connectivity_service.py`) -- a `services/`-layer
+  class, deliberately **not** a `core/devtools/` component (every
+  existing one depends only on `core/`-layer objects; adding this
+  dependency there would have inverted this codebase's own
+  core-to-services layering). Depends only on the already-shipped
+  `ConnectivityService` + `ConnectorFactoryRegistry` +
+  `SmartHomeService` -- no `IDatabase` of its own, no `EventBus`, no
+  direct connector import, no `ConnectorCredentialStore`, no
+  `Device.metadata_json` read.
+- **`GET /api/v1/devtools/connectivity`** -- added to the existing
+  `infrastructure/api/routes/devtools.py` file (URL-namespace
+  consistency with M9's other four capabilities, not a layering
+  concern). Composes two already-shipped read paths never previously
+  exposed together over REST: `ConnectorFactoryRegistry.
+  registered_types`/`ConnectivityService.is_connected` for connector
+  registration/connection state, and `SmartHomeService.
+  metadata(home_id)` -- the `HomeMetadata` aggregate Task Group A
+  built for Device Health Monitoring and no route had used until now
+  -- for per-home device-health counts (`room_count`/`zone_count`/
+  `device_count`/`paired_device_count`/`offline_device_count`/
+  `unreachable_device_count`). Optional `home_id` filter; omitted ->
+  every home.
+- **No `PermissionModel` gate, matching M9's own precedent exactly.**
+  Session authentication only (`Depends(get_current_session)`) -- a
+  deliberate consistency choice, not an oversight: this is diagnostic
+  data materially less sensitive than several of M9's own already-
+  ungated capabilities (live application logs, full service/plugin
+  state).
+- **No fabricated telemetry.** Latency, uptime, reconnect counts, and
+  error counts are not tracked anywhere in `ConnectivityService` or
+  either connector -- none of them appear in the response. Only what
+  the existing methods already compute is returned.
+- **Structural secret-exposure prevention.** The new service never
+  imports `ConnectorCredentialStore` and never reads
+  `Device.metadata_json` -- there is no code path by which a
+  password, token, API key, or MQTT credential could reach a
+  response, verified by both a source-level guard and a REST-response
+  text scan in the test suite.
+- **Frontend requirements document** -- `docs/
+  M12_DEVELOPER_TOOLS_CONNECTIVITY_FRONTEND_REQUIREMENTS.md`,
+  planning/specification only, written after the backend was fully
+  verified.
+
+### Not changed
+- `ConnectivityService`, `SmartHomeService`, `ConnectorFactoryRegistry`
+  -- **not modified**. This slice calls their existing public methods
+  only.
+- Every existing `core/devtools/*.py` component (`DebugConsole`,
+  `PerformanceProfiler`, `StateInspector`, `ApiInspector`) -- **not
+  modified**, and none of them was extended to depend on
+  `services/`.
+- The pre-existing M9 devtools test suite (`test_devtools_route.py`)
+  -- not modified, re-run and confirmed still green.
+- `EventBus` -- untouched. The pre-existing device-command
+  event-publishing gap remains unfixed, re-confirmed at the source
+  level this session.
+- Both connectors -- zero code changes; every required field was
+  already reachable through existing service methods.
+- No new permission scope, no new principal.
+- No database/schema changes.
+
+### Explicitly out of scope
+- MQTT Debug Console, Device Simulator -- both need infrastructure
+  (raw message inspection, fake-device generation) that doesn't exist.
+- **Event Viewer -- explicitly blocked, not merely deferred** -- the
+  device-command EventBus publishing gap remains unresolved.
+- Command tracing/replay, packet capture, raw MQTT message inspection.
+- Latency/uptime/reconnect-history metrics -- not tracked anywhere.
+- Device command history, automation/scheduler debugging, camera
+  diagnostics, Analytics, Memory, Remote Access, any frontend
+  dashboard.
+- Every other M12 device-category module (Smart Cameras, Home
+  Automation, AI Home Assistant, Remote Access, Smart Home Memory,
+  Smart Home Analytics).
+
 ## M12: Security & Safety — Manual/On-Demand Action Slice (Task Group M)
 
 **No version bump**, matching this project's own established

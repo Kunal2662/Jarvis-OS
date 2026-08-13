@@ -625,17 +625,55 @@ M12_SECURITY_ACTION_SLICE_FRONTEND_REQUIREMENTS.md` for the
 (planning-only, no code) frontend requirements this slice's API
 surface implies.
 
+**M12 — Developer Tools (Connectivity / Integration Health Slice)
+shipped Aug 2026.** A Phase 0 audit found Appliance Control's
+device-category expansion exhausted and Security & Safety's own two
+named slices both shipped, and ranked this slice #1 for reusing a
+proven M9 Developer Platform Tools pattern rather than repeating
+another device-control shape. Freshly re-reading M9's `routes/
+devtools.py` and all four `core/devtools/*.py` components found two
+things the earlier summary had not stated precisely: none of M9's
+five existing devtools capabilities carries a `PermissionModel` gate
+(session auth only), and every `core/devtools/` component depends
+only on other `core/`-layer objects, never on `services/`. Both
+findings shaped the Logic Contract
+(`docs/M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md`): a new
+`services/`-layer `DevtoolsConnectivityService` (not a `core/devtools/`
+component, which would have inverted this codebase's own core-to-
+services layering) whose route nonetheless lives in the existing
+`routes/devtools.py` file, and whose authorization deliberately
+matches M9's own precedent exactly — session auth only, no new
+principal, no `smart_home` scope. `GET /api/v1/devtools/connectivity`
+composes two already-shipped read paths never previously exposed
+together over REST: `ConnectorFactoryRegistry.registered_types`/
+`ConnectivityService.is_connected` for connector state, and
+`SmartHomeService.metadata(home_id)` — the `HomeMetadata` aggregate
+Task Group A built for Device Health Monitoring back in its own
+task group and no route had used since — for per-home device-health
+counts. No telemetry this repository doesn't already track (latency,
+uptime, reconnect/error counts) was invented; each is explicitly
+absent, not fabricated. Structurally excludes any credential/secret
+exposure -- the service never imports `ConnectorCredentialStore` and
+never reads `Device.metadata_json`. 44 new tests, 0 failures, 0
+errors, plus the pre-existing M9 devtools test suite re-verified
+green. See `docs/M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md`
+for the full Logic Contract and `docs/
+M12_DEVELOPER_TOOLS_CONNECTIVITY_FRONTEND_REQUIREMENTS.md` for the
+(planning-only, no code) frontend requirements this slice's API
+surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
 Appliance Control's Core Appliance Slice/Climate/Thermostat Slice/
 Vacuum + Humidifier Core Slice/Media Player Core Slice/Water Heater
-Core Slice, and Security & Safety's Read-Only Alert/Status Slice
-**and** Manual/On-Demand Action Slice are now shipped; seven of this
-milestone's fifteen modules remain entirely unstarted (Smart Cameras,
-Home Automation, AI Home Assistant, Remote Access, Smart Home Memory,
-Smart Home Analytics, Developer Tools) — Energy Management, Appliance
-Control and Security & Safety themselves each remain only partially
+Core Slice, Security & Safety's Read-Only Alert/Status Slice **and**
+Manual/On-Demand Action Slice, and Developer Tools' Connectivity /
+Integration Health Slice are now shipped; six of this milestone's
+fifteen modules remain entirely unstarted (Smart Cameras, Home
+Automation, AI Home Assistant, Remote Access, Smart Home Memory, Smart
+Home Analytics) — Energy Management, Appliance Control, Security &
+Safety, and Developer Tools themselves each remain only partially
 shipped (Energy Management: device control only, History/Analytics/
 Optimization/Scheduling all deferred; Appliance Control: Fan + Cover +
 Climate/Thermostat + Vacuum + Humidifier + Media Player + Water Heater
@@ -652,16 +690,19 @@ Security & Safety: Panic Mode and a narrowly-scoped Vacation Mode only
 — Emergency Alerts, scheduled/randomized Vacation Mode, geofencing,
 siren/alarm-panel integration, and every notification channel remain
 deferred, each blocked on infrastructure this slice deliberately did
-not build). **No version bump accompanied any of the fifteen
-task-group passes** -- unlike M22's own task groups (each of which
-shipped real code and bumped the version in turn), all fifteen ship
-real code at `0.38.0` unchanged. Recorded here as a deliberate
+not build; Developer Tools: Connectivity/Integration Health only — MQTT
+Debug Console, Device Simulator, and Event Viewer all remain deferred,
+the last explicitly blocked on the still-unresolved device-command
+EventBus publishing gap). **No version bump accompanied any of the
+sixteen task-group passes** -- unlike M22's own task groups (each of
+which shipped real code and bumped the version in turn), all sixteen
+ship real code at `0.38.0` unchanged. Recorded here as a deliberate
 exception to this project's usual pattern, not a claim that the
 pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
-Group J, Task Group K, Task Group L, and Task Group M entries for the
-full implementation account.
+Group J, Task Group K, Task Group L, Task Group M, and Task Group N
+entries for the full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -4717,12 +4758,26 @@ metric does — Smart Home Analytics doesn't stand up its own,
 disconnected dashboard.
 
 #### Developer Tools *(Developer Mode)*
+*(Connectivity / Integration Health Slice shipped Task Group N, Aug
+2026 -- a new `DevtoolsConnectivityService` over `GET /api/v1/devtools/
+connectivity`, composing `ConnectorFactoryRegistry.registered_types`/
+`ConnectivityService.is_connected` (connector state) and
+`SmartHomeService.metadata(home_id)` (per-home device-health counts,
+the same `HomeMetadata` aggregate Task Group A built and no route had
+used until now). Session auth only, matching every one of M9's own
+Developer Platform Tools routes exactly -- no `PermissionModel` gate,
+no new principal. No telemetry this repository doesn't already track
+(latency, uptime, reconnect/error counts) was invented. Device
+Simulator, MQTT Debug Console, Event Viewer, and Automation Tester all
+remain unbuilt -- Event Viewer specifically blocked on the
+still-unresolved device-command EventBus publishing gap, not merely
+deferred by choice.)*
 - Device Simulator
 - MQTT Debug Console
 - Device Logs
-- Event Viewer
+- Event Viewer *(blocked -- no device-command event exists on the EventBus to view)*
 - Automation Tester
-- Integration Health Dashboard
+- Integration Health Dashboard ✅ *(connector registration/connection state + per-home device-health counts, read-only)*
 - Device Diagnostics
 
 Lands in Developer Mode alongside M5A's Agent Trace panel and M11's
