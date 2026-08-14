@@ -662,18 +662,56 @@ M12_DEVELOPER_TOOLS_CONNECTIVITY_FRONTEND_REQUIREMENTS.md` for the
 (planning-only, no code) frontend requirements this slice's API
 surface implies.
 
+**M12 — Smart Home Memory (Manual/On-Demand Device Snapshot Slice)
+shipped Aug 2026.** A Phase 0 audit ranked Smart Home Memory's
+manual-capture slice #1 after Appliance Control's device-category
+expansion and Security & Safety's/Developer Tools' own named slices
+were all exhausted. The Logic Contract
+(`docs/M12_SMART_HOME_MEMORY_SNAPSHOT_LOGIC_CONTRACT.md`) fixed a
+strict naming boundary up front — this is **Manual/On-Demand Device
+Snapshot**, never "Device History," "Continuous Device Monitoring," or
+"Event-Driven Memory": a snapshot exists only because
+`SmartHomeMemoryService.snapshot_device()` was explicitly called, never
+automatically. The decisive architectural finding was that
+`MemoryService.browse()` already provides full filtered retrieval, so
+no new persistence layer, repository, or `MemoryType` enum value was
+needed — a plain `memory_type="device_snapshot"` string is fully
+supported by the existing `remember()`/`browse()` API, exactly as
+`MemoryType`'s own docstring documents. Device-category scope is
+deliberately narrow — light/switch/thermostat only, not every shipped
+category — for two independent reasons: architecturally, only these
+three have a unique `device_type` that resolves to their owning
+service without a private domain-resolution step (unlike the
+`device_type="appliance"` categories); on privacy/security grounds,
+Sensors and Smart Locks are excluded because a persisted, browsable
+snapshot history of occupancy-revealing or security-posture-revealing
+state is a materially larger risk than either category's own
+already-gated live read. Permission departs from the majority M12
+"reads ungated" precedent for the same reason — both `POST` and `GET`
+require the `core:smart_home_memory`/`smart_home` grant, since a
+browsable snapshot history is cumulative in a way a single live read
+is not. An unavailable device still produces an honest snapshot
+(capturing `available: false`/`None` fields verbatim) rather than
+erroring or fabricating data. 58 new tests, 0 failures, 0 errors,
+full backend regression (3506 tests) green. See `docs/
+M12_SMART_HOME_MEMORY_SNAPSHOT_LOGIC_CONTRACT.md` for the full Logic
+Contract and `docs/M12_SMART_HOME_MEMORY_SNAPSHOT_FRONTEND_
+REQUIREMENTS.md` for the (planning-only, no code) frontend
+requirements this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
 Appliance Control's Core Appliance Slice/Climate/Thermostat Slice/
 Vacuum + Humidifier Core Slice/Media Player Core Slice/Water Heater
 Core Slice, Security & Safety's Read-Only Alert/Status Slice **and**
-Manual/On-Demand Action Slice, and Developer Tools' Connectivity /
-Integration Health Slice are now shipped; six of this milestone's
+Manual/On-Demand Action Slice, Developer Tools' Connectivity /
+Integration Health Slice, and Smart Home Memory's Manual/On-Demand
+Device Snapshot Slice are now shipped; five of this milestone's
 fifteen modules remain entirely unstarted (Smart Cameras, Home
-Automation, AI Home Assistant, Remote Access, Smart Home Memory, Smart
-Home Analytics) — Energy Management, Appliance Control, Security &
-Safety, and Developer Tools themselves each remain only partially
+Automation, AI Home Assistant, Remote Access, Smart Home Analytics) —
+Energy Management, Appliance Control, Security & Safety, Developer
+Tools, and Smart Home Memory themselves each remain only partially
 shipped (Energy Management: device control only, History/Analytics/
 Optimization/Scheduling all deferred; Appliance Control: Fan + Cover +
 Climate/Thermostat + Vacuum + Humidifier + Media Player + Water Heater
@@ -693,16 +731,22 @@ deferred, each blocked on infrastructure this slice deliberately did
 not build; Developer Tools: Connectivity/Integration Health only — MQTT
 Debug Console, Device Simulator, and Event Viewer all remain deferred,
 the last explicitly blocked on the still-unresolved device-command
-EventBus publishing gap). **No version bump accompanied any of the
-sixteen task-group passes** -- unlike M22's own task groups (each of
-which shipped real code and bumped the version in turn), all sixteen
-ship real code at `0.38.0` unchanged. Recorded here as a deliberate
-exception to this project's usual pattern, not a claim that the
-pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
+EventBus publishing gap; Smart Home Memory: manual snapshot creation
+and retrieval for light/switch/thermostat devices only — Sensor/Lock/
+appliance-domain-category snapshots, snapshot deletion, automatic/
+scheduled/event-driven capture, diff/trend/analytics views, and
+home-wide/batch snapshotting all remain deferred, the device-category
+and automatic-capture exclusions being deliberate privacy/architectural
+choices rather than merely unbuilt). **No version bump accompanied any
+of the seventeen task-group passes** -- unlike M22's own task groups
+(each of which shipped real code and bumped the version in turn), all
+seventeen ship real code at `0.38.0` unchanged. Recorded here as a
+deliberate exception to this project's usual pattern, not a claim that
+the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
-Group J, Task Group K, Task Group L, Task Group M, and Task Group N
-entries for the full implementation account.
+Group J, Task Group K, Task Group L, Task Group M, Task Group N, and
+Task Group O entries for the full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and

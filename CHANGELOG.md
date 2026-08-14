@@ -3,6 +3,121 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Smart Home Memory — Manual/On-Demand Device Snapshot Slice (Task Group O)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Smart Home Memory — Manual/On-Demand Device
+Snapshot Slice** scope -- **not the full Smart Home Memory module**.
+Preceded by a Phase 0 audit (`M12 POST-TASK-N READINESS / DEPENDENCY
+AUDIT`) that re-evaluated Developer Tools, Security, Energy
+Management, AI Home Assistant, Smart Home Memory, Smart Cameras, and
+Remote Access for further independently-buildable slices and ranked
+this one #1. Preceded by a Logic Contract (`docs/
+M12_SMART_HOME_MEMORY_SNAPSHOT_LOGIC_CONTRACT.md`), written and
+approved before any code, which fixed an absolute naming boundary up
+front: this is **Manual/On-Demand Device Snapshot**, never "Device
+History," "Continuous Device Monitoring," "Automatic State Tracking,"
+or "Event-Driven Memory" -- a snapshot exists only because
+`SmartHomeMemoryService.snapshot_device()` was explicitly called,
+never automatically. 58 new tests, 0 failures, 0 errors; M12
+regression 855 tests green; M11+M12 regression 983 tests green; full
+backend regression 3506 tests green, 1 pre-existing skip.
+
+### Added
+- **`SmartHomeMemoryService`** (`services/smart_home_memory_service.
+  py`) -- a `services/`-layer class composing the already-shipped
+  `SmartHomeService` + `SmartLightingService` + `SmartSwitchService` +
+  `ThermostatService` + `MemoryService`. No `IDatabase` of its own, no
+  `EventBus`, no direct connector import, never reads
+  `Device.metadata_json` -- snapshot content/metadata are built only
+  from each device-category service's own already-normalized read
+  model.
+- **`snapshot_device(device_id)`** -- captures a device's current
+  state into memory, once, because this call was made. A deterministic
+  (no LLM-generated) content sentence plus structured metadata
+  (`device_id`, `device_type`, `home_id`, `room_id`, `device_name`,
+  `snapshot_at`, `state`) is persisted through the existing
+  `MemoryService.remember()`, tagged `memory_type=source=
+  "device_snapshot"` -- a plain string, **no `MemoryType` enum value
+  added**, exactly as `MemoryType`'s own docstring documents as safe.
+  An unavailable device still produces an honest snapshot -- the
+  owning service's own read already reports `available: false`/`None`
+  live fields rather than raising, and this method persists whatever
+  it returns verbatim, never fabricating a substitute.
+- **`list_snapshots(device_id?, limit=50)`** -- reuses the already-
+  shipped `MemoryService.browse(memory_type="device_snapshot")`
+  verbatim, most-recent-first, with a documented client-side
+  `device_id` filter. **No new persistence layer, repository, or query
+  subsystem** -- `browse()`'s existing filtered listing was already
+  sufficient.
+- **Device-category scope fixed at light/switch/thermostat only** --
+  not every shipped category, and not chosen by default. Sensors and
+  Smart Locks are excluded on privacy/security grounds (a persisted,
+  browsable snapshot history of occupancy- or security-posture-
+  revealing state is a materially larger risk than either category's
+  own already-gated live read); every `device_type="appliance"`
+  category (Vacuum, Humidifier, Media Player, Water Heater, Fan,
+  Cover) is excluded on architectural grounds (no shared, public
+  device-to-owning-service resolution utility exists for that shared
+  device type today).
+- **`POST /api/v1/smart-home/memory/snapshots`** / **`GET
+  /api/v1/smart-home/memory/snapshots`** --
+  `infrastructure/api/routes/smart_home_memory.py`. Exception-type
+  dispatch mirroring `routes/security.py`'s own precedent:
+  `SmartHomeMemoryPermissionError` -> 400,
+  `UnsupportedSnapshotCategoryError` -> 400 (distinct from an
+  unknown-device 404), plain `ServiceError` -> 404. No `PUT`/`PATCH`/
+  `DELETE`, no single-snapshot `GET .../{id}`, no batch/home-wide
+  route.
+- **Two agent tools** -- `snapshot_device_state`, `list_device_snapshots`
+  (`agents/tools/smart_home_memory_tools.py`). No third tool
+  duplicating the already-generic `recall_memory` tool. Wired through
+  `agents/tools/registry.py` and `agents/orchestrator.py`'s existing
+  optional-service pattern.
+- **Permission gates both directions -- a deliberate departure from
+  most M12 modules' "reads ungated" precedent.** Both
+  `snapshot_device` and `list_snapshots` require the same
+  `core:smart_home_memory`/`smart_home` grant, since a persisted,
+  browsable snapshot history carries more cumulative privacy weight
+  than any single live device read. No confirmation requirement -- a
+  snapshot touches one device and writes one memory row, never a
+  physical device.
+- **Frontend requirements document** -- `docs/
+  M12_SMART_HOME_MEMORY_SNAPSHOT_FRONTEND_REQUIREMENTS.md`,
+  planning/specification only, written after the backend was fully
+  verified.
+
+### Not changed
+- `SmartHomeService`, `SmartLightingService`, `SmartSwitchService`,
+  `ThermostatService`, `MemoryService` -- **not modified**. This slice
+  calls their existing public methods only.
+- `MemoryType` (`core/types.py`) -- **not modified**. The plain-string
+  path it already documents as safe is used instead.
+- `EventBus` -- untouched. The pre-existing device-command
+  event-publishing gap remains unfixed; this slice is deliberately
+  scoped around it, not through it.
+- Both connectors -- zero code changes.
+- No database/schema/migration changes.
+
+### Explicitly out of scope
+- Automatic/scheduled/event-driven capture of any kind.
+- Sensor, Smart Lock, camera, and every appliance-domain-category
+  (Vacuum, Humidifier, Media Player, Water Heater, Fan, Cover)
+  snapshot support -- deferred on privacy/security or architectural
+  grounds respectively, not merely unbuilt.
+- Snapshot deletion -- no memory-deletion capability of any kind is
+  exposed via REST or agent tool anywhere in this repository today;
+  `MemoryService.forget()` already exists generically and was
+  deliberately not newly exposed for this slice.
+- Diff-against-previous-snapshot, trend, or analytics views over
+  snapshots.
+- Home-wide/batch snapshotting -- single-device only.
+- Memory-triggered automation, notifications.
+- Every other M12 module (Smart Cameras, Home Automation, AI Home
+  Assistant, Remote Access, Smart Home Analytics).
+
 ## M12: Developer Tools — Connectivity / Integration Health Slice (Task Group N)
 
 **No version bump**, matching this project's own established
