@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
+    from jarvis.services.smart_home_memory_service import SmartHomeMemoryService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
     from jarvis.services.smart_switch_service import SmartSwitchService
@@ -62,6 +63,7 @@ def build_tool_registry(
     media_players: MediaPlayerService | None = None,
     water_heaters: WaterHeaterService | None = None,
     security: SecurityService | None = None,
+    smart_home_memory: SmartHomeMemoryService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -175,6 +177,14 @@ def build_tool_registry(
         from jarvis.agents.tools.security_tools import build_security_tools
 
         tools += build_security_tools(security)
+    if smart_home_memory is not None:
+        # Milestone 12 Smart Home Memory (Manual/On-Demand Device
+        # Snapshot Slice). Two tools, mirroring Security's own
+        # "terse re-shaping of one underlying call" registration -- see
+        # `agents/tools/smart_home_memory_tools.py`.
+        from jarvis.agents.tools.smart_home_memory_tools import build_smart_home_memory_tools
+
+        tools += build_smart_home_memory_tools(smart_home_memory)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

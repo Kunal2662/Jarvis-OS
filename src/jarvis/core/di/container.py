@@ -663,6 +663,27 @@ def _build_security_service(
     )
 
 
+def _build_smart_home_memory_service(
+    *,
+    smart_home_service: Any,
+    smart_lighting_service: Any,
+    smart_switch_service: Any,
+    thermostat_service: Any,
+    memory_service: Any,
+    permission_model: Any,
+) -> Any:
+    from jarvis.services.smart_home_memory_service import SmartHomeMemoryService
+
+    return SmartHomeMemoryService(
+        smart_home=smart_home_service,
+        smart_lighting=smart_lighting_service,
+        smart_switch=smart_switch_service,
+        thermostats=thermostat_service,
+        memory=memory_service,
+        permissions=permission_model,
+    )
+
+
 def _build_task_service(*, database: Any, workspace_service: Any, event_bus: Any) -> Any:
     from jarvis.services.task_service import TaskService
 
@@ -1155,6 +1176,7 @@ def _build_agent_orchestrator(
     media_players: Any,
     water_heaters: Any,
     security: Any,
+    smart_home_memory: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1183,6 +1205,7 @@ def _build_agent_orchestrator(
         media_players=media_players,
         water_heaters=water_heaters,
         security=security,
+        smart_home_memory=smart_home_memory,
         event_bus=event_bus,
     )
 
@@ -1575,6 +1598,22 @@ class Container(containers.DeclarativeContainer):
         permission_model=permission_model,
     )
 
+    # ---- Milestone 12 Smart Home Memory (Manual/On-Demand Device ----------
+    # Snapshot Slice) ---------------------------------------------------
+    # Composes SmartHomeService + the three MVP device-category services
+    # + MemoryService -- deliberately narrow scope (light/switch/
+    # thermostat only), see docs/M12_SMART_HOME_MEMORY_SNAPSHOT_LOGIC_
+    # CONTRACT.md §5.
+    smart_home_memory_service = providers.Singleton(
+        _build_smart_home_memory_service,
+        smart_home_service=smart_home_service,
+        smart_lighting_service=smart_lighting_service,
+        smart_switch_service=smart_switch_service,
+        thermostat_service=thermostat_service,
+        memory_service=memory_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 10.5 Task Group A -- MCP & Integration Platform --------
     mcp_server_runtime = providers.Singleton(
         _build_mcp_server_runtime,
@@ -1868,5 +1907,6 @@ class Container(containers.DeclarativeContainer):
         media_players=media_player_service,
         water_heaters=water_heater_service,
         security=security_service,
+        smart_home_memory=smart_home_memory_service,
         event_bus=event_bus,
     )
