@@ -3,6 +3,94 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Developer Tools — Device Diagnostics Slice (Task Group Q)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Developer Tools — Device Diagnostics Slice** scope
+-- **not the full Developer Tools module**. Preceded by a Phase 0
+audit (`M12 PHASE 0 POST-TASK-P AUDIT`) that found this endpoint the
+only remaining candidate needing zero touch to any shared/foundational
+class, and directly closing a named, previously-unbuilt roadmap item.
+Preceded by a Logic Contract (`docs/
+M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_LOGIC_CONTRACT.md`), written
+and approved before any code, which resolved its architecture by
+mirroring an existing precedent already in the same file
+(`get_plugin_diagnostics`) rather than creating a new service, and
+found a genuine, non-obvious defect risk to avoid:
+`PermissionModel.is_granted()` carries an audit-log side effect a
+passive diagnostic read must never trigger. 37 new tests, 0 failures,
+0 errors; M12 regression 956 tests green; M11+M12 regression 1084
+tests green; full backend regression 3607 tests green, 1 pre-existing
+skip.
+
+### Added
+- **`GET /api/v1/devtools/devices/{device_id}/diagnostics`**
+  (`infrastructure/api/routes/devtools.py`) -- logic inline in the
+  route handler, aggregating three already-shipped calls:
+  `SmartHomeService.get_device`, `ConnectivityService.
+  read_raw_state`, and `PermissionModel.state` (never `is_granted`).
+  Three response sections: `device` (identity, never
+  `Device.metadata_json`), `connectivity` (`connector_type`,
+  `read_succeeded`, `status`, sanitized `attributes`, `read_error`),
+  `permission` (`principal`, `scope`, `state`, `detail`).
+- **A failed live connectivity read is never an HTTP error.** Unknown
+  device -> 404; a `ConnectivityError` from the live read (no recorded
+  connector, connector not connected, or a connector-specific failure)
+  -> 200 with `read_succeeded: false` and an explanatory `read_error`,
+  the device/permission sections still fully populated -- mirroring
+  the same best-effort pattern every device-category service's own
+  `read_raw_state` handling already uses.
+- **Permission resolution closed to five categories** -- light
+  (`core:smart_lighting`), switch (`core:smart_switch`), lock
+  (`core:smart_locks`), sensor (`core:sensors`), thermostat
+  (`core:thermostats`). `appliance` (which genuinely spans four
+  separate principals -- `core:appliances`/`core:media_players`/
+  `core:vacuum_humidifier`/`core:water_heaters` -- disambiguated only
+  by each appliance service's own private domain-resolution logic) and
+  `camera`/every other category report an explicit `principal: null`
+  with an explanatory `detail`, never a guessed or duplicated
+  principal.
+- **Key-based attribute redaction.** Any attribute key (case-
+  insensitive) containing `token`/`password`/`secret`/`credential`/
+  `api_key`/`apikey`/`auth` has its value replaced with
+  `"<redacted>"`; every other key/value passes through verbatim. For
+  the five resolvable categories this closes no new exposure surface
+  -- the same data is already reachable today through each category's
+  own existing read route; the redaction is defense-in-depth, most
+  load-bearing for `camera`, which has no shipped read service of its
+  own at all.
+- **No `PermissionModel` gate on the route itself** -- session auth
+  only, matching every other devtools capability, explicitly reasoned:
+  unlike Smart Home Memory/Security, this endpoint exposes no real
+  device mutation and no credential.
+- **Frontend requirements document** -- `docs/
+  M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_FRONTEND_REQUIREMENTS.md`,
+  planning/specification only, written after the backend was fully
+  verified.
+
+### Not changed
+- `SmartHomeService`, `ConnectivityService`, `PermissionModel`, and
+  every device-category service -- **not modified**. This slice calls
+  their existing public methods only.
+- `DEVICE_TYPES`, `CONNECTOR_TYPES` -- unmodified.
+- No database/schema changes. No new agent tool. No new permission
+  scope.
+- `EventBus` -- untouched. No connector was touched.
+
+### Explicitly out of scope
+- Appliance sub-domain principal resolution -- would duplicate four
+  services' own private domain-resolution logic.
+- Any general `device_type -> principal` registry mechanism beyond
+  this endpoint's own small, closed, five-row table.
+- Device command execution, command history/logging, Event Viewer,
+  MQTT Debug Console, automation debugging.
+- Historical diagnostics, uptime/latency analytics, automatic health
+  monitoring, notifications.
+- Every other M12 module (Smart Cameras, Home Automation, AI Home
+  Assistant, Remote Access, Smart Home Analytics).
+
 ## M12: Developer Tools — Device Simulator Slice (Task Group P)
 
 **No version bump**, matching this project's own established

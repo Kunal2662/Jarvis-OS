@@ -4194,6 +4194,124 @@ Automation, AI Home Assistant, Remote Access, Smart Home Analytics).
 
 ---
 
+### Task Group Q — Developer Tools: Device Diagnostics Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a twelfth read-only Phase 0 audit (`M12 PHASE 0
+POST-TASK-P AUDIT`), re-evaluating every remaining M12 module from
+scratch and finding `GET /api/v1/devtools/devices/{device_id}/
+diagnostics` the strongest remaining candidate — the only one
+requiring zero touch to any shared/foundational class
+(`ConnectivityService`, any connector, `DEVICE_TYPES`/`CONNECTOR_TYPES`)
+— and directly closing a named, previously-unbuilt Developer Tools
+roadmap item ("Device Diagnostics"). A Logic Contract (`docs/
+M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_LOGIC_CONTRACT.md`), written
+and approved before any code, resolved its architecture by mirroring
+an existing precedent already in `routes/devtools.py`
+(`get_plugin_diagnostics`) rather than creating a new service — and
+found a genuine, non-obvious defect risk to avoid: `PermissionModel.
+is_granted()` carries a `_audit_add("denied_check")` side effect
+(confirmed by direct source read), which a passive diagnostic read
+must never trigger; `state()` (no side effect) is used instead.
+
+- [x] **Logic Contract** — `docs/
+      M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_LOGIC_CONTRACT.md`,
+      written and approved before any code. Traced
+      `ConnectivityService.read_raw_state`'s exact error behavior
+      (returns `None` for no recorded connector; raises
+      `ConnectorNotConnectedError`/other `ConnectivityError` subtypes
+      for a recorded-but-unreachable connector) and confirmed every
+      existing device-category service already wraps this identical
+      call the same way this endpoint does. Enumerated all 11
+      currently-declared `PermissionModel` principals across every
+      M12 service and found `device_type="appliance"` genuinely spans
+      **four** separate principals (`core:appliances`/
+      `core:media_players`/`core:vacuum_humidifier`/
+      `core:water_heaters`), disambiguated only by each appliance
+      service's own private `metadata["domain"]`/`["component"]`
+      fallback — deliberately not replicated here.
+- [x] `GET /api/v1/devtools/devices/{device_id}/diagnostics` —
+      `infrastructure/api/routes/devtools.py`, logic inline in the
+      route handler (two new thin accessors,
+      `_smart_home`/`_connectivity`, mirroring `_permission_model`'s
+      own existing shape) — **no new service, no
+      `DeviceDiagnosticsService`, no extension of
+      `DevtoolsConnectivityService`**. Three response sections:
+      `device` (identity, never `metadata_json`), `connectivity`
+      (`connector_type`, `read_succeeded`, `status`, sanitized
+      `attributes`, `read_error`), `permission` (`principal`, `scope`,
+      `state`, `detail`). Unknown device → 404; a failed live read is
+      **never** an HTTP error — `read_succeeded: false` with an
+      explanatory `read_error`, the remaining sections still fully
+      populated.
+- [x] **Permission resolution closed to five categories** — light
+      (`core:smart_lighting`), switch (`core:smart_switch`), lock
+      (`core:smart_locks`), sensor (`core:sensors`), thermostat
+      (`core:thermostats`) — the same "unique `device_type`, no
+      domain-fallback" boundary Task Groups O and P each independently
+      arrived at. `appliance`/`camera`/every other category reports
+      `principal: null` with an explanatory `detail`, never a guessed
+      or duplicated principal — pinned by a test asserting the lookup
+      table is exactly these five entries.
+- [x] **Key-based attribute redaction** — any attribute key
+      (case-insensitive) containing `token`/`password`/`secret`/
+      `credential`/`api_key`/`apikey`/`auth` has its value replaced
+      with `"<redacted>"`; every other key/value passes through
+      verbatim. For the five resolvable categories this is not a new
+      exposure surface — the same attribute data is already reachable
+      today through each category's own existing `GET .../{id}` read
+      route; the redaction is defense-in-depth, most load-bearing for
+      `camera` (no shipped read service exists for it at all).
+- [x] No `PermissionModel` gate on the route itself — session auth
+      only, matching every other devtools capability, explicitly
+      reasoned (not defaulted): unlike Smart Home Memory/Security, this
+      endpoint exposes no real device mutation and no credential.
+- [x] No agent tool — purely developer-facing, no end-user or AI Home
+      Assistant conversational use case, matching Device Simulator's
+      own identical reasoning.
+- [x] 37 new tests, 0 failures, 0 errors, against the real FastAPI app
+      and real DI container throughout — covering every known
+      device_type's happy path (light/switch/lock/sensor/thermostat)
+      plus `appliance`/`camera`'s unresolved-principal path, device
+      identity fields with a `metadata_json`-never-leaks text-scan
+      guard, three distinct connectivity-failure modes (no recorded
+      connector, connector not connected, and the honestly-distinct
+      "read succeeded but device itself reports unavailable" case),
+      permission states (`pending`/`granted`/`denied`), a parametrized
+      redaction test across nine sensitive-looking key names (each
+      proving the real seeded secret value never appears anywhere in
+      the response text), the REST security boundary, envelope shape,
+      404/no-mutation/no-duplicate-route checks, and source-level
+      guards (AST-docstring-stripped) confirming `is_granted` is never
+      called and zero `EventBus`/Scheduler/Analytics/`MemoryService`
+      reference exists in the route module. M12 regression: 956
+      tests, 0 failures, 0 errors. M11+M12 regression: 1084 tests, 0
+      failures, 0 errors. Full backend regression: 3607 tests, 0
+      failures, 0 errors, 1 pre-existing skip (unrelated, platform
+      symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_FRONTEND_REQUIREMENTS.md`,
+      a planning/specification artifact only (no frontend source),
+      derived from the verified backend contract. **Zero frontend
+      files touched.**
+
+**Explicitly out of scope, and not built:** appliance sub-domain
+principal resolution (would duplicate four services' own private
+domain-resolution logic); any general `device_type → principal`
+registry mechanism beyond this endpoint's own small, closed, five-row
+table; device command execution, command history/logging, Event
+Viewer, MQTT Debug Console, automation debugging (all separate,
+undecided candidates); historical diagnostics, uptime/latency
+analytics, automatic health monitoring, notifications. **No existing
+service was modified** — `SmartHomeService`/`ConnectivityService`/
+`PermissionModel` and every device-category service are called through
+their existing public methods only. **No `DEVICE_TYPES`/
+`CONNECTOR_TYPES` change. No schema/migration change. The `EventBus`
+was not touched. No connector was touched.** **Not this task group,
+and not built:** any other M12 module (Smart Cameras, Home Automation,
+AI Home Assistant, Remote Access, Smart Home Analytics).
+
+---
+
 ## 6. Deferred Backlog
 
 *(Added Aug 2026 — roadmap reconciliation pass, ahead of M9 Task Group

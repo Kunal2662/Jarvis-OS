@@ -745,6 +745,45 @@ Logic Contract and `docs/M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_FRONTEND_
 REQUIREMENTS.md` for the (planning-only, no code) frontend requirements
 this slice's API surface implies.
 
+**M12 — Developer Tools (Device Diagnostics Slice) shipped Aug 2026.**
+A Phase 0 audit re-evaluated M12 from scratch after Device Simulator
+shipped and found `GET /api/v1/devtools/devices/{device_id}/
+diagnostics` the strongest remaining candidate -- the only one needing
+zero touch to any shared/foundational class (`ConnectivityService`,
+any connector, `DEVICE_TYPES`/`CONNECTOR_TYPES`), closing a named,
+previously-unbuilt Developer Tools roadmap item. The Logic Contract
+(`docs/M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_LOGIC_CONTRACT.md`)
+resolved its architecture by mirroring an existing precedent in the
+same file (`get_plugin_diagnostics`) rather than creating a new
+service: logic lives inline in `routes/devtools.py`, aggregating three
+already-shipped calls (`SmartHomeService.get_device`,
+`ConnectivityService.read_raw_state`, `PermissionModel.state` --
+deliberately not `is_granted`, which carries an audit-log side effect
+a passive diagnostic read must never trigger). The permission section
+resolves only the five device categories with a single, unambiguous
+owning principal (light/switch/lock/sensor/thermostat); `appliance`
+(which spans four separate principals, disambiguated only by each
+appliance service's own private domain-resolution logic) and
+`camera`/every other category report an explicit, honest "unresolved"
+result rather than a guessed or duplicated principal. Reported live-
+state attributes are sanitized by key (redacting any key matching
+token/password/secret/credential/api_key/auth) before inclusion --
+for the five resolvable categories this is not a new exposure surface
+(the same data is already reachable today through each category's own
+existing read route), making the redaction a defense-in-depth control
+rather than the only thing standing between a live read and secret
+exposure. A failed live connectivity read is never an HTTP error --
+the response still returns 200 with `read_succeeded: false` and an
+explanatory `read_error`, mirroring the same best-effort pattern every
+device-category service's own `read_raw_state` handling already uses.
+No `PermissionModel` gate on the route itself, matching every other
+devtools capability. 37 new tests, 0 failures, 0 errors, full backend
+regression (3607 tests) green. See `docs/
+M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_LOGIC_CONTRACT.md` for the full
+Logic Contract and `docs/M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_
+FRONTEND_REQUIREMENTS.md` for the (planning-only, no code) frontend
+requirements this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
@@ -752,9 +791,10 @@ Appliance Control's Core Appliance Slice/Climate/Thermostat Slice/
 Vacuum + Humidifier Core Slice/Media Player Core Slice/Water Heater
 Core Slice, Security & Safety's Read-Only Alert/Status Slice **and**
 Manual/On-Demand Action Slice, Developer Tools' Connectivity /
-Integration Health Slice **and** Device Simulator Slice, and Smart Home
-Memory's Manual/On-Demand Device Snapshot Slice are now shipped; five
-of this milestone's fifteen modules remain entirely unstarted (Smart
+Integration Health Slice, Device Simulator Slice **and** Device
+Diagnostics Slice, and Smart Home Memory's Manual/On-Demand Device
+Snapshot Slice are now shipped; five of this milestone's fifteen
+modules remain entirely unstarted (Smart
 Cameras, Home Automation, AI Home Assistant, Remote Access, Smart Home
 Analytics) — Energy Management, Appliance Control, Security & Safety,
 Developer Tools, and Smart Home Memory themselves each remain only
@@ -774,10 +814,13 @@ Security & Safety: Panic Mode and a narrowly-scoped Vacation Mode only
 — Emergency Alerts, scheduled/randomized Vacation Mode, geofencing,
 siren/alarm-panel integration, and every notification channel remain
 deferred, each blocked on infrastructure this slice deliberately did
-not build; Developer Tools: Connectivity/Integration Health and Device
+not build; Developer Tools: Connectivity/Integration Health, Device
 Simulator (light/switch/thermostat/lock/sensor categories, the
-`"home_assistant"` connector slot only) only — MQTT Debug Console,
-MQTT-slot simulation, and Event Viewer all remain deferred, the last
+`"home_assistant"` connector slot only), and Device Diagnostics (same
+five-category permission resolution; `appliance`/`camera`/every other
+category reports an unresolved principal, not a guess) only — MQTT
+Debug Console, MQTT-slot simulation, Event Viewer, and appliance-
+sub-domain principal resolution all remain deferred, Event Viewer
 explicitly blocked on the still-unresolved device-command EventBus
 publishing gap; Smart Home Memory: manual snapshot creation and
 retrieval for light/switch/thermostat devices only — Sensor/Lock/
@@ -786,15 +829,16 @@ scheduled/event-driven capture, diff/trend/analytics views, and
 home-wide/batch snapshotting all remain deferred, the device-category
 and automatic-capture exclusions being deliberate privacy/architectural
 choices rather than merely unbuilt). **No version bump accompanied any
-of the eighteen task-group passes** -- unlike M22's own task groups
+of the nineteen task-group passes** -- unlike M22's own task groups
 (each of which shipped real code and bumped the version in turn), all
-eighteen ship real code at `0.38.0` unchanged. Recorded here as a
+nineteen ship real code at `0.38.0` unchanged. Recorded here as a
 deliberate exception to this project's usual pattern, not a claim that
 the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
 Group J, Task Group K, Task Group L, Task Group M, Task Group N, Task
-Group O, and Task Group P entries for the full implementation account.
+Group O, Task Group P, and Task Group Q entries for the full
+implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -4872,18 +4916,32 @@ every mutation command. Supports light/switch/thermostat/lock/sensor
 with deterministic command-to-state mutation and caller-configured
 fault simulation, over five devtools-only roster-management REST
 endpoints; discovery, live state and command execution all continue
-through the existing, unmodified generic Connectivity Layer. MQTT
-Debug Console, Event Viewer, and Automation Tester all remain unbuilt
--- Event Viewer specifically blocked on the still-unresolved
-device-command EventBus publishing gap, not merely deferred by
-choice.)*
+through the existing, unmodified generic Connectivity Layer. Device
+Diagnostics Slice shipped Task Group Q, Aug 2026 -- `GET /api/v1/
+devtools/devices/{device_id}/diagnostics`, logic inline in
+`routes/devtools.py` mirroring the pre-existing `get_plugin_diagnostics`
+pattern in the same file rather than a new service, aggregating
+`SmartHomeService.get_device` + `ConnectivityService.read_raw_state` +
+`PermissionModel.state` (never `is_granted`, which carries an
+audit-log side effect). Permission resolution is closed to the same
+five single-principal categories Device Simulator supports;
+`appliance`/`camera`/every other category reports an explicit
+unresolved principal rather than a guess. Live-state attributes are
+sanitized by key (token/password/secret/credential/api_key/auth) --
+defense-in-depth, since this data is already reachable today through
+each of the five categories' own existing read route. A failed live
+read is never an HTTP error, only `read_succeeded: false` with a
+`read_error`. MQTT Debug Console, Event Viewer, and Automation Tester
+all remain unbuilt -- Event Viewer specifically blocked on the
+still-unresolved device-command EventBus publishing gap, not merely
+deferred by choice.)*
 - Device Simulator ✅ *(light/switch/thermostat/lock/sensor, `"home_assistant"` connector slot only -- MQTT-slot simulation deferred)*
 - MQTT Debug Console
 - Device Logs
 - Event Viewer *(blocked -- no device-command event exists on the EventBus to view)*
 - Automation Tester
 - Integration Health Dashboard ✅ *(connector registration/connection state + per-home device-health counts, read-only)*
-- Device Diagnostics
+- Device Diagnostics ✅ *(per-device identity + live connectivity + permission-grant aggregate; appliance/camera permission resolution deferred)*
 
 Lands in Developer Mode alongside M5A's Agent Trace panel and M11's
 Workspace Developer Tools, following the same established pattern
