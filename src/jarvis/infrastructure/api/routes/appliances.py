@@ -1,5 +1,5 @@
 """Appliance Control API -- Milestone 12 Appliance Control (Core
-Appliance Slice: Fans + Covers).
+Appliance Slice: Fans + Covers; Fan Percentage + Cover Position Slice).
 
 ``/api/v1/appliances/*`` -- thin REST over ``ApplianceService``, the
 same ``{data, meta}`` envelope and ``Depends(get_current_session)``
@@ -9,8 +9,15 @@ service layer, same as ``routes/smart_switches.py``.
 
 **Two sibling resource collections, not one generic ``/appliances/{id}/
 command`` endpoint.** A fan and a cover have genuinely different
-command vocabularies (``on``/``off`` vs ``open``/``close``) -- see
-``docs/M12_APPLIANCE_CONTROL_LOGIC_CONTRACT.md`` §12.
+command vocabularies (``on``/``off`` vs ``open``/``close``, now also
+``set_percentage`` vs ``set_position``) -- see
+``docs/M12_APPLIANCE_CONTROL_LOGIC_CONTRACT.md`` §12. ``set_percentage``/
+``set_position`` are their own dedicated verb endpoints, not an
+optional body field merged into ``/on``/``/open`` -- this router's own
+design principle (distinct command vocabularies get distinct
+endpoints) applies to them exactly as it already does to on/off/open/
+close; see ``docs/M12_APPLIANCE_FAN_COVER_POSITION_LOGIC_CONTRACT.md``
+§10.
 
 **Reads are not permission-gated here** (unlike ``routes/sensors.py``)
 -- fan/cover state carries no comparable privacy weight to sensor data;
@@ -24,6 +31,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
 
@@ -31,6 +39,14 @@ if TYPE_CHECKING:
     from jarvis.services.appliance_service import ApplianceService
 
 router = APIRouter(tags=["appliances"], dependencies=[Depends(get_current_session)])
+
+
+class SetFanPercentageRequest(BaseModel):
+    percentage: int
+
+
+class SetCoverPositionRequest(BaseModel):
+    position: int
 
 
 def _appliances(request: Request) -> ApplianceService:
@@ -88,6 +104,19 @@ async def turn_fan_off(device_id: str, request: Request) -> Envelope[dict[str, A
     return envelope(result, meta={"success": result["success"]})
 
 
+@router.post("/appliances/fans/{device_id}/set_percentage", response_model=Envelope[dict[str, Any]])
+async def set_fan_percentage(
+    device_id: str, body: SetFanPercentageRequest, request: Request
+) -> Envelope[dict[str, Any]]:
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        result = await _appliances(request).set_fan_percentage(device_id, body.percentage)
+    except ServiceError as err:
+        raise _bad_request(err) from err
+    return envelope(result, meta={"success": result["success"]})
+
+
 # ------------------------------------------------------------------
 # Covers
 # ------------------------------------------------------------------
@@ -130,6 +159,19 @@ async def close_cover(device_id: str, request: Request) -> Envelope[dict[str, An
 
     try:
         result = await _appliances(request).cover_close(device_id)
+    except ServiceError as err:
+        raise _bad_request(err) from err
+    return envelope(result, meta={"success": result["success"]})
+
+
+@router.post("/appliances/covers/{device_id}/set_position", response_model=Envelope[dict[str, Any]])
+async def set_cover_position(
+    device_id: str, body: SetCoverPositionRequest, request: Request
+) -> Envelope[dict[str, Any]]:
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        result = await _appliances(request).set_cover_position(device_id, body.position)
     except ServiceError as err:
         raise _bad_request(err) from err
     return envelope(result, meta={"success": result["success"]})
