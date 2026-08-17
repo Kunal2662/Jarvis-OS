@@ -21,10 +21,12 @@ from jarvis.core.events.event_bus import EventBus
 from jarvis.core.exceptions import ServiceError
 from jarvis.core.interfaces.connectivity import DeviceState
 from jarvis.core.plugins.permissions import PermissionModel
+from jarvis.services.alarm_control_panel_service import AlarmControlPanelService
 from jarvis.services.appliance_service import ApplianceService
 from jarvis.services.connectivity_service import ConnectivityService
 from jarvis.services.media_player_service import MediaPlayerService
 from jarvis.services.memory_service import MemoryService
+from jarvis.services.siren_service import SirenService
 from jarvis.services.smart_home_memory_service import (
     SMART_HOME_MEMORY_PRINCIPAL,
     SMART_HOME_SCOPE,
@@ -53,6 +55,8 @@ _VACUUM_EXTERNAL_ID = "vacuum.living_room"
 _HUMIDIFIER_EXTERNAL_ID = "humidifier.nursery"
 _MEDIA_PLAYER_EXTERNAL_ID = "media_player.living_room"
 _WATER_HEATER_EXTERNAL_ID = "water_heater.basement"
+_SIREN_EXTERNAL_ID = "siren.front_yard"
+_ALARM_CONTROL_PANEL_EXTERNAL_ID = "alarm_control_panel.front"
 
 
 def _settings(tmp_path: Path, monkeypatch):
@@ -186,6 +190,22 @@ def water_heaters(
 
 
 @pytest.fixture
+def siren(
+    smart_home: SmartHomeService, connectivity: ConnectivityService, permissions: PermissionModel
+) -> SirenService:
+    return SirenService(smart_home=smart_home, connectivity=connectivity, permissions=permissions)
+
+
+@pytest.fixture
+def alarm_control_panels(
+    smart_home: SmartHomeService, connectivity: ConnectivityService, permissions: PermissionModel
+) -> AlarmControlPanelService:
+    return AlarmControlPanelService(
+        smart_home=smart_home, connectivity=connectivity, permissions=permissions
+    )
+
+
+@pytest.fixture
 def memory(db) -> MemoryService:
     database, settings = db
     return MemoryService(
@@ -195,6 +215,7 @@ def memory(db) -> MemoryService:
 
 @pytest.fixture
 def service(
+    *,
     smart_home: SmartHomeService,
     smart_lighting: SmartLightingService,
     smart_switch: SmartSwitchService,
@@ -203,6 +224,8 @@ def service(
     vacuum_humidifier: VacuumHumidifierService,
     media_players: MediaPlayerService,
     water_heaters: WaterHeaterService,
+    siren: SirenService,
+    alarm_control_panels: AlarmControlPanelService,
     memory: MemoryService,
     permissions: PermissionModel,
 ) -> SmartHomeMemoryService:
@@ -215,6 +238,8 @@ def service(
         vacuum_humidifier=vacuum_humidifier,
         media_players=media_players,
         water_heaters=water_heaters,
+        siren=siren,
+        alarm_control_panels=alarm_control_panels,
         memory=memory,
         permissions=permissions,
     )
@@ -284,6 +309,31 @@ async def _appliance(
     )
 
 
+async def _other(
+    smart_home: SmartHomeService,
+    *,
+    domain_key: str = "domain",
+    domain: str,
+    external_id: str,
+    name: str = "Other Device",
+    home_id: str | None = None,
+):
+    """Registers one `device_type="other"` device carrying *domain* (or
+    *component*, via *domain_key*) in its metadata -- the Tier-3
+    dispatch discriminator (Security Device Expansion Logic Contract
+    §7), mirroring `_appliance`'s own shape for Tier 2."""
+    if home_id is None:
+        home = await smart_home.create_home("Primary Residence")
+        home_id = home.id
+    return await smart_home.register_discovered_device(
+        home_id,
+        name,
+        device_type="other",
+        external_id=external_id,
+        metadata={"connector_type": "home_assistant", domain_key: domain},
+    )
+
+
 # --- Permission (Logic Contract §10) ------------------------------------------------
 
 
@@ -341,10 +391,14 @@ async def test_unknown_device_raises_plain_service_error(
         ("lock", {}),
         ("camera", {}),
         ("other", {}),
-        # Siren lives in the shared "other" bucket, domain="siren" --
-        # simply out of this task group's named scope (Expansion Logic
-        # Contract §8), not privacy-excluded like sensor/lock.
-        ("other", {"domain": "siren"}),
+        # A real, unmapped "other"-bucket domain (per SirenService's
+        # own module docstring: "also select/number/valve/
+        # alarm_control_panel/anything unmapped") -- proves the Tier-3
+        # cascade doesn't fall through to a false match. NOT
+        # domain="siren"/"alarm_control_panel" -- Task Group V makes
+        # both of those genuinely supported (Security Device Expansion
+        # Logic Contract §4 item 1).
+        ("other", {"domain": "valve"}),
         # An "appliance"-typed device whose domain is NOT one of the
         # six supported categories must still be rejected -- proves
         # the Tier-2 cascade doesn't fall through to a false match.
@@ -360,10 +414,11 @@ async def test_unsupported_category_is_a_distinct_error(
     metadata: dict,
 ) -> None:
     """Sensors/Locks are excluded permanently on privacy/security
-    grounds (Expansion Logic Contract §6); Siren/Camera are simply out
-    of this task group's scope; an "appliance"-typed device with no
-    matching domain is rejected, never falsely matched. All raise the
-    same distinct `UnsupportedSnapshotCategoryError`, never a plain
+    grounds (Expansion Logic Contract §6); Camera is simply out of
+    scope (no `CameraService` exists); a non-siren/non-alarm_control_
+    panel "other"-bucket domain and an "appliance"-typed device with no
+    matching domain are both rejected, never falsely matched. All raise
+    the same distinct `UnsupportedSnapshotCategoryError`, never a plain
     unknown-device `ServiceError`."""
     await _grant(permissions)
     home = await smart_home.create_home("Primary Residence")
@@ -655,6 +710,369 @@ async def test_appliance_dispatch_never_falsely_matches_another_category(
     assert "battery_level" not in rows[0]["state"]  # a vacuum-only field
     assert "volume_level" not in rows[0]["state"]  # a media_player-only field
     assert result["memory_id"]
+
+
+# --- Snapshot creation: security categories (Security Device Expansion Logic Contract §7/§8) --
+
+
+@pytest.mark.asyncio
+async def test_snapshot_siren_captures_verbatim_state(
+    *,
+    service: SmartHomeMemoryService,
+    smart_home: SmartHomeService,
+    siren: SirenService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _other(
+        smart_home, domain="siren", external_id=_SIREN_EXTERNAL_ID, name="Front Yard Siren"
+    )
+    fake_connector.states[_SIREN_EXTERNAL_ID] = DeviceState(
+        external_id=_SIREN_EXTERNAL_ID, status="on", attributes={}
+    )
+    expected_state = await siren.get_siren_state(device.id)
+
+    result = await service.snapshot_device(device.id)
+
+    assert result["device_type"] == "other"
+    rows = await service.list_snapshots(device_id=device.id)
+    assert rows[0]["state"] == expected_state
+    assert rows[0]["state"]["on"] is True
+
+
+@pytest.mark.asyncio
+async def test_snapshot_siren_component_fallback(
+    *,
+    service: SmartHomeMemoryService,
+    smart_home: SmartHomeService,
+    siren: SirenService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """MQTT Discovery-sourced devices carry `component` rather than
+    `domain` -- `SirenService._domain_for`'s own fallback, exercised
+    here through the public `get_siren_state`, never duplicated in this
+    module (Security Device Expansion Logic Contract §7/§8)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _other(
+        smart_home,
+        domain_key="component",
+        domain="siren",
+        external_id=_SIREN_EXTERNAL_ID,
+        name="Front Yard Siren",
+    )
+    fake_connector.states[_SIREN_EXTERNAL_ID] = DeviceState(
+        external_id=_SIREN_EXTERNAL_ID, status="off", attributes={}
+    )
+
+    result = await service.snapshot_device(device.id)
+
+    rows = await service.list_snapshots(device_id=device.id)
+    assert rows[0]["state"]["on"] is False
+    assert result["memory_id"]
+
+
+@pytest.mark.asyncio
+async def test_snapshot_alarm_control_panel_captures_verbatim_state(
+    *,
+    service: SmartHomeMemoryService,
+    smart_home: SmartHomeService,
+    alarm_control_panels: AlarmControlPanelService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _other(
+        smart_home,
+        domain="alarm_control_panel",
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID,
+        name="Front Panel",
+    )
+    fake_connector.states[_ALARM_CONTROL_PANEL_EXTERNAL_ID] = DeviceState(
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID, status="armed_home", attributes={}
+    )
+    expected_state = await alarm_control_panels.get_alarm_control_panel_state(device.id)
+
+    result = await service.snapshot_device(device.id)
+
+    assert result["device_type"] == "other"
+    rows = await service.list_snapshots(device_id=device.id)
+    assert rows[0]["state"] == expected_state
+    assert rows[0]["state"]["state"] == "armed_home"
+
+
+@pytest.mark.asyncio
+async def test_snapshot_alarm_control_panel_component_fallback(
+    service: SmartHomeMemoryService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _other(
+        smart_home,
+        domain_key="component",
+        domain="alarm_control_panel",
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID,
+        name="Front Panel",
+    )
+    fake_connector.states[_ALARM_CONTROL_PANEL_EXTERNAL_ID] = DeviceState(
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID, status="disarmed", attributes={}
+    )
+
+    result = await service.snapshot_device(device.id)
+
+    rows = await service.list_snapshots(device_id=device.id)
+    assert rows[0]["state"]["state"] == "disarmed"
+    assert result["memory_id"]
+
+
+@pytest.mark.asyncio
+async def test_snapshot_alarm_control_panel_preserves_triggered_state(
+    service: SmartHomeMemoryService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """`triggered` is a real, verbatim HA state (Task Group U's own
+    verified vocabulary) -- a snapshot must capture it honestly, never
+    substitute a softer value (Security Device Expansion Logic Contract
+    §9's own accepted security-posture-history tradeoff)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _other(
+        smart_home,
+        domain="alarm_control_panel",
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID,
+        name="Front Panel",
+    )
+    fake_connector.states[_ALARM_CONTROL_PANEL_EXTERNAL_ID] = DeviceState(
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID, status="triggered", attributes={}
+    )
+
+    await service.snapshot_device(device.id)
+
+    rows = await service.list_snapshots(device_id=device.id)
+    assert rows[0]["state"]["state"] == "triggered"
+
+
+@pytest.mark.asyncio
+async def test_security_dispatch_never_falsely_matches_another_category(
+    service: SmartHomeMemoryService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """alarm_control_panel (last in the Tier-3 cascade order) must
+    resolve to its own state, not silently succeed against Siren's own
+    reader -- mirrors `test_appliance_dispatch_never_falsely_matches_
+    another_category`'s own proof for Tier 2."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _other(
+        smart_home,
+        domain="alarm_control_panel",
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID,
+        name="Front Panel",
+    )
+    fake_connector.states[_ALARM_CONTROL_PANEL_EXTERNAL_ID] = DeviceState(
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID, status="armed_away", attributes={}
+    )
+
+    result = await service.snapshot_device(device.id)
+
+    rows = await service.list_snapshots(device_id=device.id)
+    assert rows[0]["state"]["state"] == "armed_away"
+    assert "on" not in rows[0]["state"]  # a siren-only field
+    assert result["memory_id"]
+
+
+@pytest.mark.asyncio
+async def test_tier3_only_runs_for_other_device_type(
+    *,
+    smart_home: SmartHomeService,
+    smart_lighting: SmartLightingService,
+    smart_switch: SmartSwitchService,
+    thermostats: ThermostatService,
+    appliances: ApplianceService,
+    vacuum_humidifier: VacuumHumidifierService,
+    media_players: MediaPlayerService,
+    water_heaters: WaterHeaterService,
+    siren: SirenService,
+    alarm_control_panels: AlarmControlPanelService,
+    memory: MemoryService,
+    permissions: PermissionModel,
+    monkeypatch,
+) -> None:
+    """A `device_type="switch"` device carrying a stray
+    `metadata={"domain": "siren"}` must not be picked up by Tier 3 --
+    Tier 3 is gated on `device_type=="other"`, and Tier 1's own dict
+    lookup returns unconditionally before Tier 2/3 are ever considered
+    (`_read_state`'s own early `return` on a Tier-1 hit). Proven here by
+    spying on `SirenService.get_siren_state` directly -- it must never
+    even be called, not merely "produce a different-shaped result"
+    (which it wouldn't, since both readers share an `on` field). The
+    spy must be installed *before* `SmartHomeMemoryService` is
+    constructed -- its Tier-3 cascade captures a bound-method reference
+    at `__init__` time, so patching the fixture's `siren` instance
+    *after* construction would never be observed."""
+    called = False
+    original = siren.get_siren_state
+
+    async def _spy(device_id: str):
+        nonlocal called
+        called = True
+        return await original(device_id)
+
+    monkeypatch.setattr(siren, "get_siren_state", _spy)
+
+    service = SmartHomeMemoryService(
+        smart_home=smart_home,
+        smart_lighting=smart_lighting,
+        smart_switch=smart_switch,
+        thermostats=thermostats,
+        appliances=appliances,
+        vacuum_humidifier=vacuum_humidifier,
+        media_players=media_players,
+        water_heaters=water_heaters,
+        siren=siren,
+        alarm_control_panels=alarm_control_panels,
+        memory=memory,
+        permissions=permissions,
+    )
+
+    await _grant(permissions)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Odd Switch",
+        device_type="switch",
+        external_id=_SWITCH_EXTERNAL_ID,
+        metadata={"connector_type": "home_assistant", "domain": "siren"},
+    )
+
+    result = await service.snapshot_device(device.id)
+
+    assert result["device_type"] == "switch"
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_snapshot_never_leaks_device_metadata_json_for_siren(
+    service: SmartHomeMemoryService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    device = await smart_home.register_discovered_device(
+        (await smart_home.create_home("Primary Residence")).id,
+        "Front Yard Siren",
+        device_type="other",
+        external_id=_SIREN_EXTERNAL_ID,
+        metadata={"connector_type": "home_assistant", "domain": "siren", "secret_token": "sh-xyz"},
+    )
+
+    await service.snapshot_device(device.id)
+
+    rows = await service.list_snapshots(device_id=device.id)
+    assert "sh-xyz" not in str(rows[0])
+    assert "secret_token" not in str(rows[0])
+    assert "connector_type" not in rows[0]["state"]
+
+
+@pytest.mark.asyncio
+async def test_snapshot_never_leaks_device_metadata_json_for_alarm_control_panel(
+    service: SmartHomeMemoryService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    device = await smart_home.register_discovered_device(
+        (await smart_home.create_home("Primary Residence")).id,
+        "Front Panel",
+        device_type="other",
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID,
+        metadata={
+            "connector_type": "home_assistant",
+            "domain": "alarm_control_panel",
+            "secret_token": "sh-xyz",
+        },
+    )
+
+    await service.snapshot_device(device.id)
+
+    rows = await service.list_snapshots(device_id=device.id)
+    assert "sh-xyz" not in str(rows[0])
+    assert "secret_token" not in str(rows[0])
+    assert "connector_type" not in rows[0]["state"]
+
+
+@pytest.mark.asyncio
+async def test_unavailable_siren_still_produces_honest_snapshot(
+    service: SmartHomeMemoryService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """No connector connected -- mirrors
+    `test_unavailable_device_still_produces_honest_snapshot`'s own proof
+    for Tier 1, now for Tier 3."""
+    await _grant(permissions)
+    device = await _other(smart_home, domain="siren", external_id=_SIREN_EXTERNAL_ID)
+
+    result = await service.snapshot_device(device.id)
+
+    rows = await service.list_snapshots(device_id=device.id)
+    assert rows[0]["state"]["on"] is None
+    assert rows[0]["state"]["available"] is False
+    assert result["memory_id"]
+
+
+@pytest.mark.asyncio
+async def test_unavailable_alarm_control_panel_still_produces_honest_snapshot(
+    service: SmartHomeMemoryService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    device = await _other(
+        smart_home, domain="alarm_control_panel", external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID
+    )
+
+    result = await service.snapshot_device(device.id)
+
+    rows = await service.list_snapshots(device_id=device.id)
+    assert rows[0]["state"]["state"] is None
+    assert rows[0]["state"]["available"] is False
+    assert result["memory_id"]
+
+
+@pytest.mark.asyncio
+async def test_security_snapshot_requires_only_memory_grant_not_siren_or_alarm_grant(
+    service: SmartHomeMemoryService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """Only `core:smart_home_memory`/`smart_home` is required -- exactly
+    the same "memory's own grant is sufficient" precedent Tier 1/Tier 2
+    already establish (neither `core:sirens` nor
+    `core:alarm_control_panels` is ever checked by this module, since
+    `get_siren_state`/`get_alarm_control_panel_state` are themselves
+    ungated reads)."""
+    await _grant(permissions)  # only core:smart_home_memory/smart_home
+    siren_device = await _other(smart_home, domain="siren", external_id=_SIREN_EXTERNAL_ID)
+    panel_device = await _other(
+        smart_home,
+        domain="alarm_control_panel",
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID,
+        home_id=siren_device.home_id,
+    )
+
+    siren_result = await service.snapshot_device(siren_device.id)
+    panel_result = await service.snapshot_device(panel_device.id)
+
+    assert siren_result["memory_id"]
+    assert panel_result["memory_id"]
 
 
 # --- Unavailable device honesty (Logic Contract §18/§20) ------------------------------
@@ -954,6 +1372,74 @@ async def test_snapshot_home_all_supported_devices_succeed(
 
 
 @pytest.mark.asyncio
+async def test_snapshot_home_includes_siren_and_alarm_control_panel(
+    service: SmartHomeMemoryService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """One of each: light (Tier 1), fan (Tier 2), siren + alarm_control_
+    panel (Tier 3, both new this task group), plus one genuinely
+    unsupported "other"-bucket device -- proves `snapshot_home` requires
+    zero code change of its own to pick up the two new categories
+    (Security Device Expansion Logic Contract §4/§8's own claim,
+    verified behaviorally)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    home = await smart_home.create_home("Primary Residence")
+    light = await smart_home.register_discovered_device(
+        home.id,
+        "Light",
+        device_type="light",
+        external_id=_LIGHT_EXTERNAL_ID,
+        metadata={"connector_type": "home_assistant"},
+    )
+    fan = await _appliance(smart_home, domain="fan", external_id=_FAN_EXTERNAL_ID, home_id=home.id)
+    siren_device = await _other(
+        smart_home, domain="siren", external_id=_SIREN_EXTERNAL_ID, home_id=home.id
+    )
+    panel = await _other(
+        smart_home,
+        domain="alarm_control_panel",
+        external_id=_ALARM_CONTROL_PANEL_EXTERNAL_ID,
+        home_id=home.id,
+    )
+    unsupported = await smart_home.register_discovered_device(
+        home.id,
+        "Unmapped Other",
+        device_type="other",
+        external_id="valve.garden",
+        metadata={"connector_type": "home_assistant", "domain": "valve"},
+    )
+    for external_id in (
+        _LIGHT_EXTERNAL_ID,
+        _FAN_EXTERNAL_ID,
+        _SIREN_EXTERNAL_ID,
+        _ALARM_CONTROL_PANEL_EXTERNAL_ID,
+    ):
+        fake_connector.states[external_id] = DeviceState(
+            external_id=external_id, status="on", attributes={}
+        )
+
+    result = await service.snapshot_home(home.id)
+
+    assert result["requested_count"] == 5
+    assert result["attempted_count"] == 4
+    assert result["succeeded_count"] == 4
+    assert result["failed_count"] == 0
+    assert result["skipped_count"] == 1
+    outcomes = {r["device_id"]: r["outcome"] for r in result["results"]}
+    assert outcomes[light.id] == "succeeded"
+    assert outcomes[fan.id] == "succeeded"
+    assert outcomes[siren_device.id] == "succeeded"
+    assert outcomes[panel.id] == "succeeded"
+    assert outcomes[unsupported.id] == "skipped"
+    persisted = await service.list_snapshots(limit=10)
+    assert len(persisted) == 4
+
+
+@pytest.mark.asyncio
 async def test_snapshot_home_skips_unsupported_categories(
     service: SmartHomeMemoryService, smart_home: SmartHomeService, permissions: PermissionModel
 ) -> None:
@@ -1192,17 +1678,27 @@ def test_deletion_is_scoped_never_generic() -> None:
 
 def test_no_deferred_functionality_exists() -> None:
     """Every item in the Expansion Logic Contract's own §27 deferred
-    table must have no corresponding code path here. `home_wide`/
-    `batch_snapshot` are deliberately absent from this list -- Task
-    Group S makes both real, approved scope, not deferred."""
+    table, plus the Security Device Expansion Logic Contract's own §12
+    deferred table, must have no corresponding code path here.
+    `home_wide`/`batch_snapshot` are deliberately absent from this list
+    -- Task Group S makes both real, approved scope, not deferred.
+    `alarm_control_panel` is likewise deliberately absent -- Task Group
+    V makes it real, approved scope, not deferred (it is expected to
+    appear as an import, a reader-tuple key, and in docstrings)."""
     source = _service_code().lower()
     for deferred_term in (
         "automatic_history",
         "continuous",
         "predict",
         "notification",
-        "alarm_control_panel",
         "eventbus",
+        # Task Group V's own explicit non-goals (Security Device
+        # Expansion Logic Contract §12) -- deferred arm modes/trigger
+        # must never appear as real dispatch code, only in prose
+        # explaining their absence, which this docstring-stripped scan
+        # already excludes.
+        "panic",
+        "vacation",
     ):
         assert deferred_term not in source
     # Sensor/Lock must never appear as *supported* device_type keys --

@@ -725,6 +725,8 @@ def _build_smart_home_memory_service(
     vacuum_humidifier_service: Any,
     media_player_service: Any,
     water_heater_service: Any,
+    siren_service: Any,
+    alarm_control_panel_service: Any,
     memory_service: Any,
     permission_model: Any,
 ) -> Any:
@@ -739,6 +741,8 @@ def _build_smart_home_memory_service(
         vacuum_humidifier=vacuum_humidifier_service,
         media_players=media_player_service,
         water_heaters=water_heater_service,
+        siren=siren_service,
+        alarm_control_panels=alarm_control_panel_service,
         memory=memory_service,
         permissions=permission_model,
     )
@@ -1694,13 +1698,16 @@ class Container(containers.DeclarativeContainer):
     )
 
     # ---- Milestone 12 Smart Home Memory (Manual/On-Demand Device ----------
-    # Snapshot Slice + Device-Category Expansion Slice) ---------------------
-    # Composes SmartHomeService + nine device-category services (light/
+    # Snapshot Slice + Device-Category Expansion Slice + Security Device ----
+    # Expansion Slice) --------------------------------------------------------
+    # Composes SmartHomeService + eleven device-category services (light/
     # switch/thermostat, unique device_type, Tier 1; fan/cover/vacuum/
     # humidifier/media_player/water_heater, shared "appliance"
-    # device_type, Tier 2 cascade) + MemoryService. Sensor/Lock remain
-    # permanently excluded on privacy/security grounds -- see
-    # docs/M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md §6.
+    # device_type, Tier 2 cascade; siren/alarm_control_panel, shared
+    # "other" device_type, Tier 3 cascade) + MemoryService. Sensor/Lock
+    # remain permanently excluded on privacy/security grounds -- see
+    # docs/M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md §6 and
+    # docs/M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_LOGIC_CONTRACT.md §9.
     smart_home_memory_service = providers.Singleton(
         _build_smart_home_memory_service,
         smart_home_service=smart_home_service,
@@ -1711,6 +1718,8 @@ class Container(containers.DeclarativeContainer):
         vacuum_humidifier_service=vacuum_humidifier_service,
         media_player_service=media_player_service,
         water_heater_service=water_heater_service,
+        siren_service=siren_service,
+        alarm_control_panel_service=alarm_control_panel_service,
         memory_service=memory_service,
         permission_model=permission_model,
     )

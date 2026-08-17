@@ -21,10 +21,12 @@ from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
 from jarvis.core.events.event_bus import EventBus
 from jarvis.core.interfaces.connectivity import DeviceState
 from jarvis.core.plugins.permissions import PermissionModel
+from jarvis.services.alarm_control_panel_service import AlarmControlPanelService
 from jarvis.services.appliance_service import ApplianceService
 from jarvis.services.connectivity_service import ConnectivityService
 from jarvis.services.media_player_service import MediaPlayerService
 from jarvis.services.memory_service import MemoryService
+from jarvis.services.siren_service import SirenService
 from jarvis.services.smart_home_memory_service import (
     SMART_HOME_MEMORY_PRINCIPAL,
     SMART_HOME_SCOPE,
@@ -162,6 +164,22 @@ def water_heaters(
 
 
 @pytest.fixture
+def siren(
+    smart_home: SmartHomeService, connectivity: ConnectivityService, permissions: PermissionModel
+) -> SirenService:
+    return SirenService(smart_home=smart_home, connectivity=connectivity, permissions=permissions)
+
+
+@pytest.fixture
+def alarm_control_panels(
+    smart_home: SmartHomeService, connectivity: ConnectivityService, permissions: PermissionModel
+) -> AlarmControlPanelService:
+    return AlarmControlPanelService(
+        smart_home=smart_home, connectivity=connectivity, permissions=permissions
+    )
+
+
+@pytest.fixture
 def memory(db) -> MemoryService:
     database, settings = db
     return MemoryService(
@@ -171,6 +189,7 @@ def memory(db) -> MemoryService:
 
 @pytest.fixture
 def service(
+    *,
     smart_home: SmartHomeService,
     smart_lighting: SmartLightingService,
     smart_switch: SmartSwitchService,
@@ -179,6 +198,8 @@ def service(
     vacuum_humidifier: VacuumHumidifierService,
     media_players: MediaPlayerService,
     water_heaters: WaterHeaterService,
+    siren: SirenService,
+    alarm_control_panels: AlarmControlPanelService,
     memory: MemoryService,
     permissions: PermissionModel,
 ) -> SmartHomeMemoryService:
@@ -191,6 +212,8 @@ def service(
         vacuum_humidifier=vacuum_humidifier,
         media_players=media_players,
         water_heaters=water_heaters,
+        siren=siren,
+        alarm_control_panels=alarm_control_panels,
         memory=memory,
         permissions=permissions,
     )
