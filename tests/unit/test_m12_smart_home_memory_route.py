@@ -295,3 +295,129 @@ def test_response_uses_the_documented_envelope(client, auth) -> None:
     _grant(client, auth)
     listed = client.get("/api/v1/smart-home/memory/snapshots", headers=auth)
     assert set(listed.json()) == {"data", "meta"}
+
+
+# --- Delete snapshot -----------------------------------------------------------------
+
+
+def test_delete_denied_without_grant_is_400(client, auth, fake_connector) -> None:
+    response = client.delete("/api/v1/smart-home/memory/snapshots/no-such-id", headers=auth)
+    assert response.status_code == 400
+
+
+def test_delete_unknown_id_is_404(client, auth) -> None:
+    _grant(client, auth)
+    response = client.delete("/api/v1/smart-home/memory/snapshots/no-such-id", headers=auth)
+    assert response.status_code == 404
+
+
+def test_delete_valid_snapshot_succeeds_and_disappears_from_list(
+    client, auth, fake_connector
+) -> None:
+    device_id = _register_light(client, auth, fake_connector)
+    _grant(client, auth)
+    created = client.post(
+        "/api/v1/smart-home/memory/snapshots", json={"device_id": device_id}, headers=auth
+    ).json()["data"]
+
+    response = client.delete(
+        f"/api/v1/smart-home/memory/snapshots/{created['memory_id']}", headers=auth
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["deleted"] is True
+    listed = client.get("/api/v1/smart-home/memory/snapshots", headers=auth)
+    assert listed.json()["meta"]["count"] == 0
+
+
+def test_delete_already_deleted_snapshot_is_404(client, auth, fake_connector) -> None:
+    device_id = _register_light(client, auth, fake_connector)
+    _grant(client, auth)
+    created = client.post(
+        "/api/v1/smart-home/memory/snapshots", json={"device_id": device_id}, headers=auth
+    ).json()["data"]
+    client.delete(f"/api/v1/smart-home/memory/snapshots/{created['memory_id']}", headers=auth)
+
+    response = client.delete(
+        f"/api/v1/smart-home/memory/snapshots/{created['memory_id']}", headers=auth
+    )
+
+    assert response.status_code == 404
+
+
+def test_delete_cannot_remove_an_unrelated_memory(client, auth) -> None:
+    """A memory created outside this API (e.g. a conversation memory)
+    must never be removable through this endpoint, even with the
+    grant."""
+    _grant(client, auth)
+    container = client.container  # type: ignore[attr-defined]
+    memory = container.memory_service()
+    unrelated_id = asyncio.run(memory.remember("Unrelated memory.", source="user"))
+
+    response = client.delete(f"/api/v1/smart-home/memory/snapshots/{unrelated_id}", headers=auth)
+
+    assert response.status_code == 404
+
+
+# --- Home-wide snapshot ----------------------------------------------------------------
+
+
+def test_snapshot_home_denied_without_grant_is_400(client, auth) -> None:
+    home_id = _home(client, auth)
+    response = client.post(f"/api/v1/smart-home/memory/snapshots/home/{home_id}", headers=auth)
+    assert response.status_code == 400
+
+
+def test_snapshot_home_unknown_home_is_404(client, auth) -> None:
+    _grant(client, auth)
+    response = client.post("/api/v1/smart-home/memory/snapshots/home/no-such-home", headers=auth)
+    assert response.status_code == 404
+
+
+def test_snapshot_home_empty_home_returns_zero_counts(client, auth) -> None:
+    home_id = _home(client, auth)
+    _grant(client, auth)
+
+    response = client.post(f"/api/v1/smart-home/memory/snapshots/home/{home_id}", headers=auth)
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["home_id"] == home_id
+    assert body["requested_count"] == 0
+    assert body["succeeded_count"] == 0
+    assert body["results"] == []
+
+
+def test_snapshot_home_succeeds_and_persists(client, auth, fake_connector) -> None:
+    device_id = _register_light(client, auth, fake_connector)
+    _grant(client, auth)
+    home_id = client.get("/api/v1/homes", headers=auth).json()["data"][0]["id"]
+
+    response = client.post(f"/api/v1/smart-home/memory/snapshots/home/{home_id}", headers=auth)
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["requested_count"] == 1
+    assert body["succeeded_count"] == 1
+    assert body["results"][0]["device_id"] == device_id
+    assert body["results"][0]["outcome"] == "succeeded"
+    assert response.json()["meta"]["succeeded_count"] == 1
+
+
+def test_snapshot_home_skips_unsupported_categories(client, auth) -> None:
+    home_id = _home(client, auth)
+    _grant(client, auth)
+    client.post(
+        "/api/v1/devices",
+        json={"home_id": home_id, "name": "Motion Sensor", "device_type": "sensor"},
+        headers=auth,
+    )
+
+    response = client.post(f"/api/v1/smart-home/memory/snapshots/home/{home_id}", headers=auth)
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["requested_count"] == 1
+    assert body["skipped_count"] == 1
+    assert body["succeeded_count"] == 0
+    assert body["results"][0]["outcome"] == "skipped"

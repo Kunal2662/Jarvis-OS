@@ -21,7 +21,9 @@ from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
 from jarvis.core.events.event_bus import EventBus
 from jarvis.core.interfaces.connectivity import DeviceState
 from jarvis.core.plugins.permissions import PermissionModel
+from jarvis.services.appliance_service import ApplianceService
 from jarvis.services.connectivity_service import ConnectivityService
+from jarvis.services.media_player_service import MediaPlayerService
 from jarvis.services.memory_service import MemoryService
 from jarvis.services.smart_home_memory_service import (
     SMART_HOME_MEMORY_PRINCIPAL,
@@ -32,11 +34,14 @@ from jarvis.services.smart_home_service import SmartHomeService
 from jarvis.services.smart_lighting_service import SmartLightingService
 from jarvis.services.smart_switch_service import SmartSwitchService
 from jarvis.services.thermostat_service import ThermostatService
+from jarvis.services.vacuum_humidifier_service import VacuumHumidifierService
+from jarvis.services.water_heater_service import WaterHeaterService
 from tests.fakes.fake_device_connector import FakeDeviceConnector
 from tests.fakes.fake_llm import FakeLLM
 from tests.fakes.fake_vector_store import FakeVectorStore
 
 _LIGHT_EXTERNAL_ID = "light.living_room"
+_FAN_EXTERNAL_ID = "fan.bedroom"
 
 
 def _settings(tmp_path: Path, monkeypatch):
@@ -121,6 +126,42 @@ def thermostats(
 
 
 @pytest.fixture
+def appliances(
+    smart_home: SmartHomeService, connectivity: ConnectivityService, permissions: PermissionModel
+) -> ApplianceService:
+    return ApplianceService(
+        smart_home=smart_home, connectivity=connectivity, permissions=permissions
+    )
+
+
+@pytest.fixture
+def vacuum_humidifier(
+    smart_home: SmartHomeService, connectivity: ConnectivityService, permissions: PermissionModel
+) -> VacuumHumidifierService:
+    return VacuumHumidifierService(
+        smart_home=smart_home, connectivity=connectivity, permissions=permissions
+    )
+
+
+@pytest.fixture
+def media_players(
+    smart_home: SmartHomeService, connectivity: ConnectivityService, permissions: PermissionModel
+) -> MediaPlayerService:
+    return MediaPlayerService(
+        smart_home=smart_home, connectivity=connectivity, permissions=permissions
+    )
+
+
+@pytest.fixture
+def water_heaters(
+    smart_home: SmartHomeService, connectivity: ConnectivityService, permissions: PermissionModel
+) -> WaterHeaterService:
+    return WaterHeaterService(
+        smart_home=smart_home, connectivity=connectivity, permissions=permissions
+    )
+
+
+@pytest.fixture
 def memory(db) -> MemoryService:
     database, settings = db
     return MemoryService(
@@ -134,6 +175,10 @@ def service(
     smart_lighting: SmartLightingService,
     smart_switch: SmartSwitchService,
     thermostats: ThermostatService,
+    appliances: ApplianceService,
+    vacuum_humidifier: VacuumHumidifierService,
+    media_players: MediaPlayerService,
+    water_heaters: WaterHeaterService,
     memory: MemoryService,
     permissions: PermissionModel,
 ) -> SmartHomeMemoryService:
@@ -142,6 +187,10 @@ def service(
         smart_lighting=smart_lighting,
         smart_switch=smart_switch,
         thermostats=thermostats,
+        appliances=appliances,
+        vacuum_humidifier=vacuum_humidifier,
+        media_players=media_players,
+        water_heaters=water_heaters,
         memory=memory,
         permissions=permissions,
     )
@@ -177,19 +226,29 @@ def test_registry_omits_tools_when_not_wired() -> None:
 
 
 @pytest.mark.asyncio
-async def test_registry_includes_both_tools_when_service_provided(
+async def test_registry_includes_all_four_tools_when_service_provided(
     service: SmartHomeMemoryService,
 ) -> None:
     from jarvis.agents.tools.registry import build_tool_registry
 
     tools = build_tool_registry(smart_home_memory=service)
     names = {t.name for t in tools}
-    assert {"snapshot_device_state", "list_device_snapshots"} <= names
+    assert {
+        "snapshot_device_state",
+        "list_device_snapshots",
+        "delete_device_snapshot",
+        "snapshot_home",
+    } <= names
 
 
-def test_exactly_two_tools_are_built(service: SmartHomeMemoryService) -> None:
+def test_exactly_four_tools_are_built(service: SmartHomeMemoryService) -> None:
     built = {t.name for t in build_smart_home_memory_tools(service)}
-    assert built == {"snapshot_device_state", "list_device_snapshots"}
+    assert built == {
+        "snapshot_device_state",
+        "list_device_snapshots",
+        "delete_device_snapshot",
+        "snapshot_home",
+    }
 
 
 def test_no_recall_or_search_duplicate_tool_exists(service: SmartHomeMemoryService) -> None:
@@ -198,8 +257,6 @@ def test_no_recall_or_search_duplicate_tool_exists(service: SmartHomeMemoryServi
     built = {t.name for t in build_smart_home_memory_tools(service)}
     assert "recall_memory" not in built
     assert "search_memory" not in built
-    assert "delete_snapshot" not in built
-    assert "forget_snapshot" not in built
 
 
 # --- snapshot_device_state -----------------------------------------------------------
@@ -295,16 +352,102 @@ async def test_list_tool_returns_created_snapshot(
     assert device.id in result
 
 
-# --- Confirmation metadata (Logic Contract §9) ----------------------------------------
+# --- delete_device_snapshot -----------------------------------------------------------
 
 
-def test_snapshot_device_state_not_in_confirm_required_tools() -> None:
-    """The Logic Contract evaluated and rejected gating this tool
-    behind interactive confirmation -- a snapshot touches one device
-    and writes one memory row, never a physical device. Pinned here so
-    a future change cannot silently add it without deliberately
-    touching this test."""
+@pytest.mark.asyncio
+async def test_delete_tool_denied_without_grant(tools) -> None:
+    result = await tools["delete_device_snapshot"].ainvoke({"memory_id": "no-such-id"})
+    assert "Couldn't" in result
+    assert "permission" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_tool_succeeds_after_grant(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _register_light(smart_home)
+    fake_connector.states[_LIGHT_EXTERNAL_ID] = DeviceState(
+        external_id=_LIGHT_EXTERNAL_ID, status="on", attributes={}
+    )
+    created = await tools["snapshot_device_state"].ainvoke({"device_id": device.id})
+    import json
+
+    memory_id = json.loads(created)["memory_id"]
+
+    result = await tools["delete_device_snapshot"].ainvoke({"memory_id": memory_id})
+
+    assert '"deleted": true' in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_tool_unknown_id_reports_error_without_raising(
+    tools, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    result = await tools["delete_device_snapshot"].ainvoke({"memory_id": "no-such-id"})
+    assert "Couldn't" in result
+
+
+# --- snapshot_home -----------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_snapshot_home_tool_denied_without_grant(tools, smart_home: SmartHomeService) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    result = await tools["snapshot_home"].ainvoke({"home_id": home.id})
+    assert "Couldn't" in result
+    assert "permission" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_snapshot_home_tool_succeeds_after_grant(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _register_light(smart_home)
+    fake_connector.states[_LIGHT_EXTERNAL_ID] = DeviceState(
+        external_id=_LIGHT_EXTERNAL_ID, status="on", attributes={}
+    )
+
+    result = await tools["snapshot_home"].ainvoke({"home_id": device.home_id})
+
+    assert '"succeeded_count": 1' in result
+
+
+@pytest.mark.asyncio
+async def test_snapshot_home_tool_unknown_home_reports_error_without_raising(
+    tools, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    result = await tools["snapshot_home"].ainvoke({"home_id": "no-such-home"})
+    assert "Couldn't" in result
+
+
+# --- Confirmation metadata (Logic Contract §9, Expansion Logic Contract §15) ----------
+
+
+def test_no_smart_home_memory_tool_is_in_confirm_required_tools() -> None:
+    """The Logic Contract evaluated and rejected gating any of these
+    four tools behind interactive confirmation: creation/deletion touch
+    one memory row, never a physical device; home-wide snapshot is
+    read-only against devices. Pinned here so a future change cannot
+    silently add one without deliberately touching this test."""
     from jarvis.core.config.settings import AgentSettings
 
-    assert "snapshot_device_state" not in AgentSettings().confirm_required_tools
-    assert "list_device_snapshots" not in AgentSettings().confirm_required_tools
+    confirm_required = AgentSettings().confirm_required_tools
+    assert "snapshot_device_state" not in confirm_required
+    assert "list_device_snapshots" not in confirm_required
+    assert "delete_device_snapshot" not in confirm_required
+    assert "snapshot_home" not in confirm_required

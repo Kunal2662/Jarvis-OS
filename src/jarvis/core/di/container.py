@@ -709,6 +709,10 @@ def _build_smart_home_memory_service(
     smart_lighting_service: Any,
     smart_switch_service: Any,
     thermostat_service: Any,
+    appliance_service: Any,
+    vacuum_humidifier_service: Any,
+    media_player_service: Any,
+    water_heater_service: Any,
     memory_service: Any,
     permission_model: Any,
 ) -> Any:
@@ -719,6 +723,10 @@ def _build_smart_home_memory_service(
         smart_lighting=smart_lighting_service,
         smart_switch=smart_switch_service,
         thermostats=thermostat_service,
+        appliances=appliance_service,
+        vacuum_humidifier=vacuum_humidifier_service,
+        media_players=media_player_service,
+        water_heaters=water_heater_service,
         memory=memory_service,
         permissions=permission_model,
     )
@@ -1660,17 +1668,23 @@ class Container(containers.DeclarativeContainer):
     )
 
     # ---- Milestone 12 Smart Home Memory (Manual/On-Demand Device ----------
-    # Snapshot Slice) ---------------------------------------------------
-    # Composes SmartHomeService + the three MVP device-category services
-    # + MemoryService -- deliberately narrow scope (light/switch/
-    # thermostat only), see docs/M12_SMART_HOME_MEMORY_SNAPSHOT_LOGIC_
-    # CONTRACT.md §5.
+    # Snapshot Slice + Device-Category Expansion Slice) ---------------------
+    # Composes SmartHomeService + nine device-category services (light/
+    # switch/thermostat, unique device_type, Tier 1; fan/cover/vacuum/
+    # humidifier/media_player/water_heater, shared "appliance"
+    # device_type, Tier 2 cascade) + MemoryService. Sensor/Lock remain
+    # permanently excluded on privacy/security grounds -- see
+    # docs/M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md §6.
     smart_home_memory_service = providers.Singleton(
         _build_smart_home_memory_service,
         smart_home_service=smart_home_service,
         smart_lighting_service=smart_lighting_service,
         smart_switch_service=smart_switch_service,
         thermostat_service=thermostat_service,
+        appliance_service=appliance_service,
+        vacuum_humidifier_service=vacuum_humidifier_service,
+        media_player_service=media_player_service,
+        water_heater_service=water_heater_service,
         memory_service=memory_service,
         permission_model=permission_model,
     )
