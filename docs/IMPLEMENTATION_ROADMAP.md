@@ -4061,6 +4061,139 @@ Home Assistant, Remote Access, Smart Home Analytics).
 
 ---
 
+### Task Group P — Developer Tools: Device Simulator Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by an eleventh read-only Phase 0 audit (`M12 PHASE 0
+POST-TASK-O AUDIT`), re-evaluating every remaining M12 module from
+scratch and finding, for the first time this milestone, **no
+zero-architectural-risk candidate remaining anywhere** — every
+candidate required either a real design decision (🟡) or was blocked
+outright (🔴). Device Simulator was ranked the strongest 🟡 candidate:
+the narrowest architectural footprint of the three viable options,
+with the broadest downstream value (testing every one of the ten
+already-shipped M12 slices without real hardware). A Logic Contract
+(`docs/M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md`),
+written and approved before any code, evaluated three architectures
+and found a decisive problem with the seemingly-obvious one: a new
+`CONNECTOR_TYPES` entry (Option A) would make every device-category
+service's own closed `_TRANSLATORS` dict (`{"home_assistant": ...,
+"mqtt": ...}`) reject every mutation command with "no command
+translation," since none of those already-shipped services carry a
+third key — fixing that would have meant modifying four of them,
+against this project's own standing discipline of not touching
+previously-shipped device-category services. A connector-less design
+(Option B) was found to collapse into Option A or deliver negligible
+value once traced through `connector_type_for`/`_require_connector`.
+**Option C — chosen**: the DI composition root swaps which factory
+answers the *existing* `"home_assistant"` registry key — the real
+`HomeAssistantConnector`'s factory, or the new `SimulatorConnector`'s
+— gated by a new, off-by-default `settings.devtools.simulator_enabled`
+flag, the exact pattern this repository's own test suite
+(`tests/fakes/fake_device_connector.py`'s `FakeDeviceConnector`,
+`connector_type = "home_assistant"`) already uses successfully
+everywhere.
+
+- [x] **Logic Contract** —
+      `docs/M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md`,
+      written and approved before any code. Traced the exact mutation
+      code path (`_TRANSLATORS.get(connector_type)`) to prove Option A
+      would break every mutation path, and confirmed directly that
+      nothing in `ConnectivityService`/`routes/connectivity.py` ever
+      reads a connector instance's own `connector_type` attribute
+      externally — only the registry-key string matters, which is what
+      makes Option C's reuse of the `"home_assistant"` key safe for
+      every existing translator.
+- [x] `SimulatorConnector`
+      (`core/connectivity/connectors/simulator.py`) — structurally
+      satisfies `IDeviceConnector` exactly like `HomeAssistantConnector`/
+      `MqttConnector`; never imports `httpx`, `gmqtt`,
+      `HomeAssistantConnector`, `MqttConnector`, or
+      `ConnectorCredentialStore` (pinned by a source-level import-line
+      guard). Ephemeral in-memory roster, mirroring `MqttConnector`'s
+      own `_state_cache` precedent — no schema change, nothing written
+      to the database by this class itself.
+- [x] Five MVP device categories — light, switch, thermostat, lock,
+      sensor — the same "unique `device_type`, no domain/component
+      fallback needed" boundary Task Group O (Smart Home Memory)
+      independently identified for an unrelated reason. Appliance-
+      domain categories (fan/cover/vacuum/humidifier/media_player/
+      water_heater) deliberately deferred.
+- [x] Deterministic command→state mutation in Home Assistant's own
+      wire vocabulary (`turn_on`/`turn_off`, `set_hvac_mode`/
+      `set_temperature`, `lock`/`unlock`), verified command-name-for-
+      command-name against each real service's own `_translate_
+      home_assistant` output. Unsupported commands return
+      `CommandResult(success=False)`, never raise. Fault simulation
+      (`unavailable`, `force_command_failure`) is caller-configured and
+      sticky — zero randomness, zero latency simulation anywhere.
+- [x] Five devtools-only roster-management REST endpoints —
+      `infrastructure/api/routes/devtools.py`: `POST`/`GET
+      /devtools/simulator/devices`, `DELETE
+      /devtools/simulator/devices/{external_id}`, `POST
+      .../fault`, `POST /devtools/simulator/reset`. **No**
+      simulator-specific discover/import/state/command route —
+      discovery, import, live state reads and command execution all
+      continue through the existing, unmodified generic Connectivity
+      Layer routes (`routes/connectivity.py`), proven directly by a
+      full REST-level round-trip test. No `PermissionModel` gate,
+      matching every other devtools capability — explicitly evaluated
+      and reasoned (not defaulted): unlike Smart Home Memory/Security,
+      a simulated device's mutations never touch real device or real
+      home data.
+- [x] DI — `simulator_connector` singleton plus a rewritten
+      `_build_connectivity_registry` in `core/di/container.py`: the
+      disabled branch is `build_default_connector_registry()` verbatim
+      (proven byte-identical to the pre-existing function via direct
+      object-identity assertion), the `"mqtt"` registry key is never
+      affected by simulator mode in either branch.
+- [x] 66 new tests, 0 failures, 0 errors, against real components
+      throughout (real temp-file SQLite `SmartHomeService`, real
+      `ConnectivityService`, and the real, unmodified
+      `SmartLightingService`/`SmartSwitchService`/`ThermostatService`/
+      `SmartLockService`/`SensorService`) — covering factory-swap
+      correctness in both directions, all five categories'
+      deterministic initial state and command→state round-trips, fault
+      simulation (mark unavailable/force-fail, then restore), full
+      generic-Connectivity-Layer discovery/import/read/command
+      integration proven through each real service (not a simulator-
+      specific shortcut), the REST security boundary (session auth
+      only, no grant needed), and — the isolation requirement's own
+      explicit demand for *behavioral*, not flag-only, proof — a test
+      that monkeypatches the real `HomeAssistantConnector.connect` to
+      raise if ever called, then runs a full simulator-mode discover/
+      command flow to completion without tripping it. M12 regression:
+      919 tests, 0 failures, 0 errors. M11+M12 regression: 1047 tests,
+      0 failures, 0 errors. Full backend regression: 3570 tests, 0
+      failures, 0 errors, 1 pre-existing skip (unrelated, platform
+      symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_FRONTEND_REQUIREMENTS.md`, a
+      planning/specification artifact only (no frontend source),
+      derived from the verified backend contract. **Zero frontend
+      files touched.**
+
+**Explicitly out of scope, and not built:** `CONNECTOR_TYPES` was
+**not** modified — still exactly `{"home_assistant", "mqtt"}`, pinned
+by a test. **No existing device-category service was modified** —
+`smart_lighting_service.py`/`smart_switch_service.py`/
+`thermostat_service.py`/`smart_lock_service.py`/`sensor_service.py`
+and every one of their `_TRANSLATORS` dicts are unchanged, pinned by a
+test asserting each still contains exactly `{"home_assistant",
+"mqtt"}`. MQTT-slot simulation (only the `"home_assistant"` slot is
+ever swapped); latency/jitter simulation (rejected — no randomness
+requirement); a devtools "send simulated command" endpoint (already
+covered by the existing generic `POST /api/v1/connectivity/devices/
+{id}/command` passthrough); agent tools (no end-user or AI Home
+Assistant conversational use case exists for a developer-only tool);
+persistent/replayable fixture scenarios; appliance-domain simulated
+categories. **No schema/migration change.** **No `EventBus`/
+Scheduler/Analytics/`MemoryService` dependency anywhere in the
+simulator's own code**, pinned by source-level guards. **Not this task
+group, and not built:** any other M12 module (Smart Cameras, Home
+Automation, AI Home Assistant, Remote Access, Smart Home Analytics).
+
+---
+
 ## 6. Deferred Backlog
 
 *(Added Aug 2026 — roadmap reconciliation pass, ahead of M9 Task Group

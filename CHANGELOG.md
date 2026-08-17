@@ -3,6 +3,118 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Developer Tools — Device Simulator Slice (Task Group P)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Developer Tools — Device Simulator Slice** scope --
+**not the full Developer Tools module**. Preceded by a Phase 0 audit
+(`M12 PHASE 0 POST-TASK-O AUDIT`) that, for the first time this
+milestone, found no zero-architectural-risk candidate left anywhere in
+M12 and ranked Device Simulator the strongest of three viable
+candidates requiring a real design decision. Preceded by a Logic
+Contract (`docs/M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.
+md`), written and approved before any code, which evaluated three
+connector architectures and found a decisive problem with the
+seemingly-obvious one (a new `CONNECTOR_TYPES` entry): every
+device-category service's own closed `_TRANSLATORS` dict would reject
+every mutation command with "no command translation" for a genuinely
+new connector-type string, since none of those already-shipped
+services carry a third key. 66 new tests, 0 failures, 0 errors,
+including a *behavioral* (not flag-only) proof that simulator mode
+never instantiates the real `HomeAssistantConnector`; M12 regression
+919 tests green; M11+M12 regression 1047 tests green; full backend
+regression 3570 tests green, 1 pre-existing skip.
+
+### Added
+- **`SimulatorConnector`** (`core/connectivity/connectors/
+  simulator.py`) -- structurally satisfies the existing
+  `IDeviceConnector` port exactly like `HomeAssistantConnector`/
+  `MqttConnector`. Never imports `httpx`, `gmqtt`,
+  `HomeAssistantConnector`, `MqttConnector`, or
+  `ConnectorCredentialStore` -- every command terminates inside its
+  own in-memory state, pinned by a source-level guard.
+- **Option C architecture: a DI-time factory swap, not a new connector
+  type.** A new, off-by-default `settings.devtools.simulator_enabled`
+  flag decides which factory the composition root registers under the
+  *existing* `"home_assistant"` connector-registry key -- the real
+  `HomeAssistantConnector`'s factory (unchanged, verified
+  byte-identical to before this slice existed), or
+  `SimulatorConnector`'s. **`CONNECTOR_TYPES` is unmodified** -- still
+  exactly `{"home_assistant", "mqtt"}` -- and **no existing
+  device-category service was touched**; every one of
+  `smart_lighting_service.py`/`smart_switch_service.py`/
+  `thermostat_service.py`/`smart_lock_service.py`/`sensor_service.py`'s
+  own `_TRANSLATORS` dict still contains exactly `{"home_assistant",
+  "mqtt"}`, pinned by a test. The `"mqtt"` registry key is never
+  affected by simulator mode.
+- **Five MVP device categories** -- light, switch, thermostat, lock,
+  sensor -- the same "unique `device_type`, no domain/component
+  fallback needed" boundary Task Group O (Smart Home Memory)
+  independently identified. Deterministic command→state mutation in
+  Home Assistant's own wire vocabulary (`turn_on`/`turn_off`,
+  `set_hvac_mode`/`set_temperature`, `lock`/`unlock`), proven against
+  the real, unmodified device-category services, not a
+  simulator-specific shortcut.
+- **Deterministic, caller-configured fault simulation** --
+  `unavailable`/`force_command_failure`, sticky until explicitly
+  cleared. Zero randomness, zero latency simulation anywhere.
+- **Five devtools-only roster-management REST endpoints**
+  (`infrastructure/api/routes/devtools.py`) -- define/update, list,
+  delete a simulated device; configure its fault state; reset the
+  whole roster. **No simulator-specific discover/import/state/command
+  route** -- those already run through the existing, unmodified
+  generic Connectivity Layer (`routes/connectivity.py`), proven by a
+  full REST-level round-trip test. **No `PermissionModel` gate**,
+  matching every other devtools capability -- explicitly evaluated,
+  not defaulted: a simulated device's mutations never touch real
+  device or real home data.
+- **A behavioral isolation proof, not a flag assertion.** A test
+  monkeypatches the real `HomeAssistantConnector.connect` to raise if
+  ever called, then runs a full simulator-mode discover/command flow
+  to completion without tripping it -- direct evidence the real
+  connector is never instantiated while simulator mode is on, not an
+  inferred guarantee.
+- **Frontend requirements document** -- `docs/
+  M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_FRONTEND_REQUIREMENTS.md`,
+  planning/specification only, written after the backend was fully
+  verified.
+
+### Not changed
+- `smart_lighting_service.py`, `smart_switch_service.py`,
+  `thermostat_service.py`, `smart_lock_service.py`,
+  `sensor_service.py` -- **not modified**, including their own
+  `_TRANSLATORS` dicts.
+- `ConnectivityService`, `ConnectorFactoryRegistry`, `SmartHomeService`
+  -- **not modified**. Only the DI composition root's own factory-
+  registration wiring changes, gated by the new settings flag.
+- `HomeAssistantConnector`, `MqttConnector` -- **not modified**; the
+  real Home Assistant connector's behavior is byte-identical to before
+  this slice existed when simulator mode is off.
+- `CONNECTOR_TYPES` -- unmodified, still exactly `{"home_assistant",
+  "mqtt"}`.
+- `EventBus` -- untouched by the simulator's own code. (The
+  pre-existing, unrelated `ConnectivityStatusChangedEvent` publish
+  already fires for any connector type, including the simulator, as
+  inherited `ConnectivityService` behavior -- not new code.)
+- No database/schema changes. No new permission scope, no new
+  principal. No agent tools.
+
+### Explicitly out of scope
+- MQTT-slot simulation -- only the `"home_assistant"` registry slot is
+  ever swapped.
+- Latency/jitter simulation, random/probabilistic failures.
+- A devtools "send simulated command" endpoint -- already covered by
+  the existing generic `POST /api/v1/connectivity/devices/{id}/
+  command` passthrough.
+- Appliance-domain simulated categories (fan/cover/vacuum/humidifier/
+  media_player/water_heater).
+- Persistent/replayable fixture scenarios -- the simulator's own
+  roster is ephemeral, in-memory only.
+- Every other M12 module (Smart Cameras, Home Automation, AI Home
+  Assistant, Remote Access, Smart Home Analytics).
+
 ## M12: Smart Home Memory — Manual/On-Demand Device Snapshot Slice (Task Group O)
 
 **No version bump**, matching this project's own established

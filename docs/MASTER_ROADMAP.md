@@ -699,6 +699,52 @@ Contract and `docs/M12_SMART_HOME_MEMORY_SNAPSHOT_FRONTEND_
 REQUIREMENTS.md` for the (planning-only, no code) frontend
 requirements this slice's API surface implies.
 
+**M12 — Developer Tools (Device Simulator Slice) shipped Aug 2026.** A
+Phase 0 audit re-evaluated all remaining M12 candidates from scratch
+and found no zero-architectural-risk slice remained anywhere in the
+milestone — every candidate required either a real design decision or
+was blocked outright — and ranked Device Simulator the strongest
+🟡-classified candidate: the narrowest architectural footprint with the
+broadest downstream value (testing every already-shipped M12 slice
+without real hardware). The Logic Contract (`docs/
+M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md`) evaluated
+three architectures and found a decisive problem with the obvious one:
+a new `CONNECTOR_TYPES` entry (Option A) would make every device-
+category service's own closed `_TRANSLATORS` dict reject every
+mutation with "no command translation," since none of those
+already-shipped services carry a third key — fixing that would have
+meant modifying four of them, against this project's own standing
+discipline. The chosen architecture (Option C) instead has the DI
+composition root swap which factory answers the *existing*
+`"home_assistant"` registry key — the real `HomeAssistantConnector`'s
+factory, or `SimulatorConnector`'s, gated by a new, off-by-default
+`settings.devtools.simulator_enabled` flag — the exact pattern this
+repository's own test suite (`FakeDeviceConnector`) already uses
+successfully everywhere. Zero `CONNECTOR_TYPES` change, zero existing-
+service modification, and a stronger isolation guarantee than the
+rejected option: a real Home Assistant connection and the simulator
+can never coexist in one running process, by construction. Supports
+exactly five device categories (light/switch/thermostat/lock/sensor —
+the same "unique `device_type`, no domain-fallback" boundary Task
+Group O independently identified), deterministic command→state
+mutation in Home Assistant's own wire vocabulary, and caller-configured
+(never random) fault simulation, over five devtools-only roster-
+management REST endpoints — discovery, import, live state reads and
+command execution all continue to run through the existing, unmodified
+generic Connectivity Layer, proven end-to-end against the real,
+unmodified `SmartLightingService`/`SmartSwitchService`/
+`ThermostatService`/`SmartLockService`/`SensorService`. No
+`PermissionModel` gate, matching every other devtools capability —
+explicitly evaluated, not defaulted, since a simulated device's
+mutations never touch real device or real home data. 66 new tests, 0
+failures, 0 errors, including a behavioral (not flag-only) proof that
+simulator mode never instantiates the real `HomeAssistantConnector`,
+full backend regression (3570 tests) green. See `docs/
+M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md` for the full
+Logic Contract and `docs/M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_FRONTEND_
+REQUIREMENTS.md` for the (planning-only, no code) frontend requirements
+this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
@@ -706,13 +752,13 @@ Appliance Control's Core Appliance Slice/Climate/Thermostat Slice/
 Vacuum + Humidifier Core Slice/Media Player Core Slice/Water Heater
 Core Slice, Security & Safety's Read-Only Alert/Status Slice **and**
 Manual/On-Demand Action Slice, Developer Tools' Connectivity /
-Integration Health Slice, and Smart Home Memory's Manual/On-Demand
-Device Snapshot Slice are now shipped; five of this milestone's
-fifteen modules remain entirely unstarted (Smart Cameras, Home
-Automation, AI Home Assistant, Remote Access, Smart Home Analytics) —
-Energy Management, Appliance Control, Security & Safety, Developer
-Tools, and Smart Home Memory themselves each remain only partially
-shipped (Energy Management: device control only, History/Analytics/
+Integration Health Slice **and** Device Simulator Slice, and Smart Home
+Memory's Manual/On-Demand Device Snapshot Slice are now shipped; five
+of this milestone's fifteen modules remain entirely unstarted (Smart
+Cameras, Home Automation, AI Home Assistant, Remote Access, Smart Home
+Analytics) — Energy Management, Appliance Control, Security & Safety,
+Developer Tools, and Smart Home Memory themselves each remain only
+partially shipped (Energy Management: device control only, History/Analytics/
 Optimization/Scheduling all deferred; Appliance Control: Fan + Cover +
 Climate/Thermostat + Vacuum + Humidifier + Media Player + Water Heater
 control only — fan percentage/cover position, Climate's own fan mode/
@@ -728,25 +774,27 @@ Security & Safety: Panic Mode and a narrowly-scoped Vacation Mode only
 — Emergency Alerts, scheduled/randomized Vacation Mode, geofencing,
 siren/alarm-panel integration, and every notification channel remain
 deferred, each blocked on infrastructure this slice deliberately did
-not build; Developer Tools: Connectivity/Integration Health only — MQTT
-Debug Console, Device Simulator, and Event Viewer all remain deferred,
-the last explicitly blocked on the still-unresolved device-command
-EventBus publishing gap; Smart Home Memory: manual snapshot creation
-and retrieval for light/switch/thermostat devices only — Sensor/Lock/
+not build; Developer Tools: Connectivity/Integration Health and Device
+Simulator (light/switch/thermostat/lock/sensor categories, the
+`"home_assistant"` connector slot only) only — MQTT Debug Console,
+MQTT-slot simulation, and Event Viewer all remain deferred, the last
+explicitly blocked on the still-unresolved device-command EventBus
+publishing gap; Smart Home Memory: manual snapshot creation and
+retrieval for light/switch/thermostat devices only — Sensor/Lock/
 appliance-domain-category snapshots, snapshot deletion, automatic/
 scheduled/event-driven capture, diff/trend/analytics views, and
 home-wide/batch snapshotting all remain deferred, the device-category
 and automatic-capture exclusions being deliberate privacy/architectural
 choices rather than merely unbuilt). **No version bump accompanied any
-of the seventeen task-group passes** -- unlike M22's own task groups
+of the eighteen task-group passes** -- unlike M22's own task groups
 (each of which shipped real code and bumped the version in turn), all
-seventeen ship real code at `0.38.0` unchanged. Recorded here as a
+eighteen ship real code at `0.38.0` unchanged. Recorded here as a
 deliberate exception to this project's usual pattern, not a claim that
 the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
-Group J, Task Group K, Task Group L, Task Group M, Task Group N, and
-Task Group O entries for the full implementation account.
+Group J, Task Group K, Task Group L, Task Group M, Task Group N, Task
+Group O, and Task Group P entries for the full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -4812,11 +4860,24 @@ used until now). Session auth only, matching every one of M9's own
 Developer Platform Tools routes exactly -- no `PermissionModel` gate,
 no new principal. No telemetry this repository doesn't already track
 (latency, uptime, reconnect/error counts) was invented. Device
-Simulator, MQTT Debug Console, Event Viewer, and Automation Tester all
-remain unbuilt -- Event Viewer specifically blocked on the
-still-unresolved device-command EventBus publishing gap, not merely
-deferred by choice.)*
-- Device Simulator
+Simulator Slice shipped Task Group P, Aug 2026 -- a new
+`SimulatorConnector` (`core/connectivity/connectors/simulator.py`)
+registered under the *existing* `"home_assistant"` connector-registry
+key when a new, off-by-default `settings.devtools.simulator_enabled`
+flag is on (Option C), swapping out the real `HomeAssistantConnector`'s
+factory for that slot process-wide -- not a new `CONNECTOR_TYPES`
+entry, which a Logic-Contract-stage investigation found would make
+every device-category service's own closed `_TRANSLATORS` dict reject
+every mutation command. Supports light/switch/thermostat/lock/sensor
+with deterministic command-to-state mutation and caller-configured
+fault simulation, over five devtools-only roster-management REST
+endpoints; discovery, live state and command execution all continue
+through the existing, unmodified generic Connectivity Layer. MQTT
+Debug Console, Event Viewer, and Automation Tester all remain unbuilt
+-- Event Viewer specifically blocked on the still-unresolved
+device-command EventBus publishing gap, not merely deferred by
+choice.)*
+- Device Simulator ✅ *(light/switch/thermostat/lock/sensor, `"home_assistant"` connector slot only -- MQTT-slot simulation deferred)*
 - MQTT Debug Console
 - Device Logs
 - Event Viewer *(blocked -- no device-command event exists on the EventBus to view)*
