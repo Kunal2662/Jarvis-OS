@@ -784,17 +784,60 @@ Logic Contract and `docs/M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_
 FRONTEND_REQUIREMENTS.md` for the (planning-only, no code) frontend
 requirements this slice's API surface implies.
 
+**M12 — Security & Safety (Siren Integration Slice) shipped Aug
+2026.** A Phase 1 Logic Contract (`docs/
+M12_SECURITY_SIREN_INTEGRATION_LOGIC_CONTRACT.md`) independently
+re-verified, rather than trusted, the Phase 0 audit's own claims: a
+direct trace of `home_assistant.py:_entity_to_discovered_device` and
+`mqtt.py:_handle_ha_discovery` confirmed both connectors already
+capture a discovered entity's own HA domain / MQTT Discovery
+component into `metadata["domain"]`/`["component"]` unconditionally,
+for every device, regardless of `device_type` — a siren living under
+the generic `device_type="other"` bucket was therefore already fully
+identifiable, with zero connector or `DEVICE_TYPES` change required.
+The Logic Contract's architecture decision was a new, standalone
+`SirenService` — not an extension of `SmartSwitchService` (hard-scoped
+to `device_type="switch"`) or `SecurityService` (whose own
+`trigger_panic_mode` docstring already disclaims touching sirens) —
+applying the same domain/component fallback order every
+appliance-domain service (`VacuumHumidifierService`,
+`MediaPlayerService`, `WaterHeaterService`) already established for
+`device_type="appliance"`, here for the first time to
+`device_type="other"`. Two explicit mutations, `turn_on`/`turn_off`,
+never a merged `set_siren_state` — `turn_siren_on` alone was added to
+`AgentSettings.confirm_required_tools`, mirroring `unlock_device`'s
+own directional-risk asymmetry (`lock_device`/`turn_siren_off` stay
+ungated as the safe direction). Home Assistant's own
+`siren.turn_on`/`turn_off` services were verified directly against
+Home Assistant's own developer documentation during Phase 1:
+`tone`/`duration`/`volume_level` are each optional and gated behind
+device-specific `SirenEntityFeature` flags, confirming a bare,
+payload-free call is a complete, valid command for any siren
+regardless of which optional features it reports — this MVP sends no
+payload at all. Permission: a new `core:sirens` principal against the
+existing, unmodified `smart_home` scope; reads ungated, mutations
+gated, matching every prior M12 device-category service's own
+authorization shape. REST lives at its own top-level resource,
+`/api/v1/sirens/*` — not nested under `/security/*`, since
+`SirenService` is its own sibling service, not a `SecurityService`
+extension. 50 new tests, 0 failures, 0 errors, full backend regression
+(3655 tests) green. See `docs/
+M12_SECURITY_SIREN_INTEGRATION_LOGIC_CONTRACT.md` for the full Logic
+Contract and `docs/M12_SECURITY_SIREN_INTEGRATION_FRONTEND_
+REQUIREMENTS.md` for the (planning-only, no code) frontend
+requirements this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
 Appliance Control's Core Appliance Slice/Climate/Thermostat Slice/
 Vacuum + Humidifier Core Slice/Media Player Core Slice/Water Heater
-Core Slice, Security & Safety's Read-Only Alert/Status Slice **and**
-Manual/On-Demand Action Slice, Developer Tools' Connectivity /
-Integration Health Slice, Device Simulator Slice **and** Device
-Diagnostics Slice, and Smart Home Memory's Manual/On-Demand Device
-Snapshot Slice are now shipped; five of this milestone's fifteen
-modules remain entirely unstarted (Smart
+Core Slice, Security & Safety's Read-Only Alert/Status Slice, Manual/
+On-Demand Action Slice **and** Siren Integration Slice, Developer
+Tools' Connectivity / Integration Health Slice, Device Simulator Slice
+**and** Device Diagnostics Slice, and Smart Home Memory's Manual/
+On-Demand Device Snapshot Slice are now shipped; five of this
+milestone's fifteen modules remain entirely unstarted (Smart
 Cameras, Home Automation, AI Home Assistant, Remote Access, Smart Home
 Analytics) — Energy Management, Appliance Control, Security & Safety,
 Developer Tools, and Smart Home Memory themselves each remain only
@@ -810,16 +853,19 @@ deferred; the two remaining named appliance categories (Smart Kitchen,
 Smart Pumps/Irrigation) are both blocked on the current connector
 domain mapping, not merely unbuilt -- no further Appliance Control
 category remains buildable without a connector or domain-model change;
-Security & Safety: Panic Mode and a narrowly-scoped Vacation Mode only
-— Emergency Alerts, scheduled/randomized Vacation Mode, geofencing,
-siren/alarm-panel integration, and every notification channel remain
-deferred, each blocked on infrastructure this slice deliberately did
-not build; Developer Tools: Connectivity/Integration Health, Device
-Simulator (light/switch/thermostat/lock/sensor categories, the
-`"home_assistant"` connector slot only), and Device Diagnostics (same
-five-category permission resolution; `appliance`/`camera`/every other
-category reports an unresolved principal, not a guess) only — MQTT
-Debug Console, MQTT-slot simulation, Event Viewer, and appliance-
+Security & Safety: Panic Mode, a narrowly-scoped Vacation Mode, and
+now basic siren on/off control only — Emergency Alerts, scheduled/
+randomized Vacation Mode, geofencing, `alarm_control_panel`
+integration, siren tone/duration/volume/pattern control, any coupling
+between the new Siren Integration Slice and Panic/Vacation Mode, and
+every notification channel remain deferred, each blocked on
+infrastructure this slice deliberately did not build; Developer
+Tools: Connectivity/Integration Health, Device Simulator
+(light/switch/thermostat/lock/sensor categories, the `"home_assistant"`
+connector slot only), and Device Diagnostics (same five-category
+permission resolution; `appliance`/`camera`/every other category
+reports an unresolved principal, not a guess) only — MQTT Debug
+Console, MQTT-slot simulation, Event Viewer, and appliance-
 sub-domain principal resolution all remain deferred, Event Viewer
 explicitly blocked on the still-unresolved device-command EventBus
 publishing gap; Smart Home Memory: manual snapshot creation and
@@ -829,16 +875,16 @@ scheduled/event-driven capture, diff/trend/analytics views, and
 home-wide/batch snapshotting all remain deferred, the device-category
 and automatic-capture exclusions being deliberate privacy/architectural
 choices rather than merely unbuilt). **No version bump accompanied any
-of the nineteen task-group passes** -- unlike M22's own task groups
+of the twenty task-group passes** -- unlike M22's own task groups
 (each of which shipped real code and bumped the version in turn), all
-nineteen ship real code at `0.38.0` unchanged. Recorded here as a
+twenty ship real code at `0.38.0` unchanged. Recorded here as a
 deliberate exception to this project's usual pattern, not a claim that
 the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
 Group J, Task Group K, Task Group L, Task Group M, Task Group N, Task
-Group O, Task Group P, and Task Group Q entries for the full
-implementation account.
+Group O, Task Group P, Task Group Q, and Task Group R entries for the
+full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -4827,12 +4873,23 @@ gated under the same `core:security` principal and, independently
 evaluated, both require interactive confirmation -- the first
 `confirm_required_tools` addition since Smart Locks' `unlock_device`,
 because each call's blast radius is an entire home's worth of devices
-at once. Every remaining action-taking item below (Emergency Alerts,
-scheduled/randomized Vacation Mode, geofencing, siren/alarm-panel
+at once. Siren Integration Slice shipped Task Group R, Aug 2026 -- a
+new, standalone `SirenService` (not an extension of `SecurityService`
+or `SmartSwitchService`), identifying a siren via
+`device_type=="other"` plus the same `metadata["domain"]`/
+`["component"]` fallback every appliance-domain service already uses,
+already captured unconditionally by both connectors with zero
+connector change required. Basic on/off control only
+(`turn_on`/`turn_off`, `turn_siren_on` gated via
+`confirm_required_tools` mirroring `unlock_device`'s own asymmetry) --
+tone/duration/volume/pattern control, `alarm_control_panel`
+integration, and any coupling to Panic/Vacation Mode all remain
+deferred. Every remaining action-taking item below (Emergency Alerts,
+scheduled/randomized Vacation Mode, geofencing, `alarm_control_panel`
 integration, any notification channel) is still deferred to Home
 Automation/M7/future separately-scoped slices, all still unstarted.
-Zero `EventBus`, connector, `DEVICE_TYPES` or schema changes in
-either slice.)*
+Zero `EventBus`, connector, `DEVICE_TYPES` or schema changes in any of
+the three shipped slices.)*
 - Intrusion Detection *(read-only inputs only -- door/window/motion/
   presence/occupancy state is reported factually and **deliberately
   never inferred as intrusion**; any actual detection logic is
@@ -4843,6 +4900,7 @@ either slice.)*
 - Water Leak Alerts ✅ *(reporting only, via HA's `moisture` device_class; response is deferred)*
 - Panic Mode ✅ *(on-demand: lock every lock, turn on every light -- scheduled/automated triggering deferred)*
 - Vacation Mode ✅ *(on-demand: lock every lock, turn off every light, best-effort eco-adjust capable thermostats -- scheduled/randomized presence simulation deferred)*
+- Siren Integration ✅ *(basic on/off control via a new standalone `SirenService` -- tone/duration/volume/pattern control, `alarm_control_panel` integration, and any Panic/Vacation Mode coupling all deferred)*
 - Home Status Dashboard ✅ *(backend aggregate: overall status, active alerts, hazard/status sensors, lock state, unavailable counts)*
 
 Every item in this module is `safety_critical` by default (see

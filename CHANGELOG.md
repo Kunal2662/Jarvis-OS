@@ -3,6 +3,103 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Security & Safety — Siren Integration Slice (Task Group R)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Security & Safety — Siren Integration Slice**
+scope -- **not the full Security & Safety module, not
+`alarm_control_panel`, not Panic Mode integration**. Preceded by a
+Logic Contract (`docs/M12_SECURITY_SIREN_INTEGRATION_LOGIC_CONTRACT.md`),
+written and approved before any code, which independently re-verified
+(rather than trusted) the Phase 0 audit's own claims: a direct trace
+of `home_assistant.py:_entity_to_discovered_device` and
+`mqtt.py:_handle_ha_discovery` confirmed both connectors already
+capture a discovered entity's own HA domain / MQTT Discovery
+component into `metadata["domain"]`/`["component"]` **unconditionally,
+for every device, regardless of `device_type`** -- a siren living
+under the generic `device_type="other"` bucket is therefore already
+fully identifiable today, with zero connector or `DEVICE_TYPES`
+change. A new, standalone `SirenService` (not an extension of
+`SmartSwitchService` or `SecurityService` -- the latter's own
+docstring already disclaims touching sirens) applies the same
+domain/component fallback every appliance-domain service already
+established for `device_type="appliance"`, here for the first time to
+`device_type="other"`. Two explicit mutations, `turn_on`/`turn_off`,
+never a merged `set_siren_state` -- `turn_siren_on` alone requires
+agent-layer confirmation (`AgentSettings.confirm_required_tools`),
+mirroring `unlock_device`'s own directional-risk asymmetry (turning a
+siren on is loud, disruptive, and can draw an unwanted emergency
+response; turning one off is always the safe direction). Home
+Assistant's own `siren.turn_on`/`turn_off` services were verified
+directly against Home Assistant's own developer documentation during
+Phase 1: `tone`/`duration`/`volume_level` are each optional and gated
+behind device-specific `SirenEntityFeature` flags, confirming a bare,
+payload-free call is a complete, valid command for any siren. 50 new
+tests, 0 failures, 0 errors; M12 regression 1004 tests green; M11+M12
+regression 1151 tests green; full backend regression 3655 tests
+green, 1 pre-existing skip.
+
+### Added
+- **`SirenService`** (`services/siren_service.py`) -- `list_sirens`,
+  `get_siren_state` (ungated reads), `turn_on`/`turn_off` (gated on
+  the `smart_home` scope for a new `core:sirens` principal). Identity:
+  `device_type == "other"` AND (`metadata["domain"] == "siren"` OR,
+  falling back, `metadata["component"] == "siren"`) -- resolved
+  entirely in this module; no generic domain-resolution framework was
+  introduced.
+- **`GET /api/v1/sirens`, `GET /api/v1/sirens/{id}`,
+  `POST /api/v1/sirens/{id}/turn_on`, `POST /api/v1/sirens/{id}/
+  turn_off`** (`infrastructure/api/routes/sirens.py`) -- its own
+  top-level resource, the same `{data, meta}` envelope and
+  `Depends(get_current_session)` auth every resource router uses.
+  Mutation endpoints send no request body -- HA's `tone`/`duration`/
+  `volume_level` parameters are never sent by this MVP.
+- **Four agent tools** (`agents/tools/siren_tools.py`): `list_sirens`,
+  `get_siren_state`, `turn_siren_on`, `turn_siren_off`. `turn_siren_on`
+  added to `AgentSettings.confirm_required_tools`; `turn_siren_off` is
+  not.
+- **Normalized read model** -- exactly nine fields (`id`, `home_id`,
+  `room_id`, `name`, `status`, `manufacturer`, `model`, `external_id`,
+  `on`, `available`); `Device.metadata_json` is never included.
+  `list_sirens` reports last-known DB fields only (`on: null`,
+  `available: false` by construction) -- `get_siren_state` attempts a
+  real live connector read, falling back to the same DB-only shape on
+  `ConnectivityError`, the same list/detail asymmetry every prior M12
+  device-category service already establishes.
+- **DI wiring** -- `siren_service` provider in `core/di/container.py`;
+  `siren` parameter threaded through `AgentOrchestrator` and
+  `build_tool_registry`; `sirens.router` mounted in
+  `infrastructure/api/fastapi_server.py`.
+- **Frontend requirements document** -- `docs/
+  M12_SECURITY_SIREN_INTEGRATION_FRONTEND_REQUIREMENTS.md`,
+  planning/specification only, written after the backend was fully
+  verified.
+
+### Not changed
+- `SmartSwitchService`, `SecurityService` -- **not extended**. Siren
+  control is a standalone sibling service.
+- Both connectors (`home_assistant.py`, `mqtt.py`) -- **not
+  modified**. Siren identity was already captured, unconditionally,
+  before this task group.
+- `DEVICE_TYPES`, `CONNECTOR_TYPES`, the `Device` schema -- unmodified.
+- `EventBus` -- untouched. No coupling to `alarm_control_panel`, Panic
+  Mode, or Vacation Mode of any kind.
+- `PermissionModel` -- used unmodified; no new scope, only a new
+  principal (`core:sirens`) declared against the existing `smart_home`
+  scope.
+
+### Explicitly out of scope
+- Tone, duration, volume-level, or flashing/strobe pattern control.
+- A merged `set_siren_state` mutation.
+- Any `alarm_control_panel` integration, Panic Mode/Vacation Mode
+  coupling, activation history/logging, or notification on trigger.
+- MQTT-native siren discovery beyond the existing, unmodified
+  `component` metadata fallback.
+- Every other M12 module (Smart Cameras, Home Automation, AI Home
+  Assistant, Remote Access, Smart Home Analytics).
+
 ## M12: Developer Tools — Device Diagnostics Slice (Task Group Q)
 
 **No version bump**, matching this project's own established
