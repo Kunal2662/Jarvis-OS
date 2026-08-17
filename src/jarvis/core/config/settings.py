@@ -510,7 +510,38 @@ class AgentSettings(BaseSettings):
     # fail-safe direction) deliberately is not, so an unattended "Auto
     # Lock"-style feature stays possible later. See
     # docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md §14 for the full reasoning.
-    confirm_required_tools: frozenset[str] = frozenset({"run_automation", "unlock_device"})
+    # "trigger_panic_mode"/"trigger_vacation_mode" (Milestone 12 Security &
+    # Safety -- Manual/On-Demand Action Slice) were added for a different
+    # reason: neither individual constituent action (locking, turning a
+    # light on/off) has ever needed confirmation, but each call affects
+    # every lock/light (and, for Vacation Mode, every eco-capable
+    # thermostat) in an entire home at once -- a materially larger blast
+    # radius than any prior single-device mutation. See
+    # docs/M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md §11 for the full
+    # reasoning.
+    # "turn_siren_on" added by Milestone 12 Security & Safety (Siren
+    # Integration Slice) -- the same directional-risk asymmetry
+    # "unlock_device" already established (its own safe-direction
+    # counterpart, "lock_device", is deliberately NOT gated): turning a
+    # siren on is loud, disruptive, and can draw an unwanted emergency
+    # response; turning one off is always the safe direction. See
+    # docs/M12_SECURITY_SIREN_INTEGRATION_LOGIC_CONTRACT.md §10.
+    # "disarm" added by Milestone 12 Security & Safety
+    # (alarm_control_panel Integration Slice) -- the same
+    # directional-risk asymmetry again: disarming removes protection,
+    # its own safe-direction counterparts ("arm_home"/"arm_away") are
+    # deliberately NOT gated. See
+    # docs/M12_SECURITY_ALARM_CONTROL_PANEL_LOGIC_CONTRACT.md §12.
+    confirm_required_tools: frozenset[str] = frozenset(
+        {
+            "run_automation",
+            "unlock_device",
+            "trigger_panic_mode",
+            "trigger_vacation_mode",
+            "turn_siren_on",
+            "disarm",
+        }
+    )
     # Conversational Orchestration Routing (M10 -- see
     # docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md). "legacy" preserves
     # today's behaviour byte-for-byte (Chat/Voice call ChatService
@@ -682,6 +713,14 @@ class DevToolsSettings(BaseSettings):
     performance_history_size: int = 240
     api_inspector_enabled: bool = True
     api_inspector_max_records: int = 500
+    #: Milestone 12 Developer Tools (Device Simulator Slice). Off by
+    #: default -- when on, the DI composition root registers
+    #: `SimulatorConnector` under the existing `"home_assistant"`
+    #: registry key instead of the real `HomeAssistantConnector`,
+    #: process-wide (see `docs/
+    #: M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md` §2/§4).
+    #: Never affects the `"mqtt"` registry key.
+    simulator_enabled: bool = False
 
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}DEVTOOLS_", extra="ignore")
 

@@ -497,16 +497,44 @@ def _build_smart_home_service(*, database: Any, event_bus: Any) -> Any:
     return SmartHomeService(database=database, event_bus=event_bus)
 
 
-def _build_connectivity_registry() -> Any:
+def _build_simulator_connector() -> Any:
+    from jarvis.core.connectivity.connectors.simulator import SimulatorConnector
+
+    return SimulatorConnector()
+
+
+def _build_connectivity_registry(*, settings: Settings, simulator_connector: Any) -> Any:
     """Milestone 12 Task Group B. Phase 1 shipped this empty and
     documented that a later phase would populate it here -- Phase 2 is
     that call: the real Home Assistant connector, registered the same
     way ``_build_mcp_transport_registry`` populates MCP's own registry.
-    ``mqtt`` stays unregistered pending Phase 3's own separately-
-    approved pass."""
-    from jarvis.core.connectivity.connectors.factory import build_default_connector_registry
 
-    return build_default_connector_registry()
+    **Milestone 12 Developer Tools (Device Simulator Slice) extends
+    this, Option C** (``docs/
+    M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md`` §2): when
+    ``settings.devtools.simulator_enabled`` is on, the ``"home_assistant"``
+    registry key resolves to the already-constructed
+    ``simulator_connector`` singleton instead of a real
+    ``HomeAssistantConnector`` -- a whole-process swap, never a
+    per-device or per-call choice, so a real connection and the
+    simulator can never coexist in the same process. ``"mqtt"`` is
+    never affected. The disabled branch is
+    ``build_default_connector_registry()`` verbatim, unchanged from
+    before this slice existed."""
+    from jarvis.core.connectivity.connectors.factory import (
+        build_default_connector_registry,
+        build_mqtt_connector,
+    )
+
+    if not settings.devtools.simulator_enabled:
+        return build_default_connector_registry()
+
+    from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
+
+    registry = ConnectorFactoryRegistry()
+    registry.register("home_assistant", lambda config: simulator_connector)
+    registry.register("mqtt", build_mqtt_connector)
+    return registry
 
 
 def _build_connectivity_credential_store(*, settings: Settings) -> Any:
@@ -630,14 +658,88 @@ def _build_media_player_service(
     )
 
 
+def _build_water_heater_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.water_heater_service import WaterHeaterService
+
+    return WaterHeaterService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
 def _build_security_service(
-    *, sensor_service: Any, smart_lock_service: Any, permission_model: Any
+    *,
+    sensor_service: Any,
+    smart_lock_service: Any,
+    smart_lighting_service: Any,
+    thermostat_service: Any,
+    smart_home_service: Any,
+    permission_model: Any,
 ) -> Any:
     from jarvis.services.security_service import SecurityService
 
     return SecurityService(
         sensors=sensor_service,
         smart_lock=smart_lock_service,
+        smart_lighting=smart_lighting_service,
+        thermostats=thermostat_service,
+        smart_home=smart_home_service,
+        permissions=permission_model,
+    )
+
+
+def _build_siren_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.siren_service import SirenService
+
+    return SirenService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
+def _build_alarm_control_panel_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.alarm_control_panel_service import AlarmControlPanelService
+
+    return AlarmControlPanelService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
+def _build_smart_home_memory_service(
+    *,
+    smart_home_service: Any,
+    smart_lighting_service: Any,
+    smart_switch_service: Any,
+    thermostat_service: Any,
+    appliance_service: Any,
+    vacuum_humidifier_service: Any,
+    media_player_service: Any,
+    water_heater_service: Any,
+    memory_service: Any,
+    permission_model: Any,
+) -> Any:
+    from jarvis.services.smart_home_memory_service import SmartHomeMemoryService
+
+    return SmartHomeMemoryService(
+        smart_home=smart_home_service,
+        smart_lighting=smart_lighting_service,
+        smart_switch=smart_switch_service,
+        thermostats=thermostat_service,
+        appliances=appliance_service,
+        vacuum_humidifier=vacuum_humidifier_service,
+        media_players=media_player_service,
+        water_heaters=water_heater_service,
+        memory=memory_service,
         permissions=permission_model,
     )
 
@@ -1097,6 +1199,18 @@ def _build_state_inspector(
     )
 
 
+def _build_devtools_connectivity_service(
+    *, connectivity_service: Any, connectivity_registry: Any, smart_home_service: Any
+) -> Any:
+    from jarvis.services.devtools_connectivity_service import DevtoolsConnectivityService
+
+    return DevtoolsConnectivityService(
+        connectivity=connectivity_service,
+        connectivity_registry=connectivity_registry,
+        smart_home=smart_home_service,
+    )
+
+
 def _build_agent_orchestrator(
     *,
     settings: Settings,
@@ -1120,7 +1234,11 @@ def _build_agent_orchestrator(
     thermostats: Any,
     vacuum_humidifier: Any,
     media_players: Any,
+    water_heaters: Any,
     security: Any,
+    siren: Any,
+    alarm_control_panels: Any,
+    smart_home_memory: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1147,7 +1265,11 @@ def _build_agent_orchestrator(
         thermostats=thermostats,
         vacuum_humidifier=vacuum_humidifier,
         media_players=media_players,
+        water_heaters=water_heaters,
         security=security,
+        siren=siren,
+        alarm_control_panels=alarm_control_panels,
+        smart_home_memory=smart_home_memory,
         event_bus=event_bus,
     )
 
@@ -1249,7 +1371,14 @@ class Container(containers.DeclarativeContainer):
     )
 
     # ---- Milestone 12 Task Group B -- Connectivity Layer, Phase 1 ---------
-    connectivity_registry = providers.Singleton(_build_connectivity_registry)
+    # ---- (extended by Milestone 12 Developer Tools' Device Simulator ------
+    # Slice -- see _build_connectivity_registry's own docstring) -----------
+    simulator_connector = providers.Singleton(_build_simulator_connector)
+    connectivity_registry = providers.Singleton(
+        _build_connectivity_registry,
+        settings=settings,
+        simulator_connector=simulator_connector,
+    )
     connectivity_credential_store = providers.Singleton(
         _build_connectivity_credential_store,
         settings=settings,
@@ -1516,6 +1645,16 @@ class Container(containers.DeclarativeContainer):
         permission_model=permission_model,
     )
 
+    # ---- Milestone 12 Appliance Control (Water Heater Core Slice) --------
+    # Its own service, deliberately not an ApplianceService extension --
+    # see docs/M12_APPLIANCE_WATER_HEATER_LOGIC_CONTRACT.md §3.
+    water_heater_service = providers.Singleton(
+        _build_water_heater_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 12 Security & Safety (Read-Only Alert/Status Slice) ----
     # Pull-based aggregation over sensor_service/smart_lock_service only --
     # deliberately NOT smart_home_service/connectivity_service, per
@@ -1524,6 +1663,55 @@ class Container(containers.DeclarativeContainer):
         _build_security_service,
         sensor_service=sensor_service,
         smart_lock_service=smart_lock_service,
+        smart_lighting_service=smart_lighting_service,
+        thermostat_service=thermostat_service,
+        smart_home_service=smart_home_service,
+        permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Security & Safety (Siren Integration Slice) ---------
+    # Its own sibling service, deliberately not a SecurityService
+    # extension -- SecurityService's own trigger_panic_mode docstring
+    # already states it never touches sirens; see
+    # docs/M12_SECURITY_SIREN_INTEGRATION_LOGIC_CONTRACT.md §3.
+    siren_service = providers.Singleton(
+        _build_siren_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
+    # Milestone 12 Security & Safety (alarm_control_panel Integration
+    # Slice) -- a standalone sibling service, not a `SecurityService`
+    # extension -- SecurityService's own trigger_panic_mode docstring
+    # already states it never touches sirens/thermostats/cameras; see
+    # docs/M12_SECURITY_ALARM_CONTROL_PANEL_LOGIC_CONTRACT.md §2.
+    alarm_control_panel_service = providers.Singleton(
+        _build_alarm_control_panel_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Smart Home Memory (Manual/On-Demand Device ----------
+    # Snapshot Slice + Device-Category Expansion Slice) ---------------------
+    # Composes SmartHomeService + nine device-category services (light/
+    # switch/thermostat, unique device_type, Tier 1; fan/cover/vacuum/
+    # humidifier/media_player/water_heater, shared "appliance"
+    # device_type, Tier 2 cascade) + MemoryService. Sensor/Lock remain
+    # permanently excluded on privacy/security grounds -- see
+    # docs/M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md §6.
+    smart_home_memory_service = providers.Singleton(
+        _build_smart_home_memory_service,
+        smart_home_service=smart_home_service,
+        smart_lighting_service=smart_lighting_service,
+        smart_switch_service=smart_switch_service,
+        thermostat_service=thermostat_service,
+        appliance_service=appliance_service,
+        vacuum_humidifier_service=vacuum_humidifier_service,
+        media_player_service=media_player_service,
+        water_heater_service=water_heater_service,
+        memory_service=memory_service,
         permission_model=permission_model,
     )
 
@@ -1752,6 +1940,16 @@ class Container(containers.DeclarativeContainer):
         runtime_manager=runtime_manager,
     )
 
+    # ---- Milestone 12 Developer Tools (Connectivity / Integration Health) --
+    # A services/-layer class, not a core/devtools/ component -- see
+    # docs/M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md §5.
+    devtools_connectivity_service = providers.Singleton(
+        _build_devtools_connectivity_service,
+        connectivity_service=connectivity_service,
+        connectivity_registry=connectivity_registry,
+        smart_home_service=smart_home_service,
+    )
+
     # ---- Milestone 5 -- UI / Developer Mode / API Center / Update Center --
     api_center_service = providers.Singleton(
         "jarvis.services.api_center_service.ApiCenterService",
@@ -1808,6 +2006,10 @@ class Container(containers.DeclarativeContainer):
         thermostats=thermostat_service,
         vacuum_humidifier=vacuum_humidifier_service,
         media_players=media_player_service,
+        water_heaters=water_heater_service,
         security=security_service,
+        siren=siren_service,
+        alarm_control_panels=alarm_control_panel_service,
+        smart_home_memory=smart_home_memory_service,
         event_bus=event_bus,
     )

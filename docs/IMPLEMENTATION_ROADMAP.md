@@ -2099,7 +2099,7 @@ only and **M11 is not closed**.
 
 ---
 
-## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped; Task Group K shipped)
+## 5H. M12 — Smart Home & IoT Platform (🟡 Active — Task Group A shipped; Task Group B Phases 1–3 shipped; Task Group C shipped; Task Group D shipped; Task Group E shipped; Task Group F shipped; Task Group G shipped; Task Group H shipped; Task Group I shipped; Task Group J shipped; Task Group K shipped; Task Group L shipped; Task Group M shipped; Task Group N shipped)
 
 *(Milestone status is 🟡 Active, per `MASTER_ROADMAP.md` §2's Single
 Source of Truth record. Task Group A was built and tested Aug 2026,
@@ -2168,31 +2168,59 @@ Vacuum/Humidifier pattern, not Climate's -- and reusing Vacuum +
 Humidifier's own `metadata["domain"]`-then-`["component"]` MQTT
 fallback locally, without touching the connector or
 `ApplianceService`) and Logic Contract -- see its own section below.
+Task Group L (Appliance Control -- Water Heater Core Slice) followed a
+further, thirteenth, separate instruction preceded by its own Phase 0
+audit (re-verifying `water_heater` maps to `device_type="appliance"`
+-- the Fan/Cover/Vacuum/Humidifier/Media Player pattern, not Climate's
+-- confirming it is the last unblocked Appliance Control category, and
+reusing the identical local MQTT fallback template) and Logic Contract
+-- see its own section below. Task Group M (Security & Safety --
+Manual/On-Demand Action Slice) followed a further, fourteenth,
+separate instruction preceded by its own Phase 0 audit (finding
+Appliance Control's device-category expansion exhausted and
+independently evaluating -- not assuming -- whether Security &
+Safety's own action-taking half should extend the already-shipped
+`SecurityService` or ship as a new sibling service) and Logic Contract
+-- see its own section below. Task Group N (Developer Tools --
+Connectivity / Integration Health Slice) followed a further,
+fifteenth, separate instruction preceded by its own Phase 0 audit
+(finding Security & Safety's own two named slices both shipped, and
+re-reading M9's Developer Platform Tools infrastructure fresh rather
+than assuming its shape from naming alone) and Logic Contract -- see
+its own section below.
 **Not Complete**: Smart Home Core, Connectivity Layer, Connectivity
 REST + Smart Lighting, Smart Locks, Sensors, Energy Management's Core
 Energy Slice, Appliance Control's Core Appliance Slice/Climate/
 Thermostat Slice/Vacuum + Humidifier Core Slice/Media Player Core
-Slice, and Security & Safety's Read-Only Alert/Status Slice are eight
-of fifteen modules in M12's own feature list -- Connectivity Layer has
+Slice/Water Heater Core Slice, Security & Safety's Read-Only
+Alert/Status Slice **and** Manual/On-Demand Action Slice, and
+Developer Tools' Connectivity / Integration Health Slice are nine of
+fifteen modules in M12's own feature list -- Connectivity Layer has
 both of its approved protocol adapters (Home Assistant, MQTT), closing
 that task group's three-phase plan; Smart Lighting, Smart Locks,
 Sensors, Energy Management (device control only), Appliance Control
 (Fan + Cover + Climate/Thermostat + Vacuum + Humidifier + Media Player
-control only) and Security & Safety (read-only status only) are the
-first six of thirteen device-category modules with at least some
-shipped scope (motion/sunrise-sunset/scheduled automation, Auto Lock,
++ Water Heater control only), Security & Safety (read-only status plus
+Panic Mode/a narrowly-scoped Vacation Mode only), and Developer Tools
+(Connectivity/Integration Health only) are the first seven of thirteen
+device-category/capability modules with at least some shipped scope
+(motion/sunrise-sunset/scheduled automation, Auto Lock,
 sensor-triggered automation, all energy automation/history/analytics,
-two remaining appliance categories (Water Heater, Smart Kitchen) plus
 fan percentage/cover position/fan mode/swing/presets/humidity mode/
 dual setpoint/Media Player's own play_media/join-unjoin/shuffle/
-repeat/sound mode/album/duration/playback position, and all of
-Security & Safety's action-taking half -- Panic Mode, Vacation Mode,
-Emergency Alerts, automated safety actions, scene/multi-device
-response, event-driven and scheduler-based security automation,
-notifications -- all explicitly deferred to Home Automation/Smart Home
-Memory/Smart Home Analytics/M7/future slices; two further appliance
-categories blocked on the current connector domain mapping) -- and
-seven M12 modules remain entirely unstarted. Full milestone definition
+repeat/sound mode/album/duration/playback position/Water Heater's own
+away-vacation-mode/dual-setpoint, the remainder of Security & Safety's
+action-taking half -- Emergency Alerts, scheduled/randomized Vacation
+Mode, geofencing, siren/alarm-panel integration, and every
+notification channel --, and Developer Tools' own MQTT Debug
+Console/Device Simulator/Event Viewer/Automation Tester -- all
+explicitly deferred to Home Automation/Smart Home Memory/Smart Home
+Analytics/M7/M21/future slices, Event Viewer specifically blocked (not
+merely deferred) on the still-unresolved device-command EventBus
+publishing gap; the two remaining appliance categories (Smart Kitchen,
+Smart Pumps/Irrigation) both blocked on the current connector domain
+mapping) -- and six M12 modules remain entirely unstarted. Full
+milestone definition
 — Objective, Dependencies, Complexity, 15-module feature list,
 Acceptance Criteria — lives in
 `MASTER_ROADMAP.md` §8/§9.)*
@@ -3501,6 +3529,786 @@ new service only, reusing Vacuum + Humidifier's own template, never in
 source-level test. **Not this task group, and not built:** any other
 M12 module (Smart Cameras, Home Automation, AI Home Assistant, Remote
 Access, Smart Home Memory, Smart Home Analytics, Developer Tools).
+
+### Task Group L — Appliance Control: Water Heater Core Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a seventh read-only Phase 0 audit (`M12 POST-TASK-GROUP-K
+PHASE 0 AUDIT`), re-evaluating the remaining M12 candidates from
+scratch against the current repository state and confirming
+`water_heater` maps to `device_type="appliance"` in both connectors —
+Fan/Cover/Vacuum/Humidifier/Media Player's own pattern, not Climate's
+own-`device_type` one — and that it is the **last** remaining
+Appliance Control category not blocked on the current connector domain
+mapping (Smart Kitchen and Smart Pumps/Irrigation both remain blocked,
+unchanged). No new connector gap was found; Vacuum + Humidifier's own
+`metadata["domain"]`-then-`["component"]` MQTT fallback template was
+reused, implemented locally inside this slice's own service. Two open
+design questions were resolved in the Logic Contract before any code,
+both requiring genuine Phase 2 wire-level verification against HA's
+actual `services.yaml` (not assumed by analogy): operation mode is
+writable and validated against device-reported `operation_list`
+(`water_heater.set_operation_mode`, confirmed payload key
+`operation_mode`) — the Thermostat `hvac_mode` template, not
+Humidifier's read-only `mode`, chosen because real evidence supported
+it here; and the scald-risk confirmation question, evaluated explicitly
+against `unlock_device`'s precedent and resolved against gating, on the
+grounds that no invented safety limit exists (only device-reported
+bounds are enforced) and a setpoint's thermal lag lacks unlock's
+immediate-consequence character — recorded as the closest call of any
+M12 appliance module to date, not a default.
+
+- [x] **Logic Contract** —
+      `docs/M12_APPLIANCE_WATER_HEATER_LOGIC_CONTRACT.md`, written and
+      approved before any code, marking every claim VERIFIED IN
+      REPOSITORY, VERIFIED EXTERNALLY (checked against HA's real
+      `services.yaml` and developer documentation this session), or
+      UNVERIFIED — MUST VERIFY DURING PHASE 2. Phase 2 then verified
+      the two flagged items directly against HA's actual
+      `services.yaml`: `set_temperature` (payload key `temperature`,
+      also optionally accepting `operation_mode` — a combined form
+      this module deliberately does not use, retaining the contract's
+      three-independent-calls design) and `set_operation_mode`
+      (payload key `operation_mode`); `turn_on`/`turn_off` confirmed
+      zero-payload.
+- [x] `WaterHeaterService` (`services/water_heater_service.py`) — one
+      service, **deliberately not an `ApplianceService` extension**,
+      per that module's own docstring instruction. Depends only on
+      `SmartHomeService` + `ConnectivityService` + `PermissionModel` —
+      no `IDatabase`, no `EventBus`, no direct connector import.
+- [x] Reads — normalized payload (`state`, `is_on`, `available`,
+      `current_temperature`, `target_temperature`, `operation_mode`,
+      `operation_list`, `min_temp`, `max_temp`). `state` an open
+      pass-through string (can be a plain on/off token or an
+      operation-mode token depending on device features), forced to
+      `None` (never the literal `"unavailable"` string) when
+      unavailable; `is_on` a derived convenience field, `None` when
+      not inferable from `state`. `operation_list`/`min_temp`/
+      `max_temp` survive unavailability as declared capabilities.
+      Every unreported field defaults to `None`/`[]`, never fabricated.
+- [x] Merged state mutation — `set_water_heater_state(temperature?,
+      operation_mode?, on?)`. Empty (all-`None`) mutation rejected
+      before any wire call. HA translation: up to three independent
+      single-purpose services (`turn_on`/`turn_off`, `set_operation_mode`,
+      `set_temperature`) executed in declared order (on/off, mode,
+      temperature — a stated convention, not a discovered dependency),
+      stopping at the first failure and naming exactly what already
+      applied. MQTT translation: one merged `set_state` call. Operation
+      mode validated against device-reported `operation_list` only
+      when non-empty, case-normalized to lowercase (mirroring
+      Thermostat's `hvac_mode`, unlike Media Player's case-preserved
+      `source`). Temperature validated as a finite number (`bool`/NaN/
+      ±inf rejected), bounded only when the device itself reports
+      `min_temp`/`max_temp` — no invented safety limit.
+- [x] Water Heater REST under the existing `/appliances` prefix — one
+      merged `/state` endpoint (matching Thermostat/Humidifier/Media
+      Player's merged-mutation shape; no independent transport verb
+      exists for this module). `infrastructure/api/routes/
+      water_heaters.py`.
+- [x] Three agent tools — `agents/tools/water_heater_tools.py`:
+      `list_water_heaters`, `get_water_heater_state`,
+      `set_water_heater_state`, wired into the existing Tool Registry
+      and `AgentOrchestrator`.
+- [x] Permission — existing `PermissionModel`, existing `smart_home`
+      scope, new principal `core:water_heaters`. **Reads ungated**,
+      mutation gated, no confirmation requirement (explicitly
+      evaluated against the scald-risk question, not auto-inherited —
+      see above).
+- [x] DI — `water_heater_service` singleton in `core/di/container.py`.
+- [x] 98 new tests, 0 failures, 0 errors, against real components
+      throughout (`FakeDeviceConnector`, real temp-file SQLite, real
+      `PermissionModel`) — covering domain resolution via both
+      `"domain"` and `"component"` keys, wrong-appliance-domain
+      rejection (a fan/cover/vacuum/humidifier/media-player id
+      rejected by the water-heater API and vice versa), both
+      connectors' translation shapes, the merged-mutation ordering and
+      every pairwise/full-triple combination with partial-failure
+      reporting at each position, temperature range/type validation,
+      operation-mode validation against a device-reported list and its
+      deliberate permissiveness when unreported, on/off inference from
+      an ambiguous `state` string, unavailable-device normalization,
+      malformed/missing attributes, wrong-device-type rejection for
+      every foreign type, and source-level tests confirming
+      `ApplianceService` was not extended, no `EventBus` reference
+      exists in the new service, and every deferred item (away/
+      vacation mode, dual setpoint, scheduling, etc.) has no route/
+      tool/field/enum anywhere in the implementation. Full backend
+      regression: 3372 tests, 0 failures, 0 errors, 1 pre-existing
+      skip (unrelated, platform symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_WATER_HEATER_FRONTEND_REQUIREMENTS.md`, a planning/
+      specification artifact only (no frontend source), derived from
+      the verified backend contract, distinguishing shipped backend
+      capability from required/deferred frontend work and backend
+      capability that does not exist. **Zero frontend files touched.**
+
+**Explicitly out of scope, and not built:** away/vacation mode
+(`set_away_mode`, `is_away_mode_on` — a real HA feature, deliberately
+excluded); dual/secondary setpoint (`target_temperature_high`/
+`_low`); scheduling and automation (blocked on M7's Scheduler,
+confirmed still unstarted, and the event-publishing gap); energy
+optimization, energy usage history/analytics; predictive/AI control;
+multi-device orchestration; scenes; leak detection, safety alerting,
+notifications; advanced heating profiles, multi-zone control; any
+Smart Kitchen functionality. **The `EventBus` was not touched** — no
+`WaterHeaterUpdatedEvent`, no subscriptions, no background worker; the
+pre-existing device-command event-publishing gap remains unfixed.
+**Connectors were not touched** — the MQTT `component`/`domain`
+fallback was implemented locally in the new service only, reusing
+Vacuum + Humidifier's own template, never in `mqtt.py`.
+**`ApplianceService` was not extended** — enforced by a source-level
+test. **Not this task group, and not built:** any other M12 module
+(Smart Cameras, Home Automation, AI Home Assistant, Remote Access,
+Smart Home Memory, Smart Home Analytics, Developer Tools).
+
+### Task Group M — Security & Safety: Manual/On-Demand Action Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by an eighth read-only Phase 0 audit (`M12 PHASE 0
+POST-WATER-HEATER AUDIT`), re-evaluating the remaining M12 candidates
+from scratch and finding Appliance Control's device-category expansion
+now exhausted (every domain mapped to `device_type="appliance"` has a
+shipped service) — the audit's own top-ranked, recommended candidate
+was Security & Safety's remaining action-taking scope, chosen over
+Smart Home Memory (whose real value is blocked on the same
+device-command event-publishing gap this session re-confirmed at the
+source level across all ten prior device-category services) on the
+grounds of zero missing infrastructure and real architectural novelty
+rather than ease alone. A Logic Contract
+(`docs/M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md`), separately
+approved before any code, resolved the one open architectural
+question by independently evaluating — not assuming — three options:
+extending the already-shipped `SecurityService`, a new
+`SecurityActionService` sibling, or folding the two halves into
+`SmartLockService`/`SmartLightingService` directly. **Extension won**:
+Panic Mode and Vacation Mode are a second capability over the same
+"home security posture" concept the read-only slice already owns, not
+a new device category the way each Appliance Control sibling is — the
+first M12 task group whose own architectural decision is "extend a
+previously-shipped class," not "add a new one."
+
+- [x] **Logic Contract** —
+      `docs/M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md`, written and
+      approved before any code, grounding every claimed method
+      signature and read-model field in the actual current source of
+      `SmartLockService`/`SmartLightingService`/`ThermostatService`
+      (not assumed) — including a real, directly-verified asymmetry:
+      `SmartLockService`'s read model exposes `available`;
+      `SmartLightingService`'s does not, at all. Worked around by using
+      `Device.status` (present on both) as the uniform unavailability
+      signal for locks/lights, while thermostats use their own live-
+      read `available` (already needed for eco-detection).
+- [x] `SecurityService` (`services/security_service.py`) — **extended
+      in place**, not a new sibling service. Gained three new
+      constructor dependencies: `SmartLightingService`,
+      `ThermostatService`, and `SmartHomeService` (a refinement Phase 1
+      found beyond Phase 0's own assumption, needed to validate a
+      `home_id` actually exists before acting).
+      `SmartLockService`/`SmartLightingService`/`ThermostatService`
+      themselves were **not** modified — only their existing public
+      methods are called.
+- [x] `trigger_panic_mode(home_id)` — locks every lock, then turns on
+      every light, in the given home. Deterministic order (locks
+      before lights — a stated convention, not a discovered
+      dependency), continues past individual device failure, never
+      touches thermostats.
+- [x] `trigger_vacation_mode(home_id)` — locks every lock, turns off
+      every light, then best-effort eco-adjusts every thermostat whose
+      own reported `hvac_modes` contains an `"eco"` token
+      (case-insensitive exact-token match, not substring). A
+      thermostat with no eco-adjacent mode is **skipped**, never
+      defaulted — no temperature fallback and no `preset_mode` use
+      exist anywhere (HA's real "eco" value is a `preset_mode`,
+      which `ThermostatService` does not expose today; extending it
+      to do so is explicitly out of this slice's scope).
+- [x] New multi-device result model — `status`
+      (`SUCCESS`/`PARTIAL_SUCCESS`/`FAILED`/`NO_TARGETS`, derived
+      deterministically), `requested_count`/`attempted_count`/
+      `succeeded_count`/`failed_count`/`unavailable_count`/
+      `skipped_count`, and full per-device (`locks`/`lights`/
+      `thermostats`) detail — deliberately not a copy of the existing
+      2–3-field merged-mutation shape, since this is the first M12
+      action whose device count is unbounded rather than a handful of
+      fixed fields.
+- [x] Nested permission boundary preserved — a missing
+      `core:smart_locks`/`core:smart_lighting`/`core:thermostats`
+      grant is never bypassed and never aborts the whole call; it
+      surfaces as an ordinary per-device failure, mirroring the
+      read-only slice's own "propagate honestly, never swallow"
+      precedent for a missing `core:sensors` grant.
+- [x] Security Action REST — `POST /api/v1/security/panic-mode`,
+      `POST /api/v1/security/vacation-mode`, both under the existing
+      `/api/v1/security` prefix. `infrastructure/api/routes/
+      security.py`. Unknown `home_id` → 404 (via exception-type
+      dispatch on `SecurityPermissionError` vs. plain `ServiceError`,
+      not string-matching); permission not granted → 400; every
+      outcome status (including `PARTIAL_SUCCESS`/`FAILED`/
+      `NO_TARGETS`) → 200.
+- [x] Two new agent tools — `agents/tools/security_tools.py`:
+      `trigger_panic_mode`, `trigger_vacation_mode` (registry/
+      orchestrator wiring unchanged — `SecurityService`'s own external
+      signature to those files did not change, only its internal
+      dependencies did).
+- [x] Permission — reuses the existing `core:security` principal and
+      `smart_home` scope, no new scope, no new principal. **Both
+      actions require interactive confirmation** — independently
+      evaluated against the blast-radius question (an entire home's
+      locks/lights/thermostats in one call), not auto-inherited from
+      any single-device precedent — the first `confirm_required_tools`
+      addition since Smart Locks' `unlock_device`.
+      `AgentSettings.confirm_required_tools` now reads
+      `{"run_automation", "unlock_device", "trigger_panic_mode",
+      "trigger_vacation_mode"}`.
+- [x] DI — `security_service`'s existing provider in
+      `core/di/container.py` extended with the three new dependencies;
+      no new provider.
+- [x] 98 new tests, 0 failures, 0 errors, against real components
+      throughout (`FakeDeviceConnector`, real temp-file SQLite, real
+      `PermissionModel`) — covering empty/nonexistent home, one and
+      multiple locks/lights/thermostats, Panic/Vacation Mode success/
+      partial-failure/total-failure, eco-capable and non-eco-capable
+      thermostats, mixed-case eco-token matching, unavailable devices,
+      nested permission failure surfacing as a per-device failure,
+      deterministic execution order, and an exact-count assertion
+      across a single mixed-outcome scenario (2 locks — one succeeds,
+      one fails with no recorded connector; 1 unavailable light; 1
+      skipped thermostat). Two tests initially failed for a
+      self-inflicted reason — an over-broad "term must not appear
+      anywhere in source" guard tripping on this module's own
+      explanatory docstrings (which explicitly discuss, in prose,
+      exactly the deferred terms the guard was checking for) — fixed
+      with a proper AST-based docstring-stripping helper, not by
+      weakening the documentation. Full backend regression: 3417
+      tests, 0 failures, 0 errors, 1 pre-existing skip (unrelated,
+      platform symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_SECURITY_ACTION_SLICE_FRONTEND_REQUIREMENTS.md`, a planning/
+      specification artifact only (no frontend source), derived from
+      the verified backend contract, distinguishing shipped backend
+      capability from required/deferred frontend work and backend
+      capability that does not exist. **Zero frontend files touched.**
+
+**Explicitly out of scope, and not built:** scheduled or recurring
+Panic/Vacation Mode; randomized presence simulation; geofencing or
+occupancy-triggered activation; Emergency Alerts, SMS, email, push
+notifications (no notification transport exists for smart home today);
+siren/alarm-panel integration (`device_type="other"` has zero service
+built against it — a real, separate, still-unaddressed gap); camera/
+vision integration; AI optimization/predictive behavior; multi-home
+orchestration (one `home_id` per call, no fan-out across homes);
+scenes; user-defined routines; automatic remediation; emergency-service
+integration; `preset_mode` support on `ThermostatService`. **The
+`EventBus` was not touched** — no new event class, no subscriptions,
+no background worker; the pre-existing device-command event-publishing
+gap remains unfixed, re-confirmed at the source level this session
+across all ten prior device-category services. **Connectors were not
+touched.** **`SmartLockService`/`SmartLightingService`/
+`ThermostatService` were not modified** — only their existing public
+methods are called. **Not this task group, and not built:** any other
+M12 module (Smart Cameras, Home Automation, AI Home Assistant, Remote
+Access, Smart Home Memory, Smart Home Analytics, Developer Tools).
+
+### Task Group N — Developer Tools: Connectivity / Integration Health Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a ninth read-only Phase 0 audit (`M12 PHASE 0
+POST-TASK-GROUP-M AUDIT`), re-evaluating the remaining M12 candidates
+from scratch and ranking this slice #1 for reusing a proven M9
+Developer Platform Tools pattern rather than repeating another
+device-control shape. A Logic Contract
+(`docs/M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md`), written
+and approved before any code, first **freshly re-read** (not assumed
+from naming) M9's own `infrastructure/api/routes/devtools.py` and all
+four `core/devtools/*.py` components, and found two things the Phase 0
+summary had not stated precisely: none of M9's five existing devtools
+capabilities carries a `PermissionModel` gate (session auth only,
+`Depends(get_current_session)`, matching every other resource route's
+baseline); and every existing `core/devtools/` component depends only
+on other `core/`-layer objects (`ServiceManager`, `PluginRegistry`,
+`RuntimeManager`), never on `services/`. Both findings resolved the
+Logic Contract's own architecture question: a new **`services/`-layer**
+`DevtoolsConnectivityService` (not a `core/devtools/` component, which
+would have inverted this codebase's own core-to-services layering
+direction), whose *route* nonetheless lives in the existing
+`routes/devtools.py` file for URL-namespace consistency, and whose
+authorization deliberately matches M9's own precedent exactly.
+
+- [x] **Logic Contract** —
+      `docs/M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md`,
+      written and approved before any code, sourcing every response
+      field to an already-shipped method (`ConnectorFactoryRegistry.
+      registered_types`, `ConnectivityService.is_connected`,
+      `SmartHomeService.metadata(home_id)` — the exact `HomeMetadata`
+      aggregate Task Group A built for Device Health Monitoring and no
+      REST route had exposed until now) and explicitly marking
+      latency/uptime/reconnect/error-count telemetry as unavailable
+      rather than inventing it, since none of it is tracked anywhere
+      in `ConnectivityService` or either connector.
+- [x] `DevtoolsConnectivityService`
+      (`services/devtools_connectivity_service.py`) — depends only on
+      the already-shipped `ConnectivityService` + `ConnectorFactoryRegistry`
+      + `SmartHomeService`; no `IDatabase`, no `EventBus`, no direct
+      connector import, no `ConnectorCredentialStore`, no
+      `Device.metadata_json` read.
+- [x] `get_connector_status()` — one row per registered connector
+      type (`registered: true` always, since the registry only lists
+      types with a factory) with a live `connected` re-check, not
+      inferred from registration alone.
+- [x] `get_device_health(home_id?)` — one `HomeMetadata` row for a
+      given home, or every home (`SmartHomeService.list_homes()`) when
+      omitted. Propagates `SmartHomeService.metadata`'s own
+      `ServiceError` for an unknown `home_id`, uncaught.
+- [x] `GET /api/v1/devtools/connectivity` —
+      `infrastructure/api/routes/devtools.py`, added alongside M9's
+      existing five capabilities in the same file. **No
+      `PermissionModel` gate** — session auth only, matching every
+      other devtools route exactly, a deliberate consistency decision
+      rather than importing the `smart_home`-scope pattern M12
+      device-control modules use. Unknown `home_id` → 404 (the only
+      failure mode, since no permission check exists to also map to
+      400).
+- [x] No agent tools — the Logic Contract did not specify any, and
+      none were invented.
+- [x] DI — `devtools_connectivity_service` singleton in
+      `core/di/container.py`, positioned alongside the existing
+      Milestone 9 Task Group E devtools providers.
+- [x] 44 new tests, 0 failures, 0 errors, against real components
+      throughout (`FakeDeviceConnector`, real temp-file SQLite) —
+      covering zero/one/multiple registered connectors,
+      connected/never-connected/disconnected-after-connect states,
+      zero/single/multiple homes, unknown `home_id`, real device-count
+      reflection (paired/offline device mix), no fabricated telemetry
+      fields (an explicit field-set assertion on every response row),
+      no credential/secret exposure (both a source-level guard and a
+      REST-response text scan), and source-level guards confirming no
+      `EventBus` reference, no direct connector import, no database
+      dependency, and no `send_command` call exist anywhere in the new
+      service. The pre-existing M9 devtools test suite
+      (`test_devtools_route.py`) was re-run and confirmed unaffected —
+      not modified, still green. Full backend regression: 3450 tests,
+      0 failures, 0 errors, 1 pre-existing skip (unrelated, platform
+      symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_DEVELOPER_TOOLS_CONNECTIVITY_FRONTEND_REQUIREMENTS.md`, a
+      planning/specification artifact only (no frontend source),
+      derived from the verified backend contract. **Zero frontend
+      files touched.**
+
+**Explicitly out of scope, and not built:** MQTT Debug Console
+(needs raw message inspection/subscription infrastructure that
+doesn't exist); Device Simulator (needs a fake-device generation
+mechanism with no current analog); **Event Viewer, explicitly
+blocked, not merely deferred** — the device-command EventBus
+publishing gap remains unresolved, re-confirmed at the source level
+this session (`ConnectivityService.send_command` still publishes
+nothing); command tracing/replay, packet capture, raw MQTT message
+inspection; latency/uptime/reconnect-history metrics (not tracked
+anywhere); device command history (no history table exists for any
+device category); automation/scheduler debugging (M7's Scheduler
+execution layer still unshipped); camera diagnostics (`VisionService`
+remains a stub); Analytics/Memory (M20A unshipped; `MemoryService` has
+zero device coupling); Remote Access (M21 unshipped); any frontend
+dashboard. **No `core/devtools/*.py` file was modified, and none
+imports from `services/`** — the new service lives in `services/`
+exclusively, enforced by a source-level test. **`ConnectivityService`/
+`SmartHomeService`/every existing `core/devtools/` component were not
+modified** — only their existing public methods are called. **The
+`EventBus` was not touched.** **Connectors were not touched** — no
+connector limitation was found; every required field was already
+reachable through existing service methods. **Not this task group,
+and not built:** any other M12 module (Smart Cameras, Home Automation,
+AI Home Assistant, Remote Access, Smart Home Memory, Smart Home
+Analytics).
+
+---
+
+### Task Group O — Smart Home Memory: Manual/On-Demand Device Snapshot Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a tenth read-only Phase 0 audit (`M12 POST-TASK-N
+READINESS / DEPENDENCY AUDIT`), re-evaluating Developer Tools,
+Security, Energy Management, AI Home Assistant, Smart Home Memory,
+Smart Cameras, and Remote Access for further independently-buildable
+slices and ranking Smart Home Memory's manual-capture slice #1. A
+Logic Contract (`docs/M12_SMART_HOME_MEMORY_SNAPSHOT_LOGIC_CONTRACT.
+md`), written and approved before any code, fixed an absolute naming
+boundary up front — **Manual/On-Demand Device Snapshot**, never
+"Device History"/"Continuous Device Monitoring"/"Automatic State
+Tracking"/"Event-Driven Memory" — and reused this codebase's own prior
+privacy-tier classification (which M12 device categories already ship
+with "reads ungated" vs. "reads gated") as the discriminator for which
+categories may be snapshotted, rather than inventing a new rule.
+
+- [x] **Logic Contract** —
+      `docs/M12_SMART_HOME_MEMORY_SNAPSHOT_LOGIC_CONTRACT.md`, written
+      and approved before any code. Read `services/memory_service.py`
+      in full and found `browse(memory_type=..., start_date=...,
+      end_date=..., limit=...)` already provides complete filtered
+      retrieval — the decisive finding that no new persistence layer,
+      repository method, or `MemoryType` enum value is needed; a plain
+      `memory_type="device_snapshot"` string is fully supported by the
+      existing `remember()`/`browse()` API, exactly as `MemoryType`'s
+      own docstring documents ("adding a new type later never requires
+      a migration").
+- [x] Device-category scope fixed at **light/switch/thermostat only**
+      — not every shipped category, and not a default to "all". Two
+      independently-stated reasons: architecturally, only these three
+      have a unique `device_type` that resolves to their owning
+      service via `SmartHomeService.require_device` alone, with no
+      private domain-resolution step to duplicate (unlike
+      `device_type="appliance"` categories, which share one type
+      across six services distinguished only by each service's own
+      *private* `_domain_for` helper); on privacy/security grounds,
+      Sensors and Smart Locks are excluded because a persisted,
+      browsable snapshot history of occupancy-revealing or
+      security-posture-revealing state is a materially larger risk
+      than either category's own already-gated live read — reusing
+      Sensors'/Locks' own existing "reads gated" precedent as the
+      discriminator, not inventing a new privacy rule.
+- [x] `SmartHomeMemoryService` (`services/smart_home_memory_service.
+      py`) — depends only on the already-shipped `SmartHomeService` +
+      `SmartLightingService` + `SmartSwitchService` + `ThermostatService`
+      + `MemoryService`; no `IDatabase` of its own, no `EventBus`, no
+      direct connector import, never reads `Device.metadata_json`
+      (metadata/content built only from each service's own already-
+      normalized read model).
+- [x] `snapshot_device(device_id)` — resolves the device via
+      `SmartHomeService.require_device`, dispatches to the owning
+      service's own `get_light_state`/`get_switch_state`/
+      `get_thermostat_state`, builds a deterministic (no LLM
+      generation) content sentence plus structured metadata
+      (`device_id`, `device_type`, `home_id`, `room_id`, `device_name`,
+      `snapshot_at`, `state`), and persists through the existing
+      `MemoryService.remember()`. An unavailable device still produces
+      an honest snapshot — the owning service's own read already
+      reports `available: false`/`None` live fields rather than
+      raising, and this method persists whatever it returns verbatim,
+      never fabricating a substitute.
+- [x] `list_snapshots(device_id?, limit=50)` — reuses `MemoryService.
+      browse(memory_type="device_snapshot")` verbatim, most-recent-
+      first, with a documented client-side `device_id` filter (no
+      indexed per-device query exists in `MemoryRepository` today — a
+      stated limitation, not a hidden one).
+- [x] `POST /api/v1/smart-home/memory/snapshots` / `GET
+      /api/v1/smart-home/memory/snapshots` —
+      `infrastructure/api/routes/smart_home_memory.py`. Exception-type
+      dispatch mirroring `routes/security.py`'s own precedent:
+      `SmartHomeMemoryPermissionError` → 400,
+      `UnsupportedSnapshotCategoryError` → 400 (distinct from an
+      unknown-device 404), plain `ServiceError` (unknown device) → 404.
+      No `PUT`/`PATCH`/`DELETE`, no single-snapshot `GET .../{id}`, no
+      batch/home-wide route.
+- [x] Two agent tools — `snapshot_device_state`, `list_device_snapshots`
+      (`agents/tools/smart_home_memory_tools.py`) — no third tool
+      duplicating the already-generic `recall_memory` tool. Wired
+      through `agents/tools/registry.py` and
+      `agents/orchestrator.py`'s existing optional-service pattern.
+- [x] **Permission departs from the majority M12 "reads ungated"
+      precedent on purpose** — both `snapshot_device` and
+      `list_snapshots` require the same `core:smart_home_memory`/
+      `smart_home` grant, since a persisted, browsable snapshot history
+      carries more cumulative privacy weight than any single live
+      device read. No confirmation requirement — a snapshot touches one
+      device and writes one memory row, never a physical device.
+- [x] DI — `smart_home_memory_service` singleton in
+      `core/di/container.py`, composing `smart_home_service` +
+      `smart_lighting_service` + `smart_switch_service` +
+      `thermostat_service` + `memory_service` + `permission_model`;
+      wired into `agent_orchestrator`'s existing optional-service list.
+- [x] 58 new tests, 0 failures, 0 errors, against real components
+      throughout (`FakeDeviceConnector`, real temp-file SQLite, real
+      `PermissionModel`, `FakeLLM`/`FakeVectorStore` in place of
+      network-backed embedding infrastructure) — covering per-category
+      snapshot success (light/switch/thermostat), unsupported-category
+      rejection distinct from unknown-device 404 (sensor, lock, camera,
+      every appliance-domain category), unavailable-device honesty,
+      verbatim state preservation, a real `snapshot_at` timestamp, no
+      `Device.metadata_json`/credential leakage, permission gating on
+      *both* create and retrieve, device-id-filtered/limited/most-
+      recent-first retrieval, and source-level guards (via an AST
+      docstring-stripping helper, so the module's own explanatory
+      prose about what it does *not* do cannot collide with the
+      guards) confirming zero `EventBus`/Scheduler/Analytics reference
+      and zero deletion tooling. M12 regression: 855 tests, 0 failures,
+      0 errors. M11+M12 regression: 983 tests, 0 failures, 0 errors.
+      Full backend regression: 3506 tests, 0 failures, 0 errors, 1
+      pre-existing skip (unrelated, platform symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_SMART_HOME_MEMORY_SNAPSHOT_FRONTEND_REQUIREMENTS.md`, a
+      planning/specification artifact only (no frontend source),
+      derived from the verified backend contract, including the
+      binding naming-boundary restatement for any future UI copy.
+      **Zero frontend files touched.**
+
+**Explicitly out of scope, and not built:** automatic/scheduled/
+event-driven capture of any kind (the device-command EventBus
+publishing gap remains unresolved and this slice is deliberately
+scoped around it, not through it); Sensor/Smart Lock/camera/appliance-
+domain-category (Vacuum, Humidifier, Media Player, Water Heater, Fan,
+Cover) snapshots — deferred on privacy/security or architectural
+grounds respectively, not merely unbuilt; snapshot deletion (no
+memory-deletion capability of any kind is exposed via REST or agent
+tool anywhere in this repository today — `MemoryService.forget()`
+already exists generically and was deliberately not newly exposed);
+diff-against-previous-snapshot, trend, or analytics views over
+snapshots (M20A unshipped); home-wide/batch snapshotting (single-
+device only, the smallest coherent scope); memory-triggered automation
+(M7's Scheduler still unshipped). **No existing service was modified**
+— `SmartHomeService`/`SmartLightingService`/`SmartSwitchService`/
+`ThermostatService`/`MemoryService` are called through their existing
+public methods only. **No `MemoryType` enum value was added** — the
+plain-string path `MemoryType` already documents as safe is used
+instead. **No schema/migration change.** **The `EventBus` was not
+touched.** **Connectors were not touched.** **Not this task group, and
+not built:** any other M12 module (Smart Cameras, Home Automation, AI
+Home Assistant, Remote Access, Smart Home Analytics).
+
+---
+
+### Task Group P — Developer Tools: Device Simulator Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by an eleventh read-only Phase 0 audit (`M12 PHASE 0
+POST-TASK-O AUDIT`), re-evaluating every remaining M12 module from
+scratch and finding, for the first time this milestone, **no
+zero-architectural-risk candidate remaining anywhere** — every
+candidate required either a real design decision (🟡) or was blocked
+outright (🔴). Device Simulator was ranked the strongest 🟡 candidate:
+the narrowest architectural footprint of the three viable options,
+with the broadest downstream value (testing every one of the ten
+already-shipped M12 slices without real hardware). A Logic Contract
+(`docs/M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md`),
+written and approved before any code, evaluated three architectures
+and found a decisive problem with the seemingly-obvious one: a new
+`CONNECTOR_TYPES` entry (Option A) would make every device-category
+service's own closed `_TRANSLATORS` dict (`{"home_assistant": ...,
+"mqtt": ...}`) reject every mutation command with "no command
+translation," since none of those already-shipped services carry a
+third key — fixing that would have meant modifying four of them,
+against this project's own standing discipline of not touching
+previously-shipped device-category services. A connector-less design
+(Option B) was found to collapse into Option A or deliver negligible
+value once traced through `connector_type_for`/`_require_connector`.
+**Option C — chosen**: the DI composition root swaps which factory
+answers the *existing* `"home_assistant"` registry key — the real
+`HomeAssistantConnector`'s factory, or the new `SimulatorConnector`'s
+— gated by a new, off-by-default `settings.devtools.simulator_enabled`
+flag, the exact pattern this repository's own test suite
+(`tests/fakes/fake_device_connector.py`'s `FakeDeviceConnector`,
+`connector_type = "home_assistant"`) already uses successfully
+everywhere.
+
+- [x] **Logic Contract** —
+      `docs/M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md`,
+      written and approved before any code. Traced the exact mutation
+      code path (`_TRANSLATORS.get(connector_type)`) to prove Option A
+      would break every mutation path, and confirmed directly that
+      nothing in `ConnectivityService`/`routes/connectivity.py` ever
+      reads a connector instance's own `connector_type` attribute
+      externally — only the registry-key string matters, which is what
+      makes Option C's reuse of the `"home_assistant"` key safe for
+      every existing translator.
+- [x] `SimulatorConnector`
+      (`core/connectivity/connectors/simulator.py`) — structurally
+      satisfies `IDeviceConnector` exactly like `HomeAssistantConnector`/
+      `MqttConnector`; never imports `httpx`, `gmqtt`,
+      `HomeAssistantConnector`, `MqttConnector`, or
+      `ConnectorCredentialStore` (pinned by a source-level import-line
+      guard). Ephemeral in-memory roster, mirroring `MqttConnector`'s
+      own `_state_cache` precedent — no schema change, nothing written
+      to the database by this class itself.
+- [x] Five MVP device categories — light, switch, thermostat, lock,
+      sensor — the same "unique `device_type`, no domain/component
+      fallback needed" boundary Task Group O (Smart Home Memory)
+      independently identified for an unrelated reason. Appliance-
+      domain categories (fan/cover/vacuum/humidifier/media_player/
+      water_heater) deliberately deferred.
+- [x] Deterministic command→state mutation in Home Assistant's own
+      wire vocabulary (`turn_on`/`turn_off`, `set_hvac_mode`/
+      `set_temperature`, `lock`/`unlock`), verified command-name-for-
+      command-name against each real service's own `_translate_
+      home_assistant` output. Unsupported commands return
+      `CommandResult(success=False)`, never raise. Fault simulation
+      (`unavailable`, `force_command_failure`) is caller-configured and
+      sticky — zero randomness, zero latency simulation anywhere.
+- [x] Five devtools-only roster-management REST endpoints —
+      `infrastructure/api/routes/devtools.py`: `POST`/`GET
+      /devtools/simulator/devices`, `DELETE
+      /devtools/simulator/devices/{external_id}`, `POST
+      .../fault`, `POST /devtools/simulator/reset`. **No**
+      simulator-specific discover/import/state/command route —
+      discovery, import, live state reads and command execution all
+      continue through the existing, unmodified generic Connectivity
+      Layer routes (`routes/connectivity.py`), proven directly by a
+      full REST-level round-trip test. No `PermissionModel` gate,
+      matching every other devtools capability — explicitly evaluated
+      and reasoned (not defaulted): unlike Smart Home Memory/Security,
+      a simulated device's mutations never touch real device or real
+      home data.
+- [x] DI — `simulator_connector` singleton plus a rewritten
+      `_build_connectivity_registry` in `core/di/container.py`: the
+      disabled branch is `build_default_connector_registry()` verbatim
+      (proven byte-identical to the pre-existing function via direct
+      object-identity assertion), the `"mqtt"` registry key is never
+      affected by simulator mode in either branch.
+- [x] 66 new tests, 0 failures, 0 errors, against real components
+      throughout (real temp-file SQLite `SmartHomeService`, real
+      `ConnectivityService`, and the real, unmodified
+      `SmartLightingService`/`SmartSwitchService`/`ThermostatService`/
+      `SmartLockService`/`SensorService`) — covering factory-swap
+      correctness in both directions, all five categories'
+      deterministic initial state and command→state round-trips, fault
+      simulation (mark unavailable/force-fail, then restore), full
+      generic-Connectivity-Layer discovery/import/read/command
+      integration proven through each real service (not a simulator-
+      specific shortcut), the REST security boundary (session auth
+      only, no grant needed), and — the isolation requirement's own
+      explicit demand for *behavioral*, not flag-only, proof — a test
+      that monkeypatches the real `HomeAssistantConnector.connect` to
+      raise if ever called, then runs a full simulator-mode discover/
+      command flow to completion without tripping it. M12 regression:
+      919 tests, 0 failures, 0 errors. M11+M12 regression: 1047 tests,
+      0 failures, 0 errors. Full backend regression: 3570 tests, 0
+      failures, 0 errors, 1 pre-existing skip (unrelated, platform
+      symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_FRONTEND_REQUIREMENTS.md`, a
+      planning/specification artifact only (no frontend source),
+      derived from the verified backend contract. **Zero frontend
+      files touched.**
+
+**Explicitly out of scope, and not built:** `CONNECTOR_TYPES` was
+**not** modified — still exactly `{"home_assistant", "mqtt"}`, pinned
+by a test. **No existing device-category service was modified** —
+`smart_lighting_service.py`/`smart_switch_service.py`/
+`thermostat_service.py`/`smart_lock_service.py`/`sensor_service.py`
+and every one of their `_TRANSLATORS` dicts are unchanged, pinned by a
+test asserting each still contains exactly `{"home_assistant",
+"mqtt"}`. MQTT-slot simulation (only the `"home_assistant"` slot is
+ever swapped); latency/jitter simulation (rejected — no randomness
+requirement); a devtools "send simulated command" endpoint (already
+covered by the existing generic `POST /api/v1/connectivity/devices/
+{id}/command` passthrough); agent tools (no end-user or AI Home
+Assistant conversational use case exists for a developer-only tool);
+persistent/replayable fixture scenarios; appliance-domain simulated
+categories. **No schema/migration change.** **No `EventBus`/
+Scheduler/Analytics/`MemoryService` dependency anywhere in the
+simulator's own code**, pinned by source-level guards. **Not this task
+group, and not built:** any other M12 module (Smart Cameras, Home
+Automation, AI Home Assistant, Remote Access, Smart Home Analytics).
+
+---
+
+### Task Group Q — Developer Tools: Device Diagnostics Slice (✅ shipped, Aug 2026 — no version bump)
+
+Preceded by a twelfth read-only Phase 0 audit (`M12 PHASE 0
+POST-TASK-P AUDIT`), re-evaluating every remaining M12 module from
+scratch and finding `GET /api/v1/devtools/devices/{device_id}/
+diagnostics` the strongest remaining candidate — the only one
+requiring zero touch to any shared/foundational class
+(`ConnectivityService`, any connector, `DEVICE_TYPES`/`CONNECTOR_TYPES`)
+— and directly closing a named, previously-unbuilt Developer Tools
+roadmap item ("Device Diagnostics"). A Logic Contract (`docs/
+M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_LOGIC_CONTRACT.md`), written
+and approved before any code, resolved its architecture by mirroring
+an existing precedent already in `routes/devtools.py`
+(`get_plugin_diagnostics`) rather than creating a new service — and
+found a genuine, non-obvious defect risk to avoid: `PermissionModel.
+is_granted()` carries a `_audit_add("denied_check")` side effect
+(confirmed by direct source read), which a passive diagnostic read
+must never trigger; `state()` (no side effect) is used instead.
+
+- [x] **Logic Contract** — `docs/
+      M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_LOGIC_CONTRACT.md`,
+      written and approved before any code. Traced
+      `ConnectivityService.read_raw_state`'s exact error behavior
+      (returns `None` for no recorded connector; raises
+      `ConnectorNotConnectedError`/other `ConnectivityError` subtypes
+      for a recorded-but-unreachable connector) and confirmed every
+      existing device-category service already wraps this identical
+      call the same way this endpoint does. Enumerated all 11
+      currently-declared `PermissionModel` principals across every
+      M12 service and found `device_type="appliance"` genuinely spans
+      **four** separate principals (`core:appliances`/
+      `core:media_players`/`core:vacuum_humidifier`/
+      `core:water_heaters`), disambiguated only by each appliance
+      service's own private `metadata["domain"]`/`["component"]`
+      fallback — deliberately not replicated here.
+- [x] `GET /api/v1/devtools/devices/{device_id}/diagnostics` —
+      `infrastructure/api/routes/devtools.py`, logic inline in the
+      route handler (two new thin accessors,
+      `_smart_home`/`_connectivity`, mirroring `_permission_model`'s
+      own existing shape) — **no new service, no
+      `DeviceDiagnosticsService`, no extension of
+      `DevtoolsConnectivityService`**. Three response sections:
+      `device` (identity, never `metadata_json`), `connectivity`
+      (`connector_type`, `read_succeeded`, `status`, sanitized
+      `attributes`, `read_error`), `permission` (`principal`, `scope`,
+      `state`, `detail`). Unknown device → 404; a failed live read is
+      **never** an HTTP error — `read_succeeded: false` with an
+      explanatory `read_error`, the remaining sections still fully
+      populated.
+- [x] **Permission resolution closed to five categories** — light
+      (`core:smart_lighting`), switch (`core:smart_switch`), lock
+      (`core:smart_locks`), sensor (`core:sensors`), thermostat
+      (`core:thermostats`) — the same "unique `device_type`, no
+      domain-fallback" boundary Task Groups O and P each independently
+      arrived at. `appliance`/`camera`/every other category reports
+      `principal: null` with an explanatory `detail`, never a guessed
+      or duplicated principal — pinned by a test asserting the lookup
+      table is exactly these five entries.
+- [x] **Key-based attribute redaction** — any attribute key
+      (case-insensitive) containing `token`/`password`/`secret`/
+      `credential`/`api_key`/`apikey`/`auth` has its value replaced
+      with `"<redacted>"`; every other key/value passes through
+      verbatim. For the five resolvable categories this is not a new
+      exposure surface — the same attribute data is already reachable
+      today through each category's own existing `GET .../{id}` read
+      route; the redaction is defense-in-depth, most load-bearing for
+      `camera` (no shipped read service exists for it at all).
+- [x] No `PermissionModel` gate on the route itself — session auth
+      only, matching every other devtools capability, explicitly
+      reasoned (not defaulted): unlike Smart Home Memory/Security, this
+      endpoint exposes no real device mutation and no credential.
+- [x] No agent tool — purely developer-facing, no end-user or AI Home
+      Assistant conversational use case, matching Device Simulator's
+      own identical reasoning.
+- [x] 37 new tests, 0 failures, 0 errors, against the real FastAPI app
+      and real DI container throughout — covering every known
+      device_type's happy path (light/switch/lock/sensor/thermostat)
+      plus `appliance`/`camera`'s unresolved-principal path, device
+      identity fields with a `metadata_json`-never-leaks text-scan
+      guard, three distinct connectivity-failure modes (no recorded
+      connector, connector not connected, and the honestly-distinct
+      "read succeeded but device itself reports unavailable" case),
+      permission states (`pending`/`granted`/`denied`), a parametrized
+      redaction test across nine sensitive-looking key names (each
+      proving the real seeded secret value never appears anywhere in
+      the response text), the REST security boundary, envelope shape,
+      404/no-mutation/no-duplicate-route checks, and source-level
+      guards (AST-docstring-stripped) confirming `is_granted` is never
+      called and zero `EventBus`/Scheduler/Analytics/`MemoryService`
+      reference exists in the route module. M12 regression: 956
+      tests, 0 failures, 0 errors. M11+M12 regression: 1084 tests, 0
+      failures, 0 errors. Full backend regression: 3607 tests, 0
+      failures, 0 errors, 1 pre-existing skip (unrelated, platform
+      symlink permissions).
+- [x] **Frontend requirements document** — `docs/
+      M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_FRONTEND_REQUIREMENTS.md`,
+      a planning/specification artifact only (no frontend source),
+      derived from the verified backend contract. **Zero frontend
+      files touched.**
+
+**Explicitly out of scope, and not built:** appliance sub-domain
+principal resolution (would duplicate four services' own private
+domain-resolution logic); any general `device_type → principal`
+registry mechanism beyond this endpoint's own small, closed, five-row
+table; device command execution, command history/logging, Event
+Viewer, MQTT Debug Console, automation debugging (all separate,
+undecided candidates); historical diagnostics, uptime/latency
+analytics, automatic health monitoring, notifications. **No existing
+service was modified** — `SmartHomeService`/`ConnectivityService`/
+`PermissionModel` and every device-category service are called through
+their existing public methods only. **No `DEVICE_TYPES`/
+`CONNECTOR_TYPES` change. No schema/migration change. The `EventBus`
+was not touched. No connector was touched.** **Not this task group,
+and not built:** any other M12 module (Smart Cameras, Home Automation,
+AI Home Assistant, Remote Access, Smart Home Analytics).
 
 ---
 

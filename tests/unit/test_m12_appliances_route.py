@@ -338,3 +338,220 @@ def test_fan_on_reports_connector_rejection_as_success_false(client, auth, fake_
     assert response.status_code == 200
     assert response.json()["data"]["success"] is False
     assert response.json()["meta"]["success"] is False
+
+
+# --- set_percentage / set_position (Fan Percentage + Cover Position Logic Contract) ---
+
+
+def test_every_new_route_requires_a_session(client) -> None:
+    assert client.post(
+        "/api/v1/appliances/fans/x/set_percentage", json={"percentage": 50}
+    ).status_code in (401, 403)
+    assert client.post(
+        "/api/v1/appliances/covers/x/set_position", json={"position": 50}
+    ).status_code in (401, 403)
+
+
+def test_set_fan_percentage_denied_without_grant_is_400(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_fan(client, auth, fake_connector, home_id)
+
+    response = client.post(
+        f"/api/v1/appliances/fans/{device_id}/set_percentage",
+        json={"percentage": 50},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert "permission" in response.json()["detail"].lower()
+    assert fake_connector.sent_commands == []
+
+
+def test_set_cover_position_denied_without_grant_is_400(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_cover(client, auth, fake_connector, home_id)
+
+    response = client.post(
+        f"/api/v1/appliances/covers/{device_id}/set_position",
+        json={"position": 50},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert fake_connector.sent_commands == []
+
+
+def test_set_fan_percentage_succeeds_after_grant(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_fan(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/fans/{device_id}/set_percentage",
+        json={"percentage": 42},
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["success"] is True
+    assert response.json()["meta"]["success"] is True
+    assert fake_connector.sent_commands == [
+        (fake_connector.devices[0].external_id, "set_percentage", {"percentage": 42})
+    ]
+
+
+def test_set_cover_position_succeeds_after_grant(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_cover(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/covers/{device_id}/set_position",
+        json={"position": 88},
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["success"] is True
+    assert fake_connector.sent_commands == [
+        (fake_connector.devices[0].external_id, "set_cover_position", {"position": 88})
+    ]
+
+
+def test_set_fan_percentage_out_of_range_is_400(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_fan(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/fans/{device_id}/set_percentage",
+        json={"percentage": 200},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert "0-100" in response.json()["detail"]
+    assert fake_connector.sent_commands == []
+
+
+def test_set_cover_position_out_of_range_is_400(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_cover(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/covers/{device_id}/set_position",
+        json={"position": -10},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert "0-100" in response.json()["detail"]
+    assert fake_connector.sent_commands == []
+
+
+def test_set_fan_percentage_unknown_device_is_400(client, auth) -> None:
+    response = client.post(
+        "/api/v1/appliances/fans/no-such-device/set_percentage",
+        json={"percentage": 50},
+        headers=auth,
+    )
+    assert response.status_code == 400
+
+
+def test_set_cover_position_unknown_device_is_400(client, auth) -> None:
+    response = client.post(
+        "/api/v1/appliances/covers/no-such-device/set_position",
+        json={"position": 50},
+        headers=auth,
+    )
+    assert response.status_code == 400
+
+
+def test_set_fan_percentage_zero_is_valid(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_fan(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/fans/{device_id}/set_percentage",
+        json={"percentage": 0},
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    assert fake_connector.sent_commands == [
+        (fake_connector.devices[0].external_id, "set_percentage", {"percentage": 0})
+    ]
+
+
+def test_set_cover_position_boundaries_are_valid(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_cover(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    closed = client.post(
+        f"/api/v1/appliances/covers/{device_id}/set_position",
+        json={"position": 0},
+        headers=auth,
+    )
+    assert closed.status_code == 200
+
+    open_ = client.post(
+        f"/api/v1/appliances/covers/{device_id}/set_position",
+        json={"position": 100},
+        headers=auth,
+    )
+    assert open_.status_code == 200
+
+    assert [c[2] for c in fake_connector.sent_commands] == [
+        {"position": 0},
+        {"position": 100},
+    ]
+
+
+def test_read_reports_percentage_and_position(client, auth, fake_connector) -> None:
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    fan_id = _connected_fan(client, auth, fake_connector, home_id)
+    fake_connector.states[fake_connector.devices[0].external_id] = DeviceState(
+        external_id=fake_connector.devices[0].external_id,
+        status="on",
+        attributes={"percentage": 55},
+    )
+
+    fetched = client.get(f"/api/v1/appliances/fans/{fan_id}", headers=auth)
+    assert fetched.json()["data"]["percentage"] == 55
+
+
+def test_read_reports_cover_position_from_current_cover_position(
+    client, auth, fake_connector
+) -> None:
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    cover_id = _connected_cover(client, auth, fake_connector, home_id)
+    fake_connector.states[fake_connector.devices[0].external_id] = DeviceState(
+        external_id=fake_connector.devices[0].external_id,
+        status="open",
+        attributes={"current_cover_position": 33},
+    )
+
+    fetched = client.get(f"/api/v1/appliances/covers/{cover_id}", headers=auth)
+    assert fetched.json()["data"]["position"] == 33
+
+
+def test_no_extra_percentage_position_endpoints(client, auth, fake_connector) -> None:
+    """No generic `/state` mutation route, no `/toggle`, no
+    query-parameter alternative (Logic Contract §10)."""
+    home_id = _home(client, auth)
+    device_id = _connected_fan(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    for method, path in (
+        ("post", f"/api/v1/appliances/fans/{device_id}/state"),
+        ("post", f"/api/v1/appliances/fans/{device_id}/toggle"),
+        ("patch", f"/api/v1/appliances/fans/{device_id}/set_percentage"),
+    ):
+        assert getattr(client, method)(path, headers=auth).status_code in (404, 405)

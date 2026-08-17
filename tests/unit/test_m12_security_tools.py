@@ -1,10 +1,10 @@
 """Security & Safety agent tool tests -- Milestone 12 Security & Safety
-(Read-Only Alert/Status Slice).
+(Read-Only Alert/Status Slice + Manual/On-Demand Action Slice).
 
-Real ``SecurityService`` over real ``SensorService``/``SmartLockService``,
-real (temp-file) SQLite, a real ``PermissionModel`` and a
-``FakeDeviceConnector``, matching ``test_m12_sensor_tools.py``'s own
-fixtures.
+Real ``SecurityService`` over real ``SensorService``/``SmartLockService``/
+``SmartLightingService``/``ThermostatService``, real (temp-file) SQLite,
+a real ``PermissionModel`` and a ``FakeDeviceConnector``, matching
+``test_m12_sensor_tools.py``'s own fixtures.
 """
 
 from __future__ import annotations
@@ -24,7 +24,9 @@ from jarvis.services.connectivity_service import ConnectivityService
 from jarvis.services.security_service import SECURITY_PRINCIPAL, SMART_HOME_SCOPE, SecurityService
 from jarvis.services.sensor_service import SENSOR_PRINCIPAL, SensorService
 from jarvis.services.smart_home_service import SmartHomeService
-from jarvis.services.smart_lock_service import SmartLockService
+from jarvis.services.smart_lighting_service import SmartLightingService
+from jarvis.services.smart_lock_service import SMART_LOCK_PRINCIPAL, SmartLockService
+from jarvis.services.thermostat_service import ThermostatService
 from tests.fakes.fake_device_connector import FakeDeviceConnector
 
 
@@ -88,8 +90,31 @@ def smart_lock(smart_home, connectivity, permissions) -> SmartLockService:
 
 
 @pytest.fixture
-def service(sensors, smart_lock, permissions) -> SecurityService:
-    return SecurityService(sensors=sensors, smart_lock=smart_lock, permissions=permissions)
+def smart_lighting(db, smart_home, connectivity, permissions) -> SmartLightingService:
+    return SmartLightingService(
+        database=db, smart_home=smart_home, connectivity=connectivity, permissions=permissions
+    )
+
+
+@pytest.fixture
+def thermostats(smart_home, connectivity, permissions) -> ThermostatService:
+    return ThermostatService(
+        smart_home=smart_home, connectivity=connectivity, permissions=permissions
+    )
+
+
+@pytest.fixture
+def service(
+    sensors, smart_lock, smart_lighting, thermostats, smart_home, permissions
+) -> SecurityService:
+    return SecurityService(
+        sensors=sensors,
+        smart_lock=smart_lock,
+        smart_lighting=smart_lighting,
+        thermostats=thermostats,
+        smart_home=smart_home,
+        permissions=permissions,
+    )
 
 
 @pytest.fixture
@@ -103,6 +128,10 @@ async def _grant_security(permissions: PermissionModel) -> None:
 
 async def _grant_sensors(permissions: PermissionModel) -> None:
     await permissions.grant(SENSOR_PRINCIPAL, SMART_HOME_SCOPE)
+
+
+async def _grant_smart_lock(permissions: PermissionModel) -> None:
+    await permissions.grant(SMART_LOCK_PRINCIPAL, SMART_HOME_SCOPE)
 
 
 async def _grant_all(permissions: PermissionModel) -> None:
@@ -125,6 +154,16 @@ async def _register_hazard_sensor(smart_home: SmartHomeService, *, device_class:
     )
 
 
+async def _register_lock(smart_home: SmartHomeService, home_id: str, *, external_id: str):
+    return await smart_home.register_discovered_device(
+        home_id,
+        "Front Door",
+        device_type="lock",
+        external_id=external_id,
+        metadata={"connector_type": "home_assistant"},
+    )
+
+
 # --- Registry registration -----------------------------------------------------
 
 
@@ -142,7 +181,12 @@ async def test_registry_includes_security_tools_when_service_provided(
 
     tools = build_tool_registry(security=service)
     names = {t.name for t in tools}
-    assert {"get_security_status", "list_active_security_alerts"} <= names
+    assert {
+        "get_security_status",
+        "list_active_security_alerts",
+        "trigger_panic_mode",
+        "trigger_vacation_mode",
+    } <= names
 
 
 # --- Permission enforcement -------------------------------------------------------
@@ -253,9 +297,84 @@ async def test_get_security_status_tool_reports_error_without_raising(tools) -> 
     assert isinstance(result, str)
 
 
-# --- No mutation tool ----------------------------------------------------------------
+# --- Exactly four tools ---------------------------------------------------------------
 
 
-def test_no_mutation_tool_is_built(service: SecurityService) -> None:
+def test_exactly_four_tools_are_built(service: SecurityService) -> None:
     built = {t.name for t in build_security_tools(service)}
-    assert built == {"get_security_status", "list_active_security_alerts"}
+    assert built == {
+        "get_security_status",
+        "list_active_security_alerts",
+        "trigger_panic_mode",
+        "trigger_vacation_mode",
+    }
+
+
+# --- Action tools (Task Group M) -------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_trigger_panic_mode_tool_denied_without_grant(
+    tools, smart_home: SmartHomeService
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+
+    result = await tools["trigger_panic_mode"].ainvoke({"home_id": home.id})
+
+    assert "Couldn't" in result
+    assert "permission" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_trigger_vacation_mode_tool_denied_without_grant(
+    tools, smart_home: SmartHomeService
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+
+    result = await tools["trigger_vacation_mode"].ainvoke({"home_id": home.id})
+
+    assert "Couldn't" in result
+    assert "permission" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_trigger_panic_mode_tool_reports_error_without_raising(tools) -> None:
+    result = await tools["trigger_panic_mode"].ainvoke({"home_id": "no-such-home"})
+    assert isinstance(result, str)
+    assert "Couldn't" in result
+
+
+@pytest.mark.asyncio
+async def test_trigger_panic_mode_tool_returns_full_result(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant_security(permissions)
+    await _grant_smart_lock(permissions)
+    home = await smart_home.create_home("Primary Residence")
+    await _register_lock(smart_home, home.id, external_id="lock.front_door")
+    fake_connector.states["lock.front_door"] = DeviceState(
+        external_id="lock.front_door", status="unlocked", attributes={}
+    )
+
+    result = await tools["trigger_panic_mode"].ainvoke({"home_id": home.id})
+
+    assert '"status": "SUCCESS"' in result
+    assert '"locks"' in result
+    assert '"lights"' in result
+
+
+def test_action_tools_have_confirmation_metadata_via_settings() -> None:
+    """Confirmation is enforced by name via AgentSettings.
+    confirm_required_tools (agents/permission.py's AgentPermissionGate),
+    not per-tool metadata -- pinned here so the tool names stay in sync
+    with that set (Action Slice Logic Contract §11)."""
+    from jarvis.core.config.settings import AgentSettings
+
+    confirm_required = AgentSettings().confirm_required_tools
+    assert "trigger_panic_mode" in confirm_required
+    assert "trigger_vacation_mode" in confirm_required

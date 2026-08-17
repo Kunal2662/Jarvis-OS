@@ -1,12 +1,14 @@
 """Appliance service -- Milestone 12 Appliance Control (Core Appliance
-Slice: Fans + Covers).
+Slice: Fans + Covers; Fan Percentage + Cover Position Slice).
 
 The thin orchestration layer `docs/M12_APPLIANCE_CONTROL_LOGIC_CONTRACT.
-md` requires: four normalized commands (`turn_on`/`turn_off` for fans,
-`open_cover`/`close_cover` for covers) translated into each connector's
-wire format, through :meth:`ConnectivityService.send_command` -- the
-same chokepoint every other M12 caller already uses, never a second
-execution path.
+md` requires: normalized commands (`turn_on`/`turn_off` for fans,
+`open_cover`/`close_cover` for covers, plus `set_percentage`/
+`set_cover_position` per `docs/
+M12_APPLIANCE_FAN_COVER_POSITION_LOGIC_CONTRACT.md`) translated into
+each connector's wire format, through :meth:`ConnectivityService.
+send_command` -- the same chokepoint every other M12 caller already
+uses, never a second execution path.
 
 **One service, two capabilities -- not two services, and not a generic
 `ApplianceService` built to grow indefinitely.** Fans and covers share
@@ -19,15 +21,20 @@ appliance category (climate, media_player, vacuum, water_heater,
 humidifier) gets its own Logic Contract and, per that contract, likely
 its own service -- not a new branch bolted onto this one.
 
-**No percentage/position control.** `fan.set_percentage` and `cover.
-set_cover_position` both exist in Home Assistant's real service
-vocabulary and are architecturally supportable (mirroring `SmartLighting
-Service`'s own attribute-merge translators), but are deliberately
-deferred -- see the Logic Contract §10. Only binary on/off and
-open/close are implemented here.
+**Percentage/position, not merged into `turn_on`/`open_cover`.**
+`fan.set_percentage` and `cover.set_cover_position` are each their own
+real, separate Home Assistant service -- unlike `light.turn_on`, which
+is the *only* way HA lets a caller set brightness, HA never requires
+(or accepts) `percentage`/`position` as a parameter of `fan.turn_on`/
+`cover.open_cover`. `set_fan_percentage`/`set_cover_position` therefore
+each send exactly one, standalone wire command -- never an implicit
+accompanying `turn_on`/`open_cover` this module did not ask for. See
+the Fan Percentage + Cover Position Logic Contract §6 for the full
+"why Lighting's own translator shape applies here, but its
+merge-into-turn_on *behavior* does not" reasoning.
 
 **Permission enforcement reuses the existing Permission Engine.** Same
-mechanism, same `smart_home` scope, one new fixed principal
+mechanism, same `smart_home` scope, one fixed principal
 (`core:appliances`, covering both capabilities -- one principal per
 module, mirroring `core:smart_switch`) -- reads are **ungated**, mirroring
 the Smart Lighting/Smart Locks/Smart Switches precedent, not Sensors'.
@@ -72,6 +79,7 @@ class FanCommand(enum.StrEnum):
 
     TURN_ON = "turn_on"
     TURN_OFF = "turn_off"
+    SET_PERCENTAGE = "set_percentage"
 
 
 class CoverCommand(enum.StrEnum):
@@ -79,24 +87,45 @@ class CoverCommand(enum.StrEnum):
 
     OPEN = "open_cover"
     CLOSE = "close_cover"
+    SET_POSITION = "set_cover_position"
 
 
-def _translate_home_assistant(command: FanCommand | CoverCommand) -> tuple[str, dict[str, Any]]:
-    """HA's own fan-/cover-domain service names, no payload fields --
-    verified directly against the shipped `HomeAssistantConnector.
-    send_command` this session (domain/service split from `entity_id`,
-    body = `{"entity_id": ..., **payload}`). See the Logic Contract
-    §8/§9."""
+def _translate_home_assistant(
+    command: FanCommand | CoverCommand, *, value: int | None = None
+) -> tuple[str, dict[str, Any]]:
+    """HA's own fan-/cover-domain service names -- verified directly
+    against the shipped `HomeAssistantConnector.send_command` this
+    session (domain/service split from `entity_id`, body =
+    `{"entity_id": ..., **payload}`). See the Logic Contract §8/§9.
+    `turn_on`/`turn_off`/`open_cover`/`close_cover` carry no payload,
+    unchanged. `set_percentage`/`set_cover_position` carry exactly the
+    one value HA's own `fan.set_percentage`/`cover.set_cover_position`
+    services accept (`percentage`/`position`, externally verified
+    0-100 integers -- Fan Percentage + Cover Position Logic Contract
+    §8) -- no scale conversion, unlike Lighting's own brightness_pct
+    split, since this module's normalized range already matches HA's."""
+    if value is not None:
+        key = "percentage" if command is FanCommand.SET_PERCENTAGE else "position"
+        return command.value, {key: value}
     return command.value, {}
 
 
-def _translate_mqtt(command: FanCommand | CoverCommand) -> tuple[str, dict[str, Any]]:
+def _translate_mqtt(
+    command: FanCommand | CoverCommand, *, value: int | None = None
+) -> tuple[str, dict[str, Any]]:
     """A JARVIS-native vocabulary this module defines, deliberately
     mirroring HA's own service names for cross-connector predictability
     -- the same choice `smart_lock_service._translate_mqtt`/
-    `smart_switch_service._translate_mqtt` already made. Verified
-    against the shipped `MqttConnector.send_command`/
-    `build_command_envelope` this session."""
+    `smart_switch_service._translate_mqtt` already made, now extended to
+    `set_percentage`/`set_cover_position` the same way (Fan Percentage +
+    Cover Position Logic Contract §9 -- no repository or spec defines a
+    standard MQTT equivalent, so this module defines its own, mirroring
+    HA's names/payload keys exactly). Verified against the shipped
+    `MqttConnector.send_command`/`build_command_envelope` this
+    session."""
+    if value is not None:
+        key = "percentage" if command is FanCommand.SET_PERCENTAGE else "position"
+        return command.value, {key: value}
     return command.value, {}
 
 
@@ -149,6 +178,33 @@ def _infer_cover_state(status: str) -> str | None:
     return normalized if normalized in _COVER_STATE_VALUES else None
 
 
+def _coerce_int(value: Any) -> int | None:
+    """`None` for anything unparseable -- never a silently wrong `0`.
+    `bool` is rejected explicitly since it is an `int` subclass --
+    mirrors `water_heater_service._coerce_float`'s own exact defensive
+    shape (Fan Percentage + Cover Position Logic Contract §7), a new
+    local helper since `percentage`/`position` are integer quantities
+    per HA's own type declaration, unlike the float-valued attributes
+    (temperature, humidity, battery level) the existing per-module
+    `_coerce_float` copies already handle."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _validate_percent_range(value: int, field_name: str) -> None:
+    """Shared by `percentage` and `position` -- both are 0-100
+    integers with identical validation rules (Fan Percentage + Cover
+    Position Logic Contract §14). `bool` rejected explicitly, mirroring
+    `smart_lighting_service._validate_brightness`'s own guard against
+    the `bool`-is-`int`-subclass gotcha."""
+    if isinstance(value, bool) or not isinstance(value, int) or not (0 <= value <= 100):
+        raise ServiceError(f"{field_name} must be an integer 0-100; got {value!r}.")
+
+
 def _fan_payload(device: Device, raw: Any = None) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id": device.id,
@@ -160,12 +216,15 @@ def _fan_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         "model": device.model,
         "external_id": device.external_id,
         "on": None,
+        "percentage": None,
         "available": raw is not None,
     }
     if raw is not None:
         payload["available"] = raw.status.strip().lower() not in _OFFLINE_STATUS_VALUES
         if payload["available"]:
             payload["on"] = _infer_on(raw.status)
+            attributes = raw.attributes or {}
+            payload["percentage"] = _coerce_int(attributes.get("percentage"))
     return payload
 
 
@@ -180,12 +239,15 @@ def _cover_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         "model": device.model,
         "external_id": device.external_id,
         "state": None,
+        "position": None,
         "available": raw is not None,
     }
     if raw is not None:
         payload["available"] = raw.status.strip().lower() not in _OFFLINE_STATUS_VALUES
         if payload["available"]:
             payload["state"] = _infer_cover_state(raw.status)
+            attributes = raw.attributes or {}
+            payload["position"] = _coerce_int(attributes.get("current_cover_position"))
     return payload
 
 
@@ -265,9 +327,20 @@ class ApplianceService:
         self._require_permission()
         return await self._send_fan(device_id, FanCommand.TURN_OFF)
 
-    async def _send_fan(self, device_id: str, command: FanCommand) -> dict[str, Any]:
+    async def set_fan_percentage(self, device_id: str, percentage: int) -> dict[str, Any]:
+        """Sends exactly one `set_percentage` wire command -- never an
+        implicit accompanying `turn_on` (Fan Percentage + Cover
+        Position Logic Contract §4/§6). `percentage=0` is a valid,
+        literal value, not a stand-in for `turn_off`."""
+        self._require_permission()
+        _validate_percent_range(percentage, "percentage")
+        return await self._send_fan(device_id, FanCommand.SET_PERCENTAGE, value=percentage)
+
+    async def _send_fan(
+        self, device_id: str, command: FanCommand, *, value: int | None = None
+    ) -> dict[str, Any]:
         device = await self._require_fan(device_id)
-        return await self._send(device, command)
+        return await self._send(device, command, value=value)
 
     # ------------------------------------------------------------------
     # Covers -- reads (ungated -- see Logic Contract §14)
@@ -301,14 +374,28 @@ class ApplianceService:
         self._require_permission()
         return await self._send_cover(device_id, CoverCommand.CLOSE)
 
-    async def _send_cover(self, device_id: str, command: CoverCommand) -> dict[str, Any]:
+    async def set_cover_position(self, device_id: str, position: int) -> dict[str, Any]:
+        """Sends exactly one `set_cover_position` wire command -- never
+        an implicit accompanying `open_cover`/`close_cover` (Fan
+        Percentage + Cover Position Logic Contract §5/§6). `position=0`
+        (closed) and `position=100` (open) are both ordinary, valid
+        values, not special-cased."""
+        self._require_permission()
+        _validate_percent_range(position, "position")
+        return await self._send_cover(device_id, CoverCommand.SET_POSITION, value=position)
+
+    async def _send_cover(
+        self, device_id: str, command: CoverCommand, *, value: int | None = None
+    ) -> dict[str, Any]:
         device = await self._require_cover(device_id)
-        return await self._send(device, command)
+        return await self._send(device, command, value=value)
 
     # ------------------------------------------------------------------
     # Shared command dispatch
     # ------------------------------------------------------------------
-    async def _send(self, device: Device, command: FanCommand | CoverCommand) -> dict[str, Any]:
+    async def _send(
+        self, device: Device, command: FanCommand | CoverCommand, *, value: int | None = None
+    ) -> dict[str, Any]:
         connector_type = connector_type_for(device)
         if connector_type is None:
             raise ServiceError(
@@ -320,6 +407,6 @@ class ApplianceService:
                 "Appliance Control has no command translation for connector "
                 f"type {connector_type!r}."
             )
-        wire_command, payload = translator(command)
+        wire_command, payload = translator(command, value=value)
         result = await self._connectivity.send_command(device.id, wire_command, payload)
         return {"device_id": device.id, "success": result.success, "detail": result.detail}

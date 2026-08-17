@@ -58,6 +58,7 @@ if TYPE_CHECKING:
     from jarvis.core.events.event_bus import EventBus
     from jarvis.core.interfaces.llm_provider import ILLMProvider
     from jarvis.features.automation.permission import ConfirmationCallback
+    from jarvis.services.alarm_control_panel_service import AlarmControlPanelService
     from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
@@ -69,6 +70,8 @@ if TYPE_CHECKING:
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
+    from jarvis.services.siren_service import SirenService
+    from jarvis.services.smart_home_memory_service import SmartHomeMemoryService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
     from jarvis.services.smart_switch_service import SmartSwitchService
@@ -77,6 +80,7 @@ if TYPE_CHECKING:
     from jarvis.services.vacuum_humidifier_service import VacuumHumidifierService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
+    from jarvis.services.water_heater_service import WaterHeaterService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 _logger = get_logger("jarvis.agents.orchestrator")
@@ -107,7 +111,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         thermostats: ThermostatService | None = None,
         vacuum_humidifier: VacuumHumidifierService | None = None,
         media_players: MediaPlayerService | None = None,
+        water_heaters: WaterHeaterService | None = None,
         security: SecurityService | None = None,
+        siren: SirenService | None = None,
+        alarm_control_panels: AlarmControlPanelService | None = None,
+        smart_home_memory: SmartHomeMemoryService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -174,12 +182,35 @@ class AgentOrchestrator(IAgentOrchestrator):
         # REST surface calls -- see
         # `agents/tools/media_player_tools.py`.
         self._media_players = media_players
+        # Milestone 12 Appliance Control (Water Heater Core Slice):
+        # water heater control reaches the agent as tools on the same
+        # registry, converging on the same `WaterHeaterService` the
+        # REST surface calls -- see
+        # `agents/tools/water_heater_tools.py`.
+        self._water_heaters = water_heaters
         # Milestone 12 Security & Safety (Read-Only Alert/Status
         # Slice): read-only hazard/status aggregation reaches the agent
         # as tools on the same registry, converging on the same
         # `SecurityService` the REST surface calls -- see
         # `agents/tools/security_tools.py`.
         self._security = security
+        # Milestone 12 Security & Safety (Siren Integration Slice):
+        # normalized siren on/off control reaches the agent as tools on
+        # the same registry, converging on the same `SirenService` the
+        # REST surface calls -- see `agents/tools/siren_tools.py`.
+        self._siren = siren
+        # Milestone 12 Security & Safety (alarm_control_panel
+        # Integration Slice): normalized arm/disarm control reaches the
+        # agent as tools on the same registry, converging on the same
+        # `AlarmControlPanelService` the REST surface calls -- see
+        # `agents/tools/alarm_control_panel_tools.py`.
+        self._alarm_control_panels = alarm_control_panels
+        # Milestone 12 Smart Home Memory (Manual/On-Demand Device
+        # Snapshot Slice): on-demand snapshot capture/retrieval reaches
+        # the agent as tools on the same registry, converging on the
+        # same `SmartHomeMemoryService` the REST surface calls -- see
+        # `agents/tools/smart_home_memory_tools.py`.
+        self._smart_home_memory = smart_home_memory
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -226,7 +257,11 @@ class AgentOrchestrator(IAgentOrchestrator):
                 thermostats=self._thermostats,
                 vacuum_humidifier=self._vacuum_humidifier,
                 media_players=self._media_players,
+                water_heaters=self._water_heaters,
                 security=self._security,
+                siren=self._siren,
+                alarm_control_panels=self._alarm_control_panels,
+                smart_home_memory=self._smart_home_memory,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(
