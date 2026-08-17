@@ -497,16 +497,44 @@ def _build_smart_home_service(*, database: Any, event_bus: Any) -> Any:
     return SmartHomeService(database=database, event_bus=event_bus)
 
 
-def _build_connectivity_registry() -> Any:
+def _build_simulator_connector() -> Any:
+    from jarvis.core.connectivity.connectors.simulator import SimulatorConnector
+
+    return SimulatorConnector()
+
+
+def _build_connectivity_registry(*, settings: Settings, simulator_connector: Any) -> Any:
     """Milestone 12 Task Group B. Phase 1 shipped this empty and
     documented that a later phase would populate it here -- Phase 2 is
     that call: the real Home Assistant connector, registered the same
     way ``_build_mcp_transport_registry`` populates MCP's own registry.
-    ``mqtt`` stays unregistered pending Phase 3's own separately-
-    approved pass."""
-    from jarvis.core.connectivity.connectors.factory import build_default_connector_registry
 
-    return build_default_connector_registry()
+    **Milestone 12 Developer Tools (Device Simulator Slice) extends
+    this, Option C** (``docs/
+    M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md`` §2): when
+    ``settings.devtools.simulator_enabled`` is on, the ``"home_assistant"``
+    registry key resolves to the already-constructed
+    ``simulator_connector`` singleton instead of a real
+    ``HomeAssistantConnector`` -- a whole-process swap, never a
+    per-device or per-call choice, so a real connection and the
+    simulator can never coexist in the same process. ``"mqtt"`` is
+    never affected. The disabled branch is
+    ``build_default_connector_registry()`` verbatim, unchanged from
+    before this slice existed."""
+    from jarvis.core.connectivity.connectors.factory import (
+        build_default_connector_registry,
+        build_mqtt_connector,
+    )
+
+    if not settings.devtools.simulator_enabled:
+        return build_default_connector_registry()
+
+    from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
+
+    registry = ConnectorFactoryRegistry()
+    registry.register("home_assistant", lambda config: simulator_connector)
+    registry.register("mqtt", build_mqtt_connector)
+    return registry
 
 
 def _build_connectivity_credential_store(*, settings: Settings) -> Any:
@@ -1307,7 +1335,14 @@ class Container(containers.DeclarativeContainer):
     )
 
     # ---- Milestone 12 Task Group B -- Connectivity Layer, Phase 1 ---------
-    connectivity_registry = providers.Singleton(_build_connectivity_registry)
+    # ---- (extended by Milestone 12 Developer Tools' Device Simulator ------
+    # Slice -- see _build_connectivity_registry's own docstring) -----------
+    simulator_connector = providers.Singleton(_build_simulator_connector)
+    connectivity_registry = providers.Singleton(
+        _build_connectivity_registry,
+        settings=settings,
+        simulator_connector=simulator_connector,
+    )
     connectivity_credential_store = providers.Singleton(
         _build_connectivity_credential_store,
         settings=settings,

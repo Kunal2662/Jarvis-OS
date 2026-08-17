@@ -693,6 +693,14 @@ class DevToolsSettings(BaseSettings):
     performance_history_size: int = 240
     api_inspector_enabled: bool = True
     api_inspector_max_records: int = 500
+    #: Milestone 12 Developer Tools (Device Simulator Slice). Off by
+    #: default -- when on, the DI composition root registers
+    #: `SimulatorConnector` under the existing `"home_assistant"`
+    #: registry key instead of the real `HomeAssistantConnector`,
+    #: process-wide (see `docs/
+    #: M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md` §2/§4).
+    #: Never affects the `"mqtt"` registry key.
+    simulator_enabled: bool = False
 
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}DEVTOOLS_", extra="ignore")
 

@@ -23,6 +23,22 @@ depends only on other ``core/``-layer objects. Its route lives here
 regardless, for URL-namespace consistency with every other Developer
 Mode capability. No ``PermissionModel`` gate, matching this router's
 other four capabilities exactly -- session auth only.
+
+**Device Simulator** (``docs/
+M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md``) is a thin
+REST read/write over the ``SimulatorConnector`` singleton
+(``core/connectivity/connectors/simulator.py``) -- the same instance
+the DI composition root registers under the existing
+``"home_assistant"`` connector-registry key when
+``settings.devtools.simulator_enabled`` is on (Option C; see that
+connector's own module docstring). These routes manage the
+simulator's own in-memory device roster only -- discovery, import,
+live state reads and command execution all continue to run through
+the existing, unmodified generic Connectivity Layer routes
+(``routes/connectivity.py``), never a simulator-specific duplicate.
+No ``PermissionModel`` gate, matching every other devtools capability
+-- session auth only; explicitly evaluated and not merely inherited,
+see the Logic Contract §9.
 """
 
 from __future__ import annotations
@@ -30,10 +46,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
 
 if TYPE_CHECKING:
+    from jarvis.core.connectivity.connectors.simulator import SimulatorConnector
     from jarvis.core.devtools.api_inspector import ApiInspector
     from jarvis.core.devtools.debug_console import DebugConsole
     from jarvis.core.devtools.performance_profiler import PerformanceProfiler
@@ -43,6 +61,28 @@ if TYPE_CHECKING:
     from jarvis.services.devtools_connectivity_service import DevtoolsConnectivityService
 
 router = APIRouter(tags=["devtools"], dependencies=[Depends(get_current_session)])
+
+
+class DefineSimulatedDeviceRequest(BaseModel):
+    """``device_class``/``binary`` apply to ``device_type="sensor"``
+    only -- see ``SimulatorConnector.define_device``."""
+
+    device_type: str
+    external_id: str | None = None
+    name: str | None = None
+    status: str | None = None
+    attributes: dict[str, Any] | None = None
+    device_class: str | None = None
+    binary: bool = False
+
+
+class SetSimulatorFaultRequest(BaseModel):
+    """All fields optional; only a supplied field changes -- an
+    omitted field leaves that device's current fault state as-is."""
+
+    unavailable: bool | None = None
+    force_command_failure: bool | None = None
+    failure_detail: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +116,10 @@ def _devtools_connectivity(request: Request) -> DevtoolsConnectivityService:
     return cast(
         "DevtoolsConnectivityService", request.app.state.container.devtools_connectivity_service()
     )
+
+
+def _simulator(request: Request) -> SimulatorConnector:
+    return cast("SimulatorConnector", request.app.state.container.simulator_connector())
 
 
 # ---------------------------------------------------------------------------
@@ -236,3 +280,88 @@ async def get_connectivity_health(
         overview,
         meta={"connector_count": len(overview["connectors"]), "home_count": len(overview["homes"])},
     )
+
+
+# ---------------------------------------------------------------------------
+# Device Simulator -- Milestone 12 Developer Tools (Device Simulator Slice)
+#
+# Roster management only. Discovery, import, live state reads and
+# command execution all run through the existing, unmodified generic
+# Connectivity Layer routes (routes/connectivity.py) -- see this
+# module's own docstring and the Logic Contract §10 for why no
+# simulator-specific discover/import/state/command route exists here.
+# ---------------------------------------------------------------------------
+@router.post("/devtools/simulator/devices", response_model=Envelope[dict[str, Any]])
+async def define_simulated_device(
+    body: DefineSimulatedDeviceRequest, request: Request
+) -> Envelope[dict[str, Any]]:
+    """Defines (or fully redefines, if ``external_id`` already exists)
+    one simulated device in the simulator's own in-memory roster.
+    ``device_type`` must be one of the five MVP categories -- any other
+    value is a 400, never a silent no-op."""
+    from jarvis.core.interfaces.connectivity import ConnectivityError
+
+    try:
+        device = _simulator(request).define_device(
+            device_type=body.device_type,
+            external_id=body.external_id,
+            name=body.name,
+            status=body.status,
+            attributes=body.attributes,
+            device_class=body.device_class,
+            binary=body.binary,
+        )
+    except ConnectivityError as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+    return envelope(device)
+
+
+@router.get("/devtools/simulator/devices", response_model=Envelope[list[dict[str, Any]]])
+async def list_simulated_devices(request: Request) -> Envelope[list[dict[str, Any]]]:
+    """Every device currently in the simulator's own roster, with its
+    current live state and fault configuration -- an empty list is a
+    normal, valid state, never an error."""
+    devices = _simulator(request).list_devices()
+    return envelope(devices, meta={"count": len(devices)})
+
+
+@router.delete("/devtools/simulator/devices/{external_id}", response_model=Envelope[dict[str, Any]])
+async def delete_simulated_device(external_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    """Removes one device from the simulator's own roster. Does not
+    touch any already-imported ``Device``/``Home`` database row --
+    those are removed through the existing, unmodified generic
+    ``DELETE /api/v1/devices/{id}`` route."""
+    deleted = _simulator(request).delete_device(external_id)
+    return envelope({"deleted": deleted})
+
+
+@router.post(
+    "/devtools/simulator/devices/{external_id}/fault", response_model=Envelope[dict[str, Any]]
+)
+async def set_simulated_device_fault(
+    external_id: str, body: SetSimulatorFaultRequest, request: Request
+) -> Envelope[dict[str, Any]]:
+    """Deterministic, caller-controlled fault configuration -- never
+    random. Unknown ``external_id`` -> 404."""
+    from jarvis.core.interfaces.connectivity import ConnectivityError
+
+    try:
+        device = _simulator(request).set_fault(
+            external_id,
+            unavailable=body.unavailable,
+            force_command_failure=body.force_command_failure,
+            failure_detail=body.failure_detail,
+        )
+    except ConnectivityError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+    return envelope(device)
+
+
+@router.post("/devtools/simulator/reset", response_model=Envelope[dict[str, Any]])
+async def reset_simulator(request: Request) -> Envelope[dict[str, Any]]:
+    """Clears the simulator's entire in-memory roster. Never touches
+    already-imported ``Device``/``Home`` database rows -- those persist
+    exactly like any other device until explicitly deleted through the
+    existing generic device route."""
+    cleared = _simulator(request).reset()
+    return envelope({"cleared": cleared})
