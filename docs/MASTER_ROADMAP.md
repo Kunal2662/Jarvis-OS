@@ -934,6 +934,38 @@ Contract and `docs/M12_SECURITY_ALARM_CONTROL_PANEL_FRONTEND_
 REQUIREMENTS.md` for the (planning-only, no code) frontend
 requirements this slice's API surface implies.
 
+**M12 — Smart Home Memory (Security Device-Category Expansion Slice)
+shipped Aug 2026.** A fresh Phase 0 audit after Task Group U ranked
+this slice its #1 recommendation: a third application of the same
+dispatch pattern Task Group S already proved twice, via a Logic
+Contract (`docs/M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_LOGIC_
+CONTRACT.md`) written and approved before any code. A new Tier-3
+cascade in `SmartHomeMemoryService._read_state`, gated on
+`device_type=="other"`, tries `SirenService.get_siren_state` then
+`AlarmControlPanelService.get_alarm_control_panel_state` in turn,
+catching each one's own `ServiceError` as "not this category" -- the
+identical idiom Tier 2 already established, zero private
+`_domain_for` duplicated, zero new shared domain-resolution
+abstraction. `snapshot_home` required zero code change of its own to
+pick up the two new categories, confirmed behaviorally. Neither REST
+route nor agent tool changed -- both layers were already
+category-agnostic by construction. Two pre-existing tests had
+assertions inverted by this slice's own approved scope and were
+corrected explicitly, not silently: a parametrize case asserting Siren
+is unsupported for snapshotting, and a deferred-functionality guard
+asserting `"alarm_control_panel"` never appears in this module's
+source. An alarm_control_panel snapshot can persist a real
+security-posture history point (including `state: "triggered"`) --
+accepted as explicit, approved scope, distinct from the still-
+permanently-excluded Sensor/Lock categories. 82 new/updated tests, 0
+failures, 0 errors, full backend regression (3849 tests) green, 1
+pre-existing skip. See `docs/
+M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_LOGIC_CONTRACT.md` for
+the full Logic Contract and `docs/
+M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_FRONTEND_
+REQUIREMENTS.md` for the (planning-only, no code) frontend
+requirements this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
@@ -945,8 +977,8 @@ On-Demand Action Slice, Siren Integration Slice **and**
 alarm_control_panel Integration Slice, Developer
 Tools' Connectivity / Integration Health Slice, Device Simulator Slice
 **and** Device Diagnostics Slice, and Smart Home Memory's Manual/
-On-Demand Device Snapshot Slice **and** Device-Category Expansion
-Slice are now shipped; five of this
+On-Demand Device Snapshot Slice, Device-Category Expansion Slice
+**and** Security Device-Category Expansion Slice are now shipped; five of this
 milestone's fifteen modules remain entirely unstarted (Smart
 Cameras, Home Automation, AI Home Assistant, Remote Access, Smart Home
 Analytics) — Energy Management, Appliance Control, Security & Safety,
@@ -983,23 +1015,24 @@ Console, MQTT-slot simulation, Event Viewer, and appliance-
 sub-domain principal resolution all remain deferred, Event Viewer
 explicitly blocked on the still-unresolved device-command EventBus
 publishing gap; Smart Home Memory: manual snapshot creation and
-retrieval for nine device categories (light/switch/thermostat/fan/
-cover/vacuum/humidifier/media_player/water_heater), single-snapshot
-deletion, and home-wide snapshotting — Sensor/Lock snapshots remain
-**permanently** excluded on privacy/security grounds (not merely
-unbuilt), and automatic/scheduled/event-driven capture and diff/trend/
-analytics views remain deferred to the still-unresolved EventBus gap
-and M20A Analytics respectively). **No version bump accompanied any
-of the twenty-three task-group passes** -- unlike M22's own task groups
+retrieval for eleven device categories (light/switch/thermostat/fan/
+cover/vacuum/humidifier/media_player/water_heater/siren/
+alarm_control_panel), single-snapshot deletion, and home-wide
+snapshotting — Sensor/Lock snapshots remain **permanently** excluded
+on privacy/security grounds (not merely unbuilt), and
+automatic/scheduled/event-driven capture and diff/trend/analytics
+views remain deferred to the still-unresolved EventBus gap and M20A
+Analytics respectively). **No version bump accompanied any
+of the twenty-four task-group passes** -- unlike M22's own task groups
 (each of which shipped real code and bumped the version in turn), all
-twenty-three ship real code at `0.38.0` unchanged. Recorded here as a
+twenty-four ship real code at `0.38.0` unchanged. Recorded here as a
 deliberate exception to this project's usual pattern, not a claim that
 the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
 Group J, Task Group K, Task Group L, Task Group M, Task Group N, Task
 Group O, Task Group P, Task Group Q, Task Group R, Task Group S, Task
-Group T, and Task Group U entries for the
+Group T, Task Group U, and Task Group V entries for the
 full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
@@ -5082,11 +5115,21 @@ owning appliance service's own already-public read method, no shared
 domain-resolution utility introduced), added single-snapshot deletion
 (safely scoped to `"device_snapshot"`-type memories only, never a
 generic memory delete) and a home-wide snapshot operation
-(sequential, partial-success, read-only against devices). Sensor and
-Smart Lock snapshots remain **permanently** excluded on privacy/
-security grounds -- occupancy-signal and security-posture-history
-risk -- not merely unbuilt; this was reaffirmed, not reopened, when
-Task Group S's own Phase 0 audit proposed adding them.)*
+(sequential, partial-success, read-only against devices). Security
+Device-Category Expansion Slice shipped Task Group V, Aug 2026 --
+widened further to eleven, adding Siren and alarm_control_panel via a
+third application of the identical dispatch idiom (a Tier-3 cascade,
+gated on the shared `device_type="other"` bucket, trying
+`SirenService.get_siren_state` then `AlarmControlPanelService.
+get_alarm_control_panel_state` in turn). `snapshot_home` needed zero
+code change of its own to pick up the two new categories. An
+alarm_control_panel snapshot can persist a real security-posture
+history point (including `state: "triggered"`) -- accepted as
+explicit, approved scope. Sensor and Smart Lock snapshots remain
+**permanently** excluded on privacy/security grounds -- occupancy-
+signal and security-posture-history risk -- not merely unbuilt; this
+was reaffirmed, not reopened, when Task Group S's own Phase 0 audit
+proposed adding them, and reaffirmed again by Task Group V.)*
 - Device History *(none of the automatic/continuous items below exist -- only explicit, on-demand snapshots do, see above)*
 - Automation History
 - Home Event Timeline

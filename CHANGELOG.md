@@ -3,6 +3,93 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Smart Home Memory — Security Device-Category Expansion Slice (Task Group V)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Smart Home Memory Security Device-Category
+Expansion Slice** scope -- **not the full Smart Home Memory module,
+not automatic/event-driven history, not Sensor/Lock snapshots**.
+Preceded by a Logic Contract (`docs/
+M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_LOGIC_CONTRACT.md`),
+written and approved before any code, itself grounded in a fresh M12
+Phase 0 audit's own recommendation. A third application of the same
+dispatch pattern Task Group S already proved twice: a new Tier-3
+cascade in `SmartHomeMemoryService._read_state`, gated on
+`device_type=="other"`, tries `SirenService.get_siren_state` then
+`AlarmControlPanelService.get_alarm_control_panel_state` in turn,
+catching each one's own `ServiceError` as "not this category" -- the
+identical idiom Tier 2 already established, with zero private
+`_domain_for` duplicated and zero new shared domain-resolution
+abstraction introduced. `snapshot_home` required zero code change of
+its own to pick up the two new categories, confirmed behaviorally (it
+has no per-category logic -- it simply calls the now-extended
+`_read_state`). Two pre-existing tests had inverted assertions,
+corrected explicitly, not silently: a parametrize case asserting Siren
+is unsupported (Task Group R's own scope had left it that way) was
+replaced with a genuinely still-unsupported `domain="valve"` case, and
+a deferred-functionality guard asserting `"alarm_control_panel"` never
+appears in source was updated, since this slice's own import and
+reader-tuple key legitimately introduce it. No REST endpoint or agent
+tool changed -- both layers were already category-agnostic by
+construction, confirmed by fresh read before any code was written. An
+alarm_control_panel snapshot can persist a real security-posture
+history point (including `state: "triggered"`) -- accepted as
+explicit, approved scope, distinct from the still-permanently-excluded
+Sensor/Lock categories. 82 new/updated tests (two pre-existing
+assertions corrected as above), 0 failures, 0 errors; Smart Home
+Memory/Siren/alarm_control_panel/Appliance/Security sibling regression
+426 tests green; M12 regression 1198 tests green; M11+M12 regression
+1345 tests green; full backend regression 3849 tests green, 1
+pre-existing skip.
+
+### Added
+- **Tier-3 dispatch** (`services/smart_home_memory_service.py`) --
+  `_OTHER_DEVICE_TYPE = "other"`, `self._security_readers` ordered
+  cascade (`siren` before `alarm_control_panel`, matching ship order),
+  a new branch in `_read_state` mirroring Tier 2's own shape exactly.
+- **`SmartHomeMemoryService.__init__`** gains two new required keyword
+  parameters: `siren: SirenService`, `alarm_control_panels:
+  AlarmControlPanelService`.
+- **`UnsupportedSnapshotCategoryError`'s** message text now enumerates
+  eleven categories instead of nine.
+- **DI wiring** (`core/di/container.py`) -- `_build_smart_home_memory_service`
+  gains two new parameters, threading the already-existing
+  `siren_service`/`alarm_control_panel_service` providers through; no
+  new provider created. Live DI sanity check passed.
+- **Frontend requirements document** -- `docs/
+  M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_FRONTEND_
+  REQUIREMENTS.md`, planning/specification only, written after the
+  backend was fully verified.
+
+### Not changed
+- `routes/smart_home_memory.py`, `agents/tools/smart_home_memory_tools.py`
+  -- **not modified**. Both already dispatch generically through
+  `snapshot_device`/`snapshot_home`/`list_snapshots`/`delete_snapshot`
+  with zero per-category branching.
+- `SirenService`, `AlarmControlPanelService` -- untouched. This module
+  only calls their own already-public, already-shipped read methods.
+- `snapshot_home`, `delete_snapshot`, the snapshot data model, `memory_type`/
+  `source="device_snapshot"` -- byte-identical, zero behavior change.
+- `DEVICE_TYPES`, `CONNECTOR_TYPES`, both connectors -- unmodified.
+- Sensor/Lock exclusion -- unchanged, reaffirmed, not reopened.
+- `EventBus`, Scheduler, Analytics, AI/LLM generation -- untouched. No
+  database/schema changes.
+
+### Explicitly out of scope
+- Sensor and Smart Lock snapshots -- permanently excluded on
+  privacy/security grounds, not revisited.
+- Camera snapshots -- no `CameraService` exists.
+- Automatic/event-driven/scheduled snapshot capture of any category --
+  still blocked on the EventBus device-command publishing gap.
+- Diff/trend/analytics views over snapshot history -- M20A's job,
+  unstarted.
+- Any coupling between a snapshot and Siren on/off control,
+  alarm_control_panel arm/disarm, Panic Mode, or Vacation Mode.
+- Every other M12 module (Smart Cameras, Home Automation, AI Home
+  Assistant, Remote Access, Smart Home Analytics).
+
 ## M12: Security & Safety — alarm_control_panel Integration Slice (Task Group U)
 
 **No version bump**, matching this project's own established
