@@ -827,6 +827,44 @@ Contract and `docs/M12_SECURITY_SIREN_INTEGRATION_FRONTEND_
 REQUIREMENTS.md` for the (planning-only, no code) frontend
 requirements this slice's API surface implies.
 
+**M12 — Smart Home Memory (Device-Category Expansion Slice) shipped
+Aug 2026.** A Phase 0 audit after Task Group R ranked this slice the
+strongest remaining candidate; its own Phase 1 Logic Contract (`docs/
+M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md`) independently
+re-verified rather than blindly followed the audit's own proposed
+scope — Task Group O's own Logic Contract had already excluded Sensor
+and Smart Lock snapshots on privacy/security grounds (occupancy-signal
+risk, security-posture-history risk), not architectural ones, so this
+contract upholds that exclusion permanently rather than reopening it
+on no new evidence, directly overriding the audit's own suggestion to
+add both. The six already-shipped appliance-domain categories (Fan,
+Cover, Vacuum, Humidifier, Media Player, Water Heater) are added
+instead — exactly the expansion Task Group O's own text anticipated
+once dispatch was resolved, but via a narrower mechanism than the
+shared domain-resolution utility it envisioned: a new Tier-2 cascade
+tries each category's own already-public `get_<category>_state`
+method in turn, catching that service's own "not this category"
+`ServiceError` — safe because device existence is already confirmed
+before the cascade runs — so zero private `_domain_for` is duplicated
+and zero new shared abstraction is introduced. The Logic Contract also
+corrected a factual error in Task Group O's own text (it claimed no
+memory-deletion capability existed anywhere in the repository;
+`MemoryService.forget()` already did) and built a safely-scoped
+`delete_snapshot` on top of it — confirming a target id is actually a
+`"device_snapshot"`-type record via the same `browse()` retrieval
+already uses, before ever calling `forget()`, so a caller holding only
+this module's own grant can never delete an unrelated memory record. A
+new `snapshot_home` operation snapshots every supported-category
+device in one home sequentially, with partial-success semantics
+identical in shape to Task Group M's own Panic/Vacation Mode response
+convention — read-only against devices, so, unlike Panic/Vacation
+Mode, no confirmation is required. 92 new/updated tests, 0 failures, 0
+errors, full backend regression (3691 tests) green. See `docs/
+M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md` for the full Logic
+Contract and `docs/M12_SMART_HOME_MEMORY_EXPANSION_FRONTEND_
+REQUIREMENTS.md` for the (planning-only, no code) frontend
+requirements this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
@@ -836,7 +874,8 @@ Core Slice, Security & Safety's Read-Only Alert/Status Slice, Manual/
 On-Demand Action Slice **and** Siren Integration Slice, Developer
 Tools' Connectivity / Integration Health Slice, Device Simulator Slice
 **and** Device Diagnostics Slice, and Smart Home Memory's Manual/
-On-Demand Device Snapshot Slice are now shipped; five of this
+On-Demand Device Snapshot Slice **and** Device-Category Expansion
+Slice are now shipped; five of this
 milestone's fifteen modules remain entirely unstarted (Smart
 Cameras, Home Automation, AI Home Assistant, Remote Access, Smart Home
 Analytics) — Energy Management, Appliance Control, Security & Safety,
@@ -869,21 +908,23 @@ Console, MQTT-slot simulation, Event Viewer, and appliance-
 sub-domain principal resolution all remain deferred, Event Viewer
 explicitly blocked on the still-unresolved device-command EventBus
 publishing gap; Smart Home Memory: manual snapshot creation and
-retrieval for light/switch/thermostat devices only — Sensor/Lock/
-appliance-domain-category snapshots, snapshot deletion, automatic/
-scheduled/event-driven capture, diff/trend/analytics views, and
-home-wide/batch snapshotting all remain deferred, the device-category
-and automatic-capture exclusions being deliberate privacy/architectural
-choices rather than merely unbuilt). **No version bump accompanied any
-of the twenty task-group passes** -- unlike M22's own task groups
+retrieval for nine device categories (light/switch/thermostat/fan/
+cover/vacuum/humidifier/media_player/water_heater), single-snapshot
+deletion, and home-wide snapshotting — Sensor/Lock snapshots remain
+**permanently** excluded on privacy/security grounds (not merely
+unbuilt), and automatic/scheduled/event-driven capture and diff/trend/
+analytics views remain deferred to the still-unresolved EventBus gap
+and M20A Analytics respectively). **No version bump accompanied any
+of the twenty-one task-group passes** -- unlike M22's own task groups
 (each of which shipped real code and bumped the version in turn), all
-twenty ship real code at `0.38.0` unchanged. Recorded here as a
+twenty-one ship real code at `0.38.0` unchanged. Recorded here as a
 deliberate exception to this project's usual pattern, not a claim that
 the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
 Group J, Task Group K, Task Group L, Task Group M, Task Group N, Task
-Group O, Task Group P, Task Group Q, and Task Group R entries for the
+Group O, Task Group P, Task Group Q, Task Group R, and Task Group S
+entries for the
 full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
@@ -4924,7 +4965,24 @@ consumer of M21's Mobile Platform transport, not a parallel remote-
 access channel.
 
 #### Smart Home Memory
-- Device History
+*(Manual/On-Demand Device Snapshot Slice shipped Task Group O, Aug
+2026 -- a new `SmartHomeMemoryService` over `MemoryService.remember`/
+`browse`, explicit-call-only, never automatic (Logic Contract's own
+naming boundary: not Device History, not Continuous Device
+Monitoring). Device-Category Expansion Slice shipped Task Group S,
+Aug 2026 -- widened from three device categories to nine (light/
+switch/thermostat plus fan/cover/vacuum/humidifier/media_player/
+water_heater, the last six resolved via a Tier-2 cascade over each
+owning appliance service's own already-public read method, no shared
+domain-resolution utility introduced), added single-snapshot deletion
+(safely scoped to `"device_snapshot"`-type memories only, never a
+generic memory delete) and a home-wide snapshot operation
+(sequential, partial-success, read-only against devices). Sensor and
+Smart Lock snapshots remain **permanently** excluded on privacy/
+security grounds -- occupancy-signal and security-posture-history
+risk -- not merely unbuilt; this was reaffirmed, not reopened, when
+Task Group S's own Phase 0 audit proposed adding them.)*
+- Device History *(none of the automatic/continuous items below exist -- only explicit, on-demand snapshots do, see above)*
 - Automation History
 - Home Event Timeline
 - Energy Usage History

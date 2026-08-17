@@ -3,6 +3,107 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Smart Home Memory — Device-Category Expansion Slice (Task Group S)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Smart Home Memory — Device-Category Expansion
+Slice** scope -- **not the full Smart Home Memory module, not
+automatic/event-driven history**. Preceded by a Logic Contract
+(`docs/M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md`), written
+and approved before any code, which independently re-verified rather
+than blindly followed the Phase 0 audit's own proposed scope: Task
+Group O's own Logic Contract already excluded Sensor and Smart Lock
+snapshots on **privacy/security** grounds (occupancy-signal risk,
+security-posture-history risk), not architectural ones -- this
+contract upholds that exclusion permanently rather than reopening it,
+directly overriding the audit's own suggestion to add both. The six
+already-shipped appliance-domain categories (Fan, Cover, Vacuum,
+Humidifier, Media Player, Water Heater) are added instead -- exactly
+the expansion Task Group O's own text anticipated once dispatch was
+resolved, without the shared domain-resolution utility it envisioned:
+a new Tier-2 mechanism tries each category's own already-public
+`get_<category>_state` method in turn, catching that service's own
+"not this category" `ServiceError`, safe because device existence is
+already confirmed before the cascade runs -- zero private
+`_domain_for` duplicated, zero new shared abstraction. Also corrects a
+factual error found in Task Group O's own Logic Contract (it claimed
+no memory-deletion capability existed anywhere in the repository;
+`MemoryService.forget()` already did) and builds a safely-scoped
+`delete_snapshot` on top of it -- confirming a target id is actually a
+`"device_snapshot"`-type record via the same `browse()` retrieval
+already uses, before ever calling `forget()`, so a caller holding only
+this module's own grant can never delete an unrelated memory. A new
+`snapshot_home` operation snapshots every supported-category device in
+one home sequentially, partial-success semantics identical in shape to
+Task Group M's own Panic/Vacation Mode response convention -- read-only
+against devices, so, unlike Panic/Vacation Mode, no confirmation is
+required. 92 new/updated tests (three pre-existing Task Group O tests
+were corrected, not merely extended, since their own assertions were
+inverted by this task group's approved scope), 0 failures, 0 errors;
+M12 regression 1040 tests green; M11+M12 regression 1187 tests green;
+full backend regression 3691 tests green, 1 pre-existing skip.
+
+### Added
+- **Tier-2 appliance dispatch** (`services/smart_home_memory_service.py`)
+  -- `fan`/`cover`/`vacuum`/`humidifier`/`media_player`/`water_heater`
+  snapshot support via an ordered cascade over each owning service's
+  own public read method. Nine supported categories total.
+- **`delete_snapshot(memory_id)`** -- scoped deletion, confirms the
+  target is a real snapshot before calling the existing, unmodified
+  `MemoryService.forget()`. A new `SnapshotNotFoundError` covers an
+  unknown id, a non-snapshot id, and an already-deleted id alike,
+  deliberately indistinguishable.
+- **`snapshot_home(home_id)`** -- snapshots every supported device in
+  a home in one sequential call; unsupported categories are skipped,
+  per-device failures never abort the batch. Returns
+  `requested_count`/`attempted_count`/`succeeded_count`/
+  `failed_count`/`skipped_count` plus full per-device results.
+- **`DELETE /api/v1/smart-home/memory/snapshots/{memory_id}`,
+  `POST /api/v1/smart-home/memory/snapshots/home/{home_id}`**
+  (`infrastructure/api/routes/smart_home_memory.py`).
+- **Two new agent tools**: `delete_device_snapshot`, `snapshot_home`
+  (`agents/tools/smart_home_memory_tools.py`), alongside the two
+  already-shipped `snapshot_device_state`/`list_device_snapshots`.
+- **DI wiring** -- `SmartHomeMemoryService` gains four new required
+  dependencies (`ApplianceService`, `VacuumHumidifierService`,
+  `MediaPlayerService`, `WaterHeaterService`) in `core/di/container.py`.
+- **Frontend requirements document** -- `docs/
+  M12_SMART_HOME_MEMORY_EXPANSION_FRONTEND_REQUIREMENTS.md`,
+  planning/specification only, written after the backend was fully
+  verified.
+
+### Not changed
+- Sensor and Smart Lock snapshot support -- **permanently excluded**,
+  not merely unbuilt (privacy/security grounds, unchanged from Task
+  Group O).
+- Siren and Camera snapshot support -- out of this task group's named
+  scope; not privacy-excluded, simply not requested.
+- `MemoryService` -- used unmodified. No new public method added to
+  this M0-M6-feature-frozen service; deletion scoping is built entirely
+  inside `SmartHomeMemoryService` using `browse()` + `forget()`, both
+  already public.
+- `DEVICE_TYPES`, `CONNECTOR_TYPES`, the four appliance services
+  themselves -- unmodified. No private `_domain_for` duplicated.
+- `EventBus`, Scheduler, Analytics -- untouched. No automatic capture,
+  no scheduled snapshots, no trend/diff computation.
+- No new `PermissionModel` principal, no new scope, no
+  `confirm_required_tools` entry.
+- No database/schema changes.
+
+### Explicitly out of scope
+- Automatic/event-driven device history -- the device-command EventBus
+  gap remains unresolved.
+- Scheduled/recurring snapshots -- needs M7's Scheduler, unshipped.
+- Diff/trend/comparison views over snapshots -- M20A Analytics' job,
+  unstarted.
+- Device-wide or home-wide snapshot *deletion* -- single-snapshot
+  scope only.
+- AI-generated snapshot summaries.
+- Every other M12 module (Smart Cameras, Home Automation, AI Home
+  Assistant, Remote Access, Smart Home Analytics).
+
 ## M12: Security & Safety — Siren Integration Slice (Task Group R)
 
 **No version bump**, matching this project's own established
