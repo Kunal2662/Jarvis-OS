@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from langchain_core.tools import BaseTool
 
 if TYPE_CHECKING:
+    from jarvis.services.alarm_control_panel_service import AlarmControlPanelService
     from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
@@ -65,6 +66,7 @@ def build_tool_registry(
     water_heaters: WaterHeaterService | None = None,
     security: SecurityService | None = None,
     siren: SirenService | None = None,
+    alarm_control_panels: AlarmControlPanelService | None = None,
     smart_home_memory: SmartHomeMemoryService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
@@ -189,6 +191,19 @@ def build_tool_registry(
         from jarvis.agents.tools.siren_tools import build_siren_tools
 
         tools += build_siren_tools(siren)
+    if alarm_control_panels is not None:
+        # Milestone 12 Security & Safety (alarm_control_panel
+        # Integration Slice). Five tools, mirroring Siren's own
+        # registration -- `disarm` alone is added to
+        # `AgentSettings.confirm_required_tools`, the existing
+        # confirmation mechanism, not a new one -- see
+        # `agents/tools/alarm_control_panel_tools.py`. No tool accepts
+        # a code/pin argument.
+        from jarvis.agents.tools.alarm_control_panel_tools import (
+            build_alarm_control_panel_tools,
+        )
+
+        tools += build_alarm_control_panel_tools(alarm_control_panels)
     if smart_home_memory is not None:
         # Milestone 12 Smart Home Memory (Manual/On-Demand Device
         # Snapshot Slice). Two tools, mirroring Security's own

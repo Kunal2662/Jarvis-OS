@@ -526,6 +526,12 @@ class AgentSettings(BaseSettings):
     # siren on is loud, disruptive, and can draw an unwanted emergency
     # response; turning one off is always the safe direction. See
     # docs/M12_SECURITY_SIREN_INTEGRATION_LOGIC_CONTRACT.md §10.
+    # "disarm" added by Milestone 12 Security & Safety
+    # (alarm_control_panel Integration Slice) -- the same
+    # directional-risk asymmetry again: disarming removes protection,
+    # its own safe-direction counterparts ("arm_home"/"arm_away") are
+    # deliberately NOT gated. See
+    # docs/M12_SECURITY_ALARM_CONTROL_PANEL_LOGIC_CONTRACT.md §12.
     confirm_required_tools: frozenset[str] = frozenset(
         {
             "run_automation",
@@ -533,6 +539,7 @@ class AgentSettings(BaseSettings):
             "trigger_panic_mode",
             "trigger_vacation_mode",
             "turn_siren_on",
+            "disarm",
         }
     )
     # Conversational Orchestration Routing (M10 -- see

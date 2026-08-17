@@ -703,6 +703,18 @@ def _build_siren_service(
     )
 
 
+def _build_alarm_control_panel_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.alarm_control_panel_service import AlarmControlPanelService
+
+    return AlarmControlPanelService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
 def _build_smart_home_memory_service(
     *,
     smart_home_service: Any,
@@ -1225,6 +1237,7 @@ def _build_agent_orchestrator(
     water_heaters: Any,
     security: Any,
     siren: Any,
+    alarm_control_panels: Any,
     smart_home_memory: Any,
     event_bus: Any,
 ) -> Any:
@@ -1255,6 +1268,7 @@ def _build_agent_orchestrator(
         water_heaters=water_heaters,
         security=security,
         siren=siren,
+        alarm_control_panels=alarm_control_panels,
         smart_home_memory=smart_home_memory,
         event_bus=event_bus,
     )
@@ -1667,6 +1681,18 @@ class Container(containers.DeclarativeContainer):
         permission_model=permission_model,
     )
 
+    # Milestone 12 Security & Safety (alarm_control_panel Integration
+    # Slice) -- a standalone sibling service, not a `SecurityService`
+    # extension -- SecurityService's own trigger_panic_mode docstring
+    # already states it never touches sirens/thermostats/cameras; see
+    # docs/M12_SECURITY_ALARM_CONTROL_PANEL_LOGIC_CONTRACT.md §2.
+    alarm_control_panel_service = providers.Singleton(
+        _build_alarm_control_panel_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 12 Smart Home Memory (Manual/On-Demand Device ----------
     # Snapshot Slice + Device-Category Expansion Slice) ---------------------
     # Composes SmartHomeService + nine device-category services (light/
@@ -1983,6 +2009,7 @@ class Container(containers.DeclarativeContainer):
         water_heaters=water_heater_service,
         security=security_service,
         siren=siren_service,
+        alarm_control_panels=alarm_control_panel_service,
         smart_home_memory=smart_home_memory_service,
         event_bus=event_bus,
     )

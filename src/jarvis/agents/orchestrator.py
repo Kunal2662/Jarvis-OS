@@ -58,6 +58,7 @@ if TYPE_CHECKING:
     from jarvis.core.events.event_bus import EventBus
     from jarvis.core.interfaces.llm_provider import ILLMProvider
     from jarvis.features.automation.permission import ConfirmationCallback
+    from jarvis.services.alarm_control_panel_service import AlarmControlPanelService
     from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
@@ -113,6 +114,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         water_heaters: WaterHeaterService | None = None,
         security: SecurityService | None = None,
         siren: SirenService | None = None,
+        alarm_control_panels: AlarmControlPanelService | None = None,
         smart_home_memory: SmartHomeMemoryService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
@@ -197,6 +199,12 @@ class AgentOrchestrator(IAgentOrchestrator):
         # the same registry, converging on the same `SirenService` the
         # REST surface calls -- see `agents/tools/siren_tools.py`.
         self._siren = siren
+        # Milestone 12 Security & Safety (alarm_control_panel
+        # Integration Slice): normalized arm/disarm control reaches the
+        # agent as tools on the same registry, converging on the same
+        # `AlarmControlPanelService` the REST surface calls -- see
+        # `agents/tools/alarm_control_panel_tools.py`.
+        self._alarm_control_panels = alarm_control_panels
         # Milestone 12 Smart Home Memory (Manual/On-Demand Device
         # Snapshot Slice): on-demand snapshot capture/retrieval reaches
         # the agent as tools on the same registry, converging on the
@@ -252,6 +260,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 water_heaters=self._water_heaters,
                 security=self._security,
                 siren=self._siren,
+                alarm_control_panels=self._alarm_control_panels,
                 smart_home_memory=self._smart_home_memory,
             )
             saver = await self._checkpointer.open()

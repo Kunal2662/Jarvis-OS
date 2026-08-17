@@ -68,6 +68,9 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
     if container is not None:
         from jarvis.infrastructure.api.routes import agent as agent_routes
         from jarvis.infrastructure.api.routes import ai_workspace as ai_workspace_routes
+        from jarvis.infrastructure.api.routes import (
+            alarm_control_panels as alarm_control_panel_routes,
+        )
         from jarvis.infrastructure.api.routes import appliances as appliance_routes
         from jarvis.infrastructure.api.routes import connectivity as connectivity_routes
         from jarvis.infrastructure.api.routes import devtools as devtools_routes
@@ -122,6 +125,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(sensor_routes.router, prefix="/api/v1")
         app.include_router(security_routes.router, prefix="/api/v1")
         app.include_router(siren_routes.router, prefix="/api/v1")
+        app.include_router(alarm_control_panel_routes.router, prefix="/api/v1")
         app.include_router(integration_routes.router, prefix="/api/v1")
         # The OAuth callback carries no Bearer token -- a browser
         # redirect cannot -- so it is a separate, session-free router.
