@@ -691,6 +691,18 @@ def _build_security_service(
     )
 
 
+def _build_siren_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.siren_service import SirenService
+
+    return SirenService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
 def _build_smart_home_memory_service(
     *,
     smart_home_service: Any,
@@ -1204,6 +1216,7 @@ def _build_agent_orchestrator(
     media_players: Any,
     water_heaters: Any,
     security: Any,
+    siren: Any,
     smart_home_memory: Any,
     event_bus: Any,
 ) -> Any:
@@ -1233,6 +1246,7 @@ def _build_agent_orchestrator(
         media_players=media_players,
         water_heaters=water_heaters,
         security=security,
+        siren=siren,
         smart_home_memory=smart_home_memory,
         event_bus=event_bus,
     )
@@ -1633,6 +1647,18 @@ class Container(containers.DeclarativeContainer):
         permission_model=permission_model,
     )
 
+    # ---- Milestone 12 Security & Safety (Siren Integration Slice) ---------
+    # Its own sibling service, deliberately not a SecurityService
+    # extension -- SecurityService's own trigger_panic_mode docstring
+    # already states it never touches sirens; see
+    # docs/M12_SECURITY_SIREN_INTEGRATION_LOGIC_CONTRACT.md §3.
+    siren_service = providers.Singleton(
+        _build_siren_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 12 Smart Home Memory (Manual/On-Demand Device ----------
     # Snapshot Slice) ---------------------------------------------------
     # Composes SmartHomeService + the three MVP device-category services
@@ -1942,6 +1968,7 @@ class Container(containers.DeclarativeContainer):
         media_players=media_player_service,
         water_heaters=water_heater_service,
         security=security_service,
+        siren=siren_service,
         smart_home_memory=smart_home_memory_service,
         event_bus=event_bus,
     )

@@ -69,6 +69,7 @@ if TYPE_CHECKING:
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
+    from jarvis.services.siren_service import SirenService
     from jarvis.services.smart_home_memory_service import SmartHomeMemoryService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
@@ -111,6 +112,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         media_players: MediaPlayerService | None = None,
         water_heaters: WaterHeaterService | None = None,
         security: SecurityService | None = None,
+        siren: SirenService | None = None,
         smart_home_memory: SmartHomeMemoryService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
@@ -190,6 +192,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # `SecurityService` the REST surface calls -- see
         # `agents/tools/security_tools.py`.
         self._security = security
+        # Milestone 12 Security & Safety (Siren Integration Slice):
+        # normalized siren on/off control reaches the agent as tools on
+        # the same registry, converging on the same `SirenService` the
+        # REST surface calls -- see `agents/tools/siren_tools.py`.
+        self._siren = siren
         # Milestone 12 Smart Home Memory (Manual/On-Demand Device
         # Snapshot Slice): on-demand snapshot capture/retrieval reaches
         # the agent as tools on the same registry, converging on the
@@ -244,6 +251,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 media_players=self._media_players,
                 water_heaters=self._water_heaters,
                 security=self._security,
+                siren=self._siren,
                 smart_home_memory=self._smart_home_memory,
             )
             saver = await self._checkpointer.open()

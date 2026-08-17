@@ -519,8 +519,21 @@ class AgentSettings(BaseSettings):
     # radius than any prior single-device mutation. See
     # docs/M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md §11 for the full
     # reasoning.
+    # "turn_siren_on" added by Milestone 12 Security & Safety (Siren
+    # Integration Slice) -- the same directional-risk asymmetry
+    # "unlock_device" already established (its own safe-direction
+    # counterpart, "lock_device", is deliberately NOT gated): turning a
+    # siren on is loud, disruptive, and can draw an unwanted emergency
+    # response; turning one off is always the safe direction. See
+    # docs/M12_SECURITY_SIREN_INTEGRATION_LOGIC_CONTRACT.md §10.
     confirm_required_tools: frozenset[str] = frozenset(
-        {"run_automation", "unlock_device", "trigger_panic_mode", "trigger_vacation_mode"}
+        {
+            "run_automation",
+            "unlock_device",
+            "trigger_panic_mode",
+            "trigger_vacation_mode",
+            "turn_siren_on",
+        }
     )
     # Conversational Orchestration Routing (M10 -- see
     # docs/ORCHESTRATION_ROUTING_LOGIC_CONTRACT.md). "legacy" preserves

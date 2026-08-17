@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
+    from jarvis.services.siren_service import SirenService
     from jarvis.services.smart_home_memory_service import SmartHomeMemoryService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
@@ -63,6 +64,7 @@ def build_tool_registry(
     media_players: MediaPlayerService | None = None,
     water_heaters: WaterHeaterService | None = None,
     security: SecurityService | None = None,
+    siren: SirenService | None = None,
     smart_home_memory: SmartHomeMemoryService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
@@ -177,6 +179,16 @@ def build_tool_registry(
         from jarvis.agents.tools.security_tools import build_security_tools
 
         tools += build_security_tools(security)
+    if siren is not None:
+        # Milestone 12 Security & Safety (Siren Integration Slice).
+        # Four tools, mirroring Smart Switch's own registration --
+        # `turn_siren_on` alone is added to
+        # `AgentSettings.confirm_required_tools`, the existing
+        # confirmation mechanism, not a new one -- see
+        # `agents/tools/siren_tools.py`.
+        from jarvis.agents.tools.siren_tools import build_siren_tools
+
+        tools += build_siren_tools(siren)
     if smart_home_memory is not None:
         # Milestone 12 Smart Home Memory (Manual/On-Demand Device
         # Snapshot Slice). Two tools, mirroring Security's own
