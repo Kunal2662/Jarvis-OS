@@ -1,21 +1,18 @@
 """Agent tools wrapping
 :class:`~jarvis.services.appliance_service.ApplianceService` (Milestone
-12 Appliance Control -- Core Appliance Slice: Fans + Covers; Fan
-Percentage + Cover Position Slice).
+12 Appliance Control -- Core Appliance Slice: Fans + Covers).
 
-Ten tools, mirroring ``smart_switch_tools.py``'s structure, doubled for
-the two capabilities this slice supports, plus one dedicated
-percentage/position-setting tool per capability -- not an optional
-argument added to ``fan_on``/``cover_open`` (see
-``docs/M12_APPLIANCE_FAN_COVER_POSITION_LOGIC_CONTRACT.md`` §11).
+Eight tools, mirroring ``smart_switch_tools.py``'s structure, doubled
+for the two capabilities this slice supports. No fan-percentage or
+cover-position tool exists -- see
+``docs/M12_APPLIANCE_CONTROL_LOGIC_CONTRACT.md`` §10.
 
 **No tool authorizes anything, and no tool bypasses the permission
 gate.** Every mutating tool below calls the same ``ApplianceService``
 method the REST route does, so both trip the same ``smart_home``
 ``PermissionModel`` check. No tool here is added to ``AgentSettings.
-confirm_required_tools`` -- neither a fan nor a cover (nor adjusting
-either's speed/position) is physically safety-relevant the way a lock
-is.
+confirm_required_tools`` -- neither a fan nor a cover is physically
+safety-relevant the way a lock is.
 """
 
 from __future__ import annotations
@@ -36,14 +33,6 @@ _MAX_RESULT_CHARS = 4_000
 
 
 def build_appliance_tools(appliances: ApplianceService) -> list[BaseTool]:
-    """Composes the fan and cover tool sets -- split into two private
-    helpers purely to keep each factory function's own statement count
-    manageable (ten tools total would otherwise be one long function);
-    the public signature/behavior is unchanged."""
-    return [*_build_fan_tools(appliances), *_build_cover_tools(appliances)]
-
-
-def _build_fan_tools(appliances: ApplianceService) -> list[BaseTool]:
     @tool
     async def list_fans(home_id: str = "", room_id: str = "") -> str:
         """List known fans, optionally filtered by home_id or room_id.
@@ -91,23 +80,6 @@ def _build_fan_tools(appliances: ApplianceService) -> list[BaseTool]:
             return f"Couldn't turn that fan off: {err}"
         return _clip(json.dumps(result, indent=2, default=str))
 
-    @tool
-    async def set_fan_percentage(device_id: str, percentage: int) -> str:
-        """Set a fan's speed to an exact percentage (0-100) by device
-        id. 0 is a valid value, sent as-is -- it does not turn the fan
-        off. Takes real effect on the device -- confirm with the user
-        before calling it."""
-        try:
-            result = await appliances.set_fan_percentage(device_id, percentage)
-        except Exception as err:
-            _logger.warning("set_fan_percentage tool failed: {}", err)
-            return f"Couldn't set that fan's percentage: {err}"
-        return _clip(json.dumps(result, indent=2, default=str))
-
-    return [list_fans, get_fan_state, fan_on, fan_off, set_fan_percentage]
-
-
-def _build_cover_tools(appliances: ApplianceService) -> list[BaseTool]:
     @tool
     async def list_covers(home_id: str = "", room_id: str = "") -> str:
         """List known covers/blinds/curtains, optionally filtered by
@@ -157,19 +129,16 @@ def _build_cover_tools(appliances: ApplianceService) -> list[BaseTool]:
             return f"Couldn't close that cover: {err}"
         return _clip(json.dumps(result, indent=2, default=str))
 
-    @tool
-    async def set_cover_position(device_id: str, position: int) -> str:
-        """Set a cover/blind/curtain to an exact position (0-100,
-        0=closed, 100=open) by device id. Takes real effect on the
-        device -- confirm with the user before calling it."""
-        try:
-            result = await appliances.set_cover_position(device_id, position)
-        except Exception as err:
-            _logger.warning("set_cover_position tool failed: {}", err)
-            return f"Couldn't set that cover's position: {err}"
-        return _clip(json.dumps(result, indent=2, default=str))
-
-    return [list_covers, get_cover_state, cover_open, cover_close, set_cover_position]
+    return [
+        list_fans,
+        get_fan_state,
+        fan_on,
+        fan_off,
+        list_covers,
+        get_cover_state,
+        cover_open,
+        cover_close,
+    ]
 
 
 def _clip(text: str) -> str:

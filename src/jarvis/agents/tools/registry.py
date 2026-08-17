@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING
 from langchain_core.tools import BaseTool
 
 if TYPE_CHECKING:
-    from jarvis.services.alarm_control_panel_service import AlarmControlPanelService
     from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
@@ -28,8 +27,6 @@ if TYPE_CHECKING:
     from jarvis.services.memory_service import MemoryService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
-    from jarvis.services.siren_service import SirenService
-    from jarvis.services.smart_home_memory_service import SmartHomeMemoryService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
     from jarvis.services.smart_switch_service import SmartSwitchService
@@ -38,7 +35,6 @@ if TYPE_CHECKING:
     from jarvis.services.vacuum_humidifier_service import VacuumHumidifierService
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
-    from jarvis.services.water_heater_service import WaterHeaterService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 
@@ -63,11 +59,7 @@ def build_tool_registry(
     thermostats: ThermostatService | None = None,
     vacuum_humidifier: VacuumHumidifierService | None = None,
     media_players: MediaPlayerService | None = None,
-    water_heaters: WaterHeaterService | None = None,
     security: SecurityService | None = None,
-    siren: SirenService | None = None,
-    alarm_control_panels: AlarmControlPanelService | None = None,
-    smart_home_memory: SmartHomeMemoryService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -164,15 +156,6 @@ def build_tool_registry(
         from jarvis.agents.tools.media_player_tools import build_media_player_tools
 
         tools += build_media_player_tools(media_players)
-    if water_heaters is not None:
-        # Milestone 12 Appliance Control (Water Heater Core Slice).
-        # Three tools: mutation is one merged `set_water_heater_state`,
-        # mirroring Thermostat's own single `set_thermostat_state`
-        # rather than one tool per attribute -- see
-        # `agents/tools/water_heater_tools.py`.
-        from jarvis.agents.tools.water_heater_tools import build_water_heater_tools
-
-        tools += build_water_heater_tools(water_heaters)
     if security is not None:
         # Milestone 12 Security & Safety (Read-Only Alert/Status
         # Slice). Two read-only tools, mirroring Sensors' own
@@ -181,37 +164,6 @@ def build_tool_registry(
         from jarvis.agents.tools.security_tools import build_security_tools
 
         tools += build_security_tools(security)
-    if siren is not None:
-        # Milestone 12 Security & Safety (Siren Integration Slice).
-        # Four tools, mirroring Smart Switch's own registration --
-        # `turn_siren_on` alone is added to
-        # `AgentSettings.confirm_required_tools`, the existing
-        # confirmation mechanism, not a new one -- see
-        # `agents/tools/siren_tools.py`.
-        from jarvis.agents.tools.siren_tools import build_siren_tools
-
-        tools += build_siren_tools(siren)
-    if alarm_control_panels is not None:
-        # Milestone 12 Security & Safety (alarm_control_panel
-        # Integration Slice). Five tools, mirroring Siren's own
-        # registration -- `disarm` alone is added to
-        # `AgentSettings.confirm_required_tools`, the existing
-        # confirmation mechanism, not a new one -- see
-        # `agents/tools/alarm_control_panel_tools.py`. No tool accepts
-        # a code/pin argument.
-        from jarvis.agents.tools.alarm_control_panel_tools import (
-            build_alarm_control_panel_tools,
-        )
-
-        tools += build_alarm_control_panel_tools(alarm_control_panels)
-    if smart_home_memory is not None:
-        # Milestone 12 Smart Home Memory (Manual/On-Demand Device
-        # Snapshot Slice). Two tools, mirroring Security's own
-        # "terse re-shaping of one underlying call" registration -- see
-        # `agents/tools/smart_home_memory_tools.py`.
-        from jarvis.agents.tools.smart_home_memory_tools import build_smart_home_memory_tools
-
-        tools += build_smart_home_memory_tools(smart_home_memory)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

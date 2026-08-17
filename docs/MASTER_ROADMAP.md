@@ -533,474 +533,35 @@ new principal (`core:media_players`) — reads **ungated**. See
 `docs/M12_APPLIANCE_MEDIA_PLAYER_LOGIC_CONTRACT.md` for the full Logic
 Contract.
 
-**M12 — Appliance Control (Water Heater Core Slice) shipped Aug
-2026.** A Phase 0 audit re-verified `water_heater` maps to
-`device_type="appliance"` in both connectors (`home_assistant.py:86`,
-`mqtt.py:167`) — Fan/Cover/Vacuum/Humidifier/Media Player's own
-pattern, not Climate's — and reused Vacuum + Humidifier's own
-`metadata["domain"]`-then-`metadata["component"]` MQTT fallback,
-implemented locally inside the new service only, exactly as every
-prior appliance-category slice did — **zero connector changes, zero
-changes to `ApplianceService`**. A Logic Contract (`docs/
-M12_APPLIANCE_WATER_HEATER_LOGIC_CONTRACT.md`), separately approved
-before any code, resolved the slice's open design questions: operation
-mode is writable and validated against the device's own reported
-`operation_list` (HA's real `water_heater.set_operation_mode` service,
-verified against HA's actual `services.yaml` this session, rather than
-assumed) — the identical template Thermostat's `hvac_mode` already
-established, not Humidifier's read-only `mode`; temperature stays
-whatever unit/precision the device reports, bounded only when the
-device itself reports `min_temp`/`max_temp`; and the scald-risk
-confirmation question was evaluated explicitly and resolved against
-adding a `confirm_required_tools` entry, recorded as the closest call
-of any M12 appliance module to date rather than a reflexive default. A
-new `WaterHeaterService` (`services/water_heater_service.py`) ships —
-**deliberately not an `ApplianceService` extension**, enforced by a
-source-level test. Up to three independent HA services (`turn_on`/
-`turn_off`, `set_operation_mode`, `set_temperature`, all verified
-against HA's actual `services.yaml` this session) sequence into one
-merged `set_water_heater_state(temperature?, operation_mode?, on?)`
-mutation, ordered on/off, then mode, then temperature — a stated
-convention, not a discovered HA dependency — with honest
-partial-failure reporting; MQTT's own envelope stays one merged
-`set_state` call. `state` is an open pass-through string (can be
-either a plain on/off token or an operation-mode token depending on
-device features), forced to `None` when unavailable; a derived `is_on`
-convenience field is inferred only when recognizable. Exposed under
-the existing `/appliances` prefix and three agent tools, gated by the
-existing `PermissionModel` under a new principal
-(`core:water_heaters`) — reads **ungated**. 98 new tests, 0 failures,
-0 errors. See `docs/M12_APPLIANCE_WATER_HEATER_LOGIC_CONTRACT.md` for
-the full Logic Contract and `docs/
-M12_WATER_HEATER_FRONTEND_REQUIREMENTS.md` for the (planning-only, no
-code) frontend requirements this slice's API surface implies.
-
-**M12 — Security & Safety (Manual/On-Demand Action Slice) shipped Aug
-2026.** A Phase 0 audit found Appliance Control's device-category
-expansion exhausted (every domain mapped to `device_type="appliance"`
-now has a shipped service) and, independently evaluating Security &
-Safety's own remaining action-taking scope against it, recommended
-extending the already-shipped, read-only `SecurityService`
-(`docs/M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md` §2) rather than
-building a new sibling service — the first M12 module addition that is
-an *extension* of a previously-shipped class rather than a new one,
-decided because Panic/Vacation Mode are a second capability over the
-same "home security posture" concept the read-only slice already owns,
-not a new device category. Two new methods,
-`trigger_panic_mode(home_id)`/`trigger_vacation_mode(home_id)`, both
-synchronous, on-demand, home-scoped, single-shot: **Panic Mode** locks
-every lock and turns on every light; **Vacation Mode** locks every
-lock, turns off every light, and best-effort eco-adjusts every
-thermostat whose own reported `hvac_modes` contains an `"eco"` token
-(case-insensitive exact match) — never a temperature fallback, never
-an invented preset; a thermostat with no eco-adjacent mode is
-honestly skipped, not defaulted. Both compose `SmartLockService`/
-`SmartLightingService`/`ThermostatService`'s own existing public
-methods only — zero connector access, zero duplicated normalization.
-A genuinely new multi-device result model
-(`status: SUCCESS/PARTIAL_SUCCESS/FAILED/NO_TARGETS` plus
-requested/attempted/succeeded/failed/unavailable/skipped counts and
-full per-device detail) replaces the 2–3-field merged-mutation shape
-every prior M12 module used — deliberately, since this is the first
-M12 action never claiming atomicity across more than a handful of
-fixed fields. A nested permission denial (`core:smart_locks`/
-`core:smart_lighting`/`core:thermostats` not granted) is never
-bypassed and never aborts the whole call — it surfaces as an ordinary
-per-device failure, continuing past it, mirroring the read-only
-slice's own "propagate honestly, never swallow" precedent for
-`core:sensors`. Reuses the existing `core:security` principal — no new
-scope, no new principal — but, independently evaluated rather than
-copied from any single-device precedent, **both actions require
-interactive confirmation**: the first `confirm_required_tools`
-addition since Smart Locks' `unlock_device`, because each call affects
-every lock/light (and, for Vacation Mode, every eco-capable
-thermostat) in an entire home at once. 98 new tests, 0 failures, 0
-errors, two of which were initially self-inflicted test bugs (an
-over-broad "term must not appear anywhere in source" guard tripping on
-the module's own explanatory docstrings) found and fixed with a proper
-AST-based docstring-stripping helper rather than weakening the
-documentation. See `docs/M12_SECURITY_ACTION_SLICE_LOGIC_CONTRACT.md`
-for the full Logic Contract and `docs/
-M12_SECURITY_ACTION_SLICE_FRONTEND_REQUIREMENTS.md` for the
-(planning-only, no code) frontend requirements this slice's API
-surface implies.
-
-**M12 — Developer Tools (Connectivity / Integration Health Slice)
-shipped Aug 2026.** A Phase 0 audit found Appliance Control's
-device-category expansion exhausted and Security & Safety's own two
-named slices both shipped, and ranked this slice #1 for reusing a
-proven M9 Developer Platform Tools pattern rather than repeating
-another device-control shape. Freshly re-reading M9's `routes/
-devtools.py` and all four `core/devtools/*.py` components found two
-things the earlier summary had not stated precisely: none of M9's
-five existing devtools capabilities carries a `PermissionModel` gate
-(session auth only), and every `core/devtools/` component depends
-only on other `core/`-layer objects, never on `services/`. Both
-findings shaped the Logic Contract
-(`docs/M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md`): a new
-`services/`-layer `DevtoolsConnectivityService` (not a `core/devtools/`
-component, which would have inverted this codebase's own core-to-
-services layering) whose route nonetheless lives in the existing
-`routes/devtools.py` file, and whose authorization deliberately
-matches M9's own precedent exactly — session auth only, no new
-principal, no `smart_home` scope. `GET /api/v1/devtools/connectivity`
-composes two already-shipped read paths never previously exposed
-together over REST: `ConnectorFactoryRegistry.registered_types`/
-`ConnectivityService.is_connected` for connector state, and
-`SmartHomeService.metadata(home_id)` — the `HomeMetadata` aggregate
-Task Group A built for Device Health Monitoring back in its own
-task group and no route had used since — for per-home device-health
-counts. No telemetry this repository doesn't already track (latency,
-uptime, reconnect/error counts) was invented; each is explicitly
-absent, not fabricated. Structurally excludes any credential/secret
-exposure -- the service never imports `ConnectorCredentialStore` and
-never reads `Device.metadata_json`. 44 new tests, 0 failures, 0
-errors, plus the pre-existing M9 devtools test suite re-verified
-green. See `docs/M12_DEVELOPER_TOOLS_CONNECTIVITY_LOGIC_CONTRACT.md`
-for the full Logic Contract and `docs/
-M12_DEVELOPER_TOOLS_CONNECTIVITY_FRONTEND_REQUIREMENTS.md` for the
-(planning-only, no code) frontend requirements this slice's API
-surface implies.
-
-**M12 — Smart Home Memory (Manual/On-Demand Device Snapshot Slice)
-shipped Aug 2026.** A Phase 0 audit ranked Smart Home Memory's
-manual-capture slice #1 after Appliance Control's device-category
-expansion and Security & Safety's/Developer Tools' own named slices
-were all exhausted. The Logic Contract
-(`docs/M12_SMART_HOME_MEMORY_SNAPSHOT_LOGIC_CONTRACT.md`) fixed a
-strict naming boundary up front — this is **Manual/On-Demand Device
-Snapshot**, never "Device History," "Continuous Device Monitoring," or
-"Event-Driven Memory": a snapshot exists only because
-`SmartHomeMemoryService.snapshot_device()` was explicitly called, never
-automatically. The decisive architectural finding was that
-`MemoryService.browse()` already provides full filtered retrieval, so
-no new persistence layer, repository, or `MemoryType` enum value was
-needed — a plain `memory_type="device_snapshot"` string is fully
-supported by the existing `remember()`/`browse()` API, exactly as
-`MemoryType`'s own docstring documents. Device-category scope is
-deliberately narrow — light/switch/thermostat only, not every shipped
-category — for two independent reasons: architecturally, only these
-three have a unique `device_type` that resolves to their owning
-service without a private domain-resolution step (unlike the
-`device_type="appliance"` categories); on privacy/security grounds,
-Sensors and Smart Locks are excluded because a persisted, browsable
-snapshot history of occupancy-revealing or security-posture-revealing
-state is a materially larger risk than either category's own
-already-gated live read. Permission departs from the majority M12
-"reads ungated" precedent for the same reason — both `POST` and `GET`
-require the `core:smart_home_memory`/`smart_home` grant, since a
-browsable snapshot history is cumulative in a way a single live read
-is not. An unavailable device still produces an honest snapshot
-(capturing `available: false`/`None` fields verbatim) rather than
-erroring or fabricating data. 58 new tests, 0 failures, 0 errors,
-full backend regression (3506 tests) green. See `docs/
-M12_SMART_HOME_MEMORY_SNAPSHOT_LOGIC_CONTRACT.md` for the full Logic
-Contract and `docs/M12_SMART_HOME_MEMORY_SNAPSHOT_FRONTEND_
-REQUIREMENTS.md` for the (planning-only, no code) frontend
-requirements this slice's API surface implies.
-
-**M12 — Developer Tools (Device Simulator Slice) shipped Aug 2026.** A
-Phase 0 audit re-evaluated all remaining M12 candidates from scratch
-and found no zero-architectural-risk slice remained anywhere in the
-milestone — every candidate required either a real design decision or
-was blocked outright — and ranked Device Simulator the strongest
-🟡-classified candidate: the narrowest architectural footprint with the
-broadest downstream value (testing every already-shipped M12 slice
-without real hardware). The Logic Contract (`docs/
-M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md`) evaluated
-three architectures and found a decisive problem with the obvious one:
-a new `CONNECTOR_TYPES` entry (Option A) would make every device-
-category service's own closed `_TRANSLATORS` dict reject every
-mutation with "no command translation," since none of those
-already-shipped services carry a third key — fixing that would have
-meant modifying four of them, against this project's own standing
-discipline. The chosen architecture (Option C) instead has the DI
-composition root swap which factory answers the *existing*
-`"home_assistant"` registry key — the real `HomeAssistantConnector`'s
-factory, or `SimulatorConnector`'s, gated by a new, off-by-default
-`settings.devtools.simulator_enabled` flag — the exact pattern this
-repository's own test suite (`FakeDeviceConnector`) already uses
-successfully everywhere. Zero `CONNECTOR_TYPES` change, zero existing-
-service modification, and a stronger isolation guarantee than the
-rejected option: a real Home Assistant connection and the simulator
-can never coexist in one running process, by construction. Supports
-exactly five device categories (light/switch/thermostat/lock/sensor —
-the same "unique `device_type`, no domain-fallback" boundary Task
-Group O independently identified), deterministic command→state
-mutation in Home Assistant's own wire vocabulary, and caller-configured
-(never random) fault simulation, over five devtools-only roster-
-management REST endpoints — discovery, import, live state reads and
-command execution all continue to run through the existing, unmodified
-generic Connectivity Layer, proven end-to-end against the real,
-unmodified `SmartLightingService`/`SmartSwitchService`/
-`ThermostatService`/`SmartLockService`/`SensorService`. No
-`PermissionModel` gate, matching every other devtools capability —
-explicitly evaluated, not defaulted, since a simulated device's
-mutations never touch real device or real home data. 66 new tests, 0
-failures, 0 errors, including a behavioral (not flag-only) proof that
-simulator mode never instantiates the real `HomeAssistantConnector`,
-full backend regression (3570 tests) green. See `docs/
-M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md` for the full
-Logic Contract and `docs/M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_FRONTEND_
-REQUIREMENTS.md` for the (planning-only, no code) frontend requirements
-this slice's API surface implies.
-
-**M12 — Developer Tools (Device Diagnostics Slice) shipped Aug 2026.**
-A Phase 0 audit re-evaluated M12 from scratch after Device Simulator
-shipped and found `GET /api/v1/devtools/devices/{device_id}/
-diagnostics` the strongest remaining candidate -- the only one needing
-zero touch to any shared/foundational class (`ConnectivityService`,
-any connector, `DEVICE_TYPES`/`CONNECTOR_TYPES`), closing a named,
-previously-unbuilt Developer Tools roadmap item. The Logic Contract
-(`docs/M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_LOGIC_CONTRACT.md`)
-resolved its architecture by mirroring an existing precedent in the
-same file (`get_plugin_diagnostics`) rather than creating a new
-service: logic lives inline in `routes/devtools.py`, aggregating three
-already-shipped calls (`SmartHomeService.get_device`,
-`ConnectivityService.read_raw_state`, `PermissionModel.state` --
-deliberately not `is_granted`, which carries an audit-log side effect
-a passive diagnostic read must never trigger). The permission section
-resolves only the five device categories with a single, unambiguous
-owning principal (light/switch/lock/sensor/thermostat); `appliance`
-(which spans four separate principals, disambiguated only by each
-appliance service's own private domain-resolution logic) and
-`camera`/every other category report an explicit, honest "unresolved"
-result rather than a guessed or duplicated principal. Reported live-
-state attributes are sanitized by key (redacting any key matching
-token/password/secret/credential/api_key/auth) before inclusion --
-for the five resolvable categories this is not a new exposure surface
-(the same data is already reachable today through each category's own
-existing read route), making the redaction a defense-in-depth control
-rather than the only thing standing between a live read and secret
-exposure. A failed live connectivity read is never an HTTP error --
-the response still returns 200 with `read_succeeded: false` and an
-explanatory `read_error`, mirroring the same best-effort pattern every
-device-category service's own `read_raw_state` handling already uses.
-No `PermissionModel` gate on the route itself, matching every other
-devtools capability. 37 new tests, 0 failures, 0 errors, full backend
-regression (3607 tests) green. See `docs/
-M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_LOGIC_CONTRACT.md` for the full
-Logic Contract and `docs/M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_
-FRONTEND_REQUIREMENTS.md` for the (planning-only, no code) frontend
-requirements this slice's API surface implies.
-
-**M12 — Security & Safety (Siren Integration Slice) shipped Aug
-2026.** A Phase 1 Logic Contract (`docs/
-M12_SECURITY_SIREN_INTEGRATION_LOGIC_CONTRACT.md`) independently
-re-verified, rather than trusted, the Phase 0 audit's own claims: a
-direct trace of `home_assistant.py:_entity_to_discovered_device` and
-`mqtt.py:_handle_ha_discovery` confirmed both connectors already
-capture a discovered entity's own HA domain / MQTT Discovery
-component into `metadata["domain"]`/`["component"]` unconditionally,
-for every device, regardless of `device_type` — a siren living under
-the generic `device_type="other"` bucket was therefore already fully
-identifiable, with zero connector or `DEVICE_TYPES` change required.
-The Logic Contract's architecture decision was a new, standalone
-`SirenService` — not an extension of `SmartSwitchService` (hard-scoped
-to `device_type="switch"`) or `SecurityService` (whose own
-`trigger_panic_mode` docstring already disclaims touching sirens) —
-applying the same domain/component fallback order every
-appliance-domain service (`VacuumHumidifierService`,
-`MediaPlayerService`, `WaterHeaterService`) already established for
-`device_type="appliance"`, here for the first time to
-`device_type="other"`. Two explicit mutations, `turn_on`/`turn_off`,
-never a merged `set_siren_state` — `turn_siren_on` alone was added to
-`AgentSettings.confirm_required_tools`, mirroring `unlock_device`'s
-own directional-risk asymmetry (`lock_device`/`turn_siren_off` stay
-ungated as the safe direction). Home Assistant's own
-`siren.turn_on`/`turn_off` services were verified directly against
-Home Assistant's own developer documentation during Phase 1:
-`tone`/`duration`/`volume_level` are each optional and gated behind
-device-specific `SirenEntityFeature` flags, confirming a bare,
-payload-free call is a complete, valid command for any siren
-regardless of which optional features it reports — this MVP sends no
-payload at all. Permission: a new `core:sirens` principal against the
-existing, unmodified `smart_home` scope; reads ungated, mutations
-gated, matching every prior M12 device-category service's own
-authorization shape. REST lives at its own top-level resource,
-`/api/v1/sirens/*` — not nested under `/security/*`, since
-`SirenService` is its own sibling service, not a `SecurityService`
-extension. 50 new tests, 0 failures, 0 errors, full backend regression
-(3655 tests) green. See `docs/
-M12_SECURITY_SIREN_INTEGRATION_LOGIC_CONTRACT.md` for the full Logic
-Contract and `docs/M12_SECURITY_SIREN_INTEGRATION_FRONTEND_
-REQUIREMENTS.md` for the (planning-only, no code) frontend
-requirements this slice's API surface implies.
-
-**M12 — Smart Home Memory (Device-Category Expansion Slice) shipped
-Aug 2026.** A Phase 0 audit after Task Group R ranked this slice the
-strongest remaining candidate; its own Phase 1 Logic Contract (`docs/
-M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md`) independently
-re-verified rather than blindly followed the audit's own proposed
-scope — Task Group O's own Logic Contract had already excluded Sensor
-and Smart Lock snapshots on privacy/security grounds (occupancy-signal
-risk, security-posture-history risk), not architectural ones, so this
-contract upholds that exclusion permanently rather than reopening it
-on no new evidence, directly overriding the audit's own suggestion to
-add both. The six already-shipped appliance-domain categories (Fan,
-Cover, Vacuum, Humidifier, Media Player, Water Heater) are added
-instead — exactly the expansion Task Group O's own text anticipated
-once dispatch was resolved, but via a narrower mechanism than the
-shared domain-resolution utility it envisioned: a new Tier-2 cascade
-tries each category's own already-public `get_<category>_state`
-method in turn, catching that service's own "not this category"
-`ServiceError` — safe because device existence is already confirmed
-before the cascade runs — so zero private `_domain_for` is duplicated
-and zero new shared abstraction is introduced. The Logic Contract also
-corrected a factual error in Task Group O's own text (it claimed no
-memory-deletion capability existed anywhere in the repository;
-`MemoryService.forget()` already did) and built a safely-scoped
-`delete_snapshot` on top of it — confirming a target id is actually a
-`"device_snapshot"`-type record via the same `browse()` retrieval
-already uses, before ever calling `forget()`, so a caller holding only
-this module's own grant can never delete an unrelated memory record. A
-new `snapshot_home` operation snapshots every supported-category
-device in one home sequentially, with partial-success semantics
-identical in shape to Task Group M's own Panic/Vacation Mode response
-convention — read-only against devices, so, unlike Panic/Vacation
-Mode, no confirmation is required. 92 new/updated tests, 0 failures, 0
-errors, full backend regression (3691 tests) green. See `docs/
-M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md` for the full Logic
-Contract and `docs/M12_SMART_HOME_MEMORY_EXPANSION_FRONTEND_
-REQUIREMENTS.md` for the (planning-only, no code) frontend
-requirements this slice's API surface implies.
-
-**M12 — Appliance Control (Fan Percentage + Cover Position Slice)
-shipped Aug 2026.** A Phase 0 audit after Task Group S independently
-re-verified rather than blindly followed the recommendation it was
-handed: fresh reads of `appliance_service.py` and its own cited
-`SmartLightingService` precedent found only the *translator function
-shape* applicable, not Lighting's own "merge every attribute into one
-`turn_on` call" *behavior* — HA defines `fan.set_percentage`/
-`cover.set_cover_position` as their own separate, standalone services,
-unlike brightness, which HA only ever accepts as a `turn_on`
-parameter. `set_fan_percentage`/`set_cover_position` therefore each
-send exactly one standalone wire command, never an implicit
-accompanying `turn_on`/`open_cover`. Home Assistant's own two services
-were verified live against Home Assistant's own current developer
-documentation: both take a 0-100 integer parameter with no scale
-conversion needed. The single most important fact this contract
-found: a cover's **read** attribute is `current_cover_position`,
-genuinely different from the **write** parameter name `position` —
-confirmed directly against Home Assistant's own developer entity
-documentation, not assumed. MQTT has no standard equivalent for either
-service, so this module defines its own vocabulary mirroring HA's own
-names — the same choice Task Group G's own `turn_on`/`open_cover`
-already made. Zero connector changes: both connectors' `send_command`
-already accept an arbitrary payload dict generically. Two new
-dedicated REST verb endpoints and two new dedicated agent tools,
-matching this router's own established one-capability-per-endpoint
-convention rather than an optional parameter merged into the existing
-on/off/open/close surface. 142 new/updated tests, 0 failures, 0
-errors, full backend regression (3763 tests) green. See `docs/
-M12_APPLIANCE_FAN_COVER_POSITION_LOGIC_CONTRACT.md` for the full Logic
-Contract and `docs/M12_APPLIANCE_FAN_COVER_POSITION_FRONTEND_
-REQUIREMENTS.md` for the (planning-only, no code) frontend
-requirements this slice's API surface implies.
-
-**M12 — Security & Safety (alarm_control_panel Integration Slice)
-shipped Aug 2026.** A Phase 1 Logic Contract (`docs/
-M12_SECURITY_ALARM_CONTROL_PANEL_LOGIC_CONTRACT.md`) applied Task
-Group R's own `device_type="other"` discrimination pattern a second
-time: both connectors already map HA's `alarm_control_panel` domain
-(and MQTT Discovery's own `component`) there unconditionally, so an
-alarm control panel was already fully identifiable with zero connector
-or `DEVICE_TYPES` change. The architecture decision was a new,
-standalone `AlarmControlPanelService` -- not an extension of
-`SecurityService` or `SirenService`, the identical reasoning that
-already ruled out extending `SecurityService` for Siren. Exactly three
-mutations, `arm_home`/`arm_away`/`disarm`, deliberately never
-`arm_night`/`arm_vacation`/`arm_custom_bypass`/`trigger` -- `disarm`
-alone was added to `AgentSettings.confirm_required_tools`, mirroring
-`turn_siren_on`/`unlock_device`'s own directional-risk asymmetry.
-**The central architectural finding**: Home Assistant's own service
-documentation gives zero security guidance on an alarm code, and its
-own MQTT alarm integration explicitly warns an unprotected connection
-sends one over the network in the clear (both externally verified) --
-so this slice never accepts, stores, logs, or transmits a code/PIN
-anywhere, structurally: no method, request body, tool argument, or
-wire payload has a parameter that could carry one. Every action is a
-bare, zero-payload command; a code-protected panel simply reports the
-action failed honestly, via the same `CommandResult` path every other
-M12 mutation already uses. Permission: a new
-`core:alarm_control_panels` principal against the existing,
-unmodified `smart_home` scope; reads ungated, mutations gated. REST
-lives at its own top-level resource, `/api/v1/alarm-control-panels/*`,
-following Siren's own established convention. 73 new tests, 0
-failures, 0 errors, full backend regression (3836 tests) green, 1
-pre-existing skip. See `docs/
-M12_SECURITY_ALARM_CONTROL_PANEL_LOGIC_CONTRACT.md` for the full Logic
-Contract and `docs/M12_SECURITY_ALARM_CONTROL_PANEL_FRONTEND_
-REQUIREMENTS.md` for the (planning-only, no code) frontend
-requirements this slice's API surface implies.
-
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
 Appliance Control's Core Appliance Slice/Climate/Thermostat Slice/
-Vacuum + Humidifier Core Slice/Media Player Core Slice/Water Heater
-Core Slice **and** Fan Percentage + Cover Position Slice, Security &
-Safety's Read-Only Alert/Status Slice, Manual/
-On-Demand Action Slice, Siren Integration Slice **and**
-alarm_control_panel Integration Slice, Developer
-Tools' Connectivity / Integration Health Slice, Device Simulator Slice
-**and** Device Diagnostics Slice, and Smart Home Memory's Manual/
-On-Demand Device Snapshot Slice **and** Device-Category Expansion
-Slice are now shipped; five of this
-milestone's fifteen modules remain entirely unstarted (Smart
-Cameras, Home Automation, AI Home Assistant, Remote Access, Smart Home
-Analytics) — Energy Management, Appliance Control, Security & Safety,
-Developer Tools, and Smart Home Memory themselves each remain only
-partially shipped (Energy Management: device control only, History/Analytics/
-Optimization/Scheduling all deferred; Appliance Control: Fan + Cover
-(including fan percentage/cover position) + Climate/Thermostat +
-Vacuum + Humidifier + Media Player + Water Heater control only —
-fan oscillation/presets, cover tilt/stop, Climate's own fan mode/
-swing/presets/humidity/dual setpoint/scheduling, Humidifier's own mode
-control/presets/water-level automation, Media Player's own play_media/
-join-unjoin/shuffle/repeat/sound mode/album/duration/playback
-position, and Water Heater's own away/vacation mode/dual setpoint all
-deferred; the two remaining named appliance categories (Smart Kitchen,
-Smart Pumps/Irrigation) are both blocked on the current connector
-domain mapping, not merely unbuilt -- no further Appliance Control
-category remains buildable without a connector or domain-model change;
-Security & Safety: Panic Mode, a narrowly-scoped Vacation Mode, basic
-siren on/off control, and now `arm_home`/`arm_away`/`disarm` control
-for alarm control panels (permanently, structurally, with no code/PIN
-support of any kind) only — Emergency Alerts, scheduled/randomized
-Vacation Mode, geofencing, siren tone/duration/volume/pattern control,
-`arm_night`/`arm_vacation`/`arm_custom_bypass`/a trigger action for
-alarm control panels, any coupling between the Siren Integration
-Slice/alarm_control_panel Integration Slice and Panic/Vacation Mode,
-and every notification channel remain deferred, each blocked on
-infrastructure this slice deliberately did not build; Developer
-Tools: Connectivity/Integration Health, Device Simulator
-(light/switch/thermostat/lock/sensor categories, the `"home_assistant"`
-connector slot only), and Device Diagnostics (same five-category
-permission resolution; `appliance`/`camera`/every other category
-reports an unresolved principal, not a guess) only — MQTT Debug
-Console, MQTT-slot simulation, Event Viewer, and appliance-
-sub-domain principal resolution all remain deferred, Event Viewer
-explicitly blocked on the still-unresolved device-command EventBus
-publishing gap; Smart Home Memory: manual snapshot creation and
-retrieval for nine device categories (light/switch/thermostat/fan/
-cover/vacuum/humidifier/media_player/water_heater), single-snapshot
-deletion, and home-wide snapshotting — Sensor/Lock snapshots remain
-**permanently** excluded on privacy/security grounds (not merely
-unbuilt), and automatic/scheduled/event-driven capture and diff/trend/
-analytics views remain deferred to the still-unresolved EventBus gap
-and M20A Analytics respectively). **No version bump accompanied any
-of the twenty-three task-group passes** -- unlike M22's own task groups
-(each of which shipped real code and bumped the version in turn), all
-twenty-three ship real code at `0.38.0` unchanged. Recorded here as a
-deliberate exception to this project's usual pattern, not a claim that
-the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
-Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
-Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
-Group J, Task Group K, Task Group L, Task Group M, Task Group N, Task
-Group O, Task Group P, Task Group Q, Task Group R, Task Group S, Task
-Group T, and Task Group U entries for the
-full implementation account.
+Vacuum + Humidifier Core Slice/Media Player Core Slice, and Security &
+Safety's Read-Only Alert/Status Slice are now shipped; seven of this
+milestone's fifteen modules remain entirely unstarted (Smart Cameras,
+Home Automation, AI Home Assistant, Remote Access, Smart Home Memory,
+Smart Home Analytics, Developer Tools) — Energy Management, Appliance
+Control and Security & Safety themselves each remain only partially
+shipped (Energy Management: device control only, History/Analytics/
+Optimization/Scheduling all deferred; Appliance Control: Fan + Cover +
+Climate/Thermostat + Vacuum + Humidifier + Media Player control only —
+fan percentage/cover position, Climate's own fan mode/swing/presets/
+humidity/dual setpoint/scheduling, Humidifier's own mode control/
+presets/water-level automation, and Media Player's own play_media/
+join-unjoin/shuffle/repeat/sound mode/album/duration/playback position
+all deferred, two appliance categories (Water Heater, Smart Kitchen)
+still entirely unbuilt, two blocked on the current connector mapping;
+Security & Safety: read-only status only, every action-taking item
+deferred). **No version bump accompanied any of the thirteen
+task-group passes** -- unlike M22's own task groups (each of which
+shipped real code and bumped the version in turn), all thirteen ship
+real code at `0.38.0` unchanged. Recorded here as a deliberate
+exception to this project's usual pattern, not a claim that the pattern
+changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task Group B
+Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task Group E, Task
+Group F, Task Group G, Task Group H, Task Group I, Task Group J, and
+Task Group K entries for the full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -4913,41 +4474,20 @@ mutation, volume HA-native `0.0`-`1.0`, source validated against
 device-reported `source_list` only when non-empty. `play_media`,
 join/unjoin, shuffle/repeat/sound mode, album/duration/playback
 position and queue management all deliberately deferred. Water Heater
-Core Slice shipped Task Group L, Aug 2026 -- a further separate
-`WaterHeaterService` (also not an `ApplianceService` extension),
-sharing Fan/Cover/Vacuum/Humidifier/Media Player's own
-`device_type="appliance"` category, reusing the identical
-`metadata["domain"]`/`["component"]` fallback locally -- zero
-connector changes. Merged on/off + operation-mode + temperature
-mutation (up to three sequential HA calls, one merged MQTT call),
-operation mode writable and validated against device-reported
-`operation_list`, temperature bounded only when device-reported.
-Away/vacation mode and dual setpoint deliberately deferred. Smart
-Pumps/Irrigation is blocked: HA's `valve` domain -- irrigation's
-natural mapping -- currently maps to `device_type="other"`, not
-`"appliance"`. Smart Kitchen Devices is blocked: no single HA/MQTT
-domain represents "kitchen appliance" as a consistent category. Fan
-Percentage + Cover Position Slice shipped Task Group T, Aug 2026 --
-closes the one gap the Core Appliance Slice's own docstring named
-explicitly. `set_fan_percentage`/`set_cover_position` each send
-exactly one standalone wire command (`fan.set_percentage`/
-`cover.set_cover_position`, both externally verified 0-100 integers,
-no scale conversion) -- deliberately NOT merged into `turn_on`/
-`open_cover` the way `SmartLightingService`'s own brightness is,
-since HA defines these as genuinely separate services, unlike
-brightness (which HA only ever accepts as a `turn_on` parameter). A
-cover's live-read attribute is `current_cover_position`, confirmed
-externally to be a different name from the `position` write
-parameter. Zero connector changes -- both connectors' `send_command`
-already accept an arbitrary payload dict generically.)*
-- Smart Fans ✅ *(on/off + speed percentage 0-100 -- oscillation/preset modes deferred)*
+remains deferred to a future, separately-scoped Appliance Control
+slice. Smart Pumps/Irrigation is blocked: HA's `valve` domain --
+irrigation's natural mapping -- currently maps to `device_type=
+"other"`, not `"appliance"`. Smart Kitchen Devices is blocked: no
+single HA/MQTT domain represents "kitchen appliance" as a consistent
+category.)*
+- Smart Fans ✅
 - Smart AC ✅ *(read/write current+target temperature, HVAC mode -- fan mode/swing/presets/humidity/scheduling deferred)*
 - Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, now-playing title/artist -- play_media/join-unjoin/shuffle/repeat/sound mode deferred)*
-- Smart Curtains ✅ *(via the cover entity, open/close + position 0-100 -- tilt/stop deferred)*
-- Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 -- tilt/stop deferred)*
+- Smart Curtains ✅ *(via the cover entity)*
+- Smart Blinds ✅ *(via the cover entity)*
 - Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level -- fan speed/cleaning modes/maps/scheduling deferred)*
 - Smart Humidifiers ✅ *(on/off, target humidity, mode read-only -- mode control/presets/water-level automation deferred)*
-- Smart Geysers ✅ *(via the water_heater entity -- on/off, operation mode, target temperature -- away/vacation mode/dual setpoint deferred)*
+- Smart Geysers
 - Smart Pumps
 - Smart Irrigation *(blocked -- HA's `valve` domain maps to `device_type="other"`, not `"appliance"`)*
 - Smart Kitchen Devices *(blocked -- no consistent HA/MQTT domain model)*
@@ -4985,76 +4525,33 @@ automation are exposed as M5A agent tools, following the same
 tool-registry pattern every other service uses (`agents/tools/`).
 
 #### Security & Safety
-*(Read-Only Alert/Status Slice shipped Task Group H, Aug 2026 -- a new
-`SecurityService` aggregating the already-shipped `SensorService` and
-`SmartLockService` **pull-based**, over one REST route
+*(Read-Only Alert/Status Slice only shipped Task Group H, Aug 2026 --
+a new `SecurityService` aggregating the already-shipped `SensorService`
+and `SmartLockService` **pull-based**, over one REST route
 (`/api/v1/security/status`) and two read-only agent tools. Hazard
 **reporting** for smoke/gas/water-leak ships; hazard **response** does
-not, in this slice. Reads are permission-gated (`core:security`,
-following Sensors' precedent). Manual/On-Demand Action Slice shipped
-Task Group M, Aug 2026 -- the same `SecurityService`, extended (not a
-new sibling service) with two on-demand, home-scoped, single-shot
-actions: Panic Mode (lock every lock, turn on every light) and a
-narrowly-scoped Vacation Mode (lock every lock, turn off every light,
-best-effort eco-adjust thermostats that report an `"eco"` `hvac_mode`
--- never a temperature fallback, never an invented preset). Both
-gated under the same `core:security` principal and, independently
-evaluated, both require interactive confirmation -- the first
-`confirm_required_tools` addition since Smart Locks' `unlock_device`,
-because each call's blast radius is an entire home's worth of devices
-at once. Siren Integration Slice shipped Task Group R, Aug 2026 -- a
-new, standalone `SirenService` (not an extension of `SecurityService`
-or `SmartSwitchService`), identifying a siren via
-`device_type=="other"` plus the same `metadata["domain"]`/
-`["component"]` fallback every appliance-domain service already uses,
-already captured unconditionally by both connectors with zero
-connector change required. Basic on/off control only
-(`turn_on`/`turn_off`, `turn_siren_on` gated via
-`confirm_required_tools` mirroring `unlock_device`'s own asymmetry) --
-tone/duration/volume/pattern control and any coupling to Panic/
-Vacation Mode remain deferred. alarm_control_panel Integration Slice
-shipped Task Group U, Aug 2026 -- a second, independent standalone
-service, `AlarmControlPanelService` (not an extension of
-`SecurityService` or `SirenService`), applying the identical
-`device_type=="other"` discrimination pattern to HA's
-`alarm_control_panel` domain, already captured unconditionally by both
-connectors with zero connector change required. Exactly three
-mutations, `arm_home`/`arm_away`/`disarm` (`disarm` gated via
-`confirm_required_tools`, the same asymmetry) -- deliberately never
-`arm_night`/`arm_vacation`/`arm_custom_bypass`/a trigger action. **No
-code/PIN parameter exists anywhere in this slice, permanently and
-structurally** -- Home Assistant's own documentation offers zero
-security guidance on one and its own MQTT alarm integration warns an
-unprotected connection sends one in the clear, so every action this
-slice sends is a bare, zero-payload command; a code-protected panel
-simply reports the action failed, honestly. Every remaining
-action-taking item below (Emergency Alerts, scheduled/randomized
-Vacation Mode, geofencing, siren tone/duration/volume/pattern control,
-alarm control panel night/vacation/custom-bypass arm modes and
-trigger, any notification channel) is still deferred to Home
-Automation/M7/future separately-scoped slices, all still unstarted.
-Zero `EventBus`, connector, `DEVICE_TYPES` or schema changes in any of
-the four shipped slices.)*
+not. Reads are permission-gated (`core:security`, following Sensors'
+precedent). The module is **informational only** -- no mutation route,
+no mutation tool, no actuator path, no automatic action. Every
+action-taking item below is deferred to Home Automation/M7/future
+separately-scoped slices, all still unstarted. Zero `EventBus`,
+connector, `DEVICE_TYPES` or schema changes.)*
 - Intrusion Detection *(read-only inputs only -- door/window/motion/
   presence/occupancy state is reported factually and **deliberately
   never inferred as intrusion**; any actual detection logic is
   outstanding)*
-- Emergency Alerts *(no notification transport exists for smart home today; deferred)*
+- Emergency Alerts
 - Fire Detection Integration ✅ *(smoke-sensor alert reporting; response is deferred)*
 - Gas Leak Alerts ✅ *(reporting only; response is deferred)*
 - Water Leak Alerts ✅ *(reporting only, via HA's `moisture` device_class; response is deferred)*
-- Panic Mode ✅ *(on-demand: lock every lock, turn on every light -- scheduled/automated triggering deferred)*
-- Vacation Mode ✅ *(on-demand: lock every lock, turn off every light, best-effort eco-adjust capable thermostats -- scheduled/randomized presence simulation deferred)*
-- Siren Integration ✅ *(basic on/off control via a new standalone `SirenService` -- tone/duration/volume/pattern control and any Panic/Vacation Mode coupling deferred)*
-- alarm_control_panel Integration ✅ *(arm_home/arm_away/disarm control via a new standalone `AlarmControlPanelService` -- no code/PIN support of any kind, permanently and structurally; arm_night/arm_vacation/arm_custom_bypass, a trigger action, and any Siren/Panic/Vacation Mode coupling all deferred)*
+- Panic Mode
+- Vacation Mode
 - Home Status Dashboard ✅ *(backend aggregate: overall status, active alerts, hazard/status sensors, lock state, unavailable counts)*
 
 Every item in this module is `safety_critical` by default (see
-Architecture notes) — none of it silently auto-executes. The
-read-only slice honours that by taking no action at all. The action
-slice honours it by requiring an explicit, confirmed, on-demand
-trigger for every call -- never scheduled, never event-driven, never
-automatic.
+Architecture notes) — none of it silently auto-executes. The shipped
+slice honours that by taking **no** action at all: it reports, and a
+human or a future, separately-approved module decides what to do.
 
 #### Remote Access
 - Secure Remote Access
@@ -5070,24 +4567,7 @@ consumer of M21's Mobile Platform transport, not a parallel remote-
 access channel.
 
 #### Smart Home Memory
-*(Manual/On-Demand Device Snapshot Slice shipped Task Group O, Aug
-2026 -- a new `SmartHomeMemoryService` over `MemoryService.remember`/
-`browse`, explicit-call-only, never automatic (Logic Contract's own
-naming boundary: not Device History, not Continuous Device
-Monitoring). Device-Category Expansion Slice shipped Task Group S,
-Aug 2026 -- widened from three device categories to nine (light/
-switch/thermostat plus fan/cover/vacuum/humidifier/media_player/
-water_heater, the last six resolved via a Tier-2 cascade over each
-owning appliance service's own already-public read method, no shared
-domain-resolution utility introduced), added single-snapshot deletion
-(safely scoped to `"device_snapshot"`-type memories only, never a
-generic memory delete) and a home-wide snapshot operation
-(sequential, partial-success, read-only against devices). Sensor and
-Smart Lock snapshots remain **permanently** excluded on privacy/
-security grounds -- occupancy-signal and security-posture-history
-risk -- not merely unbuilt; this was reaffirmed, not reopened, when
-Task Group S's own Phase 0 audit proposed adding them.)*
-- Device History *(none of the automatic/continuous items below exist -- only explicit, on-demand snapshots do, see above)*
+- Device History
 - Automation History
 - Home Event Timeline
 - Energy Usage History
@@ -5115,54 +4595,13 @@ metric does — Smart Home Analytics doesn't stand up its own,
 disconnected dashboard.
 
 #### Developer Tools *(Developer Mode)*
-*(Connectivity / Integration Health Slice shipped Task Group N, Aug
-2026 -- a new `DevtoolsConnectivityService` over `GET /api/v1/devtools/
-connectivity`, composing `ConnectorFactoryRegistry.registered_types`/
-`ConnectivityService.is_connected` (connector state) and
-`SmartHomeService.metadata(home_id)` (per-home device-health counts,
-the same `HomeMetadata` aggregate Task Group A built and no route had
-used until now). Session auth only, matching every one of M9's own
-Developer Platform Tools routes exactly -- no `PermissionModel` gate,
-no new principal. No telemetry this repository doesn't already track
-(latency, uptime, reconnect/error counts) was invented. Device
-Simulator Slice shipped Task Group P, Aug 2026 -- a new
-`SimulatorConnector` (`core/connectivity/connectors/simulator.py`)
-registered under the *existing* `"home_assistant"` connector-registry
-key when a new, off-by-default `settings.devtools.simulator_enabled`
-flag is on (Option C), swapping out the real `HomeAssistantConnector`'s
-factory for that slot process-wide -- not a new `CONNECTOR_TYPES`
-entry, which a Logic-Contract-stage investigation found would make
-every device-category service's own closed `_TRANSLATORS` dict reject
-every mutation command. Supports light/switch/thermostat/lock/sensor
-with deterministic command-to-state mutation and caller-configured
-fault simulation, over five devtools-only roster-management REST
-endpoints; discovery, live state and command execution all continue
-through the existing, unmodified generic Connectivity Layer. Device
-Diagnostics Slice shipped Task Group Q, Aug 2026 -- `GET /api/v1/
-devtools/devices/{device_id}/diagnostics`, logic inline in
-`routes/devtools.py` mirroring the pre-existing `get_plugin_diagnostics`
-pattern in the same file rather than a new service, aggregating
-`SmartHomeService.get_device` + `ConnectivityService.read_raw_state` +
-`PermissionModel.state` (never `is_granted`, which carries an
-audit-log side effect). Permission resolution is closed to the same
-five single-principal categories Device Simulator supports;
-`appliance`/`camera`/every other category reports an explicit
-unresolved principal rather than a guess. Live-state attributes are
-sanitized by key (token/password/secret/credential/api_key/auth) --
-defense-in-depth, since this data is already reachable today through
-each of the five categories' own existing read route. A failed live
-read is never an HTTP error, only `read_succeeded: false` with a
-`read_error`. MQTT Debug Console, Event Viewer, and Automation Tester
-all remain unbuilt -- Event Viewer specifically blocked on the
-still-unresolved device-command EventBus publishing gap, not merely
-deferred by choice.)*
-- Device Simulator ✅ *(light/switch/thermostat/lock/sensor, `"home_assistant"` connector slot only -- MQTT-slot simulation deferred)*
+- Device Simulator
 - MQTT Debug Console
 - Device Logs
-- Event Viewer *(blocked -- no device-command event exists on the EventBus to view)*
+- Event Viewer
 - Automation Tester
-- Integration Health Dashboard ✅ *(connector registration/connection state + per-home device-health counts, read-only)*
-- Device Diagnostics ✅ *(per-device identity + live connectivity + permission-grant aggregate; appliance/camera permission resolution deferred)*
+- Integration Health Dashboard
+- Device Diagnostics
 
 Lands in Developer Mode alongside M5A's Agent Trace panel and M11's
 Workspace Developer Tools, following the same established pattern
