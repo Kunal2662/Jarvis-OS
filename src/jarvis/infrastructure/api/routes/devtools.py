@@ -39,6 +39,26 @@ the existing, unmodified generic Connectivity Layer routes
 No ``PermissionModel`` gate, matching every other devtools capability
 -- session auth only; explicitly evaluated and not merely inherited,
 see the Logic Contract §9.
+
+**Device Diagnostics** (``docs/
+M12_DEVELOPER_TOOLS_DEVICE_DIAGNOSTICS_LOGIC_CONTRACT.md``) is a single
+read-only aggregate over three already-shipped calls
+(``SmartHomeService.get_device``, ``ConnectivityService.
+read_raw_state``, ``PermissionModel.state``), logic inline in this
+route -- no new service, mirroring ``get_plugin_diagnostics``'s own
+architecture in this same file exactly rather than
+``DevtoolsConnectivityService``'s. Live connectivity read is
+best-effort (a ``ConnectivityError`` never turns into an HTTP error,
+matching every device-category service's own ``read_raw_state``
+handling); the permission section resolves only the five device
+categories with a single, unambiguous owning principal (light/switch/
+lock/sensor/thermostat) -- ``appliance``/``camera``/every other
+category reports an explicit unresolved principal rather than
+duplicating any appliance service's own private domain-resolution
+logic. Reported attributes are sanitized by key (never wholesale
+``Device.metadata_json``) before inclusion. No ``PermissionModel`` gate
+on the route itself, matching every other devtools capability --
+explicitly evaluated, see the Logic Contract §8.
 """
 
 from __future__ import annotations
@@ -58,9 +78,44 @@ if TYPE_CHECKING:
     from jarvis.core.devtools.state_inspector import StateInspector
     from jarvis.core.plugins.permissions import PermissionModel
     from jarvis.core.plugins.registry import PluginRegistry
+    from jarvis.services.connectivity_service import ConnectivityService
     from jarvis.services.devtools_connectivity_service import DevtoolsConnectivityService
+    from jarvis.services.smart_home_service import SmartHomeService
 
 router = APIRouter(tags=["devtools"], dependencies=[Depends(get_current_session)])
+
+#: Milestone 12 Developer Tools (Device Diagnostics Slice). Closed to
+#: exactly the five device categories with a single, unambiguous
+#: owning `PermissionModel` principal -- see the Logic Contract §7 for
+#: why `"appliance"`/`"camera"`/every other category is deliberately
+#: left unresolved rather than guessed.
+_DIAGNOSTICS_SCOPE = "smart_home"
+_DEVICE_TYPE_PRINCIPALS: dict[str, str] = {
+    "light": "core:smart_lighting",
+    "switch": "core:smart_switch",
+    "lock": "core:smart_locks",
+    "sensor": "core:sensors",
+    "thermostat": "core:thermostats",
+}
+
+#: Substrings (matched case-insensitively against an attribute's own
+#: key) whose *value* is redacted before inclusion in a diagnostic
+#: response -- Logic Contract §6/§7. Every other key/value passes
+#: through verbatim; for the five categories in
+#: `_DEVICE_TYPE_PRINCIPALS`'s own device types this is data already
+#: reachable today through that category's own existing read route, so
+#: this list is a defense-in-depth control, not the only thing standing
+#: between a live read and secret exposure.
+_SENSITIVE_ATTRIBUTE_KEY_SUBSTRINGS = (
+    "token",
+    "password",
+    "secret",
+    "credential",
+    "api_key",
+    "apikey",
+    "auth",
+)
+_REDACTED = "<redacted>"
 
 
 class DefineSimulatedDeviceRequest(BaseModel):
@@ -120,6 +175,25 @@ def _devtools_connectivity(request: Request) -> DevtoolsConnectivityService:
 
 def _simulator(request: Request) -> SimulatorConnector:
     return cast("SimulatorConnector", request.app.state.container.simulator_connector())
+
+
+def _smart_home(request: Request) -> SmartHomeService:
+    return cast("SmartHomeService", request.app.state.container.smart_home_service())
+
+
+def _connectivity(request: Request) -> ConnectivityService:
+    return cast("ConnectivityService", request.app.state.container.connectivity_service())
+
+
+def _sanitize_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
+    sanitized: dict[str, Any] = {}
+    for key, value in attributes.items():
+        lowered = key.lower()
+        if any(marker in lowered for marker in _SENSITIVE_ATTRIBUTE_KEY_SUBSTRINGS):
+            sanitized[key] = _REDACTED
+        else:
+            sanitized[key] = value
+    return sanitized
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +354,96 @@ async def get_connectivity_health(
         overview,
         meta={"connector_count": len(overview["connectors"]), "home_count": len(overview["homes"])},
     )
+
+
+# ---------------------------------------------------------------------------
+# Device Diagnostics -- Milestone 12 Developer Tools (Device Diagnostics Slice)
+# ---------------------------------------------------------------------------
+@router.get("/devtools/devices/{device_id}/diagnostics", response_model=Envelope[dict[str, Any]])
+async def get_device_diagnostics(device_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    """One combined view over a device's own identity, live
+    connectivity state, and owning permission-principal grant status --
+    mirrors ``get_plugin_diagnostics``'s own architecture in this same
+    file, not ``DevtoolsConnectivityService``'s. Unknown device -> 404;
+    a failed live read is never an HTTP error, reported instead via
+    ``connectivity.read_error`` (Logic Contract §5/§11). ``metadata_json``
+    is never read or exposed."""
+    from jarvis.core.exceptions import ServiceError
+    from jarvis.core.interfaces.connectivity import ConnectivityError
+    from jarvis.services.connectivity_service import connector_type_for
+
+    smart_home = _smart_home(request)
+    connectivity = _connectivity(request)
+    permission_model = _permission_model(request)
+
+    try:
+        device = await smart_home.require_device(device_id)
+    except ServiceError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+
+    device_section = {
+        "id": device.id,
+        "name": device.name,
+        "device_type": device.device_type,
+        "status": device.status,
+        "home_id": device.home_id,
+        "room_id": device.room_id,
+        "manufacturer": device.manufacturer,
+        "model": device.model,
+        "external_id": device.external_id,
+        "last_seen_at": device.last_seen_at.isoformat() if device.last_seen_at else None,
+    }
+
+    connectivity_section: dict[str, Any] = {
+        "connector_type": connector_type_for(device),
+        "read_succeeded": False,
+        "status": None,
+        "attributes": None,
+        "read_error": None,
+    }
+    try:
+        raw = await connectivity.read_raw_state(device_id)
+    except ConnectivityError as err:
+        connectivity_section["read_error"] = str(err)
+    else:
+        if raw is None:
+            connectivity_section["read_error"] = "device has no recorded connector"
+        else:
+            connectivity_section["read_succeeded"] = True
+            connectivity_section["status"] = raw.status
+            connectivity_section["attributes"] = _sanitize_attributes(raw.attributes)
+
+    principal = _DEVICE_TYPE_PRINCIPALS.get(device.device_type)
+    if principal is None:
+        if device.device_type == "appliance":
+            detail = (
+                "appliance device_type spans multiple principals "
+                "(core:appliances / core:media_players / core:vacuum_humidifier / "
+                "core:water_heaters); not resolved by this diagnostic"
+            )
+        else:
+            detail = "no dedicated permission principal exists for this device_type"
+        permission_section: dict[str, Any] = {
+            "principal": None,
+            "scope": None,
+            "state": None,
+            "detail": detail,
+        }
+    else:
+        state = permission_model.state(principal, _DIAGNOSTICS_SCOPE)
+        permission_section = {
+            "principal": principal,
+            "scope": _DIAGNOSTICS_SCOPE,
+            "state": state.value,
+            "detail": None,
+        }
+
+    payload = {
+        "device": device_section,
+        "connectivity": connectivity_section,
+        "permission": permission_section,
+    }
+    return envelope(payload, meta={"device_type": device.device_type})
 
 
 # ---------------------------------------------------------------------------
