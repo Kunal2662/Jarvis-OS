@@ -865,12 +865,46 @@ Contract and `docs/M12_SMART_HOME_MEMORY_EXPANSION_FRONTEND_
 REQUIREMENTS.md` for the (planning-only, no code) frontend
 requirements this slice's API surface implies.
 
+**M12 — Appliance Control (Fan Percentage + Cover Position Slice)
+shipped Aug 2026.** A Phase 0 audit after Task Group S independently
+re-verified rather than blindly followed the recommendation it was
+handed: fresh reads of `appliance_service.py` and its own cited
+`SmartLightingService` precedent found only the *translator function
+shape* applicable, not Lighting's own "merge every attribute into one
+`turn_on` call" *behavior* — HA defines `fan.set_percentage`/
+`cover.set_cover_position` as their own separate, standalone services,
+unlike brightness, which HA only ever accepts as a `turn_on`
+parameter. `set_fan_percentage`/`set_cover_position` therefore each
+send exactly one standalone wire command, never an implicit
+accompanying `turn_on`/`open_cover`. Home Assistant's own two services
+were verified live against Home Assistant's own current developer
+documentation: both take a 0-100 integer parameter with no scale
+conversion needed. The single most important fact this contract
+found: a cover's **read** attribute is `current_cover_position`,
+genuinely different from the **write** parameter name `position` —
+confirmed directly against Home Assistant's own developer entity
+documentation, not assumed. MQTT has no standard equivalent for either
+service, so this module defines its own vocabulary mirroring HA's own
+names — the same choice Task Group G's own `turn_on`/`open_cover`
+already made. Zero connector changes: both connectors' `send_command`
+already accept an arbitrary payload dict generically. Two new
+dedicated REST verb endpoints and two new dedicated agent tools,
+matching this router's own established one-capability-per-endpoint
+convention rather than an optional parameter merged into the existing
+on/off/open/close surface. 142 new/updated tests, 0 failures, 0
+errors, full backend regression (3763 tests) green. See `docs/
+M12_APPLIANCE_FAN_COVER_POSITION_LOGIC_CONTRACT.md` for the full Logic
+Contract and `docs/M12_APPLIANCE_FAN_COVER_POSITION_FRONTEND_
+REQUIREMENTS.md` for the (planning-only, no code) frontend
+requirements this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
 Appliance Control's Core Appliance Slice/Climate/Thermostat Slice/
 Vacuum + Humidifier Core Slice/Media Player Core Slice/Water Heater
-Core Slice, Security & Safety's Read-Only Alert/Status Slice, Manual/
+Core Slice **and** Fan Percentage + Cover Position Slice, Security &
+Safety's Read-Only Alert/Status Slice, Manual/
 On-Demand Action Slice **and** Siren Integration Slice, Developer
 Tools' Connectivity / Integration Health Slice, Device Simulator Slice
 **and** Device Diagnostics Slice, and Smart Home Memory's Manual/
@@ -881,9 +915,10 @@ Cameras, Home Automation, AI Home Assistant, Remote Access, Smart Home
 Analytics) — Energy Management, Appliance Control, Security & Safety,
 Developer Tools, and Smart Home Memory themselves each remain only
 partially shipped (Energy Management: device control only, History/Analytics/
-Optimization/Scheduling all deferred; Appliance Control: Fan + Cover +
-Climate/Thermostat + Vacuum + Humidifier + Media Player + Water Heater
-control only — fan percentage/cover position, Climate's own fan mode/
+Optimization/Scheduling all deferred; Appliance Control: Fan + Cover
+(including fan percentage/cover position) + Climate/Thermostat +
+Vacuum + Humidifier + Media Player + Water Heater control only —
+fan oscillation/presets, cover tilt/stop, Climate's own fan mode/
 swing/presets/humidity/dual setpoint/scheduling, Humidifier's own mode
 control/presets/water-level automation, Media Player's own play_media/
 join-unjoin/shuffle/repeat/sound mode/album/duration/playback
@@ -915,16 +950,16 @@ deletion, and home-wide snapshotting — Sensor/Lock snapshots remain
 unbuilt), and automatic/scheduled/event-driven capture and diff/trend/
 analytics views remain deferred to the still-unresolved EventBus gap
 and M20A Analytics respectively). **No version bump accompanied any
-of the twenty-one task-group passes** -- unlike M22's own task groups
+of the twenty-two task-group passes** -- unlike M22's own task groups
 (each of which shipped real code and bumped the version in turn), all
-twenty-one ship real code at `0.38.0` unchanged. Recorded here as a
+twenty-two ship real code at `0.38.0` unchanged. Recorded here as a
 deliberate exception to this project's usual pattern, not a claim that
 the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
 Group J, Task Group K, Task Group L, Task Group M, Task Group N, Task
-Group O, Task Group P, Task Group Q, Task Group R, and Task Group S
-entries for the
+Group O, Task Group P, Task Group Q, Task Group R, Task Group S, and
+Task Group T entries for the
 full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
@@ -4851,12 +4886,25 @@ Away/vacation mode and dual setpoint deliberately deferred. Smart
 Pumps/Irrigation is blocked: HA's `valve` domain -- irrigation's
 natural mapping -- currently maps to `device_type="other"`, not
 `"appliance"`. Smart Kitchen Devices is blocked: no single HA/MQTT
-domain represents "kitchen appliance" as a consistent category.)*
-- Smart Fans ✅
+domain represents "kitchen appliance" as a consistent category. Fan
+Percentage + Cover Position Slice shipped Task Group T, Aug 2026 --
+closes the one gap the Core Appliance Slice's own docstring named
+explicitly. `set_fan_percentage`/`set_cover_position` each send
+exactly one standalone wire command (`fan.set_percentage`/
+`cover.set_cover_position`, both externally verified 0-100 integers,
+no scale conversion) -- deliberately NOT merged into `turn_on`/
+`open_cover` the way `SmartLightingService`'s own brightness is,
+since HA defines these as genuinely separate services, unlike
+brightness (which HA only ever accepts as a `turn_on` parameter). A
+cover's live-read attribute is `current_cover_position`, confirmed
+externally to be a different name from the `position` write
+parameter. Zero connector changes -- both connectors' `send_command`
+already accept an arbitrary payload dict generically.)*
+- Smart Fans ✅ *(on/off + speed percentage 0-100 -- oscillation/preset modes deferred)*
 - Smart AC ✅ *(read/write current+target temperature, HVAC mode -- fan mode/swing/presets/humidity/scheduling deferred)*
 - Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, now-playing title/artist -- play_media/join-unjoin/shuffle/repeat/sound mode deferred)*
-- Smart Curtains ✅ *(via the cover entity)*
-- Smart Blinds ✅ *(via the cover entity)*
+- Smart Curtains ✅ *(via the cover entity, open/close + position 0-100 -- tilt/stop deferred)*
+- Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 -- tilt/stop deferred)*
 - Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level -- fan speed/cleaning modes/maps/scheduling deferred)*
 - Smart Humidifiers ✅ *(on/off, target humidity, mode read-only -- mode control/presets/water-level automation deferred)*
 - Smart Geysers ✅ *(via the water_heater entity -- on/off, operation mode, target temperature -- away/vacation mode/dual setpoint deferred)*

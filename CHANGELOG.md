@@ -3,6 +3,111 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Fan Percentage + Cover Position Slice (Task Group T)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Appliance Control — Fan Percentage + Cover
+Position Slice** scope -- **not the full Appliance Control module,
+not fan oscillation/presets, not cover tilt**. Preceded by a Logic
+Contract (`docs/M12_APPLIANCE_FAN_COVER_POSITION_LOGIC_CONTRACT.md`),
+written and approved before any code, which independently re-verified
+rather than blindly followed the Phase 0 audit's own recommendation:
+fresh reads of `appliance_service.py` and the cited
+`SmartLightingService` precedent found that only the *translator
+function shape* -- `(command) -> (wire_command, payload)` -- was
+applicable, not Lighting's own "merge every attribute into one
+`turn_on` call" *behavior*, since HA defines `fan.set_percentage` and
+`cover.set_cover_position` as their own separate, standalone services,
+unlike brightness (which HA only ever accepts as a `turn_on`
+parameter). `set_fan_percentage`/`set_cover_position` therefore each
+send exactly one standalone wire command, never an implicit
+accompanying `turn_on`/`open_cover`. Home Assistant's own
+`fan.set_percentage`/`cover.set_cover_position` services were verified
+live against Home Assistant's own current developer documentation:
+both take a 0-100 integer parameter (`percentage`/`position`
+respectively, 0=closed/100=open for covers) with no scale conversion
+needed against this module's own normalized range. The single most
+important fact this contract found: the cover's **read** attribute is
+`current_cover_position`, genuinely different from the **write**
+parameter name `position` -- confirmed directly against Home
+Assistant's own developer entity documentation, not assumed from the
+write-side name. MQTT has no standard equivalent for either service in
+any spec this repository follows, so this module defines its own
+vocabulary, mirroring HA's own command/payload names exactly -- the
+same choice Task Group G's own `turn_on`/`open_cover` already made.
+Zero connector changes: both connectors' `send_command` already accept
+an arbitrary payload dict generically. Two new dedicated REST verb
+endpoints and two new dedicated agent tools, matching this router's
+and this tool file's own established one-capability-per-endpoint/tool
+convention rather than an optional parameter merged into the existing
+on/off/open/close surface. 142 new/updated tests (one pre-existing
+Task Group G test was corrected, not merely extended, since its own
+"exactly these methods" assertion was inverted by this task group's
+approved scope), 0 failures, 0 errors; M12 regression 1112 tests
+green; M11+M12 regression 1259 tests green; full backend regression
+3763 tests green, 1 pre-existing skip.
+
+### Added
+- **`set_fan_percentage(device_id, percentage)`**,
+  **`set_cover_position(device_id, position)`**
+  (`services/appliance_service.py`) -- each sends exactly one
+  standalone wire command (`set_percentage`/`set_cover_position`),
+  0-100 integer validated, `bool` explicitly rejected (mirrors
+  `smart_lighting_service._validate_brightness`'s own guard against
+  the `bool`-is-`int`-subclass gotcha). `0` is a valid, literal
+  percentage value, never substituted for `turn_off`.
+- **Read-model additions**: `percentage` on `_fan_payload`
+  (`attributes.get("percentage")`), `position` on `_cover_payload`
+  (`attributes.get("current_cover_position")` -- deliberately not
+  `"position"`). Both `None` when unavailable or unreported, never
+  fabricated.
+- **`POST /api/v1/appliances/fans/{device_id}/set_percentage`,
+  `POST /api/v1/appliances/covers/{device_id}/set_position`**
+  (`infrastructure/api/routes/appliances.py`).
+- **Two new agent tools**: `set_fan_percentage`, `set_cover_position`
+  (`agents/tools/appliance_tools.py`), alongside the eight already-
+  shipped tools. The tool-factory function was split into
+  `_build_fan_tools`/`_build_cover_tools` internal helpers purely to
+  keep each one's own statement count manageable -- the public
+  `build_appliance_tools` signature and behavior are unchanged.
+- **Frontend requirements document** -- `docs/
+  M12_APPLIANCE_FAN_COVER_POSITION_FRONTEND_REQUIREMENTS.md`,
+  planning/specification only, written after the backend was fully
+  verified.
+
+### Not changed
+- `FanCommand.TURN_ON`/`TURN_OFF`, `CoverCommand.OPEN`/`CLOSE`,
+  `fan_on`, `fan_off`, `cover_open`, `cover_close` -- byte-identical,
+  zero behavior change. Every existing test in the three Appliance
+  Control test files passes unmodified.
+- Both connectors (`home_assistant.py`, `mqtt.py`) -- **not
+  modified**. Both already accept an arbitrary payload dict
+  generically.
+- `DEVICE_TYPES`, `CONNECTOR_TYPES` -- unmodified.
+- No new `PermissionModel` principal -- reuses the existing
+  `core:appliances`/`smart_home` grant. No `confirm_required_tools`
+  entry.
+- `EventBus`, Scheduler, Analytics, `MemoryService`,
+  `SmartHomeMemoryService` -- untouched. No database/schema changes.
+  `SmartHomeMemoryService`'s own Tier-2 cascade (Task Group S)
+  automatically picks up the richer `get_fan_state`/`get_cover_state`
+  payload with zero code changes of its own, verified by regression.
+
+### Explicitly out of scope
+- Fan oscillation, fan preset/speed-list modes.
+- Cover tilt control, `stop_cover`.
+- Climate's own remaining gaps (fan mode/swing/humidity), Humidifier
+  presets, Media Player `play_media`, Water Heater away-mode -- each a
+  separate service, out of this task group's named scope.
+- Scheduling/automation of percentage or position -- needs M7
+  Scheduler, unshipped.
+- Historical percentage/position tracking, analytics/trends -- M20A's
+  job, unstarted.
+- Every other M12 module (Smart Cameras, Home Automation, AI Home
+  Assistant, Remote Access, Smart Home Analytics).
+
 ## M12: Smart Home Memory — Device-Category Expansion Slice (Task Group S)
 
 **No version bump**, matching this project's own established
