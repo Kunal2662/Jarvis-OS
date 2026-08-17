@@ -898,6 +898,42 @@ Contract and `docs/M12_APPLIANCE_FAN_COVER_POSITION_FRONTEND_
 REQUIREMENTS.md` for the (planning-only, no code) frontend
 requirements this slice's API surface implies.
 
+**M12 — Security & Safety (alarm_control_panel Integration Slice)
+shipped Aug 2026.** A Phase 1 Logic Contract (`docs/
+M12_SECURITY_ALARM_CONTROL_PANEL_LOGIC_CONTRACT.md`) applied Task
+Group R's own `device_type="other"` discrimination pattern a second
+time: both connectors already map HA's `alarm_control_panel` domain
+(and MQTT Discovery's own `component`) there unconditionally, so an
+alarm control panel was already fully identifiable with zero connector
+or `DEVICE_TYPES` change. The architecture decision was a new,
+standalone `AlarmControlPanelService` -- not an extension of
+`SecurityService` or `SirenService`, the identical reasoning that
+already ruled out extending `SecurityService` for Siren. Exactly three
+mutations, `arm_home`/`arm_away`/`disarm`, deliberately never
+`arm_night`/`arm_vacation`/`arm_custom_bypass`/`trigger` -- `disarm`
+alone was added to `AgentSettings.confirm_required_tools`, mirroring
+`turn_siren_on`/`unlock_device`'s own directional-risk asymmetry.
+**The central architectural finding**: Home Assistant's own service
+documentation gives zero security guidance on an alarm code, and its
+own MQTT alarm integration explicitly warns an unprotected connection
+sends one over the network in the clear (both externally verified) --
+so this slice never accepts, stores, logs, or transmits a code/PIN
+anywhere, structurally: no method, request body, tool argument, or
+wire payload has a parameter that could carry one. Every action is a
+bare, zero-payload command; a code-protected panel simply reports the
+action failed honestly, via the same `CommandResult` path every other
+M12 mutation already uses. Permission: a new
+`core:alarm_control_panels` principal against the existing,
+unmodified `smart_home` scope; reads ungated, mutations gated. REST
+lives at its own top-level resource, `/api/v1/alarm-control-panels/*`,
+following Siren's own established convention. 73 new tests, 0
+failures, 0 errors, full backend regression (3836 tests) green, 1
+pre-existing skip. See `docs/
+M12_SECURITY_ALARM_CONTROL_PANEL_LOGIC_CONTRACT.md` for the full Logic
+Contract and `docs/M12_SECURITY_ALARM_CONTROL_PANEL_FRONTEND_
+REQUIREMENTS.md` for the (planning-only, no code) frontend
+requirements this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
@@ -905,7 +941,8 @@ Appliance Control's Core Appliance Slice/Climate/Thermostat Slice/
 Vacuum + Humidifier Core Slice/Media Player Core Slice/Water Heater
 Core Slice **and** Fan Percentage + Cover Position Slice, Security &
 Safety's Read-Only Alert/Status Slice, Manual/
-On-Demand Action Slice **and** Siren Integration Slice, Developer
+On-Demand Action Slice, Siren Integration Slice **and**
+alarm_control_panel Integration Slice, Developer
 Tools' Connectivity / Integration Health Slice, Device Simulator Slice
 **and** Device Diagnostics Slice, and Smart Home Memory's Manual/
 On-Demand Device Snapshot Slice **and** Device-Category Expansion
@@ -927,12 +964,15 @@ deferred; the two remaining named appliance categories (Smart Kitchen,
 Smart Pumps/Irrigation) are both blocked on the current connector
 domain mapping, not merely unbuilt -- no further Appliance Control
 category remains buildable without a connector or domain-model change;
-Security & Safety: Panic Mode, a narrowly-scoped Vacation Mode, and
-now basic siren on/off control only — Emergency Alerts, scheduled/
-randomized Vacation Mode, geofencing, `alarm_control_panel`
-integration, siren tone/duration/volume/pattern control, any coupling
-between the new Siren Integration Slice and Panic/Vacation Mode, and
-every notification channel remain deferred, each blocked on
+Security & Safety: Panic Mode, a narrowly-scoped Vacation Mode, basic
+siren on/off control, and now `arm_home`/`arm_away`/`disarm` control
+for alarm control panels (permanently, structurally, with no code/PIN
+support of any kind) only — Emergency Alerts, scheduled/randomized
+Vacation Mode, geofencing, siren tone/duration/volume/pattern control,
+`arm_night`/`arm_vacation`/`arm_custom_bypass`/a trigger action for
+alarm control panels, any coupling between the Siren Integration
+Slice/alarm_control_panel Integration Slice and Panic/Vacation Mode,
+and every notification channel remain deferred, each blocked on
 infrastructure this slice deliberately did not build; Developer
 Tools: Connectivity/Integration Health, Device Simulator
 (light/switch/thermostat/lock/sensor categories, the `"home_assistant"`
@@ -950,16 +990,16 @@ deletion, and home-wide snapshotting — Sensor/Lock snapshots remain
 unbuilt), and automatic/scheduled/event-driven capture and diff/trend/
 analytics views remain deferred to the still-unresolved EventBus gap
 and M20A Analytics respectively). **No version bump accompanied any
-of the twenty-two task-group passes** -- unlike M22's own task groups
+of the twenty-three task-group passes** -- unlike M22's own task groups
 (each of which shipped real code and bumped the version in turn), all
-twenty-two ship real code at `0.38.0` unchanged. Recorded here as a
+twenty-three ship real code at `0.38.0` unchanged. Recorded here as a
 deliberate exception to this project's usual pattern, not a claim that
 the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
 Group J, Task Group K, Task Group L, Task Group M, Task Group N, Task
-Group O, Task Group P, Task Group Q, Task Group R, Task Group S, and
-Task Group T entries for the
+Group O, Task Group P, Task Group Q, Task Group R, Task Group S, Task
+Group T, and Task Group U entries for the
 full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
@@ -4971,14 +5011,30 @@ already captured unconditionally by both connectors with zero
 connector change required. Basic on/off control only
 (`turn_on`/`turn_off`, `turn_siren_on` gated via
 `confirm_required_tools` mirroring `unlock_device`'s own asymmetry) --
-tone/duration/volume/pattern control, `alarm_control_panel`
-integration, and any coupling to Panic/Vacation Mode all remain
-deferred. Every remaining action-taking item below (Emergency Alerts,
-scheduled/randomized Vacation Mode, geofencing, `alarm_control_panel`
-integration, any notification channel) is still deferred to Home
+tone/duration/volume/pattern control and any coupling to Panic/
+Vacation Mode remain deferred. alarm_control_panel Integration Slice
+shipped Task Group U, Aug 2026 -- a second, independent standalone
+service, `AlarmControlPanelService` (not an extension of
+`SecurityService` or `SirenService`), applying the identical
+`device_type=="other"` discrimination pattern to HA's
+`alarm_control_panel` domain, already captured unconditionally by both
+connectors with zero connector change required. Exactly three
+mutations, `arm_home`/`arm_away`/`disarm` (`disarm` gated via
+`confirm_required_tools`, the same asymmetry) -- deliberately never
+`arm_night`/`arm_vacation`/`arm_custom_bypass`/a trigger action. **No
+code/PIN parameter exists anywhere in this slice, permanently and
+structurally** -- Home Assistant's own documentation offers zero
+security guidance on one and its own MQTT alarm integration warns an
+unprotected connection sends one in the clear, so every action this
+slice sends is a bare, zero-payload command; a code-protected panel
+simply reports the action failed, honestly. Every remaining
+action-taking item below (Emergency Alerts, scheduled/randomized
+Vacation Mode, geofencing, siren tone/duration/volume/pattern control,
+alarm control panel night/vacation/custom-bypass arm modes and
+trigger, any notification channel) is still deferred to Home
 Automation/M7/future separately-scoped slices, all still unstarted.
 Zero `EventBus`, connector, `DEVICE_TYPES` or schema changes in any of
-the three shipped slices.)*
+the four shipped slices.)*
 - Intrusion Detection *(read-only inputs only -- door/window/motion/
   presence/occupancy state is reported factually and **deliberately
   never inferred as intrusion**; any actual detection logic is
@@ -4989,7 +5045,8 @@ the three shipped slices.)*
 - Water Leak Alerts ✅ *(reporting only, via HA's `moisture` device_class; response is deferred)*
 - Panic Mode ✅ *(on-demand: lock every lock, turn on every light -- scheduled/automated triggering deferred)*
 - Vacation Mode ✅ *(on-demand: lock every lock, turn off every light, best-effort eco-adjust capable thermostats -- scheduled/randomized presence simulation deferred)*
-- Siren Integration ✅ *(basic on/off control via a new standalone `SirenService` -- tone/duration/volume/pattern control, `alarm_control_panel` integration, and any Panic/Vacation Mode coupling all deferred)*
+- Siren Integration ✅ *(basic on/off control via a new standalone `SirenService` -- tone/duration/volume/pattern control and any Panic/Vacation Mode coupling deferred)*
+- alarm_control_panel Integration ✅ *(arm_home/arm_away/disarm control via a new standalone `AlarmControlPanelService` -- no code/PIN support of any kind, permanently and structurally; arm_night/arm_vacation/arm_custom_bypass, a trigger action, and any Siren/Panic/Vacation Mode coupling all deferred)*
 - Home Status Dashboard ✅ *(backend aggregate: overall status, active alerts, hazard/status sensors, lock state, unavailable counts)*
 
 Every item in this module is `safety_critical` by default (see

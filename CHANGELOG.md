@@ -3,6 +3,118 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Security & Safety — alarm_control_panel Integration Slice (Task Group U)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **alarm_control_panel Integration Slice** scope --
+**not the full Security & Safety module, not alarm history/logging,
+not any coupling to Siren/Panic/Vacation Mode**. Preceded by a Logic
+Contract (`docs/M12_SECURITY_ALARM_CONTROL_PANEL_LOGIC_CONTRACT.md`),
+written and approved before any code. A second application of Task
+Group R's own `device_type="other"` discrimination pattern: both
+connectors already map HA's `alarm_control_panel` domain (and MQTT
+Discovery's own `component`) there unconditionally, so an alarm
+control panel was already fully identifiable with zero connector or
+`DEVICE_TYPES` change -- this slice adds only the read/write service
+that acts on that already-captured identity, via a new, standalone
+`AlarmControlPanelService` (not an extension of `SecurityService` or
+`SirenService` -- `SecurityService.trigger_panic_mode`'s own docstring
+already disclaims touching sirens, the identical reasoning that ruled
+out extending it here). Exactly three mutations --
+`arm_home`/`arm_away`/`disarm` -- never `arm_night`/`arm_vacation`/
+`arm_custom_bypass`/`trigger`; `disarm` alone was added to
+`AgentSettings.confirm_required_tools`, mirroring
+`turn_siren_on`/`unlock_device`'s own directional-risk asymmetry
+(`arm_home`/`arm_away` stay ungated as the safe direction). **The
+central architectural finding**: Home Assistant's own service
+documentation gives zero security guidance on storing, logging, or
+transmitting an alarm code, and its own MQTT alarm integration
+explicitly warns that an unprotected connection sends a code over the
+network in the clear (both externally verified against Home
+Assistant's own current developer documentation) -- so this slice
+never accepts, stores, logs, or transmits a code/PIN anywhere,
+**structurally, not as a deferred gap**: no method, request body, tool
+argument, or wire payload in the entire slice has a parameter that
+could carry one. Every action is sent as a bare, zero-payload command
+-- Home Assistant's own documentation confirms this is a complete,
+valid call for any panel that does not require a code; a code-protected
+panel simply reports the action failed, honestly, via the same
+`CommandResult` path every other M12 mutation already uses. Permission:
+a new `core:alarm_control_panels` principal against the existing,
+unmodified `smart_home` scope; reads ungated, mutations gated, matching
+every prior M12 device-category service's own authorization shape.
+REST lives at its own top-level resource, `/api/v1/alarm-control-
+panels/*` -- not nested under `/security/*` or `/sirens/*`, following
+Siren's own established convention for a sibling service. 73 new
+tests, 0 failures, 0 errors; Security/Siren/Smart-Home-Memory/Appliance
+sibling regression 340 tests green; M12 regression 1185 tests green;
+M11+M12 regression 1332 tests green; full backend regression 3836
+tests green, 1 pre-existing skip.
+
+### Added
+- **`AlarmControlPanelService`** (`services/alarm_control_panel_service.py`)
+  -- `list_alarm_control_panels`, `get_alarm_control_panel_state`,
+  `arm_home`, `arm_away`, `disarm`. Identity: `device_type=="other"`
+  plus `metadata["domain"]`/`["component"]` fallback resolving to
+  `"alarm_control_panel"`, reusing `SirenService._domain_for`'s own
+  fallback order verbatim. Read model reports one of Home Assistant's
+  own ten verified `AlarmControlPanelState` values (or `None` if
+  unrecognized/unavailable) -- never fabricated.
+- **HA/MQTT command translation**: HA sends
+  `alarm_arm_home`/`alarm_arm_away`/`alarm_disarm` (HA's own real
+  service names, externally verified); MQTT sends a JARVIS-native
+  `arm_home`/`arm_away`/`disarm` vocabulary mirroring HA's own naming,
+  the same choice `SirenService`'s own `_translate_mqtt` already made.
+  Every payload, on both connectors, is an empty dict -- no `code`
+  field, ever.
+- **`GET /api/v1/alarm-control-panels`, `GET .../{device_id}`,
+  `POST .../{device_id}/arm_home`, `POST .../{device_id}/arm_away`,
+  `POST .../{device_id}/disarm`**
+  (`infrastructure/api/routes/alarm_control_panels.py`) -- same
+  `{data, meta}` envelope and 404-on-read/400-on-mutation status
+  convention `routes/sirens.py` already established.
+- **Five agent tools**: `list_alarm_control_panels`,
+  `get_alarm_control_panel_state`, `arm_home`, `arm_away`, `disarm`
+  (`agents/tools/alarm_control_panel_tools.py`), each wired through the
+  same `core:alarm_control_panels`/`smart_home` permission check the
+  REST routes use. No tool's generated argument schema has a
+  `code`/`pin` field to fill.
+- **`"disarm"` added to `AgentSettings.confirm_required_tools`**
+  (`core/config/settings.py`) -- `arm_home`/`arm_away` deliberately are
+  not, the same asymmetry `turn_siren_on`/`unlock_device` already
+  established.
+- **Frontend requirements document** -- `docs/
+  M12_SECURITY_ALARM_CONTROL_PANEL_FRONTEND_REQUIREMENTS.md`,
+  planning/specification only, written after the backend was fully
+  verified. Explicitly documents that no code/PIN UI may ever be
+  built for this feature.
+
+### Not changed
+- `SirenService`, `SecurityService` -- untouched. `AlarmControlPanelService`
+  is a new sibling, not an extension of either.
+- Both connectors (`home_assistant.py`, `mqtt.py`) -- **not modified**.
+  Both already capture `alarm_control_panel`'s own domain/component
+  into device metadata unconditionally, for every device, since Task
+  Group B.
+- `DEVICE_TYPES`, `CONNECTOR_TYPES` -- unmodified.
+- `EventBus`, Scheduler, Analytics, `MemoryService`,
+  `SmartHomeMemoryService` -- untouched. No database/schema changes.
+
+### Explicitly out of scope
+- Any code/PIN entry, storage, logging, or transmission -- permanent,
+  not deferred; the absence is structural.
+- `arm_night`, `arm_vacation`, `arm_custom_bypass`, and any `trigger`
+  action -- narrower variants of an already-proven mechanism, deferred
+  as a future, separately-scoped slice if ever needed.
+- Alarm history/logging of past arm/disarm events.
+- Any coupling to Siren, Panic Mode, or Vacation Mode.
+- Scheduled or automatic arm/disarm of any kind.
+- Any notification channel on state change (including `triggered`).
+- Every other M12 module (Smart Cameras, Home Automation, AI Home
+  Assistant, Remote Access, Smart Home Analytics).
+
 ## M12: Appliance Control — Fan Percentage + Cover Position Slice (Task Group T)
 
 **No version bump**, matching this project's own established
