@@ -3,6 +3,64 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M7: EventBus Tier 1 — Device Command Events
+
+**No version bump**, unchanged from `0.38.0`. A single infrastructure
+slice, not a new milestone -- approved by a dedicated Post-Scheduler-MVP
+Phase 0 audit and a Logic Contract
+(`docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md`).
+
+`ConnectivityService.send_command()` -- confirmed the single chokepoint
+every shipped M12 device-command service (Smart Lighting, Smart Locks,
+Smart Switch, Appliance, Thermostat, Vacuum/Humidifier, Media Player,
+Water Heater, Siren, Alarm Control Panel) already routes through, and
+the one a scheduled step reaches identically via the same
+authorize-then-invoke tool path -- now publishes a new
+`DeviceCommandExecutedEvent` on the existing `EventBus` after a
+connector-level result is known. **Zero new DI wiring**:
+`ConnectivityService` already held a live `EventBus` reference (used
+today only for connector connect/disconnect); this is one new publish
+call in an already-injected dependency, not a new abstraction.
+
+Semantics are deliberately narrow: "a command was dispatched to a
+connector and its connector-level outcome was observed"
+(`success`/`detail`, both already `CommandResult`'s own fields) --
+**not** authorization, **not** confirmation, and **not** a claim that
+the device's real state changed. Permission denials, validation
+failures, and confirmation denials all occur before this chokepoint
+and produce no event, verified directly by test, not by inspection
+alone. No raw command payload is carried -- matching
+`IntegrationCallCompletedEvent`'s own existing "no request/response
+body" precedent -- and no correlation/session identifier was
+introduced (none exists anywhere in `send_command()`'s current call
+chain to thread through). `EventBus.publish()`'s own existing
+subscriber-exception isolation (unchanged, verified by test) means a
+misbehaving subscriber can never turn a successful command into a
+failed one.
+
+**Deliberately not relayed over WebSocket yet** -- the event is
+declared in `UNPUBLISHED_EVENT_TYPES`
+(`core/lifecycle/runtime_ws_hub.py`), the same "published, relay
+deferred" treatment already given to `IntegrationConnectionTestEvent`
+and its three siblings, until a real consumer (a future Developer
+Tools Event Viewer) exists to justify wiring the frontend WS contract.
+No Event Viewer, no Home Automation trigger, no automatic Smart Home
+Memory capture, and no device state-change detection ("Tier 2") were
+built or designed here -- this event cannot honestly support any of
+them, since none observes an actual device state change, only a
+command's dispatch outcome.
+
+167 targeted tests plus 11 existing `EventBus` tests, 99 M7 tests, 1264
+M12 tests, 1411 combined M11+M12 tests, and the full backend regression
+(4027 tests, 1 pre-existing unrelated skip) all green; Black clean,
+Ruff shows only the codebase's own already-accepted local-import
+pattern (`PLC0415`) plus one now-fixed keyword-only-argument finding,
+Mypy's error set is byte-for-byte identical to the pre-implementation
+baseline (262 errors, 64 files) -- zero new findings. See
+`docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_FRONTEND_REQUIREMENTS.md` for
+why there is currently nothing for a frontend to build against this
+event.
+
 ## M7: Workflow Intelligence — Scheduler MVP (Phase 6)
 
 **No version bump**, unchanged from `0.38.0`. M7 as a whole remains

@@ -2575,6 +2575,25 @@ deliberately deferred, two are pending. Grouped by disposition:
     the full design and `docs/M7_SCHEDULER_FRONTEND_REQUIREMENTS.md`
     for the (planning-only, no code) frontend requirements this slice's
     API surface implies.
+  - **EventBus Tier 1 — Device Command Events, shipped Aug 2026.** Not
+    one of the six original M7 phases above — a small, separately
+    approved infrastructure slice recommended by the Post-Scheduler-MVP
+    Phase 0 audit as the lowest-risk next step. `ConnectivityService.
+    send_command()` (the confirmed single chokepoint every shipped M12
+    device-command service, and Scheduler's own scheduled steps, already
+    route through) now publishes a `DeviceCommandExecutedEvent` — "a
+    command was dispatched, its connector-level outcome observed",
+    never authorization, confirmation, or an actual device state
+    change. No raw command payload carried, no correlation id
+    introduced, zero new persistence, deliberately not yet relayed over
+    WebSocket (declared in `UNPUBLISHED_EVENT_TYPES`, same treatment as
+    `IntegrationConnectionTestEvent`, until a real consumer justifies
+    the surface). **This does not resolve the device-event/state-change
+    trigger gap described below** — it observes a command's dispatch
+    outcome, never whether the device's real state actually changed,
+    so Scheduler's own triggers remain time-based only and Home
+    Automation/automatic Smart Home Memory capture remain unbuilt. See
+    `docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md`.
 - **Deferred:**
   - Phase 3 (Structured Graph Planning) — would extend `AgentState` /
     `planner.py` / `tool_executor.py` / `graph.py` for cross-tool
