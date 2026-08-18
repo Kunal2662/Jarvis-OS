@@ -565,13 +565,24 @@ class AgentSettings(BaseSettings):
 class SchedulerSettings(BaseSettings):
     """Tunables for the cron/interval job scheduler (Milestone 7, Phase 6).
 
-    Declared in Phase 1 for forward compatibility only -- no scheduler
-    loop exists yet, so nothing reads these values until Phase 6.
+    ``enabled``/``poll_interval_seconds``/``max_concurrent_jobs`` were
+    declared in Phase 1 for forward compatibility only; ``default_timezone``
+    and ``misfire_grace_period_seconds`` are new in the Phase 6 MVP
+    (``docs/M7_SCHEDULER_LOGIC_CONTRACT.md`` §4/§9). All five are read by
+    ``ScheduleService`` starting this phase.
     """
 
     enabled: bool = True
     poll_interval_seconds: float = 30.0
     max_concurrent_jobs: int = 2
+    # IANA name seeded onto a Schedule when its own `timezone` field is
+    # left unspecified -- UTC, not the host machine's local zone, so
+    # scheduling stays unambiguous and portable (Logic Contract §4).
+    default_timezone: str = "UTC"
+    # Bounded-grace-period misfire policy (Logic Contract §9): a schedule
+    # missed by less than this fires once on restart; missed by more than
+    # this is skipped, never caught up in a burst.
+    misfire_grace_period_seconds: float = 300.0
 
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}SCHEDULER_", extra="ignore")
 

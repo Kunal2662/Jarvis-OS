@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -1234,3 +1234,102 @@ class LightingScene(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
+
+
+class WorkflowDefinition(Base):
+    """A named, persisted step list -- Milestone 7 Phase 6 (Scheduler MVP).
+
+    **Not the Workflow Builder.** There is no standalone authoring API
+    over this table in this phase -- ``ScheduleService.create_schedule``
+    creates exactly one dedicated row per schedule, atomically, and
+    nothing in this phase can edit a row afterward. ``steps_json`` is a
+    JSON array of ``{"id", "kind", "instruction"?, "tool_name"?,
+    "tool_args"?, "depends_on", "label"}`` objects mirroring
+    ``domain.workflow.models.WorkflowStep`` field-for-field -- the same
+    "structured payload as a JSON text column" convention
+    ``LightingScene.targets_json``/``Device.metadata_json`` already use.
+    See ``docs/M7_SCHEDULER_LOGIC_CONTRACT.md`` §5/§7.
+    """
+
+    __tablename__ = "workflow_definitions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(String(1024), default="")
+    steps_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class Schedule(Base):
+    """When a :class:`WorkflowDefinition` should run unattended --
+    Milestone 7 Phase 6 (Scheduler MVP).
+
+    Extends the pure ``domain.workflow.models.ScheduleDefinition``
+    dataclass (Phase 1) into a persisted, mutable row. Every field here
+    is individually justified in ``docs/M7_SCHEDULER_LOGIC_CONTRACT.md``
+    §4 -- notably, a schedule-level ``status``/``failure_count``/
+    ``version`` column was considered and deliberately **not** added
+    (redundant with ``enabled`` plus the latest
+    :class:`WorkflowExecution`, or not required by any MVP feature).
+    """
+
+    __tablename__ = "schedules"
+    __table_args__ = (
+        Index("ix_schedules_workflow", "workflow_id"),
+        Index("ix_schedules_next_fire", "next_fire_at"),
+        Index("ix_schedules_enabled", "enabled"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workflow_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    # "interval" | "cron" -- domain.workflow.models.ScheduleKind's values.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    interval_seconds: Mapped[float] = mapped_column(Float, default=0.0)
+    cron_expression: Mapped[str] = mapped_column(String(128), default="")
+    # IANA name (e.g. "Asia/Kolkata"), never absent -- SchedulerSettings.
+    # default_timezone seeds this when the caller doesn't specify one.
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="UTC")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+    next_fire_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_execution_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("workflow_executions.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class WorkflowExecution(Base):
+    """One firing attempt of a :class:`Schedule` -- Milestone 7 Phase 6
+    (Scheduler MVP). ``status`` is one of the eight values
+    ``docs/M7_SCHEDULER_LOGIC_CONTRACT.md`` §6 evaluated and kept
+    (``queued``/``running``/``succeeded``/``partially_failed``/
+    ``failed``/``cancelled``/``skipped``/``denied``) -- ``timed_out`` was
+    deliberately dropped there as redundant with ``failed``/
+    ``partially_failed``. ``step_results_json`` mirrors
+    ``TaskHistory``'s own existing per-step shape: a JSON array of
+    ``{"step_id", "status", "error", "duration_ms"}`` objects.
+    """
+
+    __tablename__ = "workflow_executions"
+    __table_args__ = (
+        Index("ix_workflow_executions_schedule", "schedule_id"),
+        Index("ix_workflow_executions_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    schedule_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("schedules.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    step_results_json: Mapped[str] = mapped_column(Text, default="[]")

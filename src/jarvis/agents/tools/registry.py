@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.schedule_service import ScheduleService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
     from jarvis.services.siren_service import SirenService
@@ -68,6 +69,7 @@ def build_tool_registry(
     siren: SirenService | None = None,
     alarm_control_panels: AlarmControlPanelService | None = None,
     smart_home_memory: SmartHomeMemoryService | None = None,
+    schedules: ScheduleService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -212,6 +214,14 @@ def build_tool_registry(
         from jarvis.agents.tools.smart_home_memory_tools import build_smart_home_memory_tools
 
         tools += build_smart_home_memory_tools(smart_home_memory)
+    if schedules is not None:
+        # Milestone 7 Phase 6 (Scheduler MVP). Five tools -- the
+        # minimum coherent surface (Logic Contract §13); delete/cancel
+        # stay REST-only by design -- see
+        # `agents/tools/schedule_tools.py`.
+        from jarvis.agents.tools.schedule_tools import build_schedule_tools
+
+        tools += build_schedule_tools(schedules)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

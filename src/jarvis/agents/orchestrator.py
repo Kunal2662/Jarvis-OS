@@ -68,6 +68,7 @@ if TYPE_CHECKING:
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.schedule_service import ScheduleService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
     from jarvis.services.siren_service import SirenService
@@ -116,6 +117,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         siren: SirenService | None = None,
         alarm_control_panels: AlarmControlPanelService | None = None,
         smart_home_memory: SmartHomeMemoryService | None = None,
+        schedules: ScheduleService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -211,6 +213,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # same `SmartHomeMemoryService` the REST surface calls -- see
         # `agents/tools/smart_home_memory_tools.py`.
         self._smart_home_memory = smart_home_memory
+        # Milestone 7 Phase 6 (Scheduler MVP): schedule management
+        # reaches the agent as tools on the same registry, converging
+        # on the same `ScheduleService` the REST surface calls -- see
+        # `agents/tools/schedule_tools.py`.
+        self._schedules = schedules
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -262,6 +269,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 siren=self._siren,
                 alarm_control_panels=self._alarm_control_panels,
                 smart_home_memory=self._smart_home_memory,
+                schedules=self._schedules,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

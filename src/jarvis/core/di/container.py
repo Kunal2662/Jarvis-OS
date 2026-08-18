@@ -1215,6 +1215,76 @@ def _build_devtools_connectivity_service(
     )
 
 
+def _build_schedule_service(
+    *,
+    database: Any,
+    permission_model: Any,
+    settings: Settings,
+    automation_service: Any,
+    memory_service: Any,
+    browser_service: Any,
+    chat_service: Any,
+    voice_service: Any,
+    system_service: Any,
+    vision_service: Any,
+    knowledge_service: Any,
+    intelligence_service: Any,
+    workspace_assistant_service: Any,
+    integration_service: Any,
+    smart_lighting_service: Any,
+    smart_lock_service: Any,
+    sensor_service: Any,
+    smart_switch_service: Any,
+    appliance_service: Any,
+    thermostat_service: Any,
+    vacuum_humidifier_service: Any,
+    media_player_service: Any,
+    water_heater_service: Any,
+    security_service: Any,
+    siren_service: Any,
+    alarm_control_panel_service: Any,
+    smart_home_memory_service: Any,
+) -> Any:
+    """Milestone 7 Phase 6 (Scheduler MVP). Threads through the
+    identical optional-service set `_build_agent_orchestrator` below
+    already assembles -- for `AGENT_TOOL`-kind workflow steps, this
+    service builds its own tool registry from the same
+    `build_tool_registry` factory (see `services/schedule_service.py`'s
+    own module docstring for why this is a second *instance*, not a
+    second *implementation*)."""
+    from jarvis.services.schedule_service import ScheduleService
+
+    return ScheduleService(
+        database=database,
+        permissions=permission_model,
+        settings=settings,
+        automation=automation_service,
+        memory=memory_service,
+        browser=browser_service,
+        chat=chat_service,
+        voice=voice_service,
+        system=system_service,
+        vision=vision_service,
+        knowledge=knowledge_service,
+        intelligence=intelligence_service,
+        workspace_assistant=workspace_assistant_service,
+        integrations=integration_service,
+        smart_lighting=smart_lighting_service,
+        smart_lock=smart_lock_service,
+        sensors=sensor_service,
+        smart_switch=smart_switch_service,
+        appliances=appliance_service,
+        thermostats=thermostat_service,
+        vacuum_humidifier=vacuum_humidifier_service,
+        media_players=media_player_service,
+        water_heaters=water_heater_service,
+        security=security_service,
+        siren=siren_service,
+        alarm_control_panels=alarm_control_panel_service,
+        smart_home_memory=smart_home_memory_service,
+    )
+
+
 def _build_agent_orchestrator(
     *,
     settings: Settings,
@@ -1243,6 +1313,7 @@ def _build_agent_orchestrator(
     siren: Any,
     alarm_control_panels: Any,
     smart_home_memory: Any,
+    schedules: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1274,6 +1345,7 @@ def _build_agent_orchestrator(
         siren=siren,
         alarm_control_panels=alarm_control_panels,
         smart_home_memory=smart_home_memory,
+        schedules=schedules,
         event_bus=event_bus,
     )
 
@@ -1991,6 +2063,38 @@ class Container(containers.DeclarativeContainer):
         intelligence_service=intelligence_service,
     )
 
+    # ---- Scheduler (Milestone 7 Phase 6) ---------------------------------
+    schedule_service = providers.Singleton(
+        _build_schedule_service,
+        database=database,
+        permission_model=permission_model,
+        settings=settings,
+        automation_service=automation_service,
+        memory_service=memory_service,
+        browser_service=browser_service,
+        chat_service=chat_service,
+        voice_service=voice_service,
+        system_service=system_service,
+        vision_service=vision_service,
+        knowledge_service=knowledge_service,
+        intelligence_service=intelligence_service,
+        workspace_assistant_service=workspace_assistant_service,
+        integration_service=integration_service,
+        smart_lighting_service=smart_lighting_service,
+        smart_lock_service=smart_lock_service,
+        sensor_service=sensor_service,
+        smart_switch_service=smart_switch_service,
+        appliance_service=appliance_service,
+        thermostat_service=thermostat_service,
+        vacuum_humidifier_service=vacuum_humidifier_service,
+        media_player_service=media_player_service,
+        water_heater_service=water_heater_service,
+        security_service=security_service,
+        siren_service=siren_service,
+        alarm_control_panel_service=alarm_control_panel_service,
+        smart_home_memory_service=smart_home_memory_service,
+    )
+
     # ---- Agents (Milestone 5-Agents) ------------------------------------
     agent_orchestrator = providers.Singleton(
         _build_agent_orchestrator,
@@ -2020,5 +2124,6 @@ class Container(containers.DeclarativeContainer):
         siren=siren_service,
         alarm_control_panels=alarm_control_panel_service,
         smart_home_memory=smart_home_memory_service,
+        schedules=schedule_service,
         event_bus=event_bus,
     )

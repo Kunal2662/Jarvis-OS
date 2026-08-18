@@ -43,6 +43,12 @@ PERMISSION_SCOPES: frozenset[str] = frozenset(
         "memory.write",
         "smart_home",
         "notifications",
+        # Milestone 7 Phase 6 (Scheduler MVP): CRUD on Schedule/
+        # WorkflowDefinition/WorkflowExecution rows only -- never implies
+        # permission to execute a scheduled step's own underlying action,
+        # which stays independently gated by PermissionGate/
+        # AgentPermissionGate (docs/M7_SCHEDULER_LOGIC_CONTRACT.md §12).
+        "scheduler",
     }
 )
 
