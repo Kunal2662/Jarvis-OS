@@ -2594,6 +2594,32 @@ deliberately deferred, two are pending. Grouped by disposition:
     so Scheduler's own triggers remain time-based only and Home
     Automation/automatic Smart Home Memory capture remain unbuilt. See
     `docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md`.
+  - **EventBus Tier 2 — Device State-Changed Event, shipped Aug 2026.**
+    A second small, separately approved infrastructure slice, following
+    directly from Tier 1's own documented boundary ("a command
+    executed" is not "state changed"). `SmartHomeService.
+    report_device_state()` — the only place a device's previous
+    lifecycle status was already fetched into scope (previously
+    discarded) — now publishes `DeviceStateChangedEvent` whenever
+    `previous_status != status`: a genuine transition among
+    `discovered`/`pairing`/`paired`/`offline`/`unreachable`/`removed`,
+    never a same-value no-op refresh. Availability transitions flow
+    through this same event, not a separate type. **Purely additive**:
+    the pre-existing, already-relayed `DeviceUpdatedEvent` (`"device.
+    updated"`) keeps its own unconditional-publish behavior on this
+    exact code path completely unchanged — a documented, pre-existing
+    gap against that event's own stated intent, deliberately left
+    unfixed here (Logic Contract §6) rather than risk an
+    unverifiable frontend-consumer regression. Scoped strictly to
+    lifecycle status — **not** per-category attributes (brightness,
+    temperature, etc.), none of which is persisted anywhere for such
+    an event to read; that remains a separate, larger,
+    not-yet-scoped state-normalization initiative. Connector-agnostic
+    (touches neither MQTT nor Home Assistant connector code), no
+    polling loop introduced, deliberately not yet relayed over
+    WebSocket (declared in `UNPUBLISHED_EVENT_TYPES`, same deferred
+    treatment as Tier 1's own event). See
+    `docs/M7_EVENTBUS_DEVICE_STATE_CHANGED_LOGIC_CONTRACT.md`.
 - **Deferred:**
   - Phase 3 (Structured Graph Planning) — would extend `AgentState` /
     `planner.py` / `tool_executor.py` / `graph.py` for cross-tool

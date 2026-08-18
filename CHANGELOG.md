@@ -3,6 +3,72 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M7: EventBus Tier 2 — Device State-Changed Event
+
+**No version bump**, unchanged from `0.38.0`. A single infrastructure
+slice, not a new milestone -- approved by a dedicated Phase 0 audit
+and a Logic Contract
+(`docs/M7_EVENTBUS_DEVICE_STATE_CHANGED_LOGIC_CONTRACT.md`), following
+directly from Tier 1's own "device state changed" is a materially
+different fact from "a command executed" boundary.
+
+`SmartHomeService.report_device_state()` -- the only place a device's
+previous lifecycle status was already fetched into scope (previously
+discarded) -- now publishes a new `DeviceStateChangedEvent` whenever
+`previous_status != status`: a genuine lifecycle transition
+(`discovered`/`pairing`/`paired`/`offline`/`unreachable`/`removed`),
+never a same-value no-op refresh. Availability transitions
+(offline/unreachable/paired) flow through this identical event, not a
+separate type. **Zero new DI wiring**: `SmartHomeService` already held
+a live `EventBus` reference. **Zero schema change**: the previous
+status value was already being fetched by the existing code, just
+discarded; capturing it costs nothing extra.
+
+**Purely additive, by explicit design decision.** The pre-existing
+`DeviceUpdatedEvent` -- already shipped, already relayed over
+WebSocket as `"device.updated"` -- has its own, separate,
+unconditional-publish behavior on this exact code path (it fires on
+every call, including no-op refreshes, a real but pre-existing gap
+against its own docstring's stated intent). This slice's Logic
+Contract explicitly evaluated fixing that behavior in place against
+adding a new, independently-guarded event, and chose the latter: any
+frontend or backend consumer already relying on `DeviceUpdatedEvent`'s
+existing frequency and meaning is completely unaffected -- verified by
+the full pre-existing `test_smart_home_service.py` suite passing
+unmodified. The `DeviceUpdatedEvent` gap itself remains open,
+documented, and available as a separate, future, low-risk fix -- not
+resolved by this slice.
+
+Scoped strictly to the generic lifecycle status field -- **not**
+per-category device attributes (brightness, temperature, humidity,
+etc.), none of which is persisted anywhere in this codebase for such
+an event to read. No raw connector payload, no `metadata_json`, no
+credentials. Connector-agnostic: touches neither the MQTT nor the Home
+Assistant connector, and remains reachable only via the existing
+on-demand `POST /connectivity/devices/{id}/refresh` route -- no
+polling loop or automatic refresh was introduced.
+
+**Deliberately not relayed over WebSocket yet** -- declared in
+`UNPUBLISHED_EVENT_TYPES` (`core/lifecycle/runtime_ws_hub.py`),
+matching Tier 1's own deferred-relay treatment, until a real consumer
+(a future Event Viewer) exists to justify the surface.
+
+114 targeted tests (emission/non-emission, previous/current status
+correctness, first-observation and availability-transition behavior,
+subscriber-exception isolation, no-duplicate-events, REST-refresh
+parity, payload-structure guards, and `DeviceUpdatedEvent`
+compatibility guards, plus the existing WebSocket-relay pinned
+vocabulary tests) plus 99 M7 tests, 1414 combined M11+M12 tests, and
+the full backend regression (4044 tests, 1 pre-existing unrelated
+skip) all green; Black clean, Ruff shows only the codebase's own
+already-accepted local-import pattern (`PLC0415`) plus one now-fixed
+`contextlib.suppress` finding, Mypy's error set is byte-for-byte
+identical to the pre-implementation baseline (262 errors, 64 files).
+See
+`docs/M7_EVENTBUS_DEVICE_STATE_CHANGED_FRONTEND_REQUIREMENTS.md` for
+why there is currently nothing for a frontend to build against this
+event.
+
 ## M7: EventBus Tier 1 — Device Command Events
 
 **No version bump**, unchanged from `0.38.0`. A single infrastructure
