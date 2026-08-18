@@ -3,6 +3,115 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Security & Safety — Siren Advanced Controls Slice (Task Group W)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Siren Advanced Controls Slice** scope -- **not
+Security & Safety complete, not Siren Integration "complete again",
+not siren history, not pattern/waveform support (no corresponding
+Home Assistant capability exists to build)**. Preceded by a Logic
+Contract (`docs/M12_SECURITY_SIREN_ADVANCED_CONTROLS_LOGIC_CONTRACT.md`),
+written and approved before any code, itself grounded in a fresh M12
+Phase 0 audit's own #1 recommendation. Extends the existing
+`SirenService.turn_on`/`POST /sirens/{id}/turn_on`/`turn_siren_on`
+agent tool in place with three optional parameters -- `tone`,
+`duration` (seconds), `volume_level` (`0.0`-`1.0`) -- Home Assistant's
+own verbatim `siren.turn_on` parameters, externally verified against
+Home Assistant's own current developer documentation this task
+group's own Phase 1: `SirenEntityFeature` has exactly five flags
+(`TURN_ON`/`TURN_OFF`/`TONES`/`DURATION`/`VOLUME_SET`) -- **no
+pattern/waveform flag exists in Home Assistant's siren platform at
+all**, so the roadmap's own recurring "tone/duration/volume/pattern"
+phrase names a capability with nothing to build; recorded here rather
+than silently corrected. No new command, no new method, no new REST
+endpoint, no new agent tool -- mirrors `SmartLightingService`'s own
+"merge optional attributes into one wire call" shape, not
+`ApplianceService`'s separate-endpoint shape, because these are
+optional parameters of the *same* HA service, not separate ones.
+`tone` is validated against the device's own live-reported
+`available_tones` when non-empty, mirroring
+`MediaPlayerService._check_source`'s own precedent for an
+open-vocabulary parameter, permissive otherwise. `duration`/
+`volume_level` are format/range-validated locally only -- Home
+Assistant's own base platform already silently filters a parameter an
+entity does not support before it reaches the integration, verified
+directly from Home Assistant's own developer documentation, so no
+local capability pre-check duplicates that. No read-back of any of
+the three exists in Home Assistant's own siren state model, so none
+is added here -- a pure write-capability expansion, never history or
+persisted state. Existing bare `turn_on()`/`turn_off()` calls, existing
+permissions (`core:sirens`/`smart_home`), and the existing
+`turn_siren_on` confirmation requirement (`AgentPermissionGate` gates
+by tool name only, confirmed unaffected by richer arguments) are all
+byte-for-byte unchanged. 93 new/updated tests, 0 failures, 0 errors;
+Security/AlarmControlPanel/SmartHomeMemory sibling regression 195
+tests green; M12 regression 1243 tests green; M11+M12 regression 1390
+tests green; full backend regression 3894 tests green, 1 pre-existing
+skip.
+
+### Added
+- **`SirenService.turn_on`** gains three optional keyword parameters:
+  `tone: str | None`, `duration: int | None`, `volume_level: float |
+  None`. `turn_off` is completely unchanged -- HA's own `siren.
+  turn_off` takes no parameters.
+- **`_validate_tone`/`_validate_duration`/`_validate_volume_level`**
+  (`services/siren_service.py`) -- format/range validation.
+  `volume_level` reuses `media_player_service._validate_volume`'s
+  exact `0.0`-`1.0` logic (bool/NaN/inf rejection included). `duration`
+  rejects `bool`/non-`int`/negative; no maximum enforced (HA defines
+  none). `tone` rejects non-string/empty; the "is this tone actually
+  supported" question is answered live, not by a fixed enum.
+- **`_check_tone_supported`** -- a live connector read validating a
+  requested `tone` against the device's own reported `available_tones`
+  attribute, permissive when the device reports none. Mirrors
+  `MediaPlayerService._check_source` verbatim.
+- **HA/MQTT translators** extended to build `{"tone": ..., "duration":
+  ..., "volume_level": ...}` only from whichever parameters are set --
+  an omitted parameter is absent from the payload, never `null`.
+- **`TurnSirenOnRequest`** (`infrastructure/api/routes/sirens.py`) --
+  an all-optional Pydantic body on the existing `POST .../turn_on`
+  route; a missing or empty body produces the exact bare call this
+  route has always made.
+- **`turn_siren_on` agent tool** gains the same three optional
+  arguments, using the existing `home_id: str = ""`-style sentinel
+  convention already used elsewhere in this same tool file.
+- **Frontend requirements document** -- `docs/
+  M12_SECURITY_SIREN_ADVANCED_CONTROLS_FRONTEND_REQUIREMENTS.md`,
+  planning/specification only, written after the backend was fully
+  verified.
+
+### Not changed
+- `SirenCommand` enum, `turn_off`, `list_sirens`, `get_siren_state`,
+  `_siren_payload` -- byte-identical, zero behavior change. No `tone`/
+  `duration`/`volume_level`/`available_tones` key was added to the
+  read model.
+- Both connectors (`home_assistant.py`, `mqtt.py`) -- **not
+  modified**. Both already accept an arbitrary payload dict
+  generically.
+- `DEVICE_TYPES`, `CONNECTOR_TYPES` -- unmodified.
+- No new `PermissionModel` principal -- reuses the existing
+  `core:sirens`/`smart_home` grant. No new `confirm_required_tools`
+  entry -- `turn_siren_on` was already gated; `AgentPermissionGate`
+  gates by tool name only, confirmed unaffected by richer arguments.
+- `EventBus`, Scheduler, Analytics, `MemoryService`, `SecurityService`,
+  `AlarmControlPanelService` -- untouched. No database/schema changes.
+
+### Explicitly out of scope
+- Siren pattern/custom waveform control -- confirmed no corresponding
+  Home Assistant `SirenEntityFeature` exists; nothing to build.
+- `alarm_control_panel` actions of any kind.
+- Siren activation/state history beyond Smart Home Memory's own
+  existing, unmodified on-demand snapshot (Task Group V).
+- Notifications, automation, scheduled sirens.
+- Panic Mode / Vacation Mode coupling, in either direction.
+- A future `GET`-side capability read (`available_tones` surfaced in
+  `get_siren_state`) -- a real, legitimate possible follow-on,
+  deliberately not bundled into this write-only task group.
+- Every other M12 module (Smart Cameras, Home Automation, AI Home
+  Assistant, Remote Access, Smart Home Analytics).
+
 ## M12: Smart Home Memory — Security Device-Category Expansion Slice (Task Group V)
 
 **No version bump**, matching this project's own established

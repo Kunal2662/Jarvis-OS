@@ -966,6 +966,40 @@ M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_FRONTEND_
 REQUIREMENTS.md` for the (planning-only, no code) frontend
 requirements this slice's API surface implies.
 
+**M12 — Security & Safety (Siren Advanced Controls Slice) shipped Aug
+2026.** A fresh Phase 0 audit after Task Group V ranked this slice its
+#1 recommendation: extends the existing `SirenService.turn_on` in
+place with three optional parameters -- `tone`, `duration`,
+`volume_level` -- Home Assistant's own verbatim `siren.turn_on`
+parameters, externally verified against Home Assistant's own current
+developer documentation during this slice's own Phase 1.
+`SirenEntityFeature` has exactly five flags (`TURN_ON`/`TURN_OFF`/
+`TONES`/`DURATION`/`VOLUME_SET`) -- **no pattern/waveform flag exists
+in Home Assistant's siren platform at all**, so the roadmap's own
+recurring "tone/duration/volume/pattern" phrase named a capability
+with nothing to build; recorded here rather than silently corrected.
+No new command, method, endpoint, or tool -- mirrors
+`SmartLightingService`'s own "merge optional attributes into one wire
+call" shape (these are optional parameters of the *same* HA service),
+not `ApplianceService`'s separate-endpoint shape. `tone` is validated
+against the device's own live-reported `available_tones` when
+non-empty, mirroring `MediaPlayerService._check_source`'s own
+precedent, permissive otherwise; `duration`/`volume_level` are
+format/range-validated locally only, since Home Assistant's own base
+platform already silently filters an unsupported parameter before it
+reaches the integration. No read-back of any of the three exists in
+Home Assistant's own siren state model, so none is added -- a pure
+write-capability expansion. Existing bare `turn_on()`/`turn_off()`
+calls, permissions, and the existing `turn_siren_on` confirmation
+requirement are all byte-for-byte unchanged -- confirmed directly from
+`AgentPermissionGate.authorize`'s own source, which gates by tool name
+only. 93 new/updated tests, 0 failures, 0 errors, full backend
+regression (3894 tests) green, 1 pre-existing skip. See `docs/
+M12_SECURITY_SIREN_ADVANCED_CONTROLS_LOGIC_CONTRACT.md` for the full
+Logic Contract and `docs/M12_SECURITY_SIREN_ADVANCED_CONTROLS_
+FRONTEND_REQUIREMENTS.md` for the (planning-only, no code) frontend
+requirements this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
@@ -978,7 +1012,9 @@ alarm_control_panel Integration Slice, Developer
 Tools' Connectivity / Integration Health Slice, Device Simulator Slice
 **and** Device Diagnostics Slice, and Smart Home Memory's Manual/
 On-Demand Device Snapshot Slice, Device-Category Expansion Slice
-**and** Security Device-Category Expansion Slice are now shipped; five of this
+**and** Security Device-Category Expansion Slice are now shipped
+(Siren Integration Slice itself now includes its own Advanced
+Controls Slice -- tone/duration/volume); five of this
 milestone's fifteen modules remain entirely unstarted (Smart
 Cameras, Home Automation, AI Home Assistant, Remote Access, Smart Home
 Analytics) — Energy Management, Appliance Control, Security & Safety,
@@ -996,16 +1032,19 @@ deferred; the two remaining named appliance categories (Smart Kitchen,
 Smart Pumps/Irrigation) are both blocked on the current connector
 domain mapping, not merely unbuilt -- no further Appliance Control
 category remains buildable without a connector or domain-model change;
-Security & Safety: Panic Mode, a narrowly-scoped Vacation Mode, basic
-siren on/off control, and now `arm_home`/`arm_away`/`disarm` control
-for alarm control panels (permanently, structurally, with no code/PIN
-support of any kind) only — Emergency Alerts, scheduled/randomized
-Vacation Mode, geofencing, siren tone/duration/volume/pattern control,
-`arm_night`/`arm_vacation`/`arm_custom_bypass`/a trigger action for
-alarm control panels, any coupling between the Siren Integration
-Slice/alarm_control_panel Integration Slice and Panic/Vacation Mode,
-and every notification channel remain deferred, each blocked on
-infrastructure this slice deliberately did not build; Developer
+Security & Safety: Panic Mode, a narrowly-scoped Vacation Mode, siren
+on/off control **plus** tone/duration/volume, and `arm_home`/
+`arm_away`/`disarm` control for alarm control panels (permanently,
+structurally, with no code/PIN support of any kind) only — Emergency
+Alerts, scheduled/randomized Vacation Mode, geofencing (siren
+"pattern" control is not a real, separate item to defer — Home
+Assistant's own `SirenEntityFeature` enum has no such flag, confirmed
+by external verification during the Advanced Controls Slice's own
+Phase 1), `arm_night`/`arm_vacation`/`arm_custom_bypass`/a trigger
+action for alarm control panels, any coupling between the Siren
+Integration Slice/alarm_control_panel Integration Slice and Panic/
+Vacation Mode, and every notification channel remain deferred, each
+blocked on infrastructure this slice deliberately did not build; Developer
 Tools: Connectivity/Integration Health, Device Simulator
 (light/switch/thermostat/lock/sensor categories, the `"home_assistant"`
 connector slot only), and Device Diagnostics (same five-category
@@ -1023,16 +1062,16 @@ on privacy/security grounds (not merely unbuilt), and
 automatic/scheduled/event-driven capture and diff/trend/analytics
 views remain deferred to the still-unresolved EventBus gap and M20A
 Analytics respectively). **No version bump accompanied any
-of the twenty-four task-group passes** -- unlike M22's own task groups
+of the twenty-five task-group passes** -- unlike M22's own task groups
 (each of which shipped real code and bumped the version in turn), all
-twenty-four ship real code at `0.38.0` unchanged. Recorded here as a
+twenty-five ship real code at `0.38.0` unchanged. Recorded here as a
 deliberate exception to this project's usual pattern, not a claim that
 the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
 Group J, Task Group K, Task Group L, Task Group M, Task Group N, Task
 Group O, Task Group P, Task Group Q, Task Group R, Task Group S, Task
-Group T, Task Group U, and Task Group V entries for the
+Group T, Task Group U, Task Group V, and Task Group W entries for the
 full implementation account.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
@@ -5041,11 +5080,23 @@ or `SmartSwitchService`), identifying a siren via
 `device_type=="other"` plus the same `metadata["domain"]`/
 `["component"]` fallback every appliance-domain service already uses,
 already captured unconditionally by both connectors with zero
-connector change required. Basic on/off control only
+connector change required. Basic on/off control
 (`turn_on`/`turn_off`, `turn_siren_on` gated via
 `confirm_required_tools` mirroring `unlock_device`'s own asymmetry) --
-tone/duration/volume/pattern control and any coupling to Panic/
-Vacation Mode remain deferred. alarm_control_panel Integration Slice
+any coupling to Panic/Vacation Mode remains deferred. Advanced
+Controls Slice shipped Task Group W, Aug 2026 -- extends `turn_on` in
+place with three optional Home Assistant `siren.turn_on` parameters
+(`tone`/`duration`/`volume_level`, externally verified), never a new
+command/method/endpoint/tool. `SirenEntityFeature` has exactly five
+flags (`TURN_ON`/`TURN_OFF`/`TONES`/`DURATION`/`VOLUME_SET`) -- no
+pattern/waveform flag exists in Home Assistant's siren platform at
+all, closing the "pattern control" phrase in this document's own
+earlier prose as a non-capability, not a still-open item. `tone` is
+validated against the device's own live-reported `available_tones`
+when non-empty; `duration`/`volume_level` are format/range-validated
+locally only, since Home Assistant's own base platform already
+silently filters an unsupported parameter. No read-back of any of the
+three exists in Home Assistant's own siren state model. alarm_control_panel Integration Slice
 shipped Task Group U, Aug 2026 -- a second, independent standalone
 service, `AlarmControlPanelService` (not an extension of
 `SecurityService` or `SirenService`), applying the identical
@@ -5062,12 +5113,13 @@ unprotected connection sends one in the clear, so every action this
 slice sends is a bare, zero-payload command; a code-protected panel
 simply reports the action failed, honestly. Every remaining
 action-taking item below (Emergency Alerts, scheduled/randomized
-Vacation Mode, geofencing, siren tone/duration/volume/pattern control,
-alarm control panel night/vacation/custom-bypass arm modes and
-trigger, any notification channel) is still deferred to Home
-Automation/M7/future separately-scoped slices, all still unstarted.
-Zero `EventBus`, connector, `DEVICE_TYPES` or schema changes in any of
-the four shipped slices.)*
+Vacation Mode, geofencing, alarm control panel night/vacation/
+custom-bypass arm modes and trigger, any notification channel) is
+still deferred to Home Automation/M7/future separately-scoped slices,
+all still unstarted -- siren "pattern control" is not among them,
+having no real Home Assistant capability to defer (above). Zero
+`EventBus`, connector, `DEVICE_TYPES` or schema changes in any of the
+five shipped slices.)*
 - Intrusion Detection *(read-only inputs only -- door/window/motion/
   presence/occupancy state is reported factually and **deliberately
   never inferred as intrusion**; any actual detection logic is
@@ -5078,7 +5130,7 @@ the four shipped slices.)*
 - Water Leak Alerts ✅ *(reporting only, via HA's `moisture` device_class; response is deferred)*
 - Panic Mode ✅ *(on-demand: lock every lock, turn on every light -- scheduled/automated triggering deferred)*
 - Vacation Mode ✅ *(on-demand: lock every lock, turn off every light, best-effort eco-adjust capable thermostats -- scheduled/randomized presence simulation deferred)*
-- Siren Integration ✅ *(basic on/off control via a new standalone `SirenService` -- tone/duration/volume/pattern control and any Panic/Vacation Mode coupling deferred)*
+- Siren Integration ✅ *(on/off control plus tone/duration/volume via a new standalone `SirenService` -- pattern control has no corresponding Home Assistant capability to build; any Panic/Vacation Mode coupling deferred)*
 - alarm_control_panel Integration ✅ *(arm_home/arm_away/disarm control via a new standalone `AlarmControlPanelService` -- no code/PIN support of any kind, permanently and structurally; arm_night/arm_vacation/arm_custom_bypass, a trigger action, and any Siren/Panic/Vacation Mode coupling all deferred)*
 - Home Status Dashboard ✅ *(backend aggregate: overall status, active alerts, hazard/status sensors, lock state, unavailable counts)*
 
