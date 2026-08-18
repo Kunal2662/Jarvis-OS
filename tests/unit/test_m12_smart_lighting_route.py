@@ -142,6 +142,56 @@ def test_set_light_state_succeeds_after_grant(client, auth, fake_connector) -> N
     assert response.json()["meta"]["success"] is True
 
 
+# --- Device command events (M7 EventBus Tier 1) -----------------------------
+# See docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md. A REST call
+# reaches the identical ConnectivityService.send_command() chokepoint an
+# agent tool or a scheduled step does -- proving the event fires from this
+# origin too, not just the service layer directly.
+
+
+def test_set_light_state_success_publishes_device_command_executed_event(
+    client, auth, fake_connector
+) -> None:
+    from jarvis.core.events.events import DeviceCommandExecutedEvent
+
+    home_id = _home(client, auth)
+    device_id = _connected_light(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+    seen: list[DeviceCommandExecutedEvent] = []
+    client.container.event_bus().subscribe(DeviceCommandExecutedEvent, seen.append)
+
+    response = client.post(
+        f"/api/v1/smart-lighting/lights/{device_id}/state", json={"on": True}, headers=auth
+    )
+
+    assert response.status_code == 200
+    assert len(seen) == 1
+    assert seen[0].device_id == device_id
+    assert seen[0].home_id == home_id
+    assert seen[0].device_type == "light"
+    assert seen[0].connector_type == "home_assistant"
+    assert seen[0].command == "turn_on"
+    assert seen[0].success is True
+
+
+def test_set_light_state_denied_without_grant_publishes_no_event(
+    client, auth, fake_connector
+) -> None:
+    from jarvis.core.events.events import DeviceCommandExecutedEvent
+
+    home_id = _home(client, auth)
+    device_id = _connected_light(client, auth, fake_connector, home_id)
+    seen: list[DeviceCommandExecutedEvent] = []
+    client.container.event_bus().subscribe(DeviceCommandExecutedEvent, seen.append)
+
+    response = client.post(
+        f"/api/v1/smart-lighting/lights/{device_id}/state", json={"on": True}, headers=auth
+    )
+
+    assert response.status_code == 400
+    assert seen == []
+
+
 def test_grant_is_reusable_via_the_existing_generic_plugin_route(client, auth) -> None:
     """No new grant endpoint was added -- the existing, generic
     ``/plugins/{id}/permissions/{scope}/grant`` route (Milestone 9 Task

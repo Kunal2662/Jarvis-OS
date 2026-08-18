@@ -458,6 +458,115 @@ async def test_confirm_required_agent_tool_step_is_denied_not_auto_approved(
     assert got["enabled"] is True
 
 
+# --- Device command events (M7 EventBus Tier 1) -----------------------------
+# See docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md §14: a
+# scheduled command converges on the identical ConnectivityService.
+# send_command() chokepoint any other caller does -- no Scheduler-specific
+# event path exists or is added here.
+
+
+@pytest.mark.asyncio
+async def test_confirm_required_agent_tool_step_publishes_no_device_command_event(
+    service, permissions, db, bus
+) -> None:
+    """The denied ``run_automation`` step (Policy A) never invokes its
+    underlying tool at all, so -- regardless of which service that tool
+    would have called -- zero command-executed events can result."""
+    from jarvis.core.events.events import DeviceCommandExecutedEvent
+
+    seen: list[DeviceCommandExecutedEvent] = []
+    bus.subscribe(DeviceCommandExecutedEvent, seen.append)
+    await _grant(permissions)
+    schedule = await service.create_schedule(
+        name="x",
+        kind="interval",
+        interval_seconds=60.0,
+        steps=[_agent_tool_step("run_automation", {"instruction": "shutdown the computer"})],
+    )
+    await _force_due(db, schedule["id"])
+    await service.tick()
+
+    executions = await service.list_executions(schedule["id"])
+    assert executions[0]["status"] == "denied"
+    assert seen == []
+
+
+@pytest.mark.asyncio
+async def test_scheduled_agent_tool_step_success_publishes_device_command_executed_event(
+    db, bus, permissions, *, settings, automation, sensors_granted, tmp_path
+) -> None:
+    """A scheduled, non-confirm-required device-command step (Smart
+    Lighting's own ``set_light_state``, not in
+    ``AgentSettings.confirm_required_tools``) reaches
+    ``ConnectivityService.send_command()`` exactly as a REST- or
+    agent-tool-originated call does, and produces the identical event --
+    with no schedule identifier or scheduler-specific metadata attached,
+    per the Logic Contract's explicit boundary."""
+    from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
+    from jarvis.core.events.events import DeviceCommandExecutedEvent
+    from jarvis.core.plugins.permissions import PermissionModel
+    from jarvis.services.connectivity_service import ConnectivityService
+    from jarvis.services.schedule_service import ScheduleService
+    from jarvis.services.smart_home_service import SmartHomeService
+    from jarvis.services.smart_lighting_service import (
+        SMART_HOME_SCOPE,
+        SMART_LIGHTING_PRINCIPAL,
+        SmartLightingService,
+    )
+    from tests.fakes.fake_device_connector import FakeDeviceConnector
+
+    seen: list[DeviceCommandExecutedEvent] = []
+    bus.subscribe(DeviceCommandExecutedEvent, seen.append)
+
+    fake_connector = FakeDeviceConnector()
+    registry = ConnectorFactoryRegistry()
+    registry.register("home_assistant", lambda config: fake_connector)
+    smart_home = SmartHomeService(database=db, event_bus=bus)
+    connectivity = ConnectivityService(registry=registry, smart_home=smart_home, event_bus=bus)
+    lighting_permissions = PermissionModel(bus, store_path=tmp_path / "lighting_permissions.json")
+    lighting = SmartLightingService(
+        database=db,
+        smart_home=smart_home,
+        connectivity=connectivity,
+        permissions=lighting_permissions,
+    )
+    await lighting_permissions.grant(SMART_LIGHTING_PRINCIPAL, SMART_HOME_SCOPE)
+    await connectivity.connect("home_assistant")
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Lamp",
+        device_type="light",
+        external_id="light.lamp",
+        metadata={"connector_type": "home_assistant"},
+    )
+
+    service = ScheduleService(
+        database=db,
+        permissions=permissions,
+        settings=settings,
+        automation=automation,
+        sensors=sensors_granted,
+        smart_lighting=lighting,
+    )
+    await _grant(permissions)
+    schedule = await service.create_schedule(
+        name="x",
+        kind="interval",
+        interval_seconds=60.0,
+        steps=[_agent_tool_step("set_light_state", {"device_id": device.id, "on": True})],
+    )
+    await _force_due(db, schedule["id"])
+    await service.tick()
+
+    executions = await service.list_executions(schedule["id"])
+    assert executions[0]["status"] == "succeeded"
+    assert len(seen) == 1
+    assert seen[0].device_id == device.id
+    assert seen[0].command == "turn_on"
+    assert seen[0].success is True
+
+
 @pytest.mark.asyncio
 async def test_confirm_required_automation_step_is_denied(service, permissions, db) -> None:
     """The identical Policy A guarantee, exercised through the OTHER

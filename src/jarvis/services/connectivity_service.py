@@ -227,7 +227,9 @@ class ConnectivityService:
                 f"Device {device_id!r} has no recorded connector; it cannot be commanded."
             )
         connector = self._require_connector(connector_type)
-        return await connector.send_command(device.external_id or "", command, payload or {})
+        result = await connector.send_command(device.external_id or "", command, payload or {})
+        await self._publish_command_result(device, connector_type, command, result)
+        return result
 
     # ------------------------------------------------------------------
     # Events
@@ -240,5 +242,30 @@ class ConnectivityService:
         await self._event_bus.publish(
             ConnectivityStatusChangedEvent(
                 connector_type=connector_type, status=status, detail=detail
+            )
+        )
+
+    async def _publish_command_result(
+        self, device: Device, connector_type: str, command: str, result: CommandResult
+    ) -> None:
+        """The Tier 1 event -- see
+        ``docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md``.
+        Published only from here, only after *result* already exists,
+        so this can never itself change ``send_command``'s own return
+        value -- observation, not participation."""
+        if self._event_bus is None:
+            return
+        from jarvis.core.events.events import DeviceCommandExecutedEvent
+
+        await self._event_bus.publish(
+            DeviceCommandExecutedEvent(
+                device_id=device.id,
+                home_id=device.home_id,
+                room_id=device.room_id or "",
+                device_type=device.device_type,
+                connector_type=connector_type,
+                command=command,
+                success=result.success,
+                detail=result.detail,
             )
         )
