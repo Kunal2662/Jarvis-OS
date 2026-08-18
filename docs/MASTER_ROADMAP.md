@@ -1103,6 +1103,42 @@ Scheduler, or database/schema changes. **M12 now enters its structured
 rework phase; no further M12 feature task group (a "Task Group X")
 begins without a separate, explicit approval.**
 
+**M0–M12 structured rework phase: COMPLETE.** A fresh, repository-wide
+Phase 0 audit (M0 through M12 plus 16 cross-cutting architecture
+areas) found zero P0 findings and two P1 findings; both are now
+closed or explicitly tracked. (1) `SensorService._kind_for`
+(`src/jarvis/services/sensor_service.py`) had the identical
+`metadata["domain"]`-only defect the `ApplianceService` fix above
+closed -- an MQTT-HA-Discovery binary sensor was silently
+misclassified `"numeric"`. Fixed with the same `domain`-then-
+`component` fallback, 7 new regression tests, full M12 (1259 tests),
+M11+M12 (1387 tests), and full backend regression (3910 tests, 1
+pre-existing unrelated skip) all green; Black/Ruff/Mypy unchanged
+against baseline. (2) The `AgentPermissionGate` confirm-callback gap
+(no interactive confirmation channel wired at the DI composition
+root for `confirm_required_tools`) is **not** fixed here -- it is
+correctly owned by M14 (Authorization Engine) and a not-yet-scoped
+confirmation surface, and is now recorded in M10's own Deferred list
+above rather than left undocumented. Three sibling-service docstrings
+(`VacuumHumidifierService`, `MediaPlayerService`, the Water Heater
+service) that described the `ApplianceService` gap as still unfixed
+were corrected to reflect the P1-1 fix. A read-only investigation
+into connector-credential persistence found `ConnectorCredentialStore`
+is fully implemented and unit-tested but has zero call sites wiring
+it into the actual `POST .../connect` flow -- config values live only
+in-process and are lost on restart; no security exposure (nothing is
+logged or leaked), already honestly disclosed by `routes/
+connectivity.py`'s own docstring, classified P2 and **not** fixed
+here pending a separate, explicitly-approved task. **This closure
+does not mark Energy Management's Load Scheduling, Analytics, Remote
+Access, multilingual support, the AI Calibration Engine, or the
+Human Interaction Engine as implemented** -- each remains exactly as
+deferred and owned (M7, M20/M20A, M21, M15, the unscheduled §22
+engine, and M14/a future interaction surface respectively) as
+recorded elsewhere in this document; closing the rework phase means
+the audit's own findings are resolved or tracked, not that every
+M12-adjacent capability now exists.
+
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
 all four are waiting on the same thing: TG-C's Build Verification
@@ -3318,6 +3354,23 @@ item's own reason, not silently dropped):
   (Authorization Engine), not started; `AgentPermissionGate` is the
   interim single enforcement point, built so swapping in M14 later
   means replacing its `authorize()` body, not the graph wiring.
+- **Confirmation channel for `confirm_required_tools`** -- verified by
+  the M0-M12 Structured Rework Audit: `AgentPermissionGate` gates
+  correctly by tool name (`run_automation`, `unlock_device`,
+  `trigger_panic_mode`, `trigger_vacation_mode`, `turn_siren_on`,
+  `disarm` -- `AgentSettings.confirm_required_tools`), but no
+  `confirm` callback is supplied anywhere in `core/di/container.py`'s
+  `_build_agent_orchestrator`, so every call to one of these six tools
+  currently falls through to `_default_deny` and is denied --
+  fail-safe, not fail-open, and logged as a warning each time, but not
+  currently actionable by a caller. This affects `POST /agent/invoke`/
+  `/agent/stream` unconditionally (both always reach
+  `AgentOrchestrator`) and Desktop Chat/Voice only when
+  `conversation_routing="orchestrator"` (not the default). A real fix
+  needs either M14 (Authorization Engine) or a future interactive
+  confirmation/Human Interaction surface neither of which is scoped in
+  this document yet -- not something to wire ad hoc here. Recorded so
+  it is tracked, not silently rediscovered.
 - **Learning & Feedback** -- needs **M16** (Reflection Engine), not
   started; M10's own spec routes this through M16, not a second
   learning mechanism.

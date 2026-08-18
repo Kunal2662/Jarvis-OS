@@ -18,7 +18,8 @@ never `metadata["domain"]` -- the same pre-existing gap Vacuum +
 Humidifier first worked around and Media Player reused verbatim. This
 module's own `_domain_for` checks `metadata["domain"]` first, falling
 back to `metadata["component"]` -- `ApplianceService`'s own identical
-gap is not touched here.
+gap was fixed separately (M0-M12 Structured Rework Audit, P1-1), not
+touched here.
 
 **Operation mode is writable, validated against the device's own
 reported `operation_list`** -- HA's real `water_heater.
