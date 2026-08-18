@@ -160,8 +160,22 @@ def _metadata(device: Device) -> dict[str, Any]:
 
 
 def _domain_for(device: Device) -> str | None:
-    value = _metadata(device).get("domain")
-    return str(value) if value else None
+    """`metadata["domain"]` (HA-sourced discovery), falling back to
+    `metadata["component"]` (MQTT-native discovery) -- the same
+    fallback order every other `device_type="appliance"`/`"other"`
+    service already uses (`VacuumHumidifierService`, `MediaPlayerService`,
+    the Water Heater service, `SirenService`, `AlarmControlPanelService`);
+    restored here after being left as a narrower follow-up when those
+    services first introduced it (M12 Final Exit Assessment, P1-1) --
+    `MqttConnector._handle_ha_discovery` writes `metadata["component"]`,
+    never `metadata["domain"]`, so a bare `metadata["domain"]` lookup
+    silently failed to identify any MQTT-discovered fan/cover device."""
+    meta = _metadata(device)
+    domain = meta.get("domain")
+    if domain:
+        return str(domain)
+    component = meta.get("component")
+    return str(component) if component else None
 
 
 def _infer_on(status: str) -> bool | None:

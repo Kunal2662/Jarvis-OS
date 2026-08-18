@@ -3,6 +3,30 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Final Exit Assessment fix — Appliance MQTT domain fallback (P1-1)
+
+**No version bump**, unchanged from `0.38.0`. Not a new task group --
+a single targeted fix approved by a dedicated M12 Final Exit
+Assessment (which reviewed all twenty-five shipped task groups and
+found exactly one P1 finding, zero P0). `ApplianceService._domain_for`
+(`src/jarvis/services/appliance_service.py`) read only
+`metadata["domain"]`, unlike every sibling `device_type="appliance"`/
+`"other"` service (`SirenService`, `AlarmControlPanelService`, the
+Water Heater service, `MediaPlayerService`, `VacuumHumidifierService`),
+which already fall back to `metadata["component"]` --
+`MqttConnector._handle_ha_discovery` writes `component`, never
+`domain`, so an MQTT-discovered Fan or Cover device was silently
+unidentifiable. Fixed by adding the same `domain`-first,
+`component`-fallback lookup already used by every sibling service;
+Home-Assistant-discovered behavior (which always sets `domain`) is
+unchanged. 9 new regression tests. Full M12 regression (1252 tests),
+M11+M12 regression (1399 tests), and full backend regression (3903
+tests, 1 pre-existing unrelated skip) all green; Black/Ruff/Mypy
+unchanged against baseline. Zero frontend, connector, EventBus,
+Scheduler, or database/schema changes. **Closes M12's
+feature-development phase** -- the structured M0-M12 rework phase this
+assessment also considered is a separate, not-yet-approved next step.
+
 ## M12: Security & Safety — Siren Advanced Controls Slice (Task Group W)
 
 **No version bump**, matching this project's own established

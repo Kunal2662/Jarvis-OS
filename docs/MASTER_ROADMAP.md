@@ -1074,6 +1074,35 @@ Group O, Task Group P, Task Group Q, Task Group R, Task Group S, Task
 Group T, Task Group U, Task Group V, and Task Group W entries for the
 full implementation account.
 
+**M12 feature-development phase is now closed.** A dedicated Final
+Exit Assessment audited all twenty-five shipped task groups
+(architecture consistency, security, connectors/MQTT, REST, agent
+tools, EventBus/Scheduler, Memory/Analytics, frontend contract,
+testing, static analysis) against this project's own rework-permission
+criteria and found exactly one P1 finding, zero P0: `ApplianceService.
+_domain_for` (`src/jarvis/services/appliance_service.py`) read only
+`metadata["domain"]`, missing the `metadata["component"]` MQTT-native
+fallback that every sibling `device_type="appliance"`/`"other"`
+service already carries (`SirenService`, `AlarmControlPanelService`,
+the Water Heater service, `MediaPlayerService`, `VacuumHumidifierService`)
+-- `MqttConnector._handle_ha_discovery` writes `metadata["component"]`,
+never `metadata["domain"]`, so a bare `metadata["domain"]` lookup
+silently failed to identify any MQTT-discovered Fan/Cover device. Fixed
+as a narrowly-scoped follow-up (not a new task group): `_domain_for`
+now checks `domain` first, falling back to `component`, matching every
+sibling implementation exactly; existing Home-Assistant-discovered
+behavior is unchanged, since `domain` still takes precedence when
+present. 9 new regression tests (MQTT-discovered fan/cover resolution,
+domain-precedence-over-component, empty-domain fallback, wrong-component
+rejection, and two full end-to-end commands through a real
+`mqtt_connector`), full M12 regression (1252 tests), M11+M12 regression
+(1399 tests), and the full backend regression (3903 tests, 1
+pre-existing unrelated skip) all green; Black/Ruff/Mypy unchanged
+against the `e48911c` baseline. Zero frontend, connector, EventBus,
+Scheduler, or database/schema changes. **M12 now enters its structured
+rework phase; no further M12 feature task group (a "Task Group X")
+begins without a separate, explicit approval.**
+
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
 all four are waiting on the same thing: TG-C's Build Verification

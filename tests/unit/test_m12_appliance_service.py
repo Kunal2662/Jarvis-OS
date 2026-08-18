@@ -97,26 +97,36 @@ async def _grant(permissions: PermissionModel) -> None:
     await permissions.grant(APPLIANCE_PRINCIPAL, SMART_HOME_SCOPE)
 
 
-async def _home_and_fan(smart_home: SmartHomeService, connector_type: str = "home_assistant"):
+async def _home_and_fan(
+    smart_home: SmartHomeService,
+    connector_type: str = "home_assistant",
+    *,
+    domain_key: str = "domain",
+):
     home = await smart_home.create_home("Primary Residence")
     device = await smart_home.register_discovered_device(
         home.id,
         "Living Room Fan",
         device_type="appliance",
         external_id="fan.living_room_fan",
-        metadata={"connector_type": connector_type, "domain": "fan"},
+        metadata={"connector_type": connector_type, domain_key: "fan"},
     )
     return home, device
 
 
-async def _home_and_cover(smart_home: SmartHomeService, connector_type: str = "home_assistant"):
+async def _home_and_cover(
+    smart_home: SmartHomeService,
+    connector_type: str = "home_assistant",
+    *,
+    domain_key: str = "domain",
+):
     home = await smart_home.create_home("Primary Residence")
     device = await smart_home.register_discovered_device(
         home.id,
         "Living Room Blind",
         device_type="appliance",
         external_id="cover.living_room_blind",
-        metadata={"connector_type": connector_type, "domain": "cover"},
+        metadata={"connector_type": connector_type, domain_key: "cover"},
     )
     return home, device
 
@@ -234,6 +244,175 @@ async def test_fan_on_rejects_non_appliance_device(
     )
     with pytest.raises(ServiceError, match="not a fan"):
         await service.fan_on(lock.id)
+
+
+# --- MQTT component fallback (M12 Final Exit Assessment, P1-1) -------------------
+#
+# `MqttConnector._handle_ha_discovery` writes `metadata["component"]`,
+# never `metadata["domain"]` -- `_domain_for` must fall back to it, the
+# same fallback order every sibling `device_type="appliance"`/`"other"`
+# service already established. Regression coverage for the fix.
+
+
+@pytest.mark.asyncio
+async def test_domain_key_identifies_a_fan(
+    service: ApplianceService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """`metadata["domain"]` present -- domain wins, existing Home
+    Assistant behavior unchanged."""
+    await _grant(permissions)
+    _, device = await _home_and_fan(smart_home, domain_key="domain")
+    fans = await service.list_fans()
+    assert [f["id"] for f in fans] == [device.id]
+
+
+@pytest.mark.asyncio
+async def test_component_key_identifies_a_fan(
+    service: ApplianceService, smart_home: SmartHomeService
+) -> None:
+    """`metadata["domain"]` absent, `metadata["component"]` present --
+    component fallback resolves the device (a real, MQTT Discovery-
+    sourced fan)."""
+    _, device = await _home_and_fan(smart_home, connector_type="mqtt", domain_key="component")
+    fans = await service.list_fans()
+    assert [f["id"] for f in fans] == [device.id]
+
+
+@pytest.mark.asyncio
+async def test_component_key_identifies_a_cover(
+    service: ApplianceService, smart_home: SmartHomeService
+) -> None:
+    """Same fallback, cover category -- MQTT Discovery-sourced cover."""
+    _, device = await _home_and_cover(smart_home, connector_type="mqtt", domain_key="component")
+    covers = await service.list_covers()
+    assert [c["id"] for c in covers] == [device.id]
+
+
+@pytest.mark.asyncio
+async def test_domain_takes_precedence_over_component(
+    service: ApplianceService, smart_home: SmartHomeService
+) -> None:
+    """Both keys present -- `domain` wins, mirroring every sibling
+    service's own identical precedence rule."""
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Ambiguous Fan",
+        device_type="appliance",
+        external_id="appliance.ambiguous",
+        metadata={"connector_type": "home_assistant", "domain": "fan", "component": "cover"},
+    )
+    fans = await service.list_fans()
+    assert [f["id"] for f in fans] == [device.id]
+
+
+@pytest.mark.asyncio
+async def test_empty_domain_falls_back_to_component(
+    service: ApplianceService, smart_home: SmartHomeService
+) -> None:
+    """An empty-string `domain` is falsy -- falls through to
+    `component`, never treated as "domain present but blank"."""
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Blank Domain Fan",
+        device_type="appliance",
+        external_id="appliance.blank_domain",
+        metadata={"connector_type": "mqtt", "domain": "", "component": "fan"},
+    )
+    fans = await service.list_fans()
+    assert [f["id"] for f in fans] == [device.id]
+
+
+@pytest.mark.asyncio
+async def test_neither_domain_nor_component_is_rejected(
+    service: ApplianceService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """Neither key present -- resolves to `None`, correctly rejected as
+    "not a fan", never falsely matched."""
+    await _grant(permissions)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "No Metadata",
+        device_type="appliance",
+        external_id="appliance.no_metadata",
+        metadata={"connector_type": "home_assistant"},
+    )
+    with pytest.raises(ServiceError, match="not a fan"):
+        await service.fan_on(device.id)
+
+
+@pytest.mark.asyncio
+async def test_mqtt_discovered_fan_can_be_commanded(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+) -> None:
+    """End-to-end: an MQTT-discovered fan (`component`-only metadata,
+    no `domain`) now resolves and can actually be commanded -- the
+    exact defect this fix closes."""
+    mqtt_connector = FakeDeviceConnector()
+    mqtt_connector.connector_type = "mqtt"
+    registry = ConnectorFactoryRegistry()
+    registry.register("mqtt", lambda config: mqtt_connector)
+    mqtt_connectivity = ConnectivityService(registry=registry, smart_home=smart_home)
+    mqtt_service = ApplianceService(
+        smart_home=smart_home, connectivity=mqtt_connectivity, permissions=permissions
+    )
+    await mqtt_connectivity.connect("mqtt")
+    await _grant(permissions)
+    _, device = await _home_and_fan(smart_home, connector_type="mqtt", domain_key="component")
+
+    result = await mqtt_service.fan_on(device.id)
+
+    assert result["success"] is True
+    assert mqtt_connector.sent_commands == [("fan.living_room_fan", "turn_on", {})]
+
+
+@pytest.mark.asyncio
+async def test_mqtt_discovered_cover_can_be_commanded(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+) -> None:
+    mqtt_connector = FakeDeviceConnector()
+    mqtt_connector.connector_type = "mqtt"
+    registry = ConnectorFactoryRegistry()
+    registry.register("mqtt", lambda config: mqtt_connector)
+    mqtt_connectivity = ConnectivityService(registry=registry, smart_home=smart_home)
+    mqtt_service = ApplianceService(
+        smart_home=smart_home, connectivity=mqtt_connectivity, permissions=permissions
+    )
+    await mqtt_connectivity.connect("mqtt")
+    await _grant(permissions)
+    _, device = await _home_and_cover(smart_home, connector_type="mqtt", domain_key="component")
+
+    result = await mqtt_service.cover_open(device.id)
+
+    assert result["success"] is True
+    assert mqtt_connector.sent_commands == [("cover.living_room_blind", "open_cover", {})]
+
+
+@pytest.mark.asyncio
+async def test_wrong_component_is_still_rejected(
+    service: ApplianceService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """A device whose `component` names an unrelated category is still
+    correctly rejected -- the fallback does not weaken discrimination."""
+    await _grant(permissions)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "MQTT Siren",
+        device_type="appliance",
+        external_id="appliance.mqtt_siren",
+        metadata={"connector_type": "mqtt", "component": "siren"},
+    )
+    with pytest.raises(ServiceError, match="not a fan"):
+        await service.fan_on(device.id)
 
 
 # --- Validation ---------------------------------------------------------------
