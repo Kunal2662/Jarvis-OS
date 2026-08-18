@@ -204,6 +204,16 @@ M7's Python-side domain models (`WorkflowDefinition`, `WorkflowStep`,
 this migration and remain exactly as shipped — a future UI, whichever
 technology renders it, consumes the same backend contract.
 
+*(Update, Aug 2026: Phase 6 — Scheduler shipped as a backend-only MVP
+after a dedicated Phase 0 audit found it had no frontend dependency to
+wait on — the `/automations` route this migration builds was, and
+remains, a placeholder either way. Phases 4–5 (Workflow Builder,
+Recorder) remain paused exactly as described above. See
+`MASTER_ROADMAP.md`'s own M7 entry and `docs/M7_SCHEDULER_LOGIC_
+CONTRACT.md` for the full account; `docs/M7_SCHEDULER_FRONTEND_
+REQUIREMENTS.md` records the real frontend work this slice's API now
+requires, still entirely unbuilt.)*
+
 ---
 
 ## 2. M8 — React Frontend & Desktop Experience

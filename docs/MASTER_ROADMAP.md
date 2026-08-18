@@ -2522,9 +2522,9 @@ workflow engine orchestrates).
 3. A scheduled workflow fires unattended and its result is visible in
    the Agent Trace panel.
 
-**Implementation status (2026-08-01) — M7 is in progress, not
-complete.** Six phases were scoped; two have shipped, one is
-deliberately deferred, three are pending. Grouped by disposition:
+**Implementation status (2026-08-18) — M7 is in progress, not
+complete.** Six phases were scoped; three have shipped, one is
+deliberately deferred, two are pending. Grouped by disposition:
 
 - **Completed:**
   - Phase 1 (Domain Foundation) — `WorkflowDefinition` / `WorkflowStep`
@@ -2532,13 +2532,49 @@ deliberately deferred, three are pending. Grouped by disposition:
     / `AgentSettings.max_parallel_steps` / `SchedulerSettings`,
     `WorkflowStepEvent` / `ScheduledJobFiredEvent`. 21 dedicated tests.
     Domain-only by design — no scheduler, executor, or LangGraph
-    wiring for these models exists yet (that's Phases 4–6, below).
+    wiring for these models exists yet (that's Phases 4–5, below).
   - Phase 2 (Parallel Automation Execution) — `ActionExecutor`
     rewritten for wave-based dispatch using the pre-existing
     `Step.depends_on` / `gather_with_concurrency()`, with rollback and
     `PermissionGate` serialization preserved under concurrency. 11
     dedicated tests, measured (not estimated) parallel-vs-sequential
     speedup.
+  - **Phase 6 (Scheduler MVP) shipped Aug 2026** — a persistent,
+    timezone-aware interval/cron scheduler (`ScheduleService`, new
+    `Schedule`/`WorkflowDefinition`/`WorkflowExecution` tables, `croniter`
+    for next-occurrence computation), executing the minimal workflow
+    representation (an ordered `automation`/`agent_tool` step list) by
+    reusing `AutomationService.run_command` and the same authorize-
+    then-invoke path `agents/nodes/permission_validator.py`/
+    `tool_executor.py` already use — **not a second execution engine**.
+    Bounded-grace-period misfire policy (fire once if overdue by less
+    than `SchedulerSettings.misfire_grace_period_seconds`, else skip
+    and resume from now, never a catch-up burst), per-schedule
+    duplicate-fire prevention, global concurrency bounded by
+    `SchedulerSettings.max_concurrent_jobs`, full restart recovery (no
+    in-memory-only state). **Confirmation policy: Policy A, always
+    deny** — a confirmation-required step fires with no `confirm`
+    callback supplied, so both existing gates (`PermissionGate`,
+    `AgentPermissionGate`) fail-safe to denial exactly as they already
+    do for any other unattended caller; zero new authorization code,
+    zero bypass. **Time-based triggers only** — interval and 5-field
+    cron; device-event/state-change triggers remain explicitly out of
+    scope, blocked on a still-unresolved EventBus capability (no event
+    exists anywhere in this codebase for a device's operational state
+    changing, only connectivity/lifecycle transitions — confirmed by a
+    dedicated Phase 0 audit before this slice was scoped). New REST
+    surface (`/api/v1/schedules`, 7 routes) and 5 agent tools
+    (`list_schedules`/`get_schedule`/`create_schedule`/
+    `enable_schedule`/`disable_schedule` — `delete_schedule`/
+    `cancel_schedule` deliberately REST-only). New `scheduler`
+    permission scope, strictly scoped to Schedule CRUD only — never
+    implies permission to execute a scheduled step's own action. 97
+    dedicated tests (persistence, validation, lifecycle, execution
+    outcomes, misfire policy, concurrency, restart recovery, REST,
+    tools, scope guards). See `docs/M7_SCHEDULER_LOGIC_CONTRACT.md` for
+    the full design and `docs/M7_SCHEDULER_FRONTEND_REQUIREMENTS.md`
+    for the (planning-only, no code) frontend requirements this slice's
+    API surface implies.
 - **Deferred:**
   - Phase 3 (Structured Graph Planning) — would extend `AgentState` /
     `planner.py` / `tool_executor.py` / `graph.py` for cross-tool
@@ -2548,9 +2584,13 @@ deliberately deferred, three are pending. Grouped by disposition:
 - **Pending** (paused after Phase 2, not resumed until the UI overhaul
   work in §7's "UI Foundation" has been reviewed and approved):
   - Phase 4 — Workflow Builder (a visual/declarative authoring surface
-    on top of the existing `RecipeManager`, M4).
-  - Phase 5 — Recorder (Macro Engine / Automation Recorder).
-  - Phase 6 — Scheduler (cron-style recurring agent/automation runs).
+    on top of the existing `RecipeManager`, M4). The Scheduler MVP's
+    own minimal workflow representation (§ above) is intentionally not
+    this — no standalone workflow-authoring API exists; a schedule's
+    workflow is created inline, once, with no edit surface.
+  - Phase 5 — Recorder (Macro Engine / Automation Recorder) — no
+    capture infrastructure exists anywhere in this codebase to extend;
+    genuinely unstarted, not partially built.
 
 **Acceptance criteria status:**
 1. *A workflow with two independent steps measurably runs them in
@@ -2558,12 +2598,18 @@ deliberately deferred, three are pending. Grouped by disposition:
 2. *A recorded macro can be replayed without re-authoring it by hand*
    — ❌ **Not met** — Phase 5 (Recorder) is pending.
 3. *A scheduled workflow fires unattended and its result is visible in
-   the Agent Trace panel* — ❌ **Not met** — Phase 6 (Scheduler) is
-   pending, and no workflow-to-Agent-Trace wiring exists yet.
+   the Agent Trace panel* — 🟡 **Partially met** — a scheduled workflow
+   now genuinely fires unattended (Phase 6 MVP), but no
+   workflow-execution-to-Agent-Trace wiring exists yet (that panel is
+   desktop UI, explicitly out of scope for this backend-only slice) —
+   execution history is queryable via REST (`GET .../{id}/executions`)
+   instead.
 
-Per §6's versioning policy, an in-progress/paused milestone doesn't
-bump the version or earn its own `CHANGELOG.md` entry yet — that lands
-when M7 actually completes, not before.
+Per §6's versioning policy, M7 as a whole remains in-progress/paused
+and does not bump the version — but, matching the precedent M12's own
+task-group-scoped passes established (a milestone need not be
+*complete* to record a real, shipped, independently-tested slice), the
+Scheduler MVP earns its own `CHANGELOG.md` entry below.
 
 ### M8 — React Frontend & Desktop Experience
 

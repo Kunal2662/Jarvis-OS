@@ -3,6 +3,67 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M7: Workflow Intelligence — Scheduler MVP (Phase 6)
+
+**No version bump**, unchanged from `0.38.0`. M7 as a whole remains
+in-progress (Phase 3 deferred, Phases 4-5 still pending) — this entry
+records Phase 6 only, following a dedicated Phase 0 audit and an
+approved Logic Contract (`docs/M7_SCHEDULER_LOGIC_CONTRACT.md`).
+
+Ships a persistent, timezone-aware Scheduler: interval and 5-field-cron
+triggers (`croniter`-backed), executing an ordered `automation`/
+`agent_tool` step list by reusing `AutomationService.run_command` and
+the same authorize-then-invoke path the agent graph's own
+`permission_validator`/`tool_executor` nodes already use — **no second
+execution engine**. Bounded-grace-period misfire recovery, per-schedule
+duplicate-fire prevention, globally bounded concurrency
+(`SchedulerSettings.max_concurrent_jobs`), and full restart recovery
+(no in-memory-only state) verified directly, including a test that
+constructs a second `ScheduleService` instance against the same
+database to simulate a process restart.
+
+**Security-critical design decision, verified by dedicated tests**: any
+step that would normally require interactive confirmation
+(`unlock_device`, `disarm`, `trigger_panic_mode`, a `shutdown`
+instruction, etc.) is **always denied** when fired unattended — no
+`confirm` callback is ever supplied, so both existing permission gates
+(`PermissionGate`, `AgentPermissionGate`) fall through to their own
+existing fail-safe denial, exactly as they already do for every other
+unattended caller. Zero new authorization code; a scheduled action can
+execute nothing a manual, unscheduled call couldn't already do today.
+
+**Explicitly time-based only** — device-event/state-change triggers
+remain out of scope, blocked on a still-unresolved EventBus gap (no
+event exists anywhere in this codebase for a device's *operational*
+state changing, only connectivity/lifecycle transitions), confirmed by
+a dedicated Phase 0 audit before this slice was ever scoped, not
+discovered mid-implementation.
+
+New surface: `/api/v1/schedules` (7 REST routes), 5 agent tools
+(`list_schedules`/`get_schedule`/`create_schedule`/`enable_schedule`/
+`disable_schedule` — `delete_schedule`/`cancel_schedule` deliberately
+REST-only), a new `scheduler` permission scope strictly limited to
+schedule CRUD (never implies permission to execute a scheduled step's
+own action — that stays independently gated at execution time, always).
+Three new tables (`WorkflowDefinition`, `Schedule`, `WorkflowExecution`),
+picked up automatically via the existing `Base.metadata.create_all`
+runtime path, no migration needed. 97 new tests; full M7 regression
+(129 tests), M11+M12 regression (1387 tests), and the full backend
+regression (4007 tests, 1 pre-existing unrelated skip) all green;
+Black/Ruff clean against baseline, Mypy exactly matches the
+pre-implementation baseline (262 errors, 64 files) with zero new
+findings across 6 new source files.
+
+**Deliberately not shipped in this slice** (each with a named owner):
+Workflow Builder authoring UI/API (Phase 4), Recorder (Phase 5),
+device-event triggers (a future EventBus capability), a real
+interactive confirmation channel (M14 Authorization Engine / a future
+Human Interaction surface — Policy A is the correct MVP posture until
+one exists), natural-language schedule creation, AI-assisted schedule
+generation, cloud/remote scheduling, and any frontend implementation —
+see `docs/M7_SCHEDULER_FRONTEND_REQUIREMENTS.md` for the (planning-only,
+no code) frontend requirements this slice's API surface implies.
+
 ## M12: Final Exit Assessment fix — Appliance MQTT domain fallback (P1-1)
 
 **No version bump**, unchanged from `0.38.0`. Not a new task group --
