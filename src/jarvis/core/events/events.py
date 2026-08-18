@@ -997,3 +997,29 @@ class DeviceCommandExecutedEvent(Event):
     command: str = ""
     success: bool = True
     detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class DeviceStateChangedEvent(Event):
+    """Published by
+    :class:`~jarvis.services.smart_home_service.SmartHomeService` from
+    ``report_device_state()`` -- see
+    ``docs/M7_EVENTBUS_DEVICE_STATE_CHANGED_LOGIC_CONTRACT.md``. Fires
+    only when the generic lifecycle ``status`` (discovered/pairing/
+    paired/offline/unreachable/removed) genuinely transitions --
+    ``previous_status != status`` is a precondition of publication, not
+    a claim a subscriber must re-check. Scoped to lifecycle status
+    only: it never carries a per-category attribute (brightness,
+    temperature, ...), since none is persisted anywhere for this event
+    to read. Purely additive alongside the pre-existing
+    ``DeviceUpdatedEvent`` -- that event's own unconditional-publish
+    behavior on this same code path is deliberately left unchanged by
+    this event's addition."""
+
+    device_id: str = ""
+    home_id: str = ""
+    room_id: str = ""
+    device_type: str = ""
+    connector_type: str = ""
+    previous_status: str = ""
+    status: str = ""

@@ -24,6 +24,7 @@ unknown workspace status.
 
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import TYPE_CHECKING, Any
 
@@ -374,6 +375,7 @@ class SmartHomeService:
         device = await self.get_device(device_id)
         if device is None:
             return None
+        previous_status = device.status
         async with self._db.session() as sess:
             await DeviceRepository(sess).update(  # type: ignore[arg-type]
                 device_id, status=status, touch_last_seen=touch_last_seen
@@ -381,6 +383,10 @@ class SmartHomeService:
         await self._publish_device(
             device_id, device.home_id, action="status_changed", status=status
         )
+        if previous_status != status:
+            await self._publish_state_changed(
+                device, previous_status=previous_status, status=status
+            )
         return await self.get_device(device_id)
 
     async def pair_device(self, device_id: str) -> Device | None:
@@ -604,6 +610,42 @@ class SmartHomeService:
 
         await self._event_bus.publish(
             DeviceUpdatedEvent(device_id=device_id, home_id=home_id, action=action, status=status)
+        )
+
+    async def _publish_state_changed(
+        self, device: Device, *, previous_status: str, status: str
+    ) -> None:
+        """The Tier 2 event -- see
+        ``docs/M7_EVENTBUS_DEVICE_STATE_CHANGED_LOGIC_CONTRACT.md``.
+        Called only when the caller has already verified
+        ``previous_status != status``; purely additive alongside
+        ``_publish_device``'s own unconditional publish, which this
+        never replaces or alters."""
+        if self._event_bus is None:
+            return
+        from jarvis.core.events.events import DeviceStateChangedEvent
+
+        # A direct ``metadata_json`` read, not a reuse of
+        # ``connectivity_service.connector_type_for`` -- that module
+        # depends on this one (constructor-injects ``SmartHomeService``),
+        # so importing the other way would invert the dependency
+        # direction for a three-line JSON lookup.
+        connector_type = ""
+        with contextlib.suppress(TypeError, ValueError):
+            connector_type = str(
+                json.loads(device.metadata_json or "{}").get("connector_type") or ""
+            )
+
+        await self._event_bus.publish(
+            DeviceStateChangedEvent(
+                device_id=device.id,
+                home_id=device.home_id,
+                room_id=device.room_id or "",
+                device_type=device.device_type,
+                connector_type=connector_type,
+                previous_status=previous_status,
+                status=status,
+            )
         )
 
 

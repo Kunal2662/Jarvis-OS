@@ -7,13 +7,14 @@ repository tests as well as the service tests.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
 import pytest
 
 from jarvis.core.events.event_bus import EventBus
-from jarvis.core.events.events import DeviceUpdatedEvent, HomeUpdatedEvent
+from jarvis.core.events.events import DeviceStateChangedEvent, DeviceUpdatedEvent, HomeUpdatedEvent
 from jarvis.core.exceptions import ServiceError
 from jarvis.services.smart_home_service import SmartHomeService
 
@@ -51,7 +52,7 @@ async def recorder(tmp_path: Path, monkeypatch):
     await db.initialize()
     bus = EventBus()
     seen: list[object] = []
-    for event_type in (HomeUpdatedEvent, DeviceUpdatedEvent):
+    for event_type in (HomeUpdatedEvent, DeviceUpdatedEvent, DeviceStateChangedEvent):
         bus.subscribe(event_type, lambda e: seen.append(e) or None)
     try:
         yield SmartHomeService(database=db, event_bus=bus), seen
@@ -501,3 +502,296 @@ async def test_report_device_state_publishes_status_changed(recorder) -> None:
     assert len(device_events) == 1
     assert device_events[0].action == "status_changed"
     assert device_events[0].status == "offline"
+
+
+# --- Device state-changed events (M7 EventBus Tier 2) -----------------------
+# See docs/M7_EVENTBUS_DEVICE_STATE_CHANGED_LOGIC_CONTRACT.md.
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_genuine_transition_publishes_state_changed_event(
+    recorder,
+) -> None:
+    service, seen = recorder
+    home = await service.create_home("Primary Residence")
+    room = await service.create_room(home.id, "Living Room")
+    device = await service.register_discovered_device(
+        home.id,
+        "Plug",
+        device_type="switch",
+        room_id=room.id,
+        metadata={"connector_type": "home_assistant"},
+    )
+    seen.clear()
+
+    await service.report_device_state(device.id, status="paired")
+
+    state_events = [e for e in seen if isinstance(e, DeviceStateChangedEvent)]
+    assert len(state_events) == 1
+    event = state_events[0]
+    assert event.device_id == device.id
+    assert event.home_id == home.id
+    assert event.room_id == room.id
+    assert event.device_type == "switch"
+    assert event.connector_type == "home_assistant"
+    assert event.previous_status == "discovered"
+    assert event.status == "paired"
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_same_value_publishes_no_state_changed_event(
+    recorder,
+) -> None:
+    service, seen = recorder
+    home = await service.create_home("Primary Residence")
+    device = await service.register_discovered_device(home.id, "Plug")
+    await service.report_device_state(device.id, status="paired")
+    seen.clear()
+
+    await service.report_device_state(device.id, status="paired")
+
+    state_events = [e for e in seen if isinstance(e, DeviceStateChangedEvent)]
+    assert state_events == []
+    # DeviceUpdatedEvent's own unconditional-publish behavior is
+    # deliberately unchanged -- it still fires on the no-op refresh.
+    device_events = [e for e in seen if isinstance(e, DeviceUpdatedEvent)]
+    assert len(device_events) == 1
+    assert device_events[0].action == "status_changed"
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_previous_status_tracks_the_immediately_prior_value(
+    recorder,
+) -> None:
+    service, seen = recorder
+    home = await service.create_home("Primary Residence")
+    device = await service.register_discovered_device(home.id, "Plug")
+    seen.clear()
+
+    await service.report_device_state(device.id, status="paired")
+    await service.report_device_state(device.id, status="offline")
+    await service.report_device_state(device.id, status="paired")
+
+    state_events = [e for e in seen if isinstance(e, DeviceStateChangedEvent)]
+    assert [(e.previous_status, e.status) for e in state_events] == [
+        ("discovered", "paired"),
+        ("paired", "offline"),
+        ("offline", "paired"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_first_observation_uses_the_default_status(
+    recorder,
+) -> None:
+    """A freshly-registered device already has a real ``previous_status``
+    (the ``"discovered"`` default) -- no null/fabricated value needed."""
+    service, seen = recorder
+    home = await service.create_home("Primary Residence")
+    device = await service.register_discovered_device(home.id, "Plug")
+    seen.clear()
+
+    await service.report_device_state(device.id, status="paired")
+
+    [event] = [e for e in seen if isinstance(e, DeviceStateChangedEvent)]
+    assert event.previous_status == "discovered"
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_availability_transition_uses_the_same_event(
+    recorder,
+) -> None:
+    """offline/unreachable/paired transitions are ordinary status
+    transitions -- no separate availability event type exists."""
+    service, seen = recorder
+    home = await service.create_home("Primary Residence")
+    device = await service.register_discovered_device(home.id, "Plug")
+    await service.report_device_state(device.id, status="paired")
+    seen.clear()
+
+    await service.report_device_state(device.id, status="unreachable")
+
+    [event] = [e for e in seen if isinstance(e, DeviceStateChangedEvent)]
+    assert event.previous_status == "paired"
+    assert event.status == "unreachable"
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_without_a_recorded_connector_leaves_connector_type_empty(
+    recorder,
+) -> None:
+    service, seen = recorder
+    home = await service.create_home("Primary Residence")
+    device = await service.register_discovered_device(home.id, "Manually Added Sensor")
+    seen.clear()
+
+    await service.report_device_state(device.id, status="paired")
+
+    [event] = [e for e in seen if isinstance(e, DeviceStateChangedEvent)]
+    assert event.connector_type == ""
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_missing_device_publishes_no_state_changed_event(
+    recorder,
+) -> None:
+    service, seen = recorder
+
+    assert await service.report_device_state("no-such-device", status="paired") is None
+
+    assert [e for e in seen if isinstance(e, DeviceStateChangedEvent)] == []
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_publishes_exactly_one_state_changed_event_not_a_duplicate(
+    recorder,
+) -> None:
+    service, seen = recorder
+    home = await service.create_home("Primary Residence")
+    device = await service.register_discovered_device(home.id, "Plug")
+    seen.clear()
+
+    await service.report_device_state(device.id, status="paired")
+    await service.report_device_state(device.id, status="paired")
+    await service.report_device_state(device.id, status="paired")
+
+    state_events = [e for e in seen if isinstance(e, DeviceStateChangedEvent)]
+    assert len(state_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_report_device_state_changed_subscriber_failure_does_not_change_the_result(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    settings = _settings(tmp_path, monkeypatch)
+    from jarvis.infrastructure.database.sqlite_client import SQLiteDatabase
+
+    db = SQLiteDatabase(settings.db)
+    await db.initialize()
+    try:
+        bus = EventBus()
+
+        def _raising_handler(_event: object) -> None:
+            raise RuntimeError("a misbehaving subscriber")
+
+        bus.subscribe(DeviceStateChangedEvent, _raising_handler)
+        service = SmartHomeService(database=db, event_bus=bus)
+        home = await service.create_home("Primary Residence")
+        device = await service.register_discovered_device(home.id, "Plug")
+
+        updated = await service.report_device_state(device.id, status="paired")
+
+        assert updated is not None
+        assert updated.status == "paired"
+    finally:
+        await db.dispose()
+
+
+def test_device_state_changed_event_carries_no_raw_attributes_or_metadata() -> None:
+    """Structural guard: the field itself must not exist."""
+    field_names = {f.name for f in dataclasses.fields(DeviceStateChangedEvent)}
+
+    assert "metadata_json" not in field_names
+    assert "attributes" not in field_names
+    assert "metadata" not in field_names
+    assert field_names == {
+        "id",
+        "occurred_at",
+        "device_id",
+        "home_id",
+        "room_id",
+        "device_type",
+        "connector_type",
+        "previous_status",
+        "status",
+    }
+
+
+# --- Scope guards (M7 EventBus Tier 2) ---------------------------------------
+
+
+def test_device_state_changed_event_is_not_relayed_over_websocket() -> None:
+    from jarvis.core.lifecycle.runtime_ws_hub import EVENT_TYPE_NAMES, UNPUBLISHED_EVENT_TYPES
+
+    assert DeviceStateChangedEvent not in EVENT_TYPE_NAMES
+    assert "DeviceStateChangedEvent" in UNPUBLISHED_EVENT_TYPES
+
+
+def test_smart_home_service_introduces_no_connector_or_polling_coupling() -> None:
+    """No connector import, no scheduler/polling loop -- this slice is
+    connector-agnostic and purely reactive to an explicit caller,
+    confirmed by scanning the raw source of the publishing module."""
+    import inspect
+
+    from jarvis.services import smart_home_service
+
+    source = inspect.getsource(smart_home_service)
+    for forbidden in (
+        "MqttConnector",
+        "HomeAssistantConnector",
+        "import connectivity_service",
+        "from jarvis.services.connectivity_service",
+        "asyncio.sleep",
+        "create_task",
+        "while True",
+    ):
+        assert forbidden not in source
+
+
+def test_no_m12_device_service_references_device_state_changed_event() -> None:
+    """This slice touches no device-category service -- confirmed by
+    scanning each one's raw source."""
+    import inspect
+
+    from jarvis.services import (
+        alarm_control_panel_service,
+        appliance_service,
+        media_player_service,
+        sensor_service,
+        siren_service,
+        smart_lighting_service,
+        smart_lock_service,
+        smart_switch_service,
+        thermostat_service,
+        vacuum_humidifier_service,
+        water_heater_service,
+    )
+
+    for module in (
+        alarm_control_panel_service,
+        appliance_service,
+        media_player_service,
+        sensor_service,
+        siren_service,
+        smart_lighting_service,
+        smart_lock_service,
+        smart_switch_service,
+        thermostat_service,
+        vacuum_humidifier_service,
+        water_heater_service,
+    ):
+        assert "DeviceStateChangedEvent" not in inspect.getsource(module)
+
+
+def test_schedule_service_and_memory_service_have_no_new_coupling() -> None:
+    """No Scheduler polling, no automatic Smart Home Memory capture --
+    confirmed by scanning both modules' raw source."""
+    import inspect
+
+    from jarvis.services import schedule_service, smart_home_memory_service
+
+    for module in (schedule_service, smart_home_memory_service):
+        source = inspect.getsource(module)
+        assert "DeviceStateChangedEvent" not in source
+        assert "event_bus.subscribe" not in source
+
+
+def test_no_home_automation_or_event_viewer_module_exists() -> None:
+    import importlib.util
+
+    for module_name in (
+        "jarvis.services.home_automation_service",
+        "jarvis.services.event_viewer_service",
+    ):
+        assert importlib.util.find_spec(module_name) is None

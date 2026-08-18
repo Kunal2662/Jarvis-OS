@@ -166,6 +166,72 @@ def test_refresh_unknown_device_is_404(client, auth) -> None:
     assert response.status_code == 404
 
 
+# --- Device state-changed events (M7 EventBus Tier 2) -----------------------
+# See docs/M7_EVENTBUS_DEVICE_STATE_CHANGED_LOGIC_CONTRACT.md. The REST
+# refresh route reaches the identical SmartHomeService.report_device_state()
+# chokepoint any other caller does -- proving connector-agnostic parity.
+
+
+def _discovered_device_id(client, auth, fake_connector, home_id: str) -> str:
+    from jarvis.core.interfaces.connectivity import DiscoveredDevice
+
+    client.post(
+        "/api/v1/connectivity/connectors/home_assistant/connect", json={"config": {}}, headers=auth
+    )
+    fake_connector.devices = [
+        DiscoveredDevice(external_id="light.kitchen", name="Kitchen Light", device_type="light")
+    ]
+    discovered = client.post(
+        "/api/v1/connectivity/discover",
+        json={"connector_type": "home_assistant", "home_id": home_id},
+        headers=auth,
+    ).json()["data"]
+    return next(d["id"] for d in discovered if d["external_id"] == "light.kitchen")
+
+
+def test_refresh_genuine_transition_publishes_device_state_changed_event(
+    client, auth, fake_connector
+) -> None:
+    from jarvis.core.events.events import DeviceStateChangedEvent
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    device_id = _discovered_device_id(client, auth, fake_connector, home_id)
+    fake_connector.states["light.kitchen"] = DeviceState(external_id="light.kitchen", status="on")
+    seen: list[DeviceStateChangedEvent] = []
+    client.container.event_bus().subscribe(DeviceStateChangedEvent, seen.append)
+
+    response = client.post(f"/api/v1/connectivity/devices/{device_id}/refresh", headers=auth)
+
+    assert response.status_code == 200
+    assert len(seen) == 1
+    assert seen[0].device_id == device_id
+    assert seen[0].home_id == home_id
+    assert seen[0].device_type == "light"
+    assert seen[0].connector_type == "home_assistant"
+    assert seen[0].previous_status == "discovered"
+    assert seen[0].status == "paired"
+
+
+def test_refresh_same_status_publishes_no_device_state_changed_event(
+    client, auth, fake_connector
+) -> None:
+    from jarvis.core.events.events import DeviceStateChangedEvent
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    device_id = _discovered_device_id(client, auth, fake_connector, home_id)
+    fake_connector.states["light.kitchen"] = DeviceState(external_id="light.kitchen", status="on")
+    client.post(f"/api/v1/connectivity/devices/{device_id}/refresh", headers=auth)
+    seen: list[DeviceStateChangedEvent] = []
+    client.container.event_bus().subscribe(DeviceStateChangedEvent, seen.append)
+
+    response = client.post(f"/api/v1/connectivity/devices/{device_id}/refresh", headers=auth)
+
+    assert response.status_code == 200
+    assert seen == []
+
+
 def test_send_command_unknown_device_is_404(client, auth) -> None:
     response = client.post(
         "/api/v1/connectivity/devices/no-such-device/command",
