@@ -23,6 +23,7 @@ from jarvis.agents.permission import AgentPermissionGate
 from jarvis.agents.tools.siren_tools import build_siren_tools
 from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
 from jarvis.core.events.event_bus import EventBus
+from jarvis.core.interfaces.connectivity import DeviceState
 from jarvis.core.plugins.permissions import PermissionModel
 from jarvis.services.connectivity_service import ConnectivityService
 from jarvis.services.siren_service import SIREN_PRINCIPAL, SMART_HOME_SCOPE, SirenService
@@ -239,3 +240,100 @@ async def test_failed_command_never_reports_success_via_tool(
     result = await tools["turn_siren_off"].ainvoke({"device_id": device.id})
 
     assert '"success": false' in result.lower()
+
+
+# --- Task Group W: advanced controls via the agent tool -----------------------------
+
+
+@pytest.mark.asyncio
+async def test_turn_siren_on_tool_with_tone_duration_volume(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await permissions.grant(SIREN_PRINCIPAL, SMART_HOME_SCOPE)
+    device = await _siren(smart_home)
+    fake_connector.states["siren.front_yard"] = DeviceState(
+        external_id="siren.front_yard", status="off", attributes={}
+    )
+
+    result = await tools["turn_siren_on"].ainvoke(
+        {"device_id": device.id, "tone": "alarm", "duration": 30, "volume_level": 0.5}
+    )
+
+    assert '"success": true' in result.lower()
+    assert fake_connector.sent_commands == [
+        ("siren.front_yard", "turn_on", {"tone": "alarm", "duration": 30, "volume_level": 0.5})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_turn_siren_on_tool_without_advanced_arguments_is_bare_call(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """Omitting tone/duration/volume_level entirely (default LangChain
+    tool-call shape) still produces the pre-Task-Group-W empty
+    payload."""
+    await connectivity.connect("home_assistant")
+    await permissions.grant(SIREN_PRINCIPAL, SMART_HOME_SCOPE)
+    device = await _siren(smart_home)
+
+    result = await tools["turn_siren_on"].ainvoke({"device_id": device.id})
+
+    assert '"success": true' in result.lower()
+    assert fake_connector.sent_commands == [("siren.front_yard", "turn_on", {})]
+
+
+@pytest.mark.asyncio
+async def test_turn_siren_on_tool_invalid_tone_reports_error_without_raising(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await permissions.grant(SIREN_PRINCIPAL, SMART_HOME_SCOPE)
+    device = await _siren(smart_home)
+
+    result = await tools["turn_siren_on"].ainvoke({"device_id": device.id, "duration": -5})
+
+    assert "Couldn't" in result
+
+
+@pytest.mark.asyncio
+async def test_gate_requires_confirmation_for_parameterized_turn_on() -> None:
+    """`AgentPermissionGate.authorize` gates purely by tool name -- a
+    ``turn_siren_on`` call carrying tone/duration/volume_level is
+    confirmed exactly like a bare call (Logic Contract §12)."""
+    gate = AgentPermissionGate(confirm_required_tools=frozenset({"turn_siren_on"}))
+
+    denied, reason = await gate.authorize(
+        "turn_siren_on", {"device_id": "x", "tone": "alarm", "duration": 30, "volume_level": 0.5}
+    )
+
+    assert denied is False
+    assert "requires confirmation" in reason
+
+
+@pytest.mark.asyncio
+async def test_gate_allows_parameterized_turn_on_when_user_confirms() -> None:
+    gate = AgentPermissionGate(confirm_required_tools=frozenset({"turn_siren_on"}))
+
+    async def approve(_: str) -> bool:
+        return True
+
+    allowed, reason = await gate.authorize(
+        "turn_siren_on",
+        {"device_id": "x", "tone": "alarm", "duration": 30, "volume_level": 0.5},
+        confirm=approve,
+    )
+
+    assert allowed is True
+    assert reason == "User confirmed."

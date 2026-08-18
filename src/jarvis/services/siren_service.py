@@ -44,7 +44,36 @@ gated behind its own `SirenEntityFeature` flag, verified against Home
 Assistant's own developer documentation during the Logic Contract's
 own Phase 1) -- a bare call with no payload is a complete, valid
 command for any siren regardless of which optional features it
-supports. This MVP sends no payload at all.
+supports.
+
+**Task Group W -- Siren Advanced Controls.** `turn_on` gains three
+optional keyword parameters -- `tone`/`duration`/`volume_level` --
+HA's own verbatim `siren.turn_on` parameter names (externally verified
+against Home Assistant's own current developer documentation this
+task group's own Phase 1: `tone` a string keyed to the device's own
+`available_tones`, `duration` an integer number of seconds,
+`volume_level` a float `0.0`-`1.0`). No new command, no new method, no
+new endpoint, no new tool -- an extension of the existing `turn_on` in
+place, mirroring `SmartLightingService`'s own "merge optional
+attributes into one wire call" shape, not `ApplianceService`'s
+separate-endpoint shape, because these are optional parameters of the
+*same* HA service, not separate ones (`docs/
+M12_SECURITY_SIREN_ADVANCED_CONTROLS_LOGIC_CONTRACT.md` §4). HA's own
+`SirenEntityFeature` enum has exactly five flags
+(`TURN_ON`/`TURN_OFF`/`TONES`/`DURATION`/`VOLUME_SET`) -- no
+pattern/waveform flag exists in HA's siren platform at all, so
+"pattern control" (named in `MASTER_ROADMAP.md`'s own prose) has no
+corresponding capability to build (Logic Contract §3/§23). `tone` is
+validated against the device's own live-reported `available_tones`
+when non-empty, mirroring `MediaPlayerService._check_source`'s own
+precedent for an open-vocabulary parameter; `duration`/`volume_level`
+are format/range-validated locally only -- HA's own base platform
+already silently filters a parameter an entity does not support
+before it reaches the integration (verified via Home Assistant's own
+developer documentation), so no local capability pre-check duplicates
+that. No read-back of any of the three exists in HA's own siren state
+model, so none is added here -- this is a pure write-capability
+expansion, never history or persisted state (Logic Contract §15).
 """
 
 from __future__ import annotations
@@ -52,6 +81,7 @@ from __future__ import annotations
 import contextlib
 import enum
 import json
+import math
 from typing import TYPE_CHECKING, Any
 
 from jarvis.core.exceptions import ServiceError
@@ -93,23 +123,58 @@ class SirenCommand(enum.StrEnum):
     TURN_OFF = "turn_off"
 
 
-def _translate_home_assistant(command: SirenCommand) -> tuple[str, dict[str, Any]]:
-    """HA's own siren-domain service names, no payload -- `siren.
-    turn_on`'s own `tone`/`duration`/`volume_level` parameters are all
-    optional and gated behind device-specific `SirenEntityFeature`
-    flags (verified against Home Assistant's own developer
-    documentation), so a bare call is a complete, valid command for
-    any siren regardless of which optional features it reports."""
-    return command.value, {}
+def _translate_home_assistant(
+    command: SirenCommand,
+    *,
+    tone: str | None = None,
+    duration: int | None = None,
+    volume_level: float | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """HA's own siren-domain service names -- `siren.turn_on`'s own
+    `tone`/`duration`/`volume_level` parameters are all optional and
+    gated behind device-specific `SirenEntityFeature` flags (verified
+    against Home Assistant's own developer documentation), so a bare
+    call is a complete, valid command for any siren regardless of
+    which optional features it reports. `turn_off` never carries a
+    payload -- HA's own `siren.turn_off` takes no parameters (Logic
+    Contract §7)."""
+    if command is SirenCommand.TURN_OFF:
+        return command.value, {}
+    payload: dict[str, Any] = {}
+    if tone is not None:
+        payload["tone"] = tone
+    if duration is not None:
+        payload["duration"] = duration
+    if volume_level is not None:
+        payload["volume_level"] = volume_level
+    return command.value, payload
 
 
-def _translate_mqtt(command: SirenCommand) -> tuple[str, dict[str, Any]]:
+def _translate_mqtt(
+    command: SirenCommand,
+    *,
+    tone: str | None = None,
+    duration: int | None = None,
+    volume_level: float | None = None,
+) -> tuple[str, dict[str, Any]]:
     """A JARVIS-native vocabulary this module defines, deliberately
     mirroring HA's own siren-domain service names for cross-connector
     predictability -- the same choice `smart_switch_service.py`'s own
     `_translate_mqtt` and `smart_lock_service.py`'s own made for their
-    respective command vocabularies."""
-    return command.value, {}
+    respective command vocabularies, now extended with HA's own
+    verbatim `tone`/`duration`/`volume_level` parameter names for
+    semantic equivalence with the HA translation above (Logic Contract
+    §8). No standardized MQTT siren vocabulary exists to defer to."""
+    if command is SirenCommand.TURN_OFF:
+        return command.value, {}
+    payload: dict[str, Any] = {}
+    if tone is not None:
+        payload["tone"] = tone
+    if duration is not None:
+        payload["duration"] = duration
+    if volume_level is not None:
+        payload["volume_level"] = volume_level
+    return command.value, payload
 
 
 #: Connector type -> translator. Closed to `CONNECTOR_TYPES`
@@ -120,6 +185,54 @@ _TRANSLATORS = {
     "home_assistant": _translate_home_assistant,
     "mqtt": _translate_mqtt,
 }
+
+
+def _validate_tone(value: Any) -> str:
+    """Format-only -- non-empty string. The device-specific "is this
+    tone actually supported" question is answered live, by
+    `SirenService._check_tone_supported` below, never by a fixed
+    global enum (Logic Contract §9)."""
+    if not isinstance(value, str) or not value.strip():
+        raise ServiceError(f"tone must be a non-empty string; got {value!r}.")
+    return value.strip()
+
+
+def _validate_duration(value: Any) -> int:
+    """Rejects `bool`, non-`int`, and negative values. No maximum is
+    enforced -- Home Assistant's own documentation states none, and no
+    device-reported bound exists to check against (Logic Contract
+    §9)."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ServiceError(f"duration must be an integer number of seconds; got {value!r}.")
+    if value < 0:
+        raise ServiceError(f"duration must not be negative; got {value!r}.")
+    return int(value)
+
+
+def _validate_volume_level(value: Any) -> float:
+    """Rejects `bool`, non-numerics, NaN/+/-inf, and anything outside
+    `0.0`-`1.0` -- Home Assistant's own protocol-level constraint on
+    `volume_level` itself (externally verified), the identical range
+    `media_player_service._validate_volume` already enforces for its
+    own `volume_level` (Logic Contract §9)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ServiceError(f"volume_level must be a number; got {value!r}.")
+    parsed = float(value)
+    if math.isnan(parsed) or math.isinf(parsed):
+        raise ServiceError(f"volume_level must be a finite number; got {value!r}.")
+    if not (0.0 <= parsed <= 1.0):
+        raise ServiceError(f"volume_level must be between 0.0 and 1.0; got {parsed!r}.")
+    return parsed
+
+
+def _coerce_tone_list(value: Any) -> list[str]:
+    """The device's own reported supported-tone list, stripped of
+    empty/non-string entries -- `[]` when unreported or not a list,
+    never a fabricated default vocabulary. Mirrors
+    `media_player_service._coerce_source_list` exactly."""
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [str(entry).strip() for entry in value if isinstance(entry, str) and entry.strip()]
 
 
 def _infer_on(status: str) -> bool | None:
@@ -237,15 +350,63 @@ class SirenService:
     # ------------------------------------------------------------------
     # Commands
     # ------------------------------------------------------------------
-    async def turn_on(self, device_id: str) -> dict[str, Any]:
+    async def turn_on(
+        self,
+        device_id: str,
+        *,
+        tone: str | None = None,
+        duration: int | None = None,
+        volume_level: float | None = None,
+    ) -> dict[str, Any]:
+        """Turns a siren on. `tone`/`duration`/`volume_level` are all
+        optional -- Home Assistant's own `siren.turn_on` parameters
+        (Task Group W, Logic Contract §6). Omitting all three is
+        byte-identical to this method's own pre-Task-Group-W
+        behavior."""
         self._require_permission()
-        return await self._send(device_id, SirenCommand.TURN_ON)
+        validated_tone = None if tone is None else _validate_tone(tone)
+        validated_duration = None if duration is None else _validate_duration(duration)
+        validated_volume = None if volume_level is None else _validate_volume_level(volume_level)
+        if validated_tone is not None:
+            await self._check_tone_supported(device_id, validated_tone)
+        return await self._send(
+            device_id,
+            SirenCommand.TURN_ON,
+            tone=validated_tone,
+            duration=validated_duration,
+            volume_level=validated_volume,
+        )
 
     async def turn_off(self, device_id: str) -> dict[str, Any]:
         self._require_permission()
         return await self._send(device_id, SirenCommand.TURN_OFF)
 
-    async def _send(self, device_id: str, command: SirenCommand) -> dict[str, Any]:
+    async def _check_tone_supported(self, device_id: str, tone: str) -> None:
+        """Validates a requested tone against the device's **own**
+        reported `available_tones`. Permissive when the device reports
+        none -- rejecting a real device over a vocabulary gap is the
+        worse failure, mirroring `MediaPlayerService._check_source`'s
+        identical precedent verbatim (Logic Contract §9)."""
+        raw = None
+        with contextlib.suppress(ConnectivityError):
+            raw = await self._connectivity.read_raw_state(device_id)
+        if raw is None:
+            return
+        supported = _coerce_tone_list((raw.attributes or {}).get("available_tones"))
+        if supported and tone not in supported:
+            raise ServiceError(
+                f"tone {tone!r} is not supported by this device; it reports {supported}."
+            )
+
+    async def _send(
+        self,
+        device_id: str,
+        command: SirenCommand,
+        *,
+        tone: str | None = None,
+        duration: int | None = None,
+        volume_level: float | None = None,
+    ) -> dict[str, Any]:
         device = await self._require_siren(device_id)
         connector_type = connector_type_for(device)
         if connector_type is None:
@@ -257,6 +418,8 @@ class SirenService:
             raise ServiceError(
                 f"Siren control has no command translation for connector type {connector_type!r}."
             )
-        wire_command, payload = translator(command)
+        wire_command, payload = translator(
+            command, tone=tone, duration=duration, volume_level=volume_level
+        )
         result = await self._connectivity.send_command(device_id, wire_command, payload)
         return {"device_id": device_id, "success": result.success, "detail": result.detail}
