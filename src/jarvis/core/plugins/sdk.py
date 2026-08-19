@@ -49,6 +49,12 @@ PERMISSION_SCOPES: frozenset[str] = frozenset(
         # which stays independently gated by PermissionGate/
         # AgentPermissionGate (docs/M7_SCHEDULER_LOGIC_CONTRACT.md §12).
         "scheduler",
+        # M7 Home Automation: CRUD on AutomationTrigger/AutomationExecution
+        # rows only -- the identical separation principle as "scheduler"
+        # above, never implies permission to execute a triggered step's
+        # own underlying action (docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md
+        # §17).
+        "home_automation",
     }
 )
 

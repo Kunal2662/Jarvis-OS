@@ -48,7 +48,10 @@ def test_permission_scopes_fixed_vocabulary():
     # Milestone 7 Phase 6 (Scheduler MVP) added "scheduler" -- see
     # docs/M7_SCHEDULER_LOGIC_CONTRACT.md §12.
     assert "scheduler" in PERMISSION_SCOPES
-    assert len(PERMISSION_SCOPES) == 11
+    # M7 Home Automation added "home_automation" -- see
+    # docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md §17.
+    assert "home_automation" in PERMISSION_SCOPES
+    assert len(PERMISSION_SCOPES) == 12
 
 
 @pytest.mark.parametrize(

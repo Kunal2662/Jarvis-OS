@@ -587,6 +587,24 @@ class SchedulerSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}SCHEDULER_", extra="ignore")
 
 
+class HomeAutomationSettings(BaseSettings):
+    """Tunables for event-triggered device automation (M7 Home
+    Automation). Mirrors ``SchedulerSettings``'s exact shape --
+    ``max_concurrent_executions`` is a **separate** semaphore from
+    ``SchedulerSettings.max_concurrent_jobs`` (not shared), so a burst
+    of device events cannot starve legitimately-running scheduled
+    workflows or vice versa (``docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md``
+    §14). ``min_refire_interval_seconds`` is the loop/re-entrancy
+    cooldown (§15) -- the smallest safe mechanism that does not depend
+    on today's incidental "commands don't trigger a refresh" gap.
+    """
+
+    max_concurrent_executions: int = 2
+    min_refire_interval_seconds: float = 5.0
+
+    model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}HOME_AUTOMATION_", extra="ignore")
+
+
 class UISettings(BaseSettings):
     theme: ThemeName = ThemeName.JARVIS
     accent: str = "#00E5FF"
@@ -776,6 +794,7 @@ class Settings(BaseSettings):
     automation: AutomationSettings = Field(default_factory=AutomationSettings)
     agent: AgentSettings = Field(default_factory=AgentSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
+    home_automation: HomeAutomationSettings = Field(default_factory=HomeAutomationSettings)
     ui: UISettings = Field(default_factory=UISettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     dev_mode: DeveloperModeSettings = Field(default_factory=DeveloperModeSettings)

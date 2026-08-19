@@ -565,15 +565,17 @@ def test_event_bus_module_still_has_no_persistence_code() -> None:
         assert forbidden not in source
 
 
-def test_no_home_automation_or_event_viewer_module_exists() -> None:
-    """Scope guard: this task group creates neither module -- both are
-    named future consumers (Logic Contract §17), not built here."""
+def test_no_event_viewer_module_exists() -> None:
+    """Scope guard: this task group creates neither module -- Event
+    Viewer is a named future consumer (Logic Contract §17), not built
+    here. Home Automation was a named future consumer too when this
+    guard was first written -- it has since shipped as its own
+    approved M7 milestone (docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md),
+    so it is intentionally no longer checked for absence here."""
     import importlib.util
 
     for module_name in (
-        "jarvis.services.home_automation_service",
         "jarvis.services.event_viewer_service",
         "jarvis.infrastructure.api.routes.event_viewer",
-        "jarvis.infrastructure.api.routes.home_automation",
     ):
         assert importlib.util.find_spec(module_name) is None

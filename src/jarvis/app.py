@@ -146,6 +146,7 @@ class ApplicationBootstrapper:
         self._register_mcp_hooks(runtime_manager, settings, health_monitor)
         self._register_workspace_platform_hooks(settings, health_monitor)
         self._register_scheduler_hooks(runtime_manager, settings)
+        self._register_home_automation_hooks(runtime_manager)
 
         # Milestone 3.1 — preload the local Whisper model eagerly instead of
         # paying the load cost on the user's first PTT/toggle-listen call.
@@ -552,6 +553,31 @@ class ApplicationBootstrapper:
             await schedule_service.stop()
 
         runtime_manager.register("schedule_service", _stop_scheduler, priority=PRIORITY_FIRST)
+
+    def _register_home_automation_hooks(self, runtime_manager: RuntimeManager) -> None:
+        """M7 Home Automation (event-based triggers). Starts last
+        (``PRIORITY_LATE``), stops first (``PRIORITY_FIRST``) -- the
+        identical ordering ``_register_scheduler_hooks`` above already
+        uses, for the identical reason: a matched device event's first
+        dispatch could reach any already-registered service."""
+        from jarvis.core.lifecycle.runtime_manager import PRIORITY_FIRST, PRIORITY_LATE
+
+        assert self._container is not None
+        home_automation_service = self._container.home_automation_service()
+
+        async def _start_home_automation() -> None:
+            await home_automation_service.start()
+
+        runtime_manager.register_startup(
+            "home_automation_service", _start_home_automation, priority=PRIORITY_LATE
+        )
+
+        async def _stop_home_automation() -> None:
+            await home_automation_service.stop()
+
+        runtime_manager.register(
+            "home_automation_service", _stop_home_automation, priority=PRIORITY_FIRST
+        )
 
     def _register_workspace_platform_hooks(
         self, settings: Settings, health_monitor: HealthMonitor

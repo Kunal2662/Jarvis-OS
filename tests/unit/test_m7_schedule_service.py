@@ -106,15 +106,23 @@ async def sensors_granted(sensors, sensor_permissions):
 
 
 @pytest.fixture
-def service(db, permissions, settings, automation, sensors_granted):
+def workflow_executor(settings, automation, sensors_granted):
+    from jarvis.services.workflow_execution_service import WorkflowExecutionService
+
+    return WorkflowExecutionService(
+        settings=settings, automation=automation, sensors=sensors_granted
+    )
+
+
+@pytest.fixture
+def service(db, permissions, settings, workflow_executor):
     from jarvis.services.schedule_service import ScheduleService
 
     return ScheduleService(
         database=db,
         permissions=permissions,
         settings=settings,
-        automation=automation,
-        sensors=sensors_granted,
+        workflow_executor=workflow_executor,
     )
 
 
@@ -541,13 +549,16 @@ async def test_scheduled_agent_tool_step_success_publishes_device_command_execut
         metadata={"connector_type": "home_assistant"},
     )
 
+    from jarvis.services.workflow_execution_service import WorkflowExecutionService
+
+    workflow_executor = WorkflowExecutionService(
+        settings=settings, automation=automation, sensors=sensors_granted, smart_lighting=lighting
+    )
     service = ScheduleService(
         database=db,
         permissions=permissions,
         settings=settings,
-        automation=automation,
-        sensors=sensors_granted,
-        smart_lighting=lighting,
+        workflow_executor=workflow_executor,
     )
     await _grant(permissions)
     schedule = await service.create_schedule(
@@ -626,8 +637,12 @@ async def test_all_steps_denied_is_denied_not_partially_failed(service, permissi
 @pytest.mark.asyncio
 async def test_no_automation_service_available_fails_gracefully(permissions, db, settings) -> None:
     from jarvis.services.schedule_service import ScheduleService
+    from jarvis.services.workflow_execution_service import WorkflowExecutionService
 
-    svc = ScheduleService(database=db, permissions=permissions, settings=settings)  # no automation=
+    workflow_executor = WorkflowExecutionService(settings=settings)  # no automation=
+    svc = ScheduleService(
+        database=db, permissions=permissions, settings=settings, workflow_executor=workflow_executor
+    )
     await _grant(permissions)
     schedule = await svc.create_schedule(
         name="x",
@@ -805,9 +820,11 @@ async def test_schedule_survives_a_fresh_service_instance(
     against the same database (simulating a process restart) sees the
     same schedule and correctly fires it."""
     from jarvis.services.schedule_service import ScheduleService
+    from jarvis.services.workflow_execution_service import WorkflowExecutionService
 
+    workflow_executor = WorkflowExecutionService(settings=settings, automation=automation)
     first = ScheduleService(
-        database=db, permissions=permissions, settings=settings, automation=automation
+        database=db, permissions=permissions, settings=settings, workflow_executor=workflow_executor
     )
     await _grant(permissions)
     schedule = await first.create_schedule(
@@ -819,7 +836,7 @@ async def test_schedule_survives_a_fresh_service_instance(
     await _force_due(db, schedule["id"])
 
     second = ScheduleService(
-        database=db, permissions=permissions, settings=settings, automation=automation
+        database=db, permissions=permissions, settings=settings, workflow_executor=workflow_executor
     )
     await second.tick()
 
@@ -833,9 +850,11 @@ async def test_disabled_schedule_remains_disabled_after_fresh_instance(
     db, permissions, settings, automation
 ) -> None:
     from jarvis.services.schedule_service import ScheduleService
+    from jarvis.services.workflow_execution_service import WorkflowExecutionService
 
+    workflow_executor = WorkflowExecutionService(settings=settings, automation=automation)
     first = ScheduleService(
-        database=db, permissions=permissions, settings=settings, automation=automation
+        database=db, permissions=permissions, settings=settings, workflow_executor=workflow_executor
     )
     await _grant(permissions)
     schedule = await first.create_schedule(
@@ -844,7 +863,7 @@ async def test_disabled_schedule_remains_disabled_after_fresh_instance(
     await first.disable_schedule(schedule["id"])
 
     second = ScheduleService(
-        database=db, permissions=permissions, settings=settings, automation=automation
+        database=db, permissions=permissions, settings=settings, workflow_executor=workflow_executor
     )
     got = await second.get_schedule(schedule["id"])
     assert got["enabled"] is False
@@ -884,14 +903,19 @@ def test_schedule_service_never_imports_connector_or_device_state_types() -> Non
 
 def test_schedule_service_never_supplies_a_confirm_callback() -> None:
     """Policy A (Logic Contract §2): no automatic confirmation
-    mechanism exists anywhere in this module -- every authorize()/
+    mechanism exists anywhere in this module or the shared
+    `WorkflowExecutionService` it delegates to (Home Automation Logic
+    Contract §8 -- the `confirm=None` call sites moved there, verbatim,
+    during the workflow-execution extraction) -- every authorize()/
     run_command() call site passes no `confirm`, verified directly
     against the raw source rather than only by behavioral test."""
     import inspect
 
-    from jarvis.services import schedule_service
+    from jarvis.services import schedule_service, workflow_execution_service
 
-    source = inspect.getsource(schedule_service)
-    assert "confirm=None" in source  # the only form `confirm` ever takes here
-    assert "_always_allow" not in source
-    assert "auto_deny_when_unconfirmable=False" not in source
+    schedule_source = inspect.getsource(schedule_service)
+    executor_source = inspect.getsource(workflow_execution_service)
+    assert "confirm=None" in executor_source  # the only form `confirm` ever takes here
+    for source in (schedule_source, executor_source):
+        assert "_always_allow" not in source
+        assert "auto_deny_when_unconfirmable=False" not in source

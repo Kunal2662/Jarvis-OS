@@ -1215,10 +1215,8 @@ def _build_devtools_connectivity_service(
     )
 
 
-def _build_schedule_service(
+def _build_workflow_execution_service(
     *,
-    database: Any,
-    permission_model: Any,
     settings: Settings,
     automation_service: Any,
     memory_service: Any,
@@ -1245,18 +1243,16 @@ def _build_schedule_service(
     alarm_control_panel_service: Any,
     smart_home_memory_service: Any,
 ) -> Any:
-    """Milestone 7 Phase 6 (Scheduler MVP). Threads through the
-    identical optional-service set `_build_agent_orchestrator` below
-    already assembles -- for `AGENT_TOOL`-kind workflow steps, this
-    service builds its own tool registry from the same
-    `build_tool_registry` factory (see `services/schedule_service.py`'s
-    own module docstring for why this is a second *instance*, not a
-    second *implementation*)."""
-    from jarvis.services.schedule_service import ScheduleService
+    """M7 Home Automation Logic Contract §8 -- the shared execution
+    owner both `ScheduleService` (time-based triggers) and
+    `HomeAutomationService` (event-based triggers) delegate to.
+    Threads through the identical optional-service set
+    `_build_agent_orchestrator` below already assembles -- for
+    `AGENT_TOOL`-kind workflow steps, this service builds its own tool
+    registry from the same `build_tool_registry` factory."""
+    from jarvis.services.workflow_execution_service import WorkflowExecutionService
 
-    return ScheduleService(
-        database=database,
-        permissions=permission_model,
+    return WorkflowExecutionService(
         settings=settings,
         automation=automation_service,
         memory=memory_service,
@@ -1282,6 +1278,44 @@ def _build_schedule_service(
         siren=siren_service,
         alarm_control_panels=alarm_control_panel_service,
         smart_home_memory=smart_home_memory_service,
+    )
+
+
+def _build_schedule_service(
+    *,
+    database: Any,
+    permission_model: Any,
+    settings: Settings,
+    workflow_execution_service: Any,
+) -> Any:
+    """Milestone 7 Phase 6 (Scheduler MVP)."""
+    from jarvis.services.schedule_service import ScheduleService
+
+    return ScheduleService(
+        database=database,
+        permissions=permission_model,
+        settings=settings,
+        workflow_executor=workflow_execution_service,
+    )
+
+
+def _build_home_automation_service(
+    *,
+    database: Any,
+    permission_model: Any,
+    settings: Settings,
+    event_bus: Any,
+    workflow_execution_service: Any,
+) -> Any:
+    """M7 Home Automation Logic Contract §5/§17."""
+    from jarvis.services.home_automation_service import HomeAutomationService
+
+    return HomeAutomationService(
+        database=database,
+        permissions=permission_model,
+        settings=settings,
+        event_bus=event_bus,
+        workflow_executor=workflow_execution_service,
     )
 
 
@@ -1314,6 +1348,7 @@ def _build_agent_orchestrator(
     alarm_control_panels: Any,
     smart_home_memory: Any,
     schedules: Any,
+    home_automation: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1346,6 +1381,7 @@ def _build_agent_orchestrator(
         alarm_control_panels=alarm_control_panels,
         smart_home_memory=smart_home_memory,
         schedules=schedules,
+        home_automation=home_automation,
         event_bus=event_bus,
     )
 
@@ -2063,11 +2099,9 @@ class Container(containers.DeclarativeContainer):
         intelligence_service=intelligence_service,
     )
 
-    # ---- Scheduler (Milestone 7 Phase 6) ---------------------------------
-    schedule_service = providers.Singleton(
-        _build_schedule_service,
-        database=database,
-        permission_model=permission_model,
+    # ---- Workflow execution (shared by Scheduler + Home Automation) -----
+    workflow_execution_service = providers.Singleton(
+        _build_workflow_execution_service,
         settings=settings,
         automation_service=automation_service,
         memory_service=memory_service,
@@ -2093,6 +2127,25 @@ class Container(containers.DeclarativeContainer):
         siren_service=siren_service,
         alarm_control_panel_service=alarm_control_panel_service,
         smart_home_memory_service=smart_home_memory_service,
+    )
+
+    # ---- Scheduler (Milestone 7 Phase 6) ---------------------------------
+    schedule_service = providers.Singleton(
+        _build_schedule_service,
+        database=database,
+        permission_model=permission_model,
+        settings=settings,
+        workflow_execution_service=workflow_execution_service,
+    )
+
+    # ---- Home Automation (Milestone 7 -- event-based triggers) ----------
+    home_automation_service = providers.Singleton(
+        _build_home_automation_service,
+        database=database,
+        permission_model=permission_model,
+        settings=settings,
+        event_bus=event_bus,
+        workflow_execution_service=workflow_execution_service,
     )
 
     # ---- Agents (Milestone 5-Agents) ------------------------------------
@@ -2125,5 +2178,6 @@ class Container(containers.DeclarativeContainer):
         alarm_control_panels=alarm_control_panel_service,
         smart_home_memory=smart_home_memory_service,
         schedules=schedule_service,
+        home_automation=home_automation_service,
         event_bus=event_bus,
     )

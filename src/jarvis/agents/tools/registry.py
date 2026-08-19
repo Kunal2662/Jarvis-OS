@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
+    from jarvis.services.home_automation_service import HomeAutomationService
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
@@ -70,6 +71,7 @@ def build_tool_registry(
     alarm_control_panels: AlarmControlPanelService | None = None,
     smart_home_memory: SmartHomeMemoryService | None = None,
     schedules: ScheduleService | None = None,
+    home_automation: HomeAutomationService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -222,6 +224,14 @@ def build_tool_registry(
         from jarvis.agents.tools.schedule_tools import build_schedule_tools
 
         tools += build_schedule_tools(schedules)
+    if home_automation is not None:
+        # M7 Home Automation (event-based triggers). Six tools -- the
+        # minimum coherent surface (Logic Contract §23); delete stays
+        # REST-only by design -- see
+        # `agents/tools/home_automation_tools.py`.
+        from jarvis.agents.tools.home_automation_tools import build_home_automation_tools
+
+        tools += build_home_automation_tools(home_automation)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

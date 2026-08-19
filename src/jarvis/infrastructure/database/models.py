@@ -1333,3 +1333,78 @@ class WorkflowExecution(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     step_results_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class AutomationTrigger(Base):
+    """When a :class:`WorkflowDefinition` should run in reaction to a
+    device state-change event -- M7 Home Automation. *Is* the
+    automation record itself (mirroring :class:`Schedule`'s own
+    precedent -- no separate ``Automation`` header row); see
+    ``docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md`` §9/§10 for the full
+    field-by-field justification. Deliberately single-device,
+    single-transition for this MVP -- ``device_type``/``home_id``/
+    ``room_id``/``connector_type`` are not stored here, since
+    ``device_id`` alone already subsumes them.
+    """
+
+    __tablename__ = "automation_triggers"
+    __table_args__ = (
+        Index("ix_automation_triggers_workflow", "workflow_id"),
+        Index("ix_automation_triggers_device", "device_id"),
+        Index("ix_automation_triggers_enabled", "enabled"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workflow_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    device_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    # "" means "any previous status" (wildcard) -- not nullable, an
+    # empty string is the closed sentinel this module's own matching
+    # query checks against.
+    from_status: Mapped[str] = mapped_column(String(32), default="")
+    to_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+    last_fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_execution_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("automation_executions.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class AutomationExecution(Base):
+    """One dispatch attempt of an :class:`AutomationTrigger` -- M7 Home
+    Automation. Mirrors :class:`WorkflowExecution`'s exact shape for
+    its own, separate owner -- a parallel table, not a widened
+    ``WorkflowExecution``, so Scheduler's own already-shipped schema
+    stays completely untouched (Logic Contract §32). Same eight-value
+    ``status`` vocabulary as :class:`WorkflowExecution`. ``source``
+    distinguishes an event-triggered dispatch from a manual test run
+    of the same automation -- the one field with no
+    :class:`WorkflowExecution` equivalent, since Scheduler has no
+    manual-run concept.
+    """
+
+    __tablename__ = "automation_executions"
+    __table_args__ = (
+        Index("ix_automation_executions_trigger", "automation_trigger_id"),
+        Index("ix_automation_executions_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    automation_trigger_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("automation_triggers.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    # "event" | "manual" -- closed vocabulary, see module docstring above.
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    step_results_json: Mapped[str] = mapped_column(Text, default="[]")

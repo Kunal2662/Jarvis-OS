@@ -63,6 +63,7 @@ if TYPE_CHECKING:
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
+    from jarvis.services.home_automation_service import HomeAutomationService
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
@@ -118,6 +119,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         alarm_control_panels: AlarmControlPanelService | None = None,
         smart_home_memory: SmartHomeMemoryService | None = None,
         schedules: ScheduleService | None = None,
+        home_automation: HomeAutomationService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -218,6 +220,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # on the same `ScheduleService` the REST surface calls -- see
         # `agents/tools/schedule_tools.py`.
         self._schedules = schedules
+        # M7 Home Automation (event-based triggers): automation
+        # management reaches the agent as tools on the same registry,
+        # converging on the same `HomeAutomationService` the REST
+        # surface calls -- see `agents/tools/home_automation_tools.py`.
+        self._home_automation = home_automation
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -270,6 +277,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 alarm_control_panels=self._alarm_control_panels,
                 smart_home_memory=self._smart_home_memory,
                 schedules=self._schedules,
+                home_automation=self._home_automation,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

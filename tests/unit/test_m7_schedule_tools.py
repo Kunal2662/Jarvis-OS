@@ -56,7 +56,15 @@ def permissions(tmp_path: Path):
 
 @pytest.fixture
 def service(db, permissions, settings_obj) -> ScheduleService:
-    return ScheduleService(database=db, permissions=permissions, settings=settings_obj)
+    from jarvis.services.workflow_execution_service import WorkflowExecutionService
+
+    workflow_executor = WorkflowExecutionService(settings=settings_obj)
+    return ScheduleService(
+        database=db,
+        permissions=permissions,
+        settings=settings_obj,
+        workflow_executor=workflow_executor,
+    )
 
 
 @pytest.fixture

@@ -21,9 +21,9 @@ ones.
 **Time-based triggers only (§3).** No EventBus subscription of any
 kind exists in this module -- confirmed by its own import list, which
 never imports ``EventBus.subscribe`` or any device/connectivity event
-type. Event-triggered workflows are out of scope, blocked on a future,
-separately-scoped EventBus capability this module does not attempt to
-approximate.
+type. Event-triggered workflows are a separate, sibling capability
+(``HomeAutomationService``, ``docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md``)
+-- this module is not extended to approximate them.
 
 **Permission separation (§12, §15 -- the most important design rule in
 this file):** ``SCHEDULER_PRINCIPAL``/``SCHEDULER_SCOPE`` gate CRUD on
@@ -32,6 +32,16 @@ grant permission to execute a scheduled step's own underlying action --
 that is independently, separately re-evaluated at execution time by
 whichever existing gate already governs that step kind, every time,
 with no caching.
+
+**Workflow execution is delegated, not owned (Home Automation Logic
+Contract §8).** ``_run_workflow``/``_run_step``/``_run_automation_step``/
+``_run_agent_tool_step`` and the lazy tool-registry/
+``AgentPermissionGate`` state were extracted verbatim into
+:class:`~jarvis.services.workflow_execution_service.WorkflowExecutionService`,
+injected here as ``workflow_executor`` -- the shared execution owner
+both this service and ``HomeAutomationService`` call, so neither
+duplicates workflow execution. Every behavior described above is
+unchanged; only where the code lives moved.
 """
 
 from __future__ import annotations
@@ -42,8 +52,6 @@ import json
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
-from jarvis.agents.permission import AgentPermissionGate
-from jarvis.agents.tools import build_tool_registry
 from jarvis.core.exceptions import ServiceError
 from jarvis.core.logging.logger import get_logger
 from jarvis.domain.workflow.models import ScheduleKind, WorkflowStepKind
@@ -60,13 +68,11 @@ from jarvis.infrastructure.database.repositories.schedule_repository import (
 )
 
 if TYPE_CHECKING:
-    from langchain_core.tools import BaseTool
-
     from jarvis.core.config.settings import Settings
     from jarvis.core.interfaces.database import IDatabase
     from jarvis.core.plugins.permissions import PermissionModel
     from jarvis.infrastructure.database.models import Schedule
-    from jarvis.services.automation_service import AutomationService
+    from jarvis.services.workflow_execution_service import WorkflowExecutionService
     from sqlalchemy.ext.asyncio import AsyncSession
 
 _logger = get_logger("jarvis.services.schedule_service")
@@ -162,71 +168,18 @@ class ScheduleService:
         database: IDatabase,
         permissions: PermissionModel,
         settings: Settings,
-        automation: AutomationService | None = None,
-        memory: Any | None = None,
-        browser: Any | None = None,
-        chat: Any | None = None,
-        voice: Any | None = None,
-        system: Any | None = None,
-        vision: Any | None = None,
-        knowledge: Any | None = None,
-        intelligence: Any | None = None,
-        workspace_assistant: Any | None = None,
-        integrations: Any | None = None,
-        smart_lighting: Any | None = None,
-        smart_lock: Any | None = None,
-        sensors: Any | None = None,
-        smart_switch: Any | None = None,
-        appliances: Any | None = None,
-        thermostats: Any | None = None,
-        vacuum_humidifier: Any | None = None,
-        media_players: Any | None = None,
-        water_heaters: Any | None = None,
-        security: Any | None = None,
-        siren: Any | None = None,
-        alarm_control_panels: Any | None = None,
-        smart_home_memory: Any | None = None,
+        workflow_executor: WorkflowExecutionService,
     ) -> None:
         self._db = database
         self._permissions = permissions
         self._settings = settings
-        self._automation = automation
-        # Every one of these is only ever used to build this service's
-        # own tool registry (below) for AGENT_TOOL-kind steps -- the
-        # identical optional-service list `AgentOrchestrator`/
-        # `container.py`'s own `_build_agent_orchestrator` already
-        # assembles, reused verbatim rather than a narrower subset, so
-        # a workflow step can reach any tool chat/voice already can.
-        self._tool_services: dict[str, Any] = {
-            "memory": memory,
-            "browser": browser,
-            "chat": chat,
-            "voice": voice,
-            "system": system,
-            "vision": vision,
-            "knowledge": knowledge,
-            "intelligence": intelligence,
-            "workspace_assistant": workspace_assistant,
-            "integrations": integrations,
-            "smart_lighting": smart_lighting,
-            "smart_lock": smart_lock,
-            "sensors": sensors,
-            "smart_switch": smart_switch,
-            "appliances": appliances,
-            "thermostats": thermostats,
-            "vacuum_humidifier": vacuum_humidifier,
-            "media_players": media_players,
-            "water_heaters": water_heaters,
-            "security": security,
-            "siren": siren,
-            "alarm_control_panels": alarm_control_panels,
-            "smart_home_memory": smart_home_memory,
-            "automation": automation,
-        }
+        # The shared execution owner (Home Automation Logic Contract
+        # §8) -- built once, injected here and into
+        # `HomeAutomationService`, so neither duplicates workflow
+        # execution or builds its own tool registry/`AgentPermissionGate`.
+        self._workflow_executor = workflow_executor
         self._permissions.declare(SCHEDULER_PRINCIPAL, [SCHEDULER_SCOPE])
 
-        self._tools_by_name: dict[str, BaseTool] | None = None
-        self._gate: AgentPermissionGate | None = None
         self._semaphore = asyncio.Semaphore(max(1, settings.scheduler.max_concurrent_jobs))
         self._poll_task: asyncio.Task[None] | None = None
 
@@ -242,28 +195,6 @@ class ScheduleService:
                 f"/api/v1/plugins/{SCHEDULER_PRINCIPAL}/permissions/"
                 f"{SCHEDULER_SCOPE}/grant."
             )
-
-    # ------------------------------------------------------------------
-    # Agent-tool execution path (AGENT_TOOL-kind steps only)
-    # ------------------------------------------------------------------
-    def _ensure_tools_ready(self) -> None:
-        """Lazily builds this service's own tool registry and its own
-        `AgentPermissionGate` instance -- mirrors `AgentOrchestrator.
-        start()`'s identical lazy-build pattern exactly (same
-        `build_tool_registry` function, same `AgentPermissionGate`
-        class, same `settings.agent.confirm_required_tools` source). A
-        second *instance*, not a second *implementation* -- see module
-        docstring."""
-        if self._tools_by_name is not None and self._gate is not None:
-            return
-        tools = build_tool_registry(**self._tool_services)
-        self._tools_by_name = {t.name: t for t in tools}
-        self._gate = AgentPermissionGate(
-            confirm_required_tools=self._settings.agent.confirm_required_tools,
-        )
-
-    def _confirm_required_tool_names(self) -> frozenset[str]:
-        return self._settings.agent.confirm_required_tools
 
     # ------------------------------------------------------------------
     # Schedule CRUD
@@ -309,7 +240,7 @@ class ScheduleService:
         # covered by this informational flag. The live gate at
         # execution time is always the real, complete source of truth
         # for both step kinds regardless of this flag's coverage.
-        confirm_required_names = self._confirm_required_tool_names()
+        confirm_required_names = self._settings.agent.confirm_required_tools
         contains_confirm_required_steps = any(
             s["kind"] == WorkflowStepKind.AGENT_TOOL.value
             and s["tool_name"] in confirm_required_names
@@ -613,7 +544,7 @@ class ScheduleService:
                 )
                 return
 
-            status, error, step_results = await self._run_workflow(steps)
+            status, error, step_results = await self._workflow_executor.run_workflow(steps)
             finished_at = datetime.now(UTC)
             await self._finish_execution(
                 execution.id, status=status, error=error, step_results=step_results
@@ -652,90 +583,3 @@ class ScheduleService:
                 step_results_json=json.dumps(step_results),
                 finished_at=datetime.now(UTC),
             )
-
-    async def _run_workflow(
-        self, steps: list[dict[str, Any]]
-    ) -> tuple[str, str | None, list[dict[str, Any]]]:
-        """Executes *steps* sequentially (Logic Contract §6: `depends_on`
-        -based parallel dispatch is Phase 3 scope, deferred -- a flat
-        linear list is executed in list order). Returns the workflow-
-        level status, an optional top-level error summary, and the
-        per-step result list."""
-        results: list[dict[str, Any]] = []
-        for step in steps:
-            started = asyncio.get_event_loop().time()
-            step_status, step_error = await self._run_step(step)
-            duration_ms = (asyncio.get_event_loop().time() - started) * 1000
-            results.append(
-                {
-                    "step_id": step.get("id", ""),
-                    "status": step_status,
-                    "error": step_error,
-                    "duration_ms": duration_ms,
-                }
-            )
-
-        succeeded = sum(1 for r in results if r["status"] == "succeeded")
-        denied = sum(1 for r in results if r["status"] == "denied")
-        failed = sum(1 for r in results if r["status"] == "failed")
-        total = len(results)
-
-        if succeeded == total:
-            return "succeeded", None, results
-        if succeeded == 0 and failed == 0 and denied == total:
-            return "denied", "Every step in this workflow was denied.", results
-        if succeeded == 0:
-            return "failed", "No step in this workflow succeeded.", results
-        return "partially_failed", "Some steps in this workflow did not succeed.", results
-
-    async def _run_step(self, step: dict[str, Any]) -> tuple[str, str | None]:
-        if step.get("kind") == WorkflowStepKind.AUTOMATION.value:
-            return await self._run_automation_step(step)
-        return await self._run_agent_tool_step(step)
-
-    async def _run_automation_step(self, step: dict[str, Any]) -> tuple[str, str | None]:
-        if self._automation is None:
-            return "failed", "Automation service is not available."
-        # No `confirm` supplied -- Policy A (module docstring). Any
-        # confirm-required action inside this instruction is denied by
-        # `PermissionGate` itself, internally, and surfaces as a
-        # `StepStatus.DENIED` entry in `PlanResult.step_results` --
-        # `AutomationPermissionDeniedError` never propagates out of
-        # `run_command` (verified directly against `ActionExecutor.
-        # _authorize_step` this session).
-        result = await self._automation.run_command(step.get("instruction", ""))
-        if result.plan_id == "disabled":
-            return "failed", "Automation is disabled (AutomationSettings.enabled=False)."
-        if result.succeeded:
-            return "succeeded", None
-        denied_statuses = {r.status.value for r in result.step_results}
-        if denied_statuses and denied_statuses <= {"denied"}:
-            errors = "; ".join(r.error or "" for r in result.step_results if r.error)
-            return "denied", errors or "Denied: confirmation required."
-        errors = "; ".join(r.error or "" for r in result.step_results if r.error)
-        return "failed", errors or "Automation instruction failed."
-
-    async def _run_agent_tool_step(self, step: dict[str, Any]) -> tuple[str, str | None]:
-        self._ensure_tools_ready()
-        assert self._tools_by_name is not None
-        assert self._gate is not None
-
-        tool_name = step.get("tool_name", "")
-        tool_args = step.get("tool_args") or {}
-        tool = self._tools_by_name.get(tool_name)
-        if tool is None:
-            return "failed", f"Unknown tool: {tool_name!r}."
-
-        # No `confirm` supplied -- Policy A. `authorize()` never raises;
-        # it returns a plain (allowed, reason) pair (verified directly
-        # against `agents/permission.py` this session).
-        allowed, reason = await self._gate.authorize(tool_name, tool_args, confirm=None)
-        if not allowed:
-            return "denied", f"Denied: {reason}"
-
-        try:
-            await tool.ainvoke(tool_args)
-        except Exception as err:  # a step failure must not crash the loop
-            _logger.warning("Scheduled tool {!r} failed: {}", tool_name, err)
-            return "failed", str(err)
-        return "succeeded", None

@@ -787,11 +787,12 @@ def test_schedule_service_and_memory_service_have_no_new_coupling() -> None:
         assert "event_bus.subscribe" not in source
 
 
-def test_no_home_automation_or_event_viewer_module_exists() -> None:
+def test_no_event_viewer_module_exists() -> None:
+    """Home Automation was a named future consumer when this guard was
+    first written -- it has since shipped as its own approved M7
+    milestone (docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md), so it is
+    intentionally no longer checked for absence here. Event Viewer
+    remains out of scope."""
     import importlib.util
 
-    for module_name in (
-        "jarvis.services.home_automation_service",
-        "jarvis.services.event_viewer_service",
-    ):
-        assert importlib.util.find_spec(module_name) is None
+    assert importlib.util.find_spec("jarvis.services.event_viewer_service") is None
