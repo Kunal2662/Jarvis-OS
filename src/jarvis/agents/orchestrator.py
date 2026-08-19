@@ -69,6 +69,7 @@ if TYPE_CHECKING:
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.recorder_service import RecorderService
     from jarvis.services.schedule_service import ScheduleService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
@@ -122,6 +123,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         schedules: ScheduleService | None = None,
         home_automation: HomeAutomationService | None = None,
         workflow_builder: WorkflowBuilderService | None = None,
+        recorder: RecorderService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -232,6 +234,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # same `WorkflowBuilderService` the REST surface calls -- see
         # `agents/tools/workflow_builder_tools.py`.
         self._workflow_builder = workflow_builder
+        # M7 Recorder: recording-session management reaches the agent
+        # as tools on the same registry, converging on the same
+        # `RecorderService` the REST surface calls -- see
+        # `agents/tools/recorder_tools.py`.
+        self._recorder = recorder
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -286,6 +293,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 schedules=self._schedules,
                 home_automation=self._home_automation,
                 workflow_builder=self._workflow_builder,
+                recorder=self._recorder,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

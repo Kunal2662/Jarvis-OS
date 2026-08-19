@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.recorder_service import RecorderService
     from jarvis.services.schedule_service import ScheduleService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
@@ -74,6 +75,7 @@ def build_tool_registry(
     schedules: ScheduleService | None = None,
     home_automation: HomeAutomationService | None = None,
     workflow_builder: WorkflowBuilderService | None = None,
+    recorder: RecorderService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -241,6 +243,12 @@ def build_tool_registry(
         from jarvis.agents.tools.workflow_builder_tools import build_workflow_builder_tools
 
         tools += build_workflow_builder_tools(workflow_builder)
+    if recorder is not None:
+        # M7 Recorder. Four tools -- the minimum coherent surface
+        # (Logic Contract §16) -- see `agents/tools/recorder_tools.py`.
+        from jarvis.agents.tools.recorder_tools import build_recorder_tools
+
+        tools += build_recorder_tools(recorder)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

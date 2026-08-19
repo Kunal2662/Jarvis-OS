@@ -1438,3 +1438,29 @@ class WorkflowBuilderExecution(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     step_results_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class RecordingSession(Base):
+    """A bookkeeping marker for one Recorder session -- M7 Recorder.
+
+    **Not a copy of captured action data.** The actual captured steps
+    live where they always did, unmodified: ``automation_task_history``
+    (via ``HistoryService``). This table only remembers *when* a
+    recording started/stopped and *what it produced*, so ``stop`` can
+    query history rows in ``[started_at, stopped_at)`` and, on
+    success, point at the resulting standalone ``WorkflowDefinition``
+    (Logic Contract §7). No FK from ``automation_task_history`` back
+    to this table -- correlation is by timestamp window at stop-time,
+    not a live join.
+    """
+
+    __tablename__ = "recording_sessions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    # "recording" | "completed" | "cancelled"
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="recording")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    stopped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resulting_workflow_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="SET NULL"), nullable=True
+    )

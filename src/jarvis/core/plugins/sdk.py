@@ -61,6 +61,13 @@ PERMISSION_SCOPES: frozenset[str] = frozenset(
         # permission to execute a step's own underlying action
         # (docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md §11).
         "workflow_builder",
+        # M7 Recorder: gates the recording-session lifecycle
+        # (start/stop/cancel/list) only -- never implies permission to
+        # create the resulting workflow, which stays independently
+        # gated by WorkflowBuilderService's own "workflow_builder"
+        # scope check every time (docs/M7_RECORDER_LOGIC_CONTRACT.md
+        # §11).
+        "recorder",
     }
 )
 

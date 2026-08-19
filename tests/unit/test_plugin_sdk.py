@@ -54,7 +54,10 @@ def test_permission_scopes_fixed_vocabulary():
     # M7 Workflow Builder added "workflow_builder" -- see
     # docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md §11.
     assert "workflow_builder" in PERMISSION_SCOPES
-    assert len(PERMISSION_SCOPES) == 13
+    # M7 Recorder added "recorder" -- see
+    # docs/M7_RECORDER_LOGIC_CONTRACT.md §11.
+    assert "recorder" in PERMISSION_SCOPES
+    assert len(PERMISSION_SCOPES) == 14
 
 
 @pytest.mark.parametrize(

@@ -1335,6 +1335,28 @@ def _build_workflow_builder_service(
     )
 
 
+def _build_recorder_service(
+    *,
+    database: Any,
+    permission_model: Any,
+    workflow_builder_service: Any,
+) -> Any:
+    """M7 Recorder Logic Contract §17. `HistoryService` is a
+    stateless facade over `database` (see `AutomationService.__init__`'s
+    own identical `HistoryService(database)` construction) -- building
+    a second instance here is equivalent to reusing the one
+    `AutomationService` holds, not a second capture mechanism."""
+    from jarvis.features.automation.history import HistoryService
+    from jarvis.services.recorder_service import RecorderService
+
+    return RecorderService(
+        database=database,
+        permissions=permission_model,
+        history=HistoryService(database),
+        workflow_builder=workflow_builder_service,
+    )
+
+
 def _build_agent_orchestrator(
     *,
     settings: Settings,
@@ -1366,6 +1388,7 @@ def _build_agent_orchestrator(
     schedules: Any,
     home_automation: Any,
     workflow_builder: Any,
+    recorder: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1400,6 +1423,7 @@ def _build_agent_orchestrator(
         schedules=schedules,
         home_automation=home_automation,
         workflow_builder=workflow_builder,
+        recorder=recorder,
         event_bus=event_bus,
     )
 
@@ -2174,6 +2198,14 @@ class Container(containers.DeclarativeContainer):
         workflow_execution_service=workflow_execution_service,
     )
 
+    # ---- Recorder (M7 -- capture JARVIS's own automation actions) -------
+    recorder_service = providers.Singleton(
+        _build_recorder_service,
+        database=database,
+        permission_model=permission_model,
+        workflow_builder_service=workflow_builder_service,
+    )
+
     # ---- Agents (Milestone 5-Agents) ------------------------------------
     agent_orchestrator = providers.Singleton(
         _build_agent_orchestrator,
@@ -2206,5 +2238,6 @@ class Container(containers.DeclarativeContainer):
         schedules=schedule_service,
         home_automation=home_automation_service,
         workflow_builder=workflow_builder_service,
+        recorder=recorder_service,
         event_bus=event_bus,
     )
