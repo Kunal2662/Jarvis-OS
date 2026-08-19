@@ -3,6 +3,68 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M7: Workflow Builder MVP
+
+**No version bump**, unchanged from `0.38.0`. Standalone workflow
+authoring — Phase 4, resumed and completed — approved by a dedicated
+Phase 0 audit and a Logic Contract
+(`docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md`).
+
+A new `WorkflowBuilderService` provides create/list/get/edit/delete
+CRUD over a `WorkflowDefinition` (name, description, an ordered step
+list), completely independent of any Schedule or Automation Trigger —
+never attached to one in this MVP. The one genuinely new capability
+relative to both sibling services: **editing**. `WorkflowRepository`
+gained `update`/`list_all` methods; its pre-existing `add`/`get`/
+`delete` are unchanged (verified via the full Scheduler and Home
+Automation regressions passing unmodified). Execution reuses the
+identical shared `WorkflowExecutionService` Scheduler and Home
+Automation already dispatch through — not a second execution engine.
+Manual "run now" is the only execution path (a standalone workflow has
+no trigger), awaited synchronously, mirroring Home Automation's own
+manual-run reasoning exactly.
+
+Persisted in a new table, `workflow_builder_executions` — deliberately
+separate from `WorkflowExecution`/`AutomationExecution`, so neither
+sibling's own already-shipped schema is ever widened. Seven REST
+routes under `/api/v1/workflows`, including a `PATCH` route — the
+first partial-update endpoint in this milestone's trigger-based
+family, since neither Scheduler's nor Home Automation's own
+inline-created workflow rows ever needed one. Five agent tools. New
+`workflow_builder` permission scope, strictly CRUD-only, identical
+separation principle as `scheduler`/`home_automation`. Same fail-safe
+(never fail-open) confirmation policy — zero new authorization code.
+
+**Does not literally "build on `RecipeManager`" as originally scoped.**
+A fresh audit found `RecipeManager` (M4) models a structurally
+incompatible, string-only, agent-tool-free step shape, and lives in
+this project's feature-frozen M0–M6 territory — extending it would
+violate that freeze rule. Standalone CRUD was built directly over the
+existing `WorkflowDefinition`/`WorkflowStep` ORM shape instead (the
+same shape Scheduler and Home Automation already execute), satisfying
+the roadmap's underlying intent without touching `RecipeManager`,
+which remains completely untouched. See
+`docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md` §4 for the full,
+evaluated design-option comparison.
+
+A mock-only frontend surface (`src/features/workflowBuilder/` in the
+separate `Jarvis-Frontend-main` repository) ships alongside this,
+matching Home Automation's own established mock-adapter precedent —
+not wired to this REST API in this pass, for the identical
+pre-existing auth gap.
+
+51 dedicated backend tests (creation/validation, CRUD, update
+semantics, manual execution, ownership separation, scope guards). 30
+dedicated frontend tests (list/create/edit/run/delete interactions,
+including dedicated partial-update-merge semantics tests, loading/
+empty/error states, mock+core adapter unit tests, route registration)
+— full frontend suite (590 tests across 80 files) verified, plus a
+clean lint/typecheck/build. A handful of full-suite runs showed a
+different, unrelated set of pre-existing tests failing each time
+(confirmed as environment/load-related flakiness — the same tests
+pass reliably in isolation and on the unmodified base branch); all 30
+new Workflow Builder tests passed on every run.
+
 ## M7: Home Automation MVP
 
 **No version bump**, unchanged from `0.38.0`. Event-triggered

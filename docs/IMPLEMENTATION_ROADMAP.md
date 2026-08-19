@@ -116,7 +116,7 @@ if the two ever disagree, `MASTER_ROADMAP.md` §2 is right.)*
 | Milestone | Status |
 |---|---|
 | M0 – M6 | ✅ Completed. See `MASTER_ROADMAP.md` §3. |
-| M7 — Workflow Intelligence | 🟡 Active. Phases 1–2 shipped; Phase 3 🟠 deferred; Phases 4–5 pending; **Phase 6 (Scheduler), EventBus Tier 1 (Device Command Events), EventBus Tier 2 (Device State-Changed Event) and a Home Automation MVP (event-triggered automation, built on Tier 2) have since shipped, Aug 2026** — none of these are Phases 4–5. See `MASTER_ROADMAP.md` §8 for the full account. |
+| M7 — Workflow Intelligence | 🟡 Active. Phases 1–2 shipped; Phase 3 🟠 deferred; Phase 5 (Recorder) pending; **Phase 6 (Scheduler), EventBus Tier 1 (Device Command Events), EventBus Tier 2 (Device State-Changed Event), a Home Automation MVP (event-triggered automation, built on Tier 2), and Phase 4 (Workflow Builder — standalone workflow authoring/editing) have since shipped, Aug 2026.** See `MASTER_ROADMAP.md` §8 for the full account. |
 | **M8 – React Frontend & Desktop Experience** | 🟡 **Active — this document tracks it.** Phase 1 and Phase 4 shipped; Phase 3 partial; Phases 2, 5, 6, 7 and the rest of Phase 3 🟠 **deferred — see §6, Deferred Backlog.** **Not 100% complete.** |
 | **M9 – Runtime & Core Services** | ✅ **Completed — all five task groups (A–E) shipped, see §5 below.** |
 | **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M14/M16-dependent remainder deferred. Context Engine's knowledge-graph half closed by M10A. See §5A below and `MASTER_ROADMAP.md` §8/§14.** |

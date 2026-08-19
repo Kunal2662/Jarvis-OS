@@ -2527,9 +2527,9 @@ workflow engine orchestrates).
 3. A scheduled workflow fires unattended and its result is visible in
    the Agent Trace panel.
 
-**Implementation status (2026-08-18) — M7 is in progress, not
-complete.** Six phases were scoped; three have shipped, one is
-deliberately deferred, two are pending. Grouped by disposition:
+**Implementation status (2026-08-19) — M7 is in progress, not
+complete.** Six phases were scoped; four have shipped, one is
+deliberately deferred, one is pending. Grouped by disposition:
 
 - **Completed:**
   - Phase 1 (Domain Foundation) — `WorkflowDefinition` / `WorkflowStep`
@@ -2677,22 +2677,61 @@ deliberately deferred, two are pending. Grouped by disposition:
     predates this slice and is out of scope for it. See
     `CHANGELOG.md`'s own M7 Home Automation MVP entry for the full
     frontend account.
+  - **Workflow Builder MVP, shipped Aug 2026 -- Phase 4, resumed and
+    completed.** Standalone CRUD authoring of a `WorkflowDefinition`
+    (name/description/ordered step list), independent of any Schedule
+    or Automation Trigger -- never attached to one in this MVP. A new
+    `WorkflowBuilderService`, dispatching through the same shared
+    `WorkflowExecutionService` Scheduler and Home Automation already
+    use -- not a second execution engine. The one genuinely new
+    capability relative to both sibling services: **editing** --
+    `WorkflowRepository` gained `update`/`list_all` methods (its prior
+    three, `add`/`get`/`delete`, are unchanged), since neither
+    Scheduler's nor Home Automation's own inline-created workflow rows
+    ever needed either. Manual "run now" is the only execution path,
+    since a standalone workflow has no trigger; awaited synchronously,
+    identical reasoning to Home Automation's own manual run. Persisted
+    in a new `workflow_builder_executions` table -- deliberately
+    separate from `WorkflowExecution`/`AutomationExecution`, so neither
+    sibling's own schema is ever widened. Seven REST routes under
+    `/api/v1/workflows` (the first `PATCH` route in this milestone's
+    entire trigger-based family), five agent tools. New
+    `workflow_builder` permission scope, CRUD-only, identical
+    separation principle as `scheduler`/`home_automation`. **Does not
+    literally "build on `RecipeManager`" as this roadmap's own original
+    Phase 4 description assumed** -- `RecipeManager` (M4) is
+    feature-frozen and models a structurally incompatible,
+    agent-tool-free, string-only step shape; extending it would violate
+    this project's own M0-M6 freeze rule. `RecipeManager` itself is
+    completely untouched. Same fail-safe (never fail-open) confirmation
+    policy as Scheduler/Home Automation. 51 dedicated tests. See
+    `docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md` for the full design,
+    including the documented, evaluated rejection of extending
+    `RecipeManager`. A mock-only frontend surface ships alongside this
+    in the separate `Jarvis-Frontend-main` repository
+    (`src/features/workflowBuilder/`), matching Home Automation's own
+    mock-adapter precedent exactly -- not wired to this real REST API
+    yet, for the identical pre-existing auth gap. See `CHANGELOG.md`'s
+    own M7 Workflow Builder MVP entry for the full frontend account.
 - **Deferred:**
   - Phase 3 (Structured Graph Planning) — would extend `AgentState` /
     `planner.py` / `tool_executor.py` / `graph.py` for cross-tool
     parallelism inside the agent runtime itself. Explicitly deferred
     pending its own separate approval per the original phase plan;
     not started.
-- **Pending** (paused after Phase 2, not resumed until the UI overhaul
-  work in §7's "UI Foundation" has been reviewed and approved):
-  - Phase 4 — Workflow Builder (a visual/declarative authoring surface
-    on top of the existing `RecipeManager`, M4). The Scheduler MVP's
-    own minimal workflow representation (§ above) is intentionally not
-    this — no standalone workflow-authoring API exists; a schedule's
-    workflow is created inline, once, with no edit surface.
+- **Pending:**
   - Phase 5 — Recorder (Macro Engine / Automation Recorder) — no
     capture infrastructure exists anywhere in this codebase to extend;
-    genuinely unstarted, not partially built.
+    genuinely unstarted, not partially built. *(Phase 4 — Workflow
+    Builder, formerly paused alongside this phase pending §7's "UI
+    Foundation" review, has since shipped -- see the Workflow Builder
+    MVP bullet above. That gate's literal referent is the PySide6
+    desktop-shell design pass (since superseded by M8's React rebuild),
+    not the separate `Jarvis-Frontend-main` repository this and Home
+    Automation's own frontend work actually integrated into -- see
+    `docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md` §5 for the full
+    reasoning. Recorder itself remains unstarted and is not resumed by
+    this slice.)*
 
 **Acceptance criteria status:**
 1. *A workflow with two independent steps measurably runs them in
