@@ -3,6 +3,88 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M7: Recorder MVP
+
+**No version bump**, unchanged from `0.38.0`. "Watch me do this once,
+then do it for me" — Phase 5, approved by a dedicated Phase 0 audit and
+a Logic Contract (`docs/M7_RECORDER_LOGIC_CONTRACT.md`).
+
+A new `RecorderService` starts/stops a recording session and, at stop
+time only, converts whatever it captured into a new Workflow Builder
+workflow. **Query-at-stop-time, not live-subscribe**: it never
+subscribes to `EventBus` and adds zero new event infrastructure —
+instead it queries the pre-existing, completely unmodified
+`HistoryService.list_recent()` exactly once, when the user clicks
+Stop, filtered to the recording session's own time window and
+`succeeded` steps only. Conversion is deterministic: a fixed
+`ActionType → instruction template` map (all 25 `ActionType` members
+except `UNKNOWN`) turns each captured step into a workflow step; an
+unrecognized action is silently excluded, never an error, and a
+recording that captured nothing supported fails with a clear message
+rather than creating an empty workflow.
+
+**Fidelity is deliberately bounded, not extended**: a reconstructed
+instruction carries action + target only, never `args_json` —
+`HistoryService`'s own `TaskHistoryEntry` doesn't expose it even though
+the underlying table stores it, a pre-existing gap left exactly as
+found (Option A of three the Logic Contract evaluates in §5; extending
+`HistoryService` itself, Option B, is flagged as a possible future
+follow-up needing its own separate approval, not done here since
+`history.py` sits adjacent to M4's own territory).
+
+**Workflow creation and replay are both single delegation points,
+never duplicated**: `stop_recording` calls
+`WorkflowBuilderService.create_workflow()` as its only write path — the
+`workflow_builder` permission scope is freshly re-checked on that call
+every time, never inherited or cached from the separate `recorder`
+scope that gates session start/stop/cancel (a dedicated test proves a
+caller holding only `recorder`, with a genuinely captured step in
+hand, is still denied at `stop`). Replay is exclusively
+`WorkflowBuilderService.run_workflow()` — Recorder itself has zero
+execution code of its own. The single-active-session rule is enforced
+at the DB layer (`get_active()`), proven under real concurrency: two
+simultaneous `start` calls raced with `asyncio.gather` and exactly one
+succeeds.
+
+A new `RecordingSession` table holds session lifecycle only
+(status/timestamps/`resulting_workflow_id`) — **not** a copy of
+captured action data; the actual captured steps stay in the
+pre-existing `automation_task_history` table, read but never
+duplicated or migrated. Five REST routes under `/api/v1/recordings`
+(start/stop/cancel/list/get) and four agent tools (no `get_recording`
+tool, matching this family's established minimum-surface precedent).
+New `recorder` permission scope (the 14th), strictly
+session-lifecycle-only — holding it alone can never create a workflow.
+`HistoryService` remains completely unmodified and backward
+compatible. No raw keyboard/mouse capture exists or was added; no
+agent-tool-invocation capture (no mechanism for it exists anywhere in
+this codebase); no AI-generated interpretation of what was recorded —
+conversion is a fixed lookup table, not a model call.
+
+50 dedicated backend tests (session creation/start/cancel, time-window
+and status filtering, deterministic conversion, the args-fidelity
+boundary, the permission-stacking scenario above, real-concurrency
+start racing, REST status-code mapping, agent tool wiring, scope
+guards). Full backend regression (4216 tests) green; Ruff and Mypy
+compared against the pre-Recorder baseline show zero genuinely new
+findings (one pre-existing-pattern import-order fix applied in
+`agents/tools/registry.py`).
+
+A mock-only frontend surface ships alongside this in the separate
+`Jarvis-Frontend-main` repository (`src/features/recorder/`, 24
+dedicated frontend tests), mirroring Workflow Builder's own
+mock-adapter architecture closely enough that the mock's own
+`stopRecording` genuinely delegates to the real, already-selected
+`WorkflowBuilderService.createWorkflow()` — so "Open in Workflow
+Builder" and "Run now" on the generated-workflow preview operate on a
+workflow that truly exists in that feature's own store, not a
+disconnected stub. Not wired to the real REST API yet, for the
+identical pre-existing frontend auth gap every other `core*Adapter.ts`
+in that repository shares. Clean typecheck/lint/build; manually
+verified end-to-end in a real browser (start → active recording →
+stop with a required name → generated-workflow preview → genuinely
+created and visible in Workflow Builder → run now → cancel).
+
 ## M7: Workflow Builder MVP
 
 **No version bump**, unchanged from `0.38.0`. Standalone workflow

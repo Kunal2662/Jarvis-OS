@@ -1197,16 +1197,18 @@ Developer Mode/Settings UI) — real vision/OCR capability remains
 future work; see M6's own §3 entry for the full scope note.
 
 **Active (🟡):**
-- **M7 — Workflow Intelligence** (see §8) — Phase 1 (Domain Foundation)
-  and Phase 2 (Parallel Automation Execution) shipped; Phase 3
-  (Structured Graph Planning) 🟠 deferred; Phases 4–6 (Workflow
-  Builder, Recorder, Scheduler) pending, paused pending review of the
-  "UI Foundation" cross-cutting initiative (Typography, SVG Icon
-  System, and an application-state Logic Foundation — a design-system
-  hardening pass, not its own roadmap milestone; see §7) — that review
-  itself completed and was superseded by the decision to migrate the
-  frontend to React + Tauri (M8), so M7's Phases 4–6 remain paused, not
-  actively blocked on anything further. See M7's own §8 entry for the
+- **M7 — Workflow Intelligence** (see §8) — Phase 1 (Domain Foundation),
+  Phase 2 (Parallel Automation Execution), Phase 4 (Workflow Builder),
+  Phase 5 (Recorder), and Phase 6 (Scheduler) all shipped; Phase 3
+  (Structured Graph Planning) 🟠 remains deferred, per its own separate
+  approval requirement. *(Phases 4–6 were originally paused pending
+  review of the "UI Foundation" cross-cutting initiative — Typography,
+  SVG Icon System, and an application-state Logic Foundation, a
+  design-system hardening pass, not its own roadmap milestone; see §7.
+  That review completed and was superseded by the decision to migrate
+  the frontend to React + Tauri (M8); each phase was then resumed and
+  completed against the new `Jarvis-Frontend-main` React repository
+  rather than the paused PySide6 pass.)* See M7's own §8 entry for the
   full phase-by-phase status, including acceptance-criteria detail.
 - **M8 — React Frontend & Desktop Experience** (see §8) — Phase 1
   (React Foundation), Phase 2 (Universal Application Framework & Logic,
@@ -2713,31 +2715,90 @@ deliberately deferred, one is pending. Grouped by disposition:
     mock-adapter precedent exactly -- not wired to this real REST API
     yet, for the identical pre-existing auth gap. See `CHANGELOG.md`'s
     own M7 Workflow Builder MVP entry for the full frontend account.
+  - **Recorder MVP, shipped Aug 2026 -- Phase 5, completed.** "Watch me
+    do this once, then do it for me" -- a new `RecorderService` starts/
+    stops a recording session and, at stop time only, converts whatever
+    the session captured into a new Workflow Builder workflow.
+    **Query-at-stop-time, not live-subscribe**: Recorder never
+    subscribes to `EventBus` and introduces zero new event
+    infrastructure -- it queries the pre-existing, completely
+    unmodified `HistoryService.list_recent()`, filtered to the
+    session's own time window and `succeeded` steps only, exactly once,
+    when the user clicks Stop. Conversion is deterministic: a fixed
+    `ActionType -> instruction template` map (all 25 `ActionType`
+    members except `UNKNOWN`) turns each captured step into a workflow
+    step; an unrecognized action is silently excluded, never an error.
+    **Fidelity boundary, deliberately not extended**: reconstructed
+    instructions carry action + target only, never `args_json` --
+    `HistoryService`'s own `TaskHistoryEntry` doesn't expose it even
+    though the underlying table stores it, a pre-existing gap left
+    exactly as found (Option A of three evaluated in
+    `docs/M7_RECORDER_LOGIC_CONTRACT.md` §5; extending `HistoryService`
+    itself was Option B, flagged as a possible small follow-up needing
+    its own separate approval, not done here). **Workflow creation and
+    replay are both single delegation points, never duplicated**:
+    `stop_recording` calls `WorkflowBuilderService.create_workflow()`
+    as its only write path -- the `workflow_builder` permission scope
+    is freshly re-checked on that call, never inherited or cached from
+    the separate `recorder` scope check that gates session lifecycle
+    (verified by a dedicated test: a caller holding only `recorder` is
+    denied at `stop` with a genuinely captured step in hand). Replay is
+    exclusively `WorkflowBuilderService.run_workflow()` -- Recorder
+    itself has zero execution code. Single-active-session rule enforced
+    at the DB layer (`get_active()`), proven under real concurrency
+    (two simultaneous `start` calls raced via `asyncio.gather`; exactly
+    one succeeds). New `RecordingSession` table holds session lifecycle
+    only (status/timestamps/`resulting_workflow_id`) -- **not** a copy
+    of captured data; the actual captured steps stay in the
+    pre-existing `automation_task_history` table, read but never
+    duplicated. Five REST routes under `/api/v1/recordings`, four agent
+    tools (no `get_recording` tool, matching this family's established
+    minimum-surface precedent). New `recorder` permission scope (14th),
+    strictly session-lifecycle-only -- recording permission alone can
+    never create a workflow. `HistoryService` remains completely
+    unmodified and backward compatible; no raw keyboard/mouse capture,
+    no agent-tool-invocation capture (no mechanism exists for it), no
+    AI-generated interpretation of what was recorded. 50 dedicated
+    backend tests (session lifecycle, time-window/status filtering,
+    deterministic conversion, fidelity, permission stacking,
+    concurrency, scope guards). See
+    `docs/M7_RECORDER_LOGIC_CONTRACT.md`. A mock-only frontend surface
+    ships alongside this in the separate `Jarvis-Frontend-main`
+    repository (`src/features/recorder/`, 24 dedicated frontend tests),
+    mirroring Workflow Builder's own mock-adapter architecture --
+    including the mock's `stopRecording` genuinely delegating to the
+    real, already-selected `WorkflowBuilderService.createWorkflow()`,
+    so "Open in Workflow Builder"/"Run now" on the generated-workflow
+    preview operate on a workflow that truly exists in that feature's
+    own store, not a disconnected stub. Not wired to the real REST API
+    yet, for the identical pre-existing frontend auth gap every other
+    `core*Adapter.ts` in that repository shares. See `CHANGELOG.md`'s
+    own M7 Recorder MVP entry for the full frontend account.
 - **Deferred:**
   - Phase 3 (Structured Graph Planning) — would extend `AgentState` /
     `planner.py` / `tool_executor.py` / `graph.py` for cross-tool
     parallelism inside the agent runtime itself. Explicitly deferred
     pending its own separate approval per the original phase plan;
     not started.
-- **Pending:**
-  - Phase 5 — Recorder (Macro Engine / Automation Recorder) — no
-    capture infrastructure exists anywhere in this codebase to extend;
-    genuinely unstarted, not partially built. *(Phase 4 — Workflow
-    Builder, formerly paused alongside this phase pending §7's "UI
-    Foundation" review, has since shipped -- see the Workflow Builder
-    MVP bullet above. That gate's literal referent is the PySide6
-    desktop-shell design pass (since superseded by M8's React rebuild),
-    not the separate `Jarvis-Frontend-main` repository this and Home
-    Automation's own frontend work actually integrated into -- see
-    `docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md` §5 for the full
-    reasoning. Recorder itself remains unstarted and is not resumed by
-    this slice.)*
+  - Recorder args_json fidelity (Logic Contract §5 Option B) — exposing
+    `HistoryService`'s already-persisted `args_json` so reconstructed
+    instructions could carry more than action + target. Not needed for
+    the MVP; would touch `history.py`, which sits adjacent to M4's own
+    territory, so it needs its own separate approval rather than
+    riding in on Recorder.
+  - Recorder capture of agent-tool invocations (as opposed to
+    OS-automation steps only) — no capture mechanism for agent-tool
+    calls exists anywhere in this codebase; genuinely out of scope, not
+    partially built.
 
 **Acceptance criteria status:**
 1. *A workflow with two independent steps measurably runs them in
    parallel, not sequentially* — ✅ **Met**, by Phase 2.
 2. *A recorded macro can be replayed without re-authoring it by hand*
-   — ❌ **Not met** — Phase 5 (Recorder) is pending.
+   — ✅ **Met**, by Phase 5 (Recorder MVP) — a recording converts
+   directly into a Workflow Builder workflow with zero manual
+   re-authoring, and replay reuses `WorkflowBuilderService.
+   run_workflow()` unchanged.
 3. *A scheduled workflow fires unattended and its result is visible in
    the Agent Trace panel* — 🟡 **Partially met** — a scheduled workflow
    now genuinely fires unattended (Phase 6 MVP), but no
@@ -11077,8 +11138,8 @@ row below.)*
 | Multi-agent (planner+critic)  | ✅     | M5A       |
 | Agent trace panel             | ✅ (no per-step timings yet) | M5A |
 | Parallel execution             | 🟡 automation-level dispatch shipped (M7 Phase 2, see Windows Automation table above); LangGraph-level cross-tool parallel branches remain Phase 3, deferred pending separate approval | M7 |
-| Workflow builder / macro engine / automation recorder | 🟡 (domain foundation only — `WorkflowDefinition`/`WorkflowStep`/`ScheduleDefinition` shipped in Phase 1; builder/recorder/scheduler themselves not yet built) | M7 |
-| Scheduler                      | 🟡 (domain foundation only, see above) | M7        |
+| Workflow builder / macro engine / automation recorder | ✅ Workflow Builder (Phase 4) and Recorder (Phase 5) both shipped Aug 2026, over the `WorkflowDefinition`/`WorkflowStep` domain foundation Phase 1 shipped | M7 |
+| Scheduler                      | ✅ shipped (Phase 6), see above | M7        |
 | Vision agent tool               | 🟡     | M6        |
 | Chat view routed through agent  | 🟡     | not yet scheduled — deliberate M5A deferral (§3) |
 | True token-level agent streaming | 🟡   | not yet scheduled — deliberate M5A deferral (§3) |
@@ -11690,7 +11751,7 @@ Future (post-1.0).
 | Agent Runtime | M5A (`AgentOrchestrator`, LangGraph `StateGraph`, `agents/tools/` registry, SQLite checkpointer) | M6 (added the `vision_status` tool + an optional `vision` constructor kwarg on `AgentOrchestrator`); M7 Phase 1 (`WorkflowStep.AGENT_TOOL` is modelled to reference the tool registry by name/arguments — a design-time reference only, no runtime wiring yet) | 🟡 Stable core, incrementally extended twice; cross-tool parallelism (M7 Phase 3) explicitly deferred, not built |
 | Memory | M3 / M3.1 (`MemoryService`, `SemanticMemoryRecallHook`, `MemoryRepository`, ChromaDB) | M5A (`agents/tools/memory_tools.py`); M5 (Timeline views, Home dashboard, `greeting_service.py`) | ✅ Stable since M3.1 polish; contract unchanged, only consumed by later milestones |
 | Knowledge Graph | Not yet built — planned M10 (foundation), extended M19 (full) | None yet | ⚪ Foundation and full-graph work both still ahead; no code exists |
-| Workflow Engine | M7 Phase 1 (`WorkflowDefinition`/`WorkflowStep`/`ScheduleDefinition` domain models only) | None yet — M7 Phase 2 extended the separate Automation Engine above, not these models; Workflow Builder / Scheduler / Recorder (Phases 4–6) remain pending | 🟡 Domain foundation shipped; no execution layer yet |
+| Workflow Engine | M7 Phase 1 (`WorkflowDefinition`/`WorkflowStep`/`ScheduleDefinition` domain models only) | M7 Phase 6 (`WorkflowExecutionService`, extracted from `ScheduleService`, the shared executor); Phase 4 (`WorkflowBuilderService`, standalone CRUD authoring, dispatches through the same executor); Phase 5 (`RecorderService`, converts a recording into a workflow via `WorkflowBuilderService.create_workflow()`, replays via the same shared executor) — all three dispatch through one executor, never a duplicate | ✅ Domain foundation, execution, authoring, and recording all shipped |
 | Security Layer | Not yet built as a dedicated milestone — planned M14 | Piecemeal hardening exists ahead of the dedicated milestone: M5 (PBKDF2-HMAC-SHA256 Developer Mode gate); M5.5 (fixed a Developer Mode timing-attack pattern and a browser `file://`/`javascript:`/`data:` URL-scheme validation gap) | 🟡 Hardening work done opportunistically in M5/M5.5; the dedicated audit log, encrypted settings overrides, and Security Center backend are still M14 |
 | Analytics Platform | Not yet built — planned M20A | None yet | ⚪ No code exists |
 | Edge AI Runtime | Not yet built — planned M22 | None yet | ⚪ Described in this section's "Future architecture" diagram as the same architecture deployed to constrained hardware with quantized models; no code exists |

@@ -462,7 +462,11 @@ implements a competing design in the meantime.
 As of this writing: **M0–M6 shipped** (Foundation, Chat, Voice,
 Memory, Automation, Desktop Platform, Vision & Multimodal
 architecture layer); **M7 — Workflow Intelligence** active (Phases
-1–2 shipped); **M8 — React Frontend & Desktop Experience** active
+1, 2, 4, 5 and 6 shipped — parallel automation execution, a standalone
+Workflow Builder, a Recorder that converts a recording into a Workflow
+Builder workflow, and a Scheduler that fires workflows unattended;
+Phase 3's cross-tool LangGraph parallelism remains deferred); **M8 —
+React Frontend & Desktop Experience** active
 (migrating the UI from PySide6 to React + Tauri — the PySide6 UI
 above remains the one that actually runs today. Phases 1, 2 and 4
 shipped, and Phase 3's Universal Workspace Framework: dockable and
@@ -495,8 +499,7 @@ Routine and Preference Learning, keyword-boosted Predictive Suggestions,
 an on-demand Daily Briefing, and a real `/api/v1/goals` +
 `/api/v1/intelligence` REST API, registered into Universal Search as a
 fourth `goals` provider; automatic scheduled delivery of the briefing
-remains deferred pending M7's Scheduler (Phase 6), which does not exist
-yet.
+via M7's now-shipped Scheduler (Phase 6) has not yet been wired up.
 
 ### Future vision
 
