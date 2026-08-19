@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "frontend"],
       "port": 5173
+    },
+    {
+      "name": "jarvis-frontend-main",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "C:\\Users\\DELL-5430\\Downloads\\jarvis-os-rc1-final_1\\Jarvis-Frontend-main\\frontend"],
+      "port": 5174
     }
   ]
 }

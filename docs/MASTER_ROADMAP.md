@@ -1014,12 +1014,17 @@ Tools' Connectivity / Integration Health Slice, Device Simulator Slice
 On-Demand Device Snapshot Slice, Device-Category Expansion Slice
 **and** Security Device-Category Expansion Slice are now shipped
 (Siren Integration Slice itself now includes its own Advanced
-Controls Slice -- tone/duration/volume); five of this
+Controls Slice -- tone/duration/volume); four of this
 milestone's fifteen modules remain entirely unstarted (Smart
-Cameras, Home Automation, AI Home Assistant, Remote Access, Smart Home
+Cameras, AI Home Assistant, Remote Access, Smart Home
 Analytics) — Energy Management, Appliance Control, Security & Safety,
-Developer Tools, and Smart Home Memory themselves each remain only
-partially shipped (Energy Management: device control only, History/Analytics/
+Developer Tools, Smart Home Memory, and Home Automation themselves each
+remain only partially shipped (Home Automation: event-triggered
+automation only, via M7's `HomeAutomationService` MVP — device
+lifecycle-status-transition triggers with a single-step workflow;
+rule/condition engine, sensor/presence-based triggers, geofencing,
+multi-step authoring, scene automation, and emergency automation all
+deferred; Energy Management: device control only, History/Analytics/
 Optimization/Scheduling all deferred; Appliance Control: Fan + Cover
 (including fan percentage/cover position) + Climate/Thermostat +
 Vacuum + Humidifier + Media Player + Water Heater control only —
@@ -2591,8 +2596,10 @@ deliberately deferred, two are pending. Grouped by disposition:
     the surface). **This does not resolve the device-event/state-change
     trigger gap described below** — it observes a command's dispatch
     outcome, never whether the device's real state actually changed,
-    so Scheduler's own triggers remain time-based only and Home
-    Automation/automatic Smart Home Memory capture remain unbuilt. See
+    so Scheduler's own triggers remain time-based only. (Home
+    Automation's own event-triggered dispatch, shipped below, is built
+    on Tier 2's `DeviceStateChangedEvent`, not this one; automatic
+    Smart Home Memory capture remains unbuilt.) See
     `docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md`.
   - **EventBus Tier 2 — Device State-Changed Event, shipped Aug 2026.**
     A second small, separately approved infrastructure slice, following
@@ -2620,6 +2627,56 @@ deliberately deferred, two are pending. Grouped by disposition:
     WebSocket (declared in `UNPUBLISHED_EVENT_TYPES`, same deferred
     treatment as Tier 1's own event). See
     `docs/M7_EVENTBUS_DEVICE_STATE_CHANGED_LOGIC_CONTRACT.md`.
+  - **Home Automation MVP, shipped Aug 2026.** Event-triggered
+    automation, built directly on EventBus Tier 2's
+    `DeviceStateChangedEvent`: a new `HomeAutomationService` subscribes
+    once at startup, matches a trigger's `device_id` +
+    `to_status` (+ optional `from_status`, blank = wildcard) against
+    each event, and dispatches the matched workflow as a background
+    task so `EventBus.publish()` — and therefore whatever REST/agent
+    caller triggered the underlying state refresh — is never blocked
+    on execution. **Execution is delegated, not duplicated**: a new
+    `WorkflowExecutionService` was extracted verbatim from
+    `ScheduleService`'s own former private `_run_workflow` (behavior
+    verified byte-for-byte via the full pre-existing Scheduler
+    regression immediately after extraction) and is now the single
+    shared executor both Scheduler and Home Automation dispatch
+    through — not a second execution engine. Loop/re-entrancy is a
+    real, structural guard here (a `min_refire_interval_seconds`
+    cooldown plus a non-terminal-execution check), not the incidental
+    absence of a trigger path Scheduler happened to rely on. Own
+    bounded concurrency (`HomeAutomationSettings.
+    max_concurrent_executions`, a separate semaphore from Scheduler's
+    own — a device-event burst can't starve scheduled workflows or
+    vice versa). Same fail-safe (never fail-open) confirmation policy
+    as Scheduler (Policy A — a confirm-required step is always
+    denied, never auto-approved, for both event-triggered and manual
+    dispatch). Persisted in two new tables, `automation_triggers` /
+    `automation_executions` — deliberately separate from Scheduler's
+    own `Schedule`/`WorkflowExecution` tables, not a shared/widened
+    schema, so Scheduler's already-shipped persistence is completely
+    untouched. Eight REST routes (`/api/v1/home-automation`, including
+    a manual "run now" test-execution route Scheduler's own surface
+    doesn't have) and six agent tools. New `home_automation`
+    permission scope, strictly CRUD-only, same boundary discipline as
+    `scheduler`'s own scope. **Scoped strictly to a device's `status`
+    field** — no condition engine, no attribute-level triggers
+    (brightness/temperature/etc.), no multi-device conditions, no
+    presence/camera/MQTT-native triggers, no AI-generated automations;
+    all confirmed absent by a dedicated Phase 0 audit before this
+    slice was scoped, none added here. 51 dedicated tests (trigger
+    matching, cooldown/re-entry, concurrency, permission/confirmation,
+    lifecycle subscription safety, persistence, REST, tools, scope
+    guards). See `docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md`. A
+    mock-only frontend surface ships alongside this in the separate
+    `Jarvis-Frontend-main` repository (`src/features/homeAutomation/`,
+    28 dedicated frontend tests, mirroring that repo's existing
+    `Automations` feature's exact mock-adapter architecture) — it is
+    not wired to this real REST API yet, since that frontend has no
+    auth mechanism of any kind to carry a session token, a gap that
+    predates this slice and is out of scope for it. See
+    `CHANGELOG.md`'s own M7 Home Automation MVP entry for the full
+    frontend account.
 - **Deferred:**
   - Phase 3 (Structured Graph Planning) — would extend `AgentState` /
     `planner.py` / `tool_executor.py` / `graph.py` for cross-tool
@@ -4778,7 +4835,10 @@ already-shipped grant route Milestone 9's Plugin Platform provides — no
 new authorization mechanism, and denied (`PENDING`) by default until an
 operator grants it. Motion-activated lighting, sunrise/sunset
 automation and scheduled lighting are explicitly out of scope, deferred
-to the unstarted Home Automation module. See
+to the Home Automation module (M7's MVP shipped Aug 2026, but scoped
+to device *lifecycle* status transitions only, not sensor attribute
+values like motion detection — this specific capability remains
+unbuilt; see the M7 section above). See
 `docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md` for the
 full Logic Contract.
 
@@ -4940,10 +5000,12 @@ no actuator code path, no automatic action of any kind. See
 `docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md` for the full Logic
 Contract.
 
-**Not Complete**: seven of this milestone's fifteen modules remain
-entirely unstarted (Smart Cameras, Home Automation, AI Home Assistant,
+**Not Complete**: six of this milestone's fifteen modules remain
+entirely unstarted (Smart Cameras, AI Home Assistant,
 Remote Access, Smart Home Memory, Smart Home Analytics, Developer
-Tools) — and Energy Management, Appliance Control and Security & Safety
+Tools) — Home Automation has since shipped an event-triggered MVP via
+M7's `HomeAutomationService` (see the M7 section and the Home
+Automation catalog entry above for scope) — and Energy Management, Appliance Control and Security & Safety
 each remain only partially shipped: Energy Management's Consumption
 History, Energy Dashboard/Analytics/Trends, Energy Optimization,
 Automatic Power Saving, Load Scheduling and Energy-based Automations
@@ -5021,7 +5083,10 @@ control and scene application only, over both REST
 (`/api/v1/smart-lighting/*`) and seven agent tools. Adaptive Lighting,
 Motion Activated Lighting and Sunrise/Sunset Automation are explicitly
 out of scope for this task group — see its own status note above —
-and remain unstarted, deferred to the Home Automation module.)*
+and remain unbuilt, deferred to the Home Automation module (M7's MVP
+shipped Aug 2026, but scoped to device lifecycle status transitions
+only, not sensor attribute values — this specific capability is still
+not covered).)*
 - On / Off Control ✅
 - Brightness ✅
 - RGB Control ✅
@@ -5043,9 +5108,11 @@ Codes, Guest Access, Auto Lock, Access History and Access Notifications
 are explicitly out of scope for this task group -- no schema exists for
 access codes, and no existing infrastructure captures a queryable
 access-history trail without new tables/event plumbing this task group
-was not asked to add; Auto Lock is trigger-based, deferred to the
-unstarted Home Automation module, same carve-out Smart Lighting already
-established.)*
+was not asked to add; Auto Lock is trigger-based, deferred to the Home
+Automation module (M7's MVP shipped Aug 2026, but scoped to device
+lifecycle status transitions only — Auto Lock's own "N seconds after
+closing" timer shape is not this module's trigger model either),
+same carve-out Smart Lighting already established.)*
 - Wi-Fi Locks
 - Bluetooth Locks
 - Fingerprint Locks
@@ -5198,20 +5265,40 @@ already accept an arbitrary payload dict generically.)*
 - Smart Kitchen Devices *(blocked -- no consistent HA/MQTT domain model)*
 
 #### Home Automation
-- Rule Engine
-- Event-Based Automation
-- Time-Based Automation
-- Sensor-Based Automation
-- Presence-Based Automation
-- Geofencing
-- Multi-Step Workflows
-- Scene Automation
-- Emergency Automation
+- Rule Engine — unstarted; no condition engine exists anywhere in
+  this codebase (confirmed by a dedicated Phase 0 audit before the
+  Event-Based slice below was scoped)
+- Event-Based Automation ✅ *(MVP shipped Aug 2026 as M7's
+  `HomeAutomationService` — a device transitions from an optional
+  `from_status` (blank = wildcard) to a required `to_status`, matched
+  against `DeviceStateChangedEvent`, firing a workflow in the
+  background bounded by its own concurrency limit and a re-fire
+  cooldown; manual "run now" testing and per-fire execution history
+  also ship — condition logic, attribute-level triggers (only a
+  device's `status` field is matched), and multi-device triggers do
+  not. See `docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md`.)*
+- Time-Based Automation ✅ *(Scheduler, M7 Phase 6 — see above)*
+- Sensor-Based Automation — unstarted; a sensor's own reading is not a
+  distinct trigger type from a device status transition today
+- Presence-Based Automation — unstarted
+- Geofencing — unstarted
+- Multi-Step Workflows 🟡 *(the shared `WorkflowExecutionService` both
+  Scheduler and Home Automation dispatch through already executes an
+  ordered multi-step list — the gap is authoring, not execution: Home
+  Automation's own creation surface accepts one step per trigger in
+  this slice)*
+- Scene Automation — unstarted
+- Emergency Automation — unstarted (Security's Panic/Vacation Mode is
+  a related but separate, manually-invoked `SecurityService`
+  capability, not a triggered automation)
 
 Built on M7's Workflow Intelligence (Advanced Agent Runtime,
 Scheduler, event-based workflow triggers) rather than a parallel
 automation engine — the same reuse relationship M11's Workspace
-Automation module has with M7.
+Automation module has with M7. Concretely: Home Automation's
+`WorkflowExecutionService` is the exact same shared executor Scheduler
+uses, extracted from `ScheduleService` for this purpose (Logic
+Contract §8) — not a second, competing execution engine.
 
 #### AI Home Assistant
 - Natural Language Commands

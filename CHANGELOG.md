@@ -3,6 +3,79 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M7: Home Automation MVP
+
+**No version bump**, unchanged from `0.38.0`. Event-triggered
+automation, approved by a dedicated Phase 0 audit and a Logic Contract
+(`docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md`), built directly on
+EventBus Tier 2's `DeviceStateChangedEvent`.
+
+A new `HomeAutomationService` subscribes once at startup and matches
+each event's `device_id`/`status` against persisted triggers (a
+device transitioning to a required `to_status`, from an optional
+`from_status` — blank matches any previous status). A match dispatches
+the trigger's workflow as a background task, so `EventBus.publish()`
+is never blocked on execution. Manual "run now" testing dispatches
+synchronously instead, since a manual caller expects to wait for the
+result.
+
+**Execution is delegated, not duplicated.** A new
+`WorkflowExecutionService` was extracted verbatim from
+`ScheduleService`'s former private `_run_workflow` (behavior verified
+byte-for-byte via the full pre-existing Scheduler regression run
+immediately after the extraction) and is now the single shared
+executor both Scheduler and Home Automation dispatch through — not a
+second execution engine. Loop/re-entrancy protection is a real,
+structural guard here (a `min_refire_interval_seconds` cooldown plus a
+non-terminal-execution check on every dispatch attempt), not the
+incidental absence of a trigger path Scheduler happened to rely on.
+Own bounded concurrency (`HomeAutomationSettings.
+max_concurrent_executions`), a separate semaphore from Scheduler's own
+— a device-event burst cannot starve scheduled workflows or vice
+versa. Same fail-safe (never fail-open) confirmation policy as
+Scheduler: a confirm-required step is always denied, never
+auto-approved, for both event-triggered and manual dispatch.
+
+Persisted in two new tables, `automation_triggers` /
+`automation_executions` — deliberately separate from Scheduler's own
+`Schedule`/`WorkflowExecution` tables, so Scheduler's already-shipped
+persistence is completely untouched. Eight REST routes under
+`/api/v1/home-automation` (including a manual test-run route
+Scheduler's own surface doesn't have) and six agent tools. New
+`home_automation` permission scope, strictly CRUD-only.
+
+**Scoped strictly to a device's `status` field** — no condition
+engine, no attribute-level triggers (brightness/temperature/etc.), no
+multi-device conditions, no presence/camera/MQTT-native triggers, no
+AI-generated automations, no multi-step workflow authoring in this
+slice's own creation surface (the shared executor already supports
+multi-step workflows; only single-step trigger authoring ships here).
+All confirmed absent by a dedicated Phase 0 audit before this slice
+was scoped.
+
+A mock-only frontend surface (`src/features/homeAutomation/` in the
+separate `Jarvis-Frontend-main` repository) ships alongside this,
+matching that repository's own established convention (every feature
+there is backed by an in-memory mock adapter — none has real backend
+integration yet, since that frontend has no auth mechanism of any
+kind). It is not wired to this REST API in this pass; a
+`coreHomeAutomationAdapter` stub is included so real wiring later is a
+mechanical swap.
+
+51 dedicated backend tests (trigger matching, cooldown/re-entry,
+concurrency, permission/confirmation, lifecycle subscription safety,
+persistence, REST, tools, scope guards). 28 dedicated frontend tests
+(list/create/enable/disable/run/history/delete interactions, loading/
+empty/error states, mock+core adapter unit tests, route registration)
+— full frontend suite (588 tests across 80 files) verified green
+alongside them, plus a clean lint/typecheck/build. A pre-existing bug
+in that repository's shared `Drawer` primitive (used by the
+already-shipped `Automations` feature's own detail view, not
+introduced by this slice) was found during manual verification and
+flagged separately — the drawer never visually slides into view in a
+real browser, though the underlying interactions it hosts (run now,
+execution history) work correctly regardless.
+
 ## M7: EventBus Tier 2 — Device State-Changed Event
 
 **No version bump**, unchanged from `0.38.0`. A single infrastructure
