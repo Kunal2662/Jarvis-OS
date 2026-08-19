@@ -83,6 +83,7 @@ if TYPE_CHECKING:
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
     from jarvis.services.water_heater_service import WaterHeaterService
+    from jarvis.services.workflow_builder_service import WorkflowBuilderService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 _logger = get_logger("jarvis.agents.orchestrator")
@@ -120,6 +121,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         smart_home_memory: SmartHomeMemoryService | None = None,
         schedules: ScheduleService | None = None,
         home_automation: HomeAutomationService | None = None,
+        workflow_builder: WorkflowBuilderService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -225,6 +227,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # converging on the same `HomeAutomationService` the REST
         # surface calls -- see `agents/tools/home_automation_tools.py`.
         self._home_automation = home_automation
+        # M7 Workflow Builder: standalone workflow authoring reaches
+        # the agent as tools on the same registry, converging on the
+        # same `WorkflowBuilderService` the REST surface calls -- see
+        # `agents/tools/workflow_builder_tools.py`.
+        self._workflow_builder = workflow_builder
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -278,6 +285,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 smart_home_memory=self._smart_home_memory,
                 schedules=self._schedules,
                 home_automation=self._home_automation,
+                workflow_builder=self._workflow_builder,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

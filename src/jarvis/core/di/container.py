@@ -1319,6 +1319,22 @@ def _build_home_automation_service(
     )
 
 
+def _build_workflow_builder_service(
+    *,
+    database: Any,
+    permission_model: Any,
+    workflow_execution_service: Any,
+) -> Any:
+    """M7 Workflow Builder Logic Contract §15."""
+    from jarvis.services.workflow_builder_service import WorkflowBuilderService
+
+    return WorkflowBuilderService(
+        database=database,
+        permissions=permission_model,
+        workflow_executor=workflow_execution_service,
+    )
+
+
 def _build_agent_orchestrator(
     *,
     settings: Settings,
@@ -1349,6 +1365,7 @@ def _build_agent_orchestrator(
     smart_home_memory: Any,
     schedules: Any,
     home_automation: Any,
+    workflow_builder: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1382,6 +1399,7 @@ def _build_agent_orchestrator(
         smart_home_memory=smart_home_memory,
         schedules=schedules,
         home_automation=home_automation,
+        workflow_builder=workflow_builder,
         event_bus=event_bus,
     )
 
@@ -2148,6 +2166,14 @@ class Container(containers.DeclarativeContainer):
         workflow_execution_service=workflow_execution_service,
     )
 
+    # ---- Workflow Builder (M7 -- standalone workflow authoring) ---------
+    workflow_builder_service = providers.Singleton(
+        _build_workflow_builder_service,
+        database=database,
+        permission_model=permission_model,
+        workflow_execution_service=workflow_execution_service,
+    )
+
     # ---- Agents (Milestone 5-Agents) ------------------------------------
     agent_orchestrator = providers.Singleton(
         _build_agent_orchestrator,
@@ -2179,5 +2205,6 @@ class Container(containers.DeclarativeContainer):
         smart_home_memory=smart_home_memory_service,
         schedules=schedule_service,
         home_automation=home_automation_service,
+        workflow_builder=workflow_builder_service,
         event_bus=event_bus,
     )

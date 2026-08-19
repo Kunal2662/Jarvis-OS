@@ -51,7 +51,10 @@ def test_permission_scopes_fixed_vocabulary():
     # M7 Home Automation added "home_automation" -- see
     # docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md §17.
     assert "home_automation" in PERMISSION_SCOPES
-    assert len(PERMISSION_SCOPES) == 12
+    # M7 Workflow Builder added "workflow_builder" -- see
+    # docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md §11.
+    assert "workflow_builder" in PERMISSION_SCOPES
+    assert len(PERMISSION_SCOPES) == 13
 
 
 @pytest.mark.parametrize(

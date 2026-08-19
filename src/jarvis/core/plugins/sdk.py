@@ -55,6 +55,12 @@ PERMISSION_SCOPES: frozenset[str] = frozenset(
         # own underlying action (docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md
         # §17).
         "home_automation",
+        # M7 Workflow Builder: CRUD on standalone WorkflowDefinition/
+        # WorkflowBuilderExecution rows only -- the identical separation
+        # principle as "scheduler"/"home_automation" above, never implies
+        # permission to execute a step's own underlying action
+        # (docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md §11).
+        "workflow_builder",
     }
 )
 

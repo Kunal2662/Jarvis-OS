@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
     from jarvis.services.water_heater_service import WaterHeaterService
+    from jarvis.services.workflow_builder_service import WorkflowBuilderService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 
@@ -72,6 +73,7 @@ def build_tool_registry(
     smart_home_memory: SmartHomeMemoryService | None = None,
     schedules: ScheduleService | None = None,
     home_automation: HomeAutomationService | None = None,
+    workflow_builder: WorkflowBuilderService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -232,6 +234,13 @@ def build_tool_registry(
         from jarvis.agents.tools.home_automation_tools import build_home_automation_tools
 
         tools += build_home_automation_tools(home_automation)
+    if workflow_builder is not None:
+        # M7 Workflow Builder. Five tools -- the minimum coherent
+        # surface (Logic Contract §14); delete stays REST-only by
+        # design -- see `agents/tools/workflow_builder_tools.py`.
+        from jarvis.agents.tools.workflow_builder_tools import build_workflow_builder_tools
+
+        tools += build_workflow_builder_tools(workflow_builder)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

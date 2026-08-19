@@ -39,6 +39,39 @@ class WorkflowRepository:
         await self._s.flush()
         return True
 
+    async def update(
+        self,
+        workflow_id: str,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        steps_json: str | None = None,
+    ) -> WorkflowDefinition | None:
+        """Partial update -- only supplied fields change. Milestone 7
+        Workflow Builder (`docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md`
+        §6) -- the one capability Scheduler/Home Automation's own
+        inline-created rows never needed."""
+        workflow = await self.get(workflow_id)
+        if workflow is None:
+            return None
+        if name is not None:
+            workflow.name = name
+        if description is not None:
+            workflow.description = description
+        if steps_json is not None:
+            workflow.steps_json = steps_json
+        await self._s.flush()
+        return workflow
+
+    async def list_all(self, *, limit: int = 200, offset: int = 0) -> list[WorkflowDefinition]:
+        stmt = (
+            select(WorkflowDefinition)
+            .order_by(WorkflowDefinition.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list((await self._s.execute(stmt)).scalars().all())
+
 
 class ScheduleRepository:
     def __init__(self, session: AsyncSession) -> None:

@@ -1408,3 +1408,33 @@ class AutomationExecution(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     step_results_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class WorkflowBuilderExecution(Base):
+    """One manual run of a standalone, Workflow-Builder-authored
+    :class:`WorkflowDefinition` -- M7 Workflow Builder. Mirrors
+    :class:`AutomationExecution`'s exact shape, minus an owning
+    trigger FK: a Workflow-Builder workflow has no `Schedule` or
+    `AutomationTrigger` (Logic Contract §6's ownership model), so
+    there is no event-triggered dispatch to record -- ``source`` is
+    always ``"manual"`` here, unlike :class:`AutomationExecution`'s
+    two-value vocabulary. A parallel table, not a shared one, for the
+    same reason :class:`AutomationExecution` itself is parallel to
+    :class:`WorkflowExecution`: no existing owner's schema is ever
+    widened for a new owner's sake.
+    """
+
+    __tablename__ = "workflow_builder_executions"
+    __table_args__ = (Index("ix_workflow_builder_executions_workflow", "workflow_id"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workflow_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    # Always "manual" -- no trigger exists to fire this any other way.
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="manual")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    step_results_json: Mapped[str] = mapped_column(Text, default="[]")

@@ -98,6 +98,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         from jarvis.infrastructure.api.routes import thermostats as thermostat_routes
         from jarvis.infrastructure.api.routes import vacuums_humidifiers as vacuum_humidifier_routes
         from jarvis.infrastructure.api.routes import water_heaters as water_heater_routes
+        from jarvis.infrastructure.api.routes import workflow_builder as workflow_builder_routes
         from jarvis.infrastructure.api.routes import workspaces as workspace_routes
 
         app.state.runtime_ws_hub = container.runtime_ws_hub()
@@ -131,6 +132,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(integration_routes.router, prefix="/api/v1")
         app.include_router(schedule_routes.router, prefix="/api/v1")
         app.include_router(home_automation_routes.router, prefix="/api/v1")
+        app.include_router(workflow_builder_routes.router, prefix="/api/v1")
         # The OAuth callback carries no Bearer token -- a browser
         # redirect cannot -- so it is a separate, session-free router.
         # Its `state` parameter is what authenticates the response; see
