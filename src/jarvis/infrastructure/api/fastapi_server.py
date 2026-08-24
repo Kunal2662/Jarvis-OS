@@ -167,6 +167,8 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
 
 def run() -> None:
     """Console entry-point: run only the FastAPI server (no UI)."""
+    import asyncio
+
     import uvicorn
 
     from jarvis.core.config.settings import load_settings
@@ -175,6 +177,14 @@ def run() -> None:
     settings = load_settings()
     container = Container()
     container.settings.override(settings)
+
+    # Mirrors app.py's own "must happen before anything else, fail loudly"
+    # database bootstrap -- the desktop entry point does this inside its
+    # qasync loop; this entry point has no Qt loop to integrate with, so
+    # a plain asyncio.run() is the minimal, standard bridge from this
+    # function's sync signature into the one required async setup step.
+    database = container.database()
+    asyncio.run(database.initialize())
 
     app = create_app(settings, container)
     uvicorn.run(
