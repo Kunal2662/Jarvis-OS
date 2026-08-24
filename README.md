@@ -304,7 +304,14 @@ Phase 1 (React Foundation), Phase 2 (Universal Application Framework &
 Logic), Phase 3 (Universal Workspace Framework), Phase 4 (Voice
 Experience & Motion), Phase 5 (AI Workspace & Module Integration), Phase
 6's production-UX half and Phase 7's Production Readiness audit shipped.
-Its Deferred Backlog is tracked in `docs/MASTER_ROADMAP.md`.
+Its Deferred Backlog is tracked in `docs/MASTER_ROADMAP.md`. **That work
+was against this repository's own `frontend/` subdirectory, which is no
+longer the canonical frontend** — following a product-design rejection,
+`Jarvis-Frontend-main` (a separate repository) was declared canonical
+instead, and a second M8 pass (real backend integration across six
+features) shipped against it. See `docs/MASTER_ROADMAP.md` §8's M8 entry
+for the full supersession note and `CHANGELOG.md`'s "M8 Phase 1/2"
+entry for what shipped.
 
 M11 — Intelligent Workspace & Productivity completed across six task
 groups (A Workspace Foundation, B Productivity Core, C File Platform,

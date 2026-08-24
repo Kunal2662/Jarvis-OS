@@ -227,6 +227,17 @@ Full milestone definition (Objective, Dependencies, Complexity,
 Acceptance Criteria) lives in `MASTER_ROADMAP.md` §8 — this section is
 the execution checklist for its seven phases.
 
+> **⚠ Superseded (Aug 2026):** every checklist item below is for
+> `2.0-main/frontend`, no longer the canonical frontend —
+> `Jarvis-Frontend-main` is, following a rejected-on-product-grounds
+> reversal, with a separate M8 Phase 1/Phase 2 real-backend-integration
+> pass shipped against it instead (`CHANGELOG.md`'s "M8 Phase 1/2:
+> Canonical Frontend Real-Backend Integration" entry;
+> `docs/M8_FRONTEND_REAL_BACKEND_INTEGRATION_LOGIC_CONTRACT.md` for the
+> full contract). `MASTER_ROADMAP.md` §8's own M8 entry carries the
+> authoritative supersession note — this checklist is left as accurate
+> history, not updated item-by-item.
+
 ### Phase 1 — React Foundation ✅ *(Aug 2026)*
 - [x] Vite + React 19 + TypeScript project scaffolded under `frontend/`.
 - [x] Tauri shell wired to the Vite dev server / production build —

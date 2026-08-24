@@ -3,6 +3,68 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M8 Phase 1/2: Canonical Frontend Real-Backend Integration
+
+**No version bump**, unchanged from `0.38.0`. Following product review that
+rejected `2.0-main/frontend` on UI/product-design grounds, `Jarvis-Frontend-main`
+(a separate, pre-existing React repository) was declared the canonical
+frontend going forward. `2.0-main/frontend` remains in this repository,
+untouched and undeleted, pending a future disposition decision.
+
+**Phase 1** produced `docs/M8_FRONTEND_REAL_BACKEND_INTEGRATION_LOGIC_CONTRACT.md`
+— a 28-section contract covering the canonical-frontend decision, session/auth
+model, REST/WebSocket client design, per-feature field mappings, error model,
+and permissions, written entirely against real backend route source, not
+assumption.
+
+**Phase 2** implemented that contract against `Jarvis-Frontend-main`: a
+canonical REST client (single 401-retry-via-reauth), session bootstrap
+(in-memory token only, never persisted), and a WebSocket client (reconnect
+with backoff, re-auth on reconnect) — plus six real backend integrations:
+
+- **Workflow Builder** — `/api/v1/workflows`, near-1:1 field mapping, an
+  extra fetch for the execution history the wire `Workflow` doesn't embed.
+- **Recorder** — `/api/v1/recordings`, mirrors Workflow Builder's mapping for
+  the `Workflow` a successful `stop()` embeds. Live E2E verification of the
+  happy path remains blocked on granting this integration's `recorder`
+  permission scope on a live instance — a decision outside this pass's own
+  authority to make unilaterally.
+- **Home Automation** — `/api/v1/home-automation`; the wire trigger has no
+  `instruction` field, fetched from the linked workflow only in the detail
+  view to avoid an N+1 list-view fetch. Found and fixed a real, pre-existing
+  page bug in the same area: the detail drawer never called the fetch that
+  would have supplied that instruction/execution-history at all.
+- **Smart Home (Device Management)** — `/api/v1/homes`, `/smart-home/rooms`,
+  `/devices`; the frontend has no "home" concept, bridged by auto-provisioning
+  a default home (and, once live-tested, a default room set, after a
+  concurrent-call race was found to create duplicate homes and fixed with an
+  in-flight-promise dedupe). The separate Command Center's device-control
+  affordances (`sendCommand`/scenes) have no real backend match at this layer
+  and stay mock-only, matching the Automations precedent below.
+- **Connectivity (Home Assistant + MQTT)** — `/api/v1/connectivity/*`; the
+  real connector model is far thinner than the frontend's own (`{connector_type,
+  connected}` only), so status/credential-state/diagnostics are derived or
+  honestly tracked client-side rather than fabricated. `syncEntities()`
+  genuinely persists real devices into the same Smart Home registry Device
+  Management reads from — intentional, not a bug.
+- **Chat/Agent** — real SSE streaming against `POST /api/v1/agent/stream`
+  (raw `data: <token>` frames, not JSON-wrapped), bypassing the JSON REST
+  client entirely for the one route that streams. Sends only the latest turn
+  as `prompt`; `thread_id` is generated and cached client-side once per page
+  load, since the stream never echoes one back. Live-verified end-to-end
+  against a real local backend and LLM, including the real dropped-connection
+  failure mode.
+
+**Confirmed no real backend match, permanently** (mirroring, not
+force-fitting): **Automations** (the condition/action rules engine this
+frontend models has no backend counterpart — the one adjacent concept,
+`AutomationService`, is agent-tool-only with no persisted, listable entity)
+and **Settings** (the real settings API is read-only by explicit backend
+design, one of the two fields this frontend manages has no backend key at
+all, and the other's only similarly-named backend concept is an unrelated,
+password-gated admin setting). Both stay on their existing adapters
+indefinitely, not as a placeholder for later work.
+
 ## M7: Recorder MVP
 
 **No version bump**, unchanged from `0.38.0`. "Watch me do this once,

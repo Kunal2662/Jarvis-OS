@@ -1239,7 +1239,12 @@ future work; see M6's own §3 entry for the full scope note.
   Mode's 9 read-only viewers, DPI/Multi-monitor) remain 🟠 **deferred to
   the Deferred Backlog** (see the subsection under M8's §8 entry) — none
   of it blocks M22 or M9 (see `IMPLEMENTATION_ROADMAP.md` §5's own
-  Dependencies note).
+  Dependencies note). **⚠ Superseded (Aug 2026):** the frontend this
+  phase-summary describes (`2.0-main/frontend`) is no longer canonical —
+  `Jarvis-Frontend-main` is, following a rejected-on-product-grounds
+  reversal, and a separate M8 Phase 1/Phase 2 pass (real backend
+  integration against six features) shipped against it instead. See the
+  supersession note at the top of M8's own §8 entry for the full story.
 - **M22 — Cross-Platform Distribution & Universal Installer** (§8's
   "M22 — Edge AI Platform" entry; the milestone absorbed cross-platform
   distribution in Aug 2026) — 🟡 **current, running out of numeric
@@ -2824,6 +2829,33 @@ dropped: it now lives under M9's expanded Runtime & Core Services
 scope, below, since a plugin loader is a backend runtime concern, not
 a frontend one. Nothing about the plugin system's design changed —
 only which milestone number owns it.)*
+
+> **⚠ CANONICAL FRONTEND SUPERSEDED (Aug 2026) — read before trusting
+> anything below at face value.** Phases 1–7 below (v0.29.0–v0.32.0,
+> "M8 is complete") were built against **this repository's own
+> `frontend/` subdirectory**. Following product review, that frontend
+> was rejected on UI/product-design grounds and **`Jarvis-Frontend-main`
+> — a separate, pre-existing React repository
+> (`C:\Users\DELL-5430\Downloads\jarvis-os-rc1-final_1\Jarvis-Frontend-main`)
+> — was declared the canonical frontend going forward instead.**
+> `2.0-main/frontend` remains in this repository, untouched and
+> undeleted, pending a future disposition decision — it is not the
+> product surface a user reaches JARVIS through.
+>
+> A second, separate body of work then shipped against
+> `Jarvis-Frontend-main` under the same M8 number: **M8 Phase 1**
+> (`docs/M8_FRONTEND_REAL_BACKEND_INTEGRATION_LOGIC_CONTRACT.md` — the
+> canonical-frontend decision plus a 28-section real-backend integration
+> contract) and **M8 Phase 2** (the contract's implementation) — a
+> canonical REST/session/WebSocket client, and six real backend
+> integrations: Workflow Builder, Recorder, Home Automation, Smart Home
+> (Device Management), Connectivity (Home Assistant + MQTT), and
+> Chat/Agent (real SSE streaming against `/api/v1/agent/stream`).
+> Automations and Settings were both confirmed, with evidence, to have
+> **no real backend match** and remain mock-only permanently, the same
+> treatment this repository already gives any feature in that position.
+> Everything below this note is accurate **history of what was built**,
+> not a description of the frontend a user runs today.
 
 **Objective:** rebuild JARVIS's entire user-facing surface on React +
 Tauri, replacing the PySide6 desktop shell M5 delivered, feature by
