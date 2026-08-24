@@ -284,7 +284,7 @@ def calibrate(profile: HardwareProfile) -> AICalibration:
     if profile.power.on_battery and performance_profile == "performance":
         performance_profile = "balanced"
         warnings.append(
-            "This device is running on battery, so JARVIS starts in its balanced profile. "
+            "This device is running on battery, so Aarya starts in its balanced profile. "
             "You can raise it once plugged in."
         )
 
@@ -294,12 +294,12 @@ def calibrate(profile: HardwareProfile) -> AICalibration:
         recommended = None
         warnings.append(
             f"With {ram_gb:.1f} GB of memory this device is below the minimum for a local model. "
-            "JARVIS will run using cloud AI where available."
+            "Aarya will run using cloud AI where available."
         )
 
     if profile.internet is False:
         warnings.append(
-            "No internet connection was detected. JARVIS will install and run locally; "
+            "No internet connection was detected. Aarya will install and run locally; "
             "cloud features become available when a connection returns."
         )
 

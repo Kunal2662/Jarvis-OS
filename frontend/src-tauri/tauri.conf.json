@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "JARVIS OS",
+  "productName": "Aarya OS",
   "version": "0.38.0",
   "identifier": "os.jarvis.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "JARVIS OS",
+        "title": "Aarya OS",
         "width": 1280,
         "height": 800,
         "minWidth": 960,
@@ -37,11 +37,11 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
-    "publisher": "JARVIS OS",
-    "copyright": "Copyright (c) JARVIS OS",
+    "publisher": "Aarya OS",
+    "copyright": "Copyright (c) Aarya OS",
     "category": "Productivity",
     "shortDescription": "Local-first AI operating system",
-    "longDescription": "JARVIS OS is a local-first AI assistant for the desktop. It runs its own model on your machine, remembers what you tell it, and works without an internet connection.",
+    "longDescription": "Aarya OS is a local-first AI assistant for the desktop. It runs its own model on your machine, remembers what you tell it, and works without an internet connection.",
     "windows": {
       "nsis": {
         "installMode": "currentUser",

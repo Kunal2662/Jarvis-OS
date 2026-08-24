@@ -31,7 +31,7 @@
       "status": "missing",
       "version": null,
       "required": false,
-      "detail": "No NVIDIA driver detected. JARVIS will run on the processor."
+      "detail": "No NVIDIA driver detected. Aarya will run on the processor."
     },
     {
       "key": "directml",

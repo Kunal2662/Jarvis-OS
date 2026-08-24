@@ -40,7 +40,7 @@ async function loadPlanViaHost(input: {
 
   if (!host?.core?.invoke) {
     throw new Error(
-      "Checking this device needs the JARVIS desktop application. " +
+      "Checking this device needs the Aarya desktop application. " +
         "Open the installer from the desktop app to continue.",
     );
   }

@@ -208,7 +208,7 @@ def detect_cuda() -> Dependency:
             "cuda",
             "CUDA acceleration",
             status="missing",
-            detail="No NVIDIA driver detected. JARVIS will run on the processor.",
+            detail="No NVIDIA driver detected. Aarya will run on the processor.",
         )
 
     version = _run([executable, "--query-gpu=driver_version", "--format=csv,noheader"])
@@ -257,7 +257,7 @@ def detect_directml() -> Dependency:
         "directml",
         "DirectML acceleration",
         status="missing",
-        detail="Not present. JARVIS will use another accelerator or the processor.",
+        detail="Not present. Aarya will use another accelerator or the processor.",
     )
 
 
@@ -313,5 +313,5 @@ def describe_acceleration(report: DependencyReport) -> str:
     """
     available = {d.key for d in report.acceleration}
     if available & {"cuda", "directml"}:
-        return "Your graphics hardware will be used to speed JARVIS up."
-    return "JARVIS will run on your processor."
+        return "Your graphics hardware will be used to speed Aarya up."
+    return "Aarya will run on your processor."

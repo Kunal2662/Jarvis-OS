@@ -109,7 +109,7 @@ export async function runProvisioningViaHost({
   const host = tauri();
   if (!host?.core?.invoke || !host.event?.listen) {
     throw new Error(
-      "Installation needs the JARVIS desktop application. " +
+      "Installation needs the Aarya desktop application. " +
         "Open the installer from the desktop app to continue.",
     );
   }
@@ -194,7 +194,7 @@ export async function checkDependenciesViaHost(input: {
   return invokeJson<DependencyReport>(
     DEPENDENCIES_COMMAND,
     input,
-    "Checking dependencies needs the JARVIS desktop application.",
+    "Checking dependencies needs the Aarya desktop application.",
   );
 }
 
@@ -204,7 +204,7 @@ export async function getInstallationStatusViaHost(location: string): Promise<In
   return invokeJson<InstallationStatus>(
     STATUS_COMMAND,
     { location },
-    "Checking installation status needs the JARVIS desktop application.",
+    "Checking installation status needs the Aarya desktop application.",
   );
 }
 
@@ -218,7 +218,7 @@ export async function verifyInstallationViaHost(input: {
   return invokeJson<VerificationReport>(
     VERIFY_COMMAND,
     input,
-    "Verifying this installation needs the JARVIS desktop application.",
+    "Verifying this installation needs the Aarya desktop application.",
   );
 }
 
@@ -235,7 +235,7 @@ export async function repairInstallationViaHost(input: {
   accountType: "personal" | "administrator";
   step: string;
 }): Promise<RepairResult> {
-  return invokeJson<RepairResult>(REPAIR_COMMAND, input, "Repairing this installation needs the JARVIS desktop application.");
+  return invokeJson<RepairResult>(REPAIR_COMMAND, input, "Repairing this installation needs the Aarya desktop application.");
 }
 
 /**

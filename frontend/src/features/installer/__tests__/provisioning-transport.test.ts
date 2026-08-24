@@ -78,7 +78,7 @@ describe("without a host bridge", () => {
 
   it("its message classifies into friendly copy with a retry", () => {
     const described = classifyFailure(
-      "Installation needs the JARVIS desktop application. Open the installer from the desktop app to continue.",
+      "Installation needs the Aarya desktop application. Open the installer from the desktop app to continue.",
     );
 
     expect(described.title).toBeTruthy();

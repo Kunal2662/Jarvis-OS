@@ -217,7 +217,7 @@ fn build_command(python: &Path, subcommand: &str, args: &ProvisionArgs, stream: 
 type BridgeResult<T> = Result<T, String>;
 
 fn python_unavailable() -> String {
-    "Python could not be found. JARVIS needs its bundled runtime to install; \
+    "Python could not be found. Aarya needs its bundled runtime to install; \
      reinstall the application or set JARVIS_PYTHON to a Python 3.13 interpreter."
         .to_string()
 }
@@ -518,7 +518,7 @@ pub async fn launch_application(
 
     if !executable.is_file() {
         return Err(format!(
-            "JARVIS was not found at {}. Try opening it from the Start Menu.",
+            "Aarya was not found at {}. Try opening it from the Start Menu.",
             executable.display()
         ));
     }
@@ -534,7 +534,7 @@ pub async fn launch_application(
 
     command
         .spawn()
-        .map_err(|err| format!("Could not start JARVIS: {err}"))?;
+        .map_err(|err| format!("Could not start Aarya: {err}"))?;
 
     // The installer's job is done once the application is up.
     app.exit(0);

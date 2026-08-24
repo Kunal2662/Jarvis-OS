@@ -60,7 +60,7 @@ beforeEach(() => {
 describe("flow", () => {
   it("starts at Welcome", () => {
     renderWizard();
-    expect(screen.getByText("Welcome to JARVIS")).toBeInTheDocument();
+    expect(screen.getByText("Welcome to Aarya")).toBeInTheDocument();
     expect(screen.getByText(/Step 1 of 11/)).toBeInTheDocument();
   });
 
@@ -101,7 +101,7 @@ describe("flow", () => {
 
     // The license checkbox is still ticked, so Continue is live.
     expect(screen.getByRole("button", { name: /Continue/ })).toBeDisabled(); // account not chosen yet
-    expect(screen.getByText("How will you use JARVIS?")).toBeInTheDocument();
+    expect(screen.getByText("How will you use Aarya?")).toBeInTheDocument();
   });
 });
 
@@ -346,7 +346,7 @@ describe("diagnostics (M22 Task Group D)", () => {
     // assertion, so there is nothing to `findBy` -- confirmed instead by
     // checking after the same instruction advancing steps elsewhere in
     // this file already awaits.
-    await screen.findByText("Welcome to JARVIS");
+    await screen.findByText("Welcome to Aarya");
     expect(screen.queryByText(/already exists at this location/)).toBeNull();
   });
 

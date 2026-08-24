@@ -194,7 +194,7 @@ export const STEP_TITLES: Record<InstallerStep, string> = {
   location: "Installation location",
   account: "Account type",
   hardware: "Checking your device",
-  calibration: "Tuning JARVIS",
+  calibration: "Tuning Aarya",
   model: "Local AI",
   voice: "Voice",
   summary: "Ready to install",

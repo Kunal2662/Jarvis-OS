@@ -268,7 +268,7 @@ export function classifyFailure(message: string): FailureDescription {
         kind,
         title: "Connection lost",
         detail:
-          "JARVIS couldn’t reach the download service. Check your connection — your progress has been saved.",
+          "Aarya couldn’t reach the download service. Check your connection — your progress has been saved.",
         retryable: true,
       };
     case "checksum":
@@ -276,7 +276,7 @@ export function classifyFailure(message: string): FailureDescription {
         kind,
         title: "A download was damaged",
         detail:
-          "One of the files didn’t arrive intact. JARVIS will fetch it again from the start.",
+          "One of the files didn’t arrive intact. Aarya will fetch it again from the start.",
         retryable: true,
       };
     case "disk_full":
@@ -291,7 +291,7 @@ export function classifyFailure(message: string): FailureDescription {
     case "permission":
       return {
         kind,
-        title: "JARVIS can’t write here",
+        title: "Aarya can’t write here",
         detail:
           "The installation folder isn’t writable. Choose a different location, or grant permission and try again.",
         retryable: true,
@@ -299,7 +299,7 @@ export function classifyFailure(message: string): FailureDescription {
     case "dependency":
       return {
         kind,
-        title: "Something JARVIS needs is missing",
+        title: "Something Aarya needs is missing",
         detail:
           "A required component isn’t available on this device. Install it and continue — the rest of your installation is intact.",
         retryable: true,
