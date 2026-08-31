@@ -20,13 +20,14 @@ keys (``JARVIS_LOG_LEVEL``) and as nested models (``settings.log.level``).
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from dotenv import load_dotenv
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from jarvis.core.config import paths as _paths
 from jarvis.core.config.constants import ENV_PREFIX
@@ -79,8 +80,46 @@ class ApiSettings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8765
     reload: bool = False
-    cors_origins: list[str] = Field(
-        default_factory=lambda: ["http://localhost", "http://127.0.0.1"]
+    #: Exact-match CORS allowlist (Starlette compares the *full* origin,
+    #: including scheme, host AND port -- see ``CORSMiddleware.is_allowed_origin``).
+    #: Deliberately explicit: never ``*``, never a ``tauri://*`` wildcard, and
+    #: never a blanket localhost port range. ``allow_credentials=True`` in
+    #: ``fastapi_server.create_app`` is only safe *because* these stay exact.
+    #:
+    #: - ``http://localhost`` / ``http://127.0.0.1``  -- plain browser dev on port 80.
+    #: - ``http://localhost:3000`` / ``http://127.0.0.1:3000`` -- the canonical
+    #:   frontend's dev server, which is also the packaged shell's ``devUrl``
+    #:   (``Jarvis-Frontend-main/frontend/src-tauri/tauri.conf.json``). Without
+    #:   these, ``tauri dev`` cannot reach Core.
+    #: - ``http://tauri.localhost`` -- the PACKAGED desktop app on Windows.
+    #:   Tauri serves embedded assets from its own custom protocol, whose origin
+    #:   is ``{http|https}://tauri.localhost`` on Windows/Android and
+    #:   ``tauri://localhost`` elsewhere (tauri 2.x ``Manager::tauri_protocol_url``).
+    #:   Verified at runtime against a real packaged build, which reported
+    #:   ``location.origin = http://tauri.localhost`` and sent that exact
+    #:   ``Origin`` header. The ``https://`` variant applies only when a window
+    #:   sets ``useHttpsScheme: true``; the shipped config does not, so it is
+    #:   intentionally omitted rather than guessed at.
+    #: - ``tauri://localhost`` -- the packaged app on macOS/Linux. Included so a
+    #:   non-Windows build does not reproduce this same outage; no browser can
+    #:   ever originate a non-HTTP scheme, so it widens nothing web-reachable.
+    #:
+    #: ``NoDecode`` is load-bearing, not decoration: pydantic-settings treats any
+    #: ``list[str]`` field as "complex" and ``json.loads``-es the raw environment
+    #: value *before* field validators run, so the comma-separated form below
+    #: never reached ``_split_csv`` -- it raised ``SettingsError`` and the process
+    #: refused to start. ``NoDecode`` suppresses that pre-decode and hands the
+    #: validator the raw string. Verified by ``test_api_cors.py``'s env-override
+    #: cases; without it, ``JARVIS_API_CORS_ORIGINS=a,b`` is a startup crash.
+    cors_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [
+            "http://localhost",
+            "http://127.0.0.1",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://tauri.localhost",
+            "tauri://localhost",
+        ]
     )
 
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}API_", extra="ignore")
@@ -89,8 +128,40 @@ class ApiSettings(BaseSettings):
     @classmethod
     def _split_csv(cls, v: object) -> object:
         if isinstance(v, str):
+            # A JSON array is still accepted so that the only shape which worked
+            # before ``NoDecode`` keeps working. It is parsed explicitly rather
+            # than comma-split, because splitting '["a","b"]' would yield the
+            # silent garbage '["a"' -- and a malformed entry in a CORS allowlist
+            # must fail loudly, not quietly widen or narrow it.
+            if v.lstrip().startswith("["):
+                return json.loads(v)
             return [item.strip() for item in v.split(",") if item.strip()]
         return v
+
+    @field_validator("cors_origins", mode="after")
+    @classmethod
+    def _reject_wildcard(cls, origins: list[str]) -> list[str]:
+        """Refuse to boot rather than silently disable the allowlist.
+
+        A single ``*`` entry flips Starlette into ``allow_all_origins``, and
+        because ``create_app`` also passes ``allow_credentials=True`` the
+        middleware then echoes the *caller's* own origin back beside
+        ``Access-Control-Allow-Credentials: true``
+        (``CORSMiddleware.send`` -> ``allow_explicit_origin``). That is not a
+        relaxed allowlist, it is no allowlist: any site on the internet could
+        make credentialed requests and read the responses. Starlette supports
+        no other wildcard form here (patterns belong to the separate
+        ``allow_origin_regex``), so any ``*`` is either that hole or a dead
+        entry -- both worth failing on. Runs ``mode="after"`` so it covers the
+        default, an environment override and a direct constructor call alike.
+        """
+        for origin in origins:
+            if "*" in origin:
+                raise ValueError(
+                    f"wildcard CORS origin {origin!r} is not allowed; "
+                    "list every permitted origin explicitly"
+                )
+        return origins
 
 
 class DatabaseSettings(BaseSettings):
