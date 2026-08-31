@@ -491,7 +491,19 @@ class VoiceSettings(BaseSettings):
 class WakeWordSettings(BaseSettings):
     enabled: bool = False
     engine: WakeWordEngine = WakeWordEngine.NONE
-    keywords: list[str] = Field(default_factory=lambda: ["jarvis"])
+    #: ``NoDecode`` for the same reason as ``ApiSettings.cors_origins``:
+    #: pydantic-settings treats a ``list[str]`` field as complex and
+    #: ``json.loads``-es the raw environment value *before* ``_split_csv``
+    #: runs, so the comma-separated form below never reached the validator and
+    #: ``Settings()`` raised ``SettingsError`` instead.
+    #:
+    #: This one is not merely inconvenient, it is a delayed self-inflicted
+    #: outage: the desktop Settings UI persists this field as a comma-joined
+    #: string (``wake_word_page.py`` -> ``self._persist("JARVIS_WAKE_KEYWORDS",
+    #: ",".join(keys), ...)``) straight into ``.env``. Before this fix, saving
+    #: wake-word settings succeeded and the *next* launch died on startup,
+    #: unable to parse a value the app itself had written.
+    keywords: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["jarvis"])
     sensitivity: float = 0.5
     model_path: str = ""  # optional custom model (.ppn/.onnx path)
     access_key: SecretStr = SecretStr("")  # Porcupine AccessKey, if that engine is used
@@ -502,6 +514,12 @@ class WakeWordSettings(BaseSettings):
     @classmethod
     def _split_csv(cls, v: object) -> object:
         if isinstance(v, str):
+            # A JSON array is still accepted so the only shape that worked
+            # before ``NoDecode`` keeps working. Parsed explicitly rather than
+            # comma-split, because splitting '["jarvis","aarya"]' would yield
+            # the silent garbage '["jarvis"' as a wake word.
+            if v.lstrip().startswith("["):
+                return json.loads(v)
             return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
