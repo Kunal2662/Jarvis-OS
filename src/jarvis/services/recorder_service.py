@@ -49,6 +49,7 @@ workflow-creation permission.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
@@ -169,6 +170,10 @@ class RecorderService:
         self._history = history
         self._workflow_builder = workflow_builder
         self._permissions.declare(RECORDER_PRINCIPAL, [RECORDER_SCOPE])
+        # Guards start_recording's check-then-act against the active
+        # session: two concurrent calls could otherwise both observe
+        # no active session and both insert one.
+        self._start_lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
     # Permission
@@ -188,7 +193,7 @@ class RecorderService:
     # ------------------------------------------------------------------
     async def start_recording(self) -> dict[str, Any]:
         self._require_permission()
-        async with self._db.session() as sess:
+        async with self._start_lock, self._db.session() as sess:
             sess = cast("AsyncSession", sess)
             repo = RecordingSessionRepository(sess)
             if await repo.get_active() is not None:
