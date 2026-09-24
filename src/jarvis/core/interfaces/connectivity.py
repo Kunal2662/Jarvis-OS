@@ -93,6 +93,36 @@ class DeviceState:
 
 
 @dataclass(frozen=True, slots=True)
+class ConnectorDebugMessage:
+    """One inbound wire message a connector chose to keep for developer
+    inspection (Milestone 12 Developer Tools, MQTT Debug Console
+    slice). `payload` is already a sanitized, length-bounded text
+    preview -- never the connector's own raw bytes verbatim, and never
+    a command's own *outbound* payload (a lock's own PIN can be in
+    there -- see the Device Logs slice's own Logic Contract for the
+    identical reasoning; this capability is inbound-only)."""
+
+    at: datetime
+    topic: str
+    payload: str
+    qos: int
+
+
+@runtime_checkable
+class IConnectorDebugCapture(Protocol):
+    """Optional capability a connector may implement on top of
+    `IDeviceConnector` -- a bounded, recent inbound-message history for
+    developer inspection. Checked via `isinstance` (this Protocol is
+    `@runtime_checkable`), never assumed: a connector with nothing
+    push-based to buffer (e.g. `HomeAssistantConnector`'s stateless
+    request/response REST calls) simply does not implement it, and the
+    caller treats that the same as "no connector connected" rather than
+    branching on connector type."""
+
+    def recent_messages(self, *, limit: int = 200) -> tuple[ConnectorDebugMessage, ...]: ...
+
+
+@dataclass(frozen=True, slots=True)
 class CommandResult:
     """The outcome of one `send_command()` call. `success=False` with
     a `detail` is a real, expected outcome (a device offline, a

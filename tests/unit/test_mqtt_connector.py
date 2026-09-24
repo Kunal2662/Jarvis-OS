@@ -921,3 +921,224 @@ async def test_a_newly_discovered_devices_topics_are_subscribed_immediately(
         assert received is True
     finally:
         await connector.disconnect()
+
+
+# --- MQTT Debug Console (Milestone 12 Developer Tools) ---------------------------
+
+
+@pytest.mark.asyncio
+async def test_an_inbound_message_is_captured(
+    broker: FakeMqttBroker, connector: MqttConnector
+) -> None:
+    try:
+        await connector.connect()
+        await broker.publish(
+            "homeassistant/light/livingroom/kitchen_light/config",
+            json.dumps(_HA_LIGHT_CONFIG).encode(),
+            retain=True,
+        )
+
+        captured = await _wait_until(lambda: len(connector.recent_messages()) >= 1)
+
+        assert captured is True
+        [message] = connector.recent_messages()
+        assert message.topic == "homeassistant/light/livingroom/kitchen_light/config"
+        assert "Kitchen Light" in message.payload
+        assert message.qos in (0, 1, 2)
+    finally:
+        await connector.disconnect()
+
+
+#: A concrete topic every connector subscribes to unconditionally at
+#: `_on_connect`, regardless of any registered device -- unlike
+#: `test/one`-style made-up topics, a real MQTT broker will actually
+#: deliver a publish here (a broker only routes to topics a client has
+#: subscribed to; this project's fake broker enforces the same real
+#: wire semantics as a real one, so a made-up unsubscribed topic is
+#: silently dropped, never delivered).
+_NATIVE_DISCOVERY_TOPIC = "jarvis/discovery/announce"
+#: Also unconditionally subscribed at `_on_connect` (the native
+#: availability wildcard) -- used as a second, distinct, always-
+#: deliverable topic where a test needs to tell two captured messages
+#: apart by topic.
+_NATIVE_AVAILABILITY_TOPIC = "jarvis/devices/testdev/availability"
+
+
+@pytest.mark.asyncio
+async def test_an_unrecognized_message_is_still_captured(
+    broker: FakeMqttBroker, connector: MqttConnector
+) -> None:
+    """The routing dispatch in `_on_message` logs this as "skipping
+    unreadable message" and takes no other action (malformed JSON on
+    the native discovery topic -- matches
+    `test_native_discovery_fault_isolation_on_a_malformed_envelope`'s
+    own established fixture above) -- the debug console must still show
+    it, since that is exactly the case a developer most needs
+    visibility into."""
+    try:
+        await connector.connect()
+        await _wait_for_subscription(broker, _NATIVE_DISCOVERY_TOPIC)
+        await broker.publish(_NATIVE_DISCOVERY_TOPIC, b"not handled by anything")
+
+        captured = await _wait_until(lambda: len(connector.recent_messages()) >= 1)
+
+        assert captured is True
+        [message] = connector.recent_messages()
+        assert message.topic == _NATIVE_DISCOVERY_TOPIC
+        assert message.payload == "not handled by anything"
+    finally:
+        await connector.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_messages_are_returned_most_recent_first(
+    broker: FakeMqttBroker, connector: MqttConnector
+) -> None:
+    try:
+        await connector.connect()
+        await _wait_for_subscription(broker, _NATIVE_DISCOVERY_TOPIC)
+        await _wait_for_subscription(broker, connector._native_availability_wildcard)
+        await broker.publish(_NATIVE_DISCOVERY_TOPIC, b"first")
+        await _wait_until(lambda: len(connector.recent_messages()) >= 1)
+        await broker.publish(_NATIVE_AVAILABILITY_TOPIC, b"second")
+        await _wait_until(lambda: len(connector.recent_messages()) >= 2)
+
+        messages = connector.recent_messages()
+
+        assert [m.topic for m in messages] == [
+            _NATIVE_AVAILABILITY_TOPIC,
+            _NATIVE_DISCOVERY_TOPIC,
+        ]
+    finally:
+        await connector.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_limit_is_respected(broker: FakeMqttBroker, connector: MqttConnector) -> None:
+    try:
+        await connector.connect()
+        await _wait_for_subscription(broker, _NATIVE_DISCOVERY_TOPIC)
+        for i in range(5):
+            await broker.publish(_NATIVE_DISCOVERY_TOPIC, str(i).encode())
+            await _wait_until(lambda i=i: len(connector.recent_messages()) >= i + 1)
+
+        limited = connector.recent_messages(limit=2)
+
+        assert len(limited) == 2
+        assert limited[0].payload == "4"
+    finally:
+        await connector.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_buffer_evicts_oldest_once_over_capacity(
+    broker: FakeMqttBroker, connector: MqttConnector
+) -> None:
+    from jarvis.core.connectivity.connectors.mqtt import DEFAULT_DEBUG_MESSAGE_BUFFER_SIZE
+
+    try:
+        await connector.connect()
+        await _wait_for_subscription(broker, _NATIVE_DISCOVERY_TOPIC)
+        overflow = DEFAULT_DEBUG_MESSAGE_BUFFER_SIZE + 10
+        for i in range(overflow):
+            await broker.publish(_NATIVE_DISCOVERY_TOPIC, str(i).encode())
+        await _wait_until(
+            lambda: len(connector._debug_messages) == DEFAULT_DEBUG_MESSAGE_BUFFER_SIZE,
+            timeout=10.0,
+        )
+
+        all_messages = connector.recent_messages(limit=overflow)
+
+        assert len(all_messages) == DEFAULT_DEBUG_MESSAGE_BUFFER_SIZE
+        # The oldest ten (payloads "0".."9") must have been evicted.
+        payloads = {m.payload for m in all_messages}
+        assert "0" not in payloads
+        assert str(overflow - 1) in payloads
+    finally:
+        await connector.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_an_oversized_payload_is_truncated(
+    broker: FakeMqttBroker, connector: MqttConnector
+) -> None:
+    from jarvis.core.connectivity.connectors.mqtt import _DEBUG_PAYLOAD_MAX_CHARS
+
+    try:
+        await connector.connect()
+        await _wait_for_subscription(broker, _NATIVE_DISCOVERY_TOPIC)
+        huge = b"x" * (_DEBUG_PAYLOAD_MAX_CHARS + 500)
+        await broker.publish(_NATIVE_DISCOVERY_TOPIC, huge)
+
+        captured = await _wait_until(lambda: len(connector.recent_messages()) >= 1)
+
+        assert captured is True
+        [message] = connector.recent_messages()
+        assert len(message.payload) <= _DEBUG_PAYLOAD_MAX_CHARS + len("...(truncated)")
+        assert message.payload.endswith("...(truncated)")
+    finally:
+        await connector.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_a_sensitive_looking_json_value_is_redacted(
+    broker: FakeMqttBroker, connector: MqttConnector
+) -> None:
+    try:
+        await connector.connect()
+        await _wait_for_subscription(broker, _NATIVE_DISCOVERY_TOPIC)
+        await broker.publish(
+            _NATIVE_DISCOVERY_TOPIC,
+            json.dumps({"access_token": "sh-real-secret-value", "brightness": 50}).encode(),
+        )
+
+        captured = await _wait_until(lambda: len(connector.recent_messages()) >= 1)
+
+        assert captured is True
+        [message] = connector.recent_messages()
+        assert "sh-real-secret-value" not in message.payload
+        assert '"access_token": "<redacted>"' in message.payload
+        assert '"brightness": 50' in message.payload
+    finally:
+        await connector.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_outbound_send_command_is_never_captured(
+    broker: FakeMqttBroker, connector: MqttConnector
+) -> None:
+    """Device Logs' own precedent: a command's payload can carry a
+    lock's PIN. This capability is inbound-only -- `send_command`'s own
+    publish must never appear in `recent_messages()`."""
+    try:
+        await connector.connect()
+        await broker.publish(
+            "homeassistant/light/livingroom/kitchen_light/config",
+            json.dumps(_HA_LIGHT_CONFIG).encode(),
+            retain=True,
+        )
+        await connector.discover()
+        # Drain whatever inbound capture the discovery config produced.
+        await _wait_until(lambda: len(connector.recent_messages()) >= 1)
+        before = len(connector.recent_messages())
+
+        await connector.send_command("kitchen_light_1", "turn_on", {"code": "1234"})
+        await asyncio.sleep(0.1)  # give a wrongly-captured message a chance to appear
+
+        after = connector.recent_messages()
+        assert len(after) == before
+        assert not any("1234" in m.payload for m in after)
+        assert not any("turn_on" in m.payload for m in after)
+    finally:
+        await connector.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_recent_messages_empty_on_a_fresh_connector(connector: MqttConnector) -> None:
+    assert connector.recent_messages() == ()
+
+
+def test_mqtt_connector_implements_iconnectordebugcapture(connector: MqttConnector) -> None:
+    from jarvis.core.interfaces.connectivity import IConnectorDebugCapture
+
+    assert isinstance(connector, IConnectorDebugCapture)

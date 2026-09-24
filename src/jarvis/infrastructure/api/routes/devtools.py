@@ -70,6 +70,18 @@ device's own ``device_id`` per outcome. No new ``core/devtools/``
 component, no command *payload* logged (a lock's own PIN can be in
 there). No ``PermissionModel`` gate, matching every other devtools
 capability -- session auth only.
+
+**MQTT Debug Console** (``docs/
+M12_DEVELOPER_TOOLS_MQTT_DEBUG_CONSOLE_LOGIC_CONTRACT.md``) is a thin
+REST read over ``MqttConnector``'s own ``IConnectorDebugCapture``
+implementation (``core/connectivity/connectors/mqtt.py``), reached
+through ``ConnectivityService.get_connector("mqtt")`` and an
+``isinstance`` capability check -- never by importing ``MqttConnector``
+directly. ``ConnectivityService`` caches at most one connector per
+``connector_type`` (a DI singleton), so this is inherently a single,
+global buffer, never scoped per home. Inbound messages only, redacted
+and length-bounded before storage. No ``PermissionModel`` gate,
+matching every other devtools capability -- session auth only.
 """
 
 from __future__ import annotations
@@ -79,6 +91,7 @@ from typing import TYPE_CHECKING, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from jarvis.core.interfaces.connectivity import IConnectorDebugCapture
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
 
 if TYPE_CHECKING:
@@ -493,6 +506,38 @@ async def get_device_logs(
         for e in entries
     )
     return envelope(payload, meta={"device_id": device_id, "count": len(payload)})
+
+
+# ---------------------------------------------------------------------------
+# MQTT Debug Console -- Milestone 12 Developer Tools (MQTT Debug Console Slice)
+#
+# ConnectivityService caches at most one connector instance per
+# connector_type, system-wide (a DI singleton) -- so there is exactly
+# one live MqttConnector to inspect, never one per home; no home_id or
+# connector_id scoping is needed. Inbound messages only -- a command's
+# own outbound payload is never captured (Device Logs' own precedent:
+# it can carry a lock's PIN). Reached via `IConnectorDebugCapture`
+# (a Protocol/port, checked by `isinstance`), never by importing
+# `MqttConnector` itself, matching every other route in this file.
+# ---------------------------------------------------------------------------
+@router.get("/devtools/mqtt/messages", response_model=Envelope[tuple[dict[str, Any], ...]])
+async def get_mqtt_debug_messages(
+    request: Request, limit: int = 200
+) -> Envelope[tuple[dict[str, Any], ...]]:
+    """Most-recent-first inbound MQTT wire messages the live connector
+    chose to keep, if the connected instance implements
+    `IConnectorDebugCapture`. No connector connected, or a connected
+    instance without this capability, -> 200 with an empty list --
+    never an error; `meta.connected` distinguishes the two cases."""
+    connector = _connectivity(request).get_connector("mqtt")
+    if not isinstance(connector, IConnectorDebugCapture):
+        return envelope((), meta={"connected": connector is not None, "count": 0})
+    messages = connector.recent_messages(limit=limit)
+    payload = tuple(
+        {"at": m.at.isoformat(), "topic": m.topic, "payload": m.payload, "qos": m.qos}
+        for m in messages
+    )
+    return envelope(payload, meta={"connected": True, "count": len(payload)})
 
 
 # ---------------------------------------------------------------------------

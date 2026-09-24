@@ -103,6 +103,16 @@ class ConnectivityService:
         connector = self._connectors.get(connector_type)
         return connector is not None and connector.is_connected
 
+    def get_connector(self, connector_type: str) -> IDeviceConnector | None:
+        """The live connector instance for *connector_type*, if any --
+        a read-only escape hatch for a devtools capability that needs
+        to reach an optional connector-specific feature (e.g.
+        `IConnectorDebugCapture`) without this service knowing what
+        that feature is or branching on connector type itself. Returns
+        `None` rather than raising -- "no connector of this type" is a
+        normal, expected state here, not an error."""
+        return self._connectors.get(connector_type)
+
     async def connect(self, connector_type: str, config: dict[str, Any] | None = None) -> None:
         """Idempotent -- connecting an already-connected type reconnects
         the existing instance rather than leaking a second one, the

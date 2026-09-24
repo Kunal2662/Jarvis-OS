@@ -86,6 +86,19 @@ knows about, exactly Phase 1's own Logic Contract shape. A fresh
 `ConnectivityStatusChangedEvent` for a transparent internal reconnect
 is a deliberate, documented scope boundary this phase does not cross,
 not an oversight.
+
+**MQTT Debug Console (Milestone 12 Developer Tools).** This connector
+implements `IConnectorDebugCapture` -- a bounded, most-recent-first
+buffer of *inbound* wire messages, populated from the single
+`_on_message` entry point regardless of whether the message is
+otherwise recognized. Deliberately inbound-only: `send_command`'s own
+outbound publish is never captured here, the same reasoning the Device
+Logs slice already established for why a command's own `payload` is
+never logged (it can carry a lock's PIN). Captured payloads are
+truncated and pass through a best-effort, key-substring text redaction
+before storage -- see `docs/
+M12_DEVELOPER_TOOLS_MQTT_DEBUG_CONSOLE_LOGIC_CONTRACT.md` for the full
+reasoning and its documented limits.
 """
 
 from __future__ import annotations
@@ -93,7 +106,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import re
 import ssl
+from collections import deque
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -108,6 +123,7 @@ from jarvis.core.connectivity.connectors.mqtt_envelope import (
 from jarvis.core.interfaces.connectivity import (
     CommandResult,
     ConnectivityError,
+    ConnectorDebugMessage,
     ConnectorNotConnectedError,
     DeviceState,
     DiscoveredDevice,
@@ -137,6 +153,37 @@ SUBSCRIBE_QOS = 1
 #: idempotency stays an application-layer concern, matching
 #: `IDeviceConnector.send_command`'s existing contract.
 COMMAND_QOS = 1
+
+#: Milestone 12 Developer Tools, MQTT Debug Console slice -- how many
+#: recent *inbound* messages `recent_messages()` keeps. Deliberately
+#: smaller than `DebugConsole`'s own 2000-line default: this buffers
+#: one connector's own wire traffic, not the whole application's log
+#: stream.
+DEFAULT_DEBUG_MESSAGE_BUFFER_SIZE = 200
+
+#: A captured payload longer than this is truncated before storage --
+#: bounds worst-case buffer memory (200 messages x this length) against
+#: an anomalous oversized retained message; ordinary HA discovery/state
+#: JSON is a few hundred bytes.
+_DEBUG_PAYLOAD_MAX_CHARS = 2000
+
+#: Defense-in-depth only, not a formal schema -- mirrors
+#: `routes/devtools.py`'s own `_SENSITIVE_ATTRIBUTE_KEY_SUBSTRINGS`
+#: (Device Diagnostics Logic Contract §7) at the raw-text level, since
+#: a captured message is a wire string here, not yet a parsed dict.
+#: Matches only the common compact-JSON `"key": "value"` string shape;
+#: a non-JSON payload, or a non-string-valued key, passes through
+#: unmatched -- see this slice's own Logic Contract §12 (Risks).
+_SENSITIVE_JSON_STRING_VALUE = re.compile(
+    r'"([^"]*(?:token|password|secret|credential|api_?key|auth)[^"]*)"'
+    r'\s*:\s*"((?:[^"\\]|\\.)*)"',
+    re.IGNORECASE,
+)
+
+
+def _redact_sensitive_json_strings(text: str) -> str:
+    return _SENSITIVE_JSON_STRING_VALUE.sub(lambda m: f'"{m.group(1)}": "<redacted>"', text)
+
 
 #: Home Assistant discovery config topics end in this suffix, per the
 #: `<prefix>/<component>/[<node_id>/]<object_id>/config` convention.
@@ -282,6 +329,9 @@ class MqttConnector:
         self._availability: dict[str, bool] = {}
         self._ha_state_topics: dict[str, str] = {}  # state_topic -> external_id
         self._ha_availability_topics: dict[str, str] = {}  # availability_topic -> external_id
+        self._debug_messages: deque[ConnectorDebugMessage] = deque(
+            maxlen=DEFAULT_DEBUG_MESSAGE_BUFFER_SIZE
+        )
 
     # ------------------------------------------------------------------
     # Topic helpers
@@ -410,6 +460,8 @@ class MqttConnector:
     def _on_message(
         self, client: Any, topic: str, payload: bytes, qos: int, properties: Any
     ) -> None:
+        with contextlib.suppress(Exception):
+            self._capture_debug_message(topic, payload, qos)
         try:
             if topic == self._native_discovery_topic:
                 self._handle_native_discovery(payload)
@@ -425,6 +477,32 @@ class MqttConnector:
                 self._handle_ha_availability(topic, payload)
         except Exception as err:  # one bad message must not kill the loop
             _logger.warning("mqtt: skipping unreadable message on {!r}: {}", topic, err)
+
+    def _capture_debug_message(self, topic: str, payload: bytes, qos: int) -> None:
+        """Milestone 12 Developer Tools, MQTT Debug Console slice --
+        `IConnectorDebugCapture`'s own implementation. Called for every
+        inbound message regardless of whether the routing dispatch
+        above recognizes it, so an unrecognized/malformed message is
+        still visible for debugging, not silently dropped from view.
+        Never raises -- the caller wraps this in `contextlib.suppress`
+        as well, but a capture failure must never look like a message-
+        routing failure either way."""
+        text = payload.decode("utf-8", errors="replace")
+        if len(text) > _DEBUG_PAYLOAD_MAX_CHARS:
+            text = text[:_DEBUG_PAYLOAD_MAX_CHARS] + "...(truncated)"
+        text = _redact_sensitive_json_strings(text)
+        self._debug_messages.append(
+            ConnectorDebugMessage(at=datetime.now(UTC), topic=topic, payload=text, qos=qos)
+        )
+
+    def recent_messages(self, *, limit: int = 200) -> tuple[ConnectorDebugMessage, ...]:
+        """`IConnectorDebugCapture`'s own contract -- most-recent-first,
+        matching `DebugConsole.entries`'s own convention. Inbound
+        messages only; never raises on an empty buffer or an
+        over-large `limit`."""
+        ordered = list(self._debug_messages)
+        ordered.reverse()
+        return tuple(ordered[:limit])
 
     # ------------------------------------------------------------------
     # IDeviceConnector -- discovery
