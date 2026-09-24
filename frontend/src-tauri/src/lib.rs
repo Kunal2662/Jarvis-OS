@@ -1,6 +1,7 @@
 mod installer;
 
 use installer::ProvisioningState;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -48,6 +49,17 @@ pub fn run() {
 
             app.handle().plugin(logger.build())?;
             log::info!("JARVIS OS starting, version {}", env!("CARGO_PKG_VERSION"));
+
+            // Applied here rather than in tauri.conf.json's static window
+            // config: creating a window with fullscreen+decorations:false
+            // set simultaneously at construction time produced a
+            // malformed ~158x26px window on Windows (observed directly).
+            // Setting fullscreen after the (undecorated) window already
+            // exists avoids that and matches the intended kiosk-style,
+            // taskbar-covering presentation.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_fullscreen(true);
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
