@@ -328,11 +328,23 @@ async def test_an_unresolvable_target_yields_none_not_a_failure(env: _Env) -> No
 
 @pytest.mark.asyncio
 async def test_reminder_context_includes_the_next_occurrence(env: _Env) -> None:
+    """Anchored to real wall-clock time, deliberately *not* `_NOW` --
+    `ReminderManager.context()` has no injectable `now` parameter (every
+    sibling method in this class does; see `TaskManager.agenda`/
+    `CalendarManager.agenda`/`ReminderManager.due_digest` above), so it
+    always computes `next_occurrence` against `datetime.now(UTC)`
+    internally. Anchoring this test to the module's static `_NOW`
+    (2026-08-04) made it a time bomb: the recurrence's 5 weekly
+    occurrences from that fixed date eventually all fall in the past
+    relative to whichever real day the suite happens to run on, and the
+    assertion then fails through no fault of the code under test. Using
+    `datetime.now(UTC)` here keeps this test correct indefinitely."""
+    now = datetime.now(UTC)
     workspace = await env.workspaces.create_workspace("W")
     reminder = await env.reminders.create_reminder(
         workspace.id,
         "Weekly",
-        _NOW + timedelta(days=1),
+        now + timedelta(days=1),
         recurrence=RecurrenceRule(frequency="weekly", count=5),
     )
 
