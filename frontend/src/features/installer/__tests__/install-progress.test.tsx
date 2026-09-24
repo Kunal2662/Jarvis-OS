@@ -194,7 +194,7 @@ describe("resume UI", () => {
 
     render(<InstallProgressStep onRetry={vi.fn()} />);
 
-    expect(screen.getByText("Setting up JARVIS")).toBeInTheDocument();
+    expect(screen.getByText("Setting up Aarya")).toBeInTheDocument();
     expect(screen.queryByText("Resuming installation…")).not.toBeInTheDocument();
   });
 });
@@ -217,8 +217,8 @@ describe("failure UI", () => {
     ["URLError: connection refused", "Connection lost"],
     ["Checksum did not match", "A download was damaged"],
     ["No space left on device", "Not enough space"],
-    ["PermissionError: access is denied", "JARVIS can’t write here"],
-    ["Required dependencies are missing: Git", "Something JARVIS needs is missing"],
+    ["PermissionError: access is denied", "Aarya can’t write here"],
+    ["Required dependencies are missing: Git", "Something Aarya needs is missing"],
     ["Cancelled. Progress kept for resume.", "Installation cancelled"],
     ["a thing nobody predicted", "Installation stopped"],
   ])("shows a friendly title for %j", (message, title) => {
@@ -346,7 +346,7 @@ describe("completion UI", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Launch JARVIS/ }));
+    await user.click(screen.getByRole("button", { name: /Launch Aarya/ }));
     await user.click(screen.getByRole("button", { name: /Open installation folder/ }));
 
     expect(onLaunch).toHaveBeenCalledOnce();
@@ -365,7 +365,7 @@ describe("completion UI", () => {
       />,
     );
 
-    const launch = screen.getByRole("button", { name: /Launch JARVIS/ });
+    const launch = screen.getByRole("button", { name: /Launch Aarya/ });
     expect(launch).toBeDisabled();
     expect(launch).toHaveAttribute("title", expect.stringContaining("desktop application"));
   });

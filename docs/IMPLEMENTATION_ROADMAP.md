@@ -116,7 +116,7 @@ if the two ever disagree, `MASTER_ROADMAP.md` §2 is right.)*
 | Milestone | Status |
 |---|---|
 | M0 – M6 | ✅ Completed. See `MASTER_ROADMAP.md` §3. |
-| M7 — Workflow Intelligence | 🟡 Active (Phases 1–2 shipped; Phase 3 🟠 deferred; Phases 4–6 pending). See `MASTER_ROADMAP.md` §8. |
+| M7 — Workflow Intelligence | 🟡 Active. Phases 1–2 shipped; Phase 3 🟠 deferred. **Phase 4 (Workflow Builder — standalone workflow authoring/editing), Phase 5 (Recorder — "watch me do this once, then do it for me," converts a recording into a Workflow Builder workflow), Phase 6 (Scheduler), EventBus Tier 1 (Device Command Events), EventBus Tier 2 (Device State-Changed Event), and a Home Automation MVP (event-triggered automation, built on Tier 2) have since shipped, Aug 2026.** See `MASTER_ROADMAP.md` §8 for the full account. |
 | **M8 – React Frontend & Desktop Experience** | 🟡 **Active — this document tracks it.** Phase 1 and Phase 4 shipped; Phase 3 partial; Phases 2, 5, 6, 7 and the rest of Phase 3 🟠 **deferred — see §6, Deferred Backlog.** **Not 100% complete.** |
 | **M9 – Runtime & Core Services** | ✅ **Completed — all five task groups (A–E) shipped, see §5 below.** |
 | **M10 – AI Orchestrator** | 🟡 **Partial — buildable-now scope shipped; M14/M16-dependent remainder deferred. Context Engine's knowledge-graph half closed by M10A. See §5A below and `MASTER_ROADMAP.md` §8/§14.** |
@@ -204,6 +204,21 @@ M7's Python-side domain models (`WorkflowDefinition`, `WorkflowStep`,
 this migration and remain exactly as shipped — a future UI, whichever
 technology renders it, consumes the same backend contract.
 
+*(Update, Aug 2026: Phase 6 — Scheduler shipped as a backend-only MVP
+after a dedicated Phase 0 audit found it had no frontend dependency to
+wait on — the `/automations` route this migration builds was, and
+remains, a placeholder either way. Phases 4 and 5 (Workflow Builder,
+Recorder) have since shipped too — each resumed and completed against
+the new React `Jarvis-Frontend-main` repository this migration
+introduced, not the paused PySide6 pass. Recorder in particular
+converts a recording into a Workflow Builder workflow via
+`WorkflowBuilderService.create_workflow()` and replays it via that same
+service's `run_workflow()` — no second execution engine. None of M7's
+Phases 4–6 are paused any longer. See `MASTER_ROADMAP.md`'s own M7
+entry, `docs/M7_SCHEDULER_LOGIC_CONTRACT.md`,
+`docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md`, and
+`docs/M7_RECORDER_LOGIC_CONTRACT.md` for the full account.)*
+
 ---
 
 ## 2. M8 — React Frontend & Desktop Experience
@@ -211,6 +226,17 @@ technology renders it, consumes the same backend contract.
 Full milestone definition (Objective, Dependencies, Complexity,
 Acceptance Criteria) lives in `MASTER_ROADMAP.md` §8 — this section is
 the execution checklist for its seven phases.
+
+> **⚠ Superseded (Aug 2026):** every checklist item below is for
+> `2.0-main/frontend`, no longer the canonical frontend —
+> `Jarvis-Frontend-main` is, following a rejected-on-product-grounds
+> reversal, with a separate M8 Phase 1/Phase 2 real-backend-integration
+> pass shipped against it instead (`CHANGELOG.md`'s "M8 Phase 1/2:
+> Canonical Frontend Real-Backend Integration" entry;
+> `docs/M8_FRONTEND_REAL_BACKEND_INTEGRATION_LOGIC_CONTRACT.md` for the
+> full contract). `MASTER_ROADMAP.md` §8's own M8 entry carries the
+> authoritative supersession note — this checklist is left as accurate
+> history, not updated item-by-item.
 
 ### Phase 1 — React Foundation ✅ *(Aug 2026)*
 - [x] Vite + React 19 + TypeScript project scaffolded under `frontend/`.

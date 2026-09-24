@@ -201,7 +201,7 @@ export function InstallProgressStep({ onRetry, onCancel = null }: InstallProgres
     <div className="flex flex-col gap-4">
       <header className="flex flex-col gap-1.5">
         <h2 className="font-semibold text-card-title">
-          {resuming ? "Resuming installation…" : "Setting up JARVIS"}
+          {resuming ? "Resuming installation…" : "Setting up Aarya"}
         </h2>
         {/* One live region for the phase, so a screen reader hears
             "Downloading…" once per change rather than on every byte. */}

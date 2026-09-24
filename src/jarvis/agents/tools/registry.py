@@ -21,11 +21,14 @@ if TYPE_CHECKING:
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
+    from jarvis.services.home_automation_service import HomeAutomationService
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.recorder_service import RecorderService
+    from jarvis.services.schedule_service import ScheduleService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
     from jarvis.services.siren_service import SirenService
@@ -39,6 +42,7 @@ if TYPE_CHECKING:
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
     from jarvis.services.water_heater_service import WaterHeaterService
+    from jarvis.services.workflow_builder_service import WorkflowBuilderService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 
@@ -68,6 +72,10 @@ def build_tool_registry(
     siren: SirenService | None = None,
     alarm_control_panels: AlarmControlPanelService | None = None,
     smart_home_memory: SmartHomeMemoryService | None = None,
+    schedules: ScheduleService | None = None,
+    home_automation: HomeAutomationService | None = None,
+    workflow_builder: WorkflowBuilderService | None = None,
+    recorder: RecorderService | None = None,
 ) -> list[BaseTool]:
     tools: list[BaseTool] = []
 
@@ -212,6 +220,35 @@ def build_tool_registry(
         from jarvis.agents.tools.smart_home_memory_tools import build_smart_home_memory_tools
 
         tools += build_smart_home_memory_tools(smart_home_memory)
+    if schedules is not None:
+        # Milestone 7 Phase 6 (Scheduler MVP). Five tools -- the
+        # minimum coherent surface (Logic Contract §13); delete/cancel
+        # stay REST-only by design -- see
+        # `agents/tools/schedule_tools.py`.
+        from jarvis.agents.tools.schedule_tools import build_schedule_tools
+
+        tools += build_schedule_tools(schedules)
+    if home_automation is not None:
+        # M7 Home Automation (event-based triggers). Six tools -- the
+        # minimum coherent surface (Logic Contract §23); delete stays
+        # REST-only by design -- see
+        # `agents/tools/home_automation_tools.py`.
+        from jarvis.agents.tools.home_automation_tools import build_home_automation_tools
+
+        tools += build_home_automation_tools(home_automation)
+    if workflow_builder is not None:
+        # M7 Workflow Builder. Five tools -- the minimum coherent
+        # surface (Logic Contract §14); delete stays REST-only by
+        # design -- see `agents/tools/workflow_builder_tools.py`.
+        from jarvis.agents.tools.workflow_builder_tools import build_workflow_builder_tools
+
+        tools += build_workflow_builder_tools(workflow_builder)
+    if recorder is not None:
+        # M7 Recorder. Four tools -- the minimum coherent surface
+        # (Logic Contract §16) -- see `agents/tools/recorder_tools.py`.
+        from jarvis.agents.tools.recorder_tools import build_recorder_tools
+
+        tools += build_recorder_tools(recorder)
     if automation is not None:
         from jarvis.agents.tools.automation_tools import build_automation_tools
 

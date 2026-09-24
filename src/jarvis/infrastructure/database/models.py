@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -1233,4 +1233,234 @@ class LightingScene(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class WorkflowDefinition(Base):
+    """A named, persisted step list -- Milestone 7 Phase 6 (Scheduler MVP).
+
+    **Not the Workflow Builder.** There is no standalone authoring API
+    over this table in this phase -- ``ScheduleService.create_schedule``
+    creates exactly one dedicated row per schedule, atomically, and
+    nothing in this phase can edit a row afterward. ``steps_json`` is a
+    JSON array of ``{"id", "kind", "instruction"?, "tool_name"?,
+    "tool_args"?, "depends_on", "label"}`` objects mirroring
+    ``domain.workflow.models.WorkflowStep`` field-for-field -- the same
+    "structured payload as a JSON text column" convention
+    ``LightingScene.targets_json``/``Device.metadata_json`` already use.
+    See ``docs/M7_SCHEDULER_LOGIC_CONTRACT.md`` §5/§7.
+    """
+
+    __tablename__ = "workflow_definitions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(String(1024), default="")
+    steps_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class Schedule(Base):
+    """When a :class:`WorkflowDefinition` should run unattended --
+    Milestone 7 Phase 6 (Scheduler MVP).
+
+    Extends the pure ``domain.workflow.models.ScheduleDefinition``
+    dataclass (Phase 1) into a persisted, mutable row. Every field here
+    is individually justified in ``docs/M7_SCHEDULER_LOGIC_CONTRACT.md``
+    §4 -- notably, a schedule-level ``status``/``failure_count``/
+    ``version`` column was considered and deliberately **not** added
+    (redundant with ``enabled`` plus the latest
+    :class:`WorkflowExecution`, or not required by any MVP feature).
+    """
+
+    __tablename__ = "schedules"
+    __table_args__ = (
+        Index("ix_schedules_workflow", "workflow_id"),
+        Index("ix_schedules_next_fire", "next_fire_at"),
+        Index("ix_schedules_enabled", "enabled"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workflow_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    # "interval" | "cron" -- domain.workflow.models.ScheduleKind's values.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    interval_seconds: Mapped[float] = mapped_column(Float, default=0.0)
+    cron_expression: Mapped[str] = mapped_column(String(128), default="")
+    # IANA name (e.g. "Asia/Kolkata"), never absent -- SchedulerSettings.
+    # default_timezone seeds this when the caller doesn't specify one.
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="UTC")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+    next_fire_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_execution_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("workflow_executions.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class WorkflowExecution(Base):
+    """One firing attempt of a :class:`Schedule` -- Milestone 7 Phase 6
+    (Scheduler MVP). ``status`` is one of the eight values
+    ``docs/M7_SCHEDULER_LOGIC_CONTRACT.md`` §6 evaluated and kept
+    (``queued``/``running``/``succeeded``/``partially_failed``/
+    ``failed``/``cancelled``/``skipped``/``denied``) -- ``timed_out`` was
+    deliberately dropped there as redundant with ``failed``/
+    ``partially_failed``. ``step_results_json`` mirrors
+    ``TaskHistory``'s own existing per-step shape: a JSON array of
+    ``{"step_id", "status", "error", "duration_ms"}`` objects.
+    """
+
+    __tablename__ = "workflow_executions"
+    __table_args__ = (
+        Index("ix_workflow_executions_schedule", "schedule_id"),
+        Index("ix_workflow_executions_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    schedule_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("schedules.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    step_results_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class AutomationTrigger(Base):
+    """When a :class:`WorkflowDefinition` should run in reaction to a
+    device state-change event -- M7 Home Automation. *Is* the
+    automation record itself (mirroring :class:`Schedule`'s own
+    precedent -- no separate ``Automation`` header row); see
+    ``docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md`` §9/§10 for the full
+    field-by-field justification. Deliberately single-device,
+    single-transition for this MVP -- ``device_type``/``home_id``/
+    ``room_id``/``connector_type`` are not stored here, since
+    ``device_id`` alone already subsumes them.
+    """
+
+    __tablename__ = "automation_triggers"
+    __table_args__ = (
+        Index("ix_automation_triggers_workflow", "workflow_id"),
+        Index("ix_automation_triggers_device", "device_id"),
+        Index("ix_automation_triggers_enabled", "enabled"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workflow_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    device_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    # "" means "any previous status" (wildcard) -- not nullable, an
+    # empty string is the closed sentinel this module's own matching
+    # query checks against.
+    from_status: Mapped[str] = mapped_column(String(32), default="")
+    to_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+    last_fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_execution_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("automation_executions.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class AutomationExecution(Base):
+    """One dispatch attempt of an :class:`AutomationTrigger` -- M7 Home
+    Automation. Mirrors :class:`WorkflowExecution`'s exact shape for
+    its own, separate owner -- a parallel table, not a widened
+    ``WorkflowExecution``, so Scheduler's own already-shipped schema
+    stays completely untouched (Logic Contract §32). Same eight-value
+    ``status`` vocabulary as :class:`WorkflowExecution`. ``source``
+    distinguishes an event-triggered dispatch from a manual test run
+    of the same automation -- the one field with no
+    :class:`WorkflowExecution` equivalent, since Scheduler has no
+    manual-run concept.
+    """
+
+    __tablename__ = "automation_executions"
+    __table_args__ = (
+        Index("ix_automation_executions_trigger", "automation_trigger_id"),
+        Index("ix_automation_executions_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    automation_trigger_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("automation_triggers.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    # "event" | "manual" -- closed vocabulary, see module docstring above.
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    step_results_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class WorkflowBuilderExecution(Base):
+    """One manual run of a standalone, Workflow-Builder-authored
+    :class:`WorkflowDefinition` -- M7 Workflow Builder. Mirrors
+    :class:`AutomationExecution`'s exact shape, minus an owning
+    trigger FK: a Workflow-Builder workflow has no `Schedule` or
+    `AutomationTrigger` (Logic Contract §6's ownership model), so
+    there is no event-triggered dispatch to record -- ``source`` is
+    always ``"manual"`` here, unlike :class:`AutomationExecution`'s
+    two-value vocabulary. A parallel table, not a shared one, for the
+    same reason :class:`AutomationExecution` itself is parallel to
+    :class:`WorkflowExecution`: no existing owner's schema is ever
+    widened for a new owner's sake.
+    """
+
+    __tablename__ = "workflow_builder_executions"
+    __table_args__ = (Index("ix_workflow_builder_executions_workflow", "workflow_id"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    workflow_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="CASCADE"), nullable=False
+    )
+    # Always "manual" -- no trigger exists to fire this any other way.
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="manual")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    step_results_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class RecordingSession(Base):
+    """A bookkeeping marker for one Recorder session -- M7 Recorder.
+
+    **Not a copy of captured action data.** The actual captured steps
+    live where they always did, unmodified: ``automation_task_history``
+    (via ``HistoryService``). This table only remembers *when* a
+    recording started/stopped and *what it produced*, so ``stop`` can
+    query history rows in ``[started_at, stopped_at)`` and, on
+    success, point at the resulting standalone ``WorkflowDefinition``
+    (Logic Contract §7). No FK from ``automation_task_history`` back
+    to this table -- correlation is by timestamp window at stop-time,
+    not a live join.
+    """
+
+    __tablename__ = "recording_sessions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    # "recording" | "completed" | "cancelled"
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="recording")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    stopped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resulting_workflow_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("workflow_definitions.id", ondelete="SET NULL"), nullable=True
     )

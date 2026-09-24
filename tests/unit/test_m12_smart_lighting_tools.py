@@ -65,12 +65,17 @@ def smart_home(db) -> SmartHomeService:
 
 
 @pytest.fixture
+def bus() -> EventBus:
+    return EventBus()
+
+
+@pytest.fixture
 def connectivity(
-    fake_connector: FakeDeviceConnector, smart_home: SmartHomeService
+    fake_connector: FakeDeviceConnector, smart_home: SmartHomeService, bus: EventBus
 ) -> ConnectivityService:
     registry = ConnectorFactoryRegistry()
     registry.register("home_assistant", lambda config: fake_connector)
-    return ConnectivityService(registry=registry, smart_home=smart_home)
+    return ConnectivityService(registry=registry, smart_home=smart_home, event_bus=bus)
 
 
 @pytest.fixture
@@ -173,3 +178,64 @@ async def test_set_light_state_tool_succeeds_once_granted(
 async def test_apply_scene_tool_reports_unknown_scene_without_raising(tools) -> None:
     result = await tools["apply_scene"].ainvoke({"scene_id": "no-such-scene"})
     assert "Couldn't apply" in result
+
+
+# --- Device command events (M7 EventBus Tier 1) -----------------------------
+# See docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md. An agent
+# tool wraps the same service method the REST route wraps -- proving the
+# event fires from this origin too, not just a direct service call.
+
+
+@pytest.mark.asyncio
+async def test_set_light_state_tool_success_publishes_device_command_executed_event(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    bus: EventBus,
+) -> None:
+    from jarvis.core.events.events import DeviceCommandExecutedEvent
+
+    seen: list[DeviceCommandExecutedEvent] = []
+    bus.subscribe(DeviceCommandExecutedEvent, seen.append)
+    await connectivity.connect("home_assistant")
+    await permissions.grant(SMART_LIGHTING_PRINCIPAL, SMART_HOME_SCOPE)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Lamp",
+        device_type="light",
+        external_id="light.lamp",
+        metadata={"connector_type": "home_assistant"},
+    )
+
+    await tools["set_light_state"].ainvoke({"device_id": device.id, "on": True})
+
+    assert len(seen) == 1
+    assert seen[0].device_id == device.id
+    assert seen[0].home_id == home.id
+    assert seen[0].command == "turn_on"
+    assert seen[0].success is True
+
+
+@pytest.mark.asyncio
+async def test_set_light_state_tool_denied_without_grant_publishes_no_event(
+    tools, smart_home: SmartHomeService, connectivity: ConnectivityService, bus: EventBus
+) -> None:
+    from jarvis.core.events.events import DeviceCommandExecutedEvent
+
+    seen: list[DeviceCommandExecutedEvent] = []
+    bus.subscribe(DeviceCommandExecutedEvent, seen.append)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Lamp",
+        device_type="light",
+        external_id="light.lamp",
+        metadata={"connector_type": "home_assistant"},
+    )
+
+    result = await tools["set_light_state"].ainvoke({"device_id": device.id, "on": True})
+
+    assert "permission" in result.lower()
+    assert seen == []

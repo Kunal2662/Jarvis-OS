@@ -934,6 +934,72 @@ Contract and `docs/M12_SECURITY_ALARM_CONTROL_PANEL_FRONTEND_
 REQUIREMENTS.md` for the (planning-only, no code) frontend
 requirements this slice's API surface implies.
 
+**M12 — Smart Home Memory (Security Device-Category Expansion Slice)
+shipped Aug 2026.** A fresh Phase 0 audit after Task Group U ranked
+this slice its #1 recommendation: a third application of the same
+dispatch pattern Task Group S already proved twice, via a Logic
+Contract (`docs/M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_LOGIC_
+CONTRACT.md`) written and approved before any code. A new Tier-3
+cascade in `SmartHomeMemoryService._read_state`, gated on
+`device_type=="other"`, tries `SirenService.get_siren_state` then
+`AlarmControlPanelService.get_alarm_control_panel_state` in turn,
+catching each one's own `ServiceError` as "not this category" -- the
+identical idiom Tier 2 already established, zero private
+`_domain_for` duplicated, zero new shared domain-resolution
+abstraction. `snapshot_home` required zero code change of its own to
+pick up the two new categories, confirmed behaviorally. Neither REST
+route nor agent tool changed -- both layers were already
+category-agnostic by construction. Two pre-existing tests had
+assertions inverted by this slice's own approved scope and were
+corrected explicitly, not silently: a parametrize case asserting Siren
+is unsupported for snapshotting, and a deferred-functionality guard
+asserting `"alarm_control_panel"` never appears in this module's
+source. An alarm_control_panel snapshot can persist a real
+security-posture history point (including `state: "triggered"`) --
+accepted as explicit, approved scope, distinct from the still-
+permanently-excluded Sensor/Lock categories. 82 new/updated tests, 0
+failures, 0 errors, full backend regression (3849 tests) green, 1
+pre-existing skip. See `docs/
+M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_LOGIC_CONTRACT.md` for
+the full Logic Contract and `docs/
+M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_FRONTEND_
+REQUIREMENTS.md` for the (planning-only, no code) frontend
+requirements this slice's API surface implies.
+
+**M12 — Security & Safety (Siren Advanced Controls Slice) shipped Aug
+2026.** A fresh Phase 0 audit after Task Group V ranked this slice its
+#1 recommendation: extends the existing `SirenService.turn_on` in
+place with three optional parameters -- `tone`, `duration`,
+`volume_level` -- Home Assistant's own verbatim `siren.turn_on`
+parameters, externally verified against Home Assistant's own current
+developer documentation during this slice's own Phase 1.
+`SirenEntityFeature` has exactly five flags (`TURN_ON`/`TURN_OFF`/
+`TONES`/`DURATION`/`VOLUME_SET`) -- **no pattern/waveform flag exists
+in Home Assistant's siren platform at all**, so the roadmap's own
+recurring "tone/duration/volume/pattern" phrase named a capability
+with nothing to build; recorded here rather than silently corrected.
+No new command, method, endpoint, or tool -- mirrors
+`SmartLightingService`'s own "merge optional attributes into one wire
+call" shape (these are optional parameters of the *same* HA service),
+not `ApplianceService`'s separate-endpoint shape. `tone` is validated
+against the device's own live-reported `available_tones` when
+non-empty, mirroring `MediaPlayerService._check_source`'s own
+precedent, permissive otherwise; `duration`/`volume_level` are
+format/range-validated locally only, since Home Assistant's own base
+platform already silently filters an unsupported parameter before it
+reaches the integration. No read-back of any of the three exists in
+Home Assistant's own siren state model, so none is added -- a pure
+write-capability expansion. Existing bare `turn_on()`/`turn_off()`
+calls, permissions, and the existing `turn_siren_on` confirmation
+requirement are all byte-for-byte unchanged -- confirmed directly from
+`AgentPermissionGate.authorize`'s own source, which gates by tool name
+only. 93 new/updated tests, 0 failures, 0 errors, full backend
+regression (3894 tests) green, 1 pre-existing skip. See `docs/
+M12_SECURITY_SIREN_ADVANCED_CONTROLS_LOGIC_CONTRACT.md` for the full
+Logic Contract and `docs/M12_SECURITY_SIREN_ADVANCED_CONTROLS_
+FRONTEND_REQUIREMENTS.md` for the (planning-only, no code) frontend
+requirements this slice's API surface implies.
+
 **M12 is recorded here as 🟡 Active, not Complete**: Smart Home Core,
 Connectivity Layer (all three phases), Connectivity REST + Smart
 Lighting, Smart Locks, Sensors, Energy Management's Core Energy Slice,
@@ -945,13 +1011,20 @@ On-Demand Action Slice, Siren Integration Slice **and**
 alarm_control_panel Integration Slice, Developer
 Tools' Connectivity / Integration Health Slice, Device Simulator Slice
 **and** Device Diagnostics Slice, and Smart Home Memory's Manual/
-On-Demand Device Snapshot Slice **and** Device-Category Expansion
-Slice are now shipped; five of this
+On-Demand Device Snapshot Slice, Device-Category Expansion Slice
+**and** Security Device-Category Expansion Slice are now shipped
+(Siren Integration Slice itself now includes its own Advanced
+Controls Slice -- tone/duration/volume); four of this
 milestone's fifteen modules remain entirely unstarted (Smart
-Cameras, Home Automation, AI Home Assistant, Remote Access, Smart Home
+Cameras, AI Home Assistant, Remote Access, Smart Home
 Analytics) — Energy Management, Appliance Control, Security & Safety,
-Developer Tools, and Smart Home Memory themselves each remain only
-partially shipped (Energy Management: device control only, History/Analytics/
+Developer Tools, Smart Home Memory, and Home Automation themselves each
+remain only partially shipped (Home Automation: event-triggered
+automation only, via M7's `HomeAutomationService` MVP — device
+lifecycle-status-transition triggers with a single-step workflow;
+rule/condition engine, sensor/presence-based triggers, geofencing,
+multi-step authoring, scene automation, and emergency automation all
+deferred; Energy Management: device control only, History/Analytics/
 Optimization/Scheduling all deferred; Appliance Control: Fan + Cover
 (including fan percentage/cover position) + Climate/Thermostat +
 Vacuum + Humidifier + Media Player + Water Heater control only —
@@ -964,16 +1037,19 @@ deferred; the two remaining named appliance categories (Smart Kitchen,
 Smart Pumps/Irrigation) are both blocked on the current connector
 domain mapping, not merely unbuilt -- no further Appliance Control
 category remains buildable without a connector or domain-model change;
-Security & Safety: Panic Mode, a narrowly-scoped Vacation Mode, basic
-siren on/off control, and now `arm_home`/`arm_away`/`disarm` control
-for alarm control panels (permanently, structurally, with no code/PIN
-support of any kind) only — Emergency Alerts, scheduled/randomized
-Vacation Mode, geofencing, siren tone/duration/volume/pattern control,
-`arm_night`/`arm_vacation`/`arm_custom_bypass`/a trigger action for
-alarm control panels, any coupling between the Siren Integration
-Slice/alarm_control_panel Integration Slice and Panic/Vacation Mode,
-and every notification channel remain deferred, each blocked on
-infrastructure this slice deliberately did not build; Developer
+Security & Safety: Panic Mode, a narrowly-scoped Vacation Mode, siren
+on/off control **plus** tone/duration/volume, and `arm_home`/
+`arm_away`/`disarm` control for alarm control panels (permanently,
+structurally, with no code/PIN support of any kind) only — Emergency
+Alerts, scheduled/randomized Vacation Mode, geofencing (siren
+"pattern" control is not a real, separate item to defer — Home
+Assistant's own `SirenEntityFeature` enum has no such flag, confirmed
+by external verification during the Advanced Controls Slice's own
+Phase 1), `arm_night`/`arm_vacation`/`arm_custom_bypass`/a trigger
+action for alarm control panels, any coupling between the Siren
+Integration Slice/alarm_control_panel Integration Slice and Panic/
+Vacation Mode, and every notification channel remain deferred, each
+blocked on infrastructure this slice deliberately did not build; Developer
 Tools: Connectivity/Integration Health, Device Simulator
 (light/switch/thermostat/lock/sensor categories, the `"home_assistant"`
 connector slot only), and Device Diagnostics (same five-category
@@ -983,24 +1059,90 @@ Console, MQTT-slot simulation, Event Viewer, and appliance-
 sub-domain principal resolution all remain deferred, Event Viewer
 explicitly blocked on the still-unresolved device-command EventBus
 publishing gap; Smart Home Memory: manual snapshot creation and
-retrieval for nine device categories (light/switch/thermostat/fan/
-cover/vacuum/humidifier/media_player/water_heater), single-snapshot
-deletion, and home-wide snapshotting — Sensor/Lock snapshots remain
-**permanently** excluded on privacy/security grounds (not merely
-unbuilt), and automatic/scheduled/event-driven capture and diff/trend/
-analytics views remain deferred to the still-unresolved EventBus gap
-and M20A Analytics respectively). **No version bump accompanied any
-of the twenty-three task-group passes** -- unlike M22's own task groups
+retrieval for eleven device categories (light/switch/thermostat/fan/
+cover/vacuum/humidifier/media_player/water_heater/siren/
+alarm_control_panel), single-snapshot deletion, and home-wide
+snapshotting — Sensor/Lock snapshots remain **permanently** excluded
+on privacy/security grounds (not merely unbuilt), and
+automatic/scheduled/event-driven capture and diff/trend/analytics
+views remain deferred to the still-unresolved EventBus gap and M20A
+Analytics respectively). **No version bump accompanied any
+of the twenty-five task-group passes** -- unlike M22's own task groups
 (each of which shipped real code and bumped the version in turn), all
-twenty-three ship real code at `0.38.0` unchanged. Recorded here as a
+twenty-five ship real code at `0.38.0` unchanged. Recorded here as a
 deliberate exception to this project's usual pattern, not a claim that
 the pattern changed. See `MILESTONE_REPORT.md`'s M12 Task Group A, Task
 Group B Phase 1/Phase 2/Phase 3, Task Group C, Task Group D, Task
 Group E, Task Group F, Task Group G, Task Group H, Task Group I, Task
 Group J, Task Group K, Task Group L, Task Group M, Task Group N, Task
 Group O, Task Group P, Task Group Q, Task Group R, Task Group S, Task
-Group T, and Task Group U entries for the
+Group T, Task Group U, Task Group V, and Task Group W entries for the
 full implementation account.
+
+**M12 feature-development phase is now closed.** A dedicated Final
+Exit Assessment audited all twenty-five shipped task groups
+(architecture consistency, security, connectors/MQTT, REST, agent
+tools, EventBus/Scheduler, Memory/Analytics, frontend contract,
+testing, static analysis) against this project's own rework-permission
+criteria and found exactly one P1 finding, zero P0: `ApplianceService.
+_domain_for` (`src/jarvis/services/appliance_service.py`) read only
+`metadata["domain"]`, missing the `metadata["component"]` MQTT-native
+fallback that every sibling `device_type="appliance"`/`"other"`
+service already carries (`SirenService`, `AlarmControlPanelService`,
+the Water Heater service, `MediaPlayerService`, `VacuumHumidifierService`)
+-- `MqttConnector._handle_ha_discovery` writes `metadata["component"]`,
+never `metadata["domain"]`, so a bare `metadata["domain"]` lookup
+silently failed to identify any MQTT-discovered Fan/Cover device. Fixed
+as a narrowly-scoped follow-up (not a new task group): `_domain_for`
+now checks `domain` first, falling back to `component`, matching every
+sibling implementation exactly; existing Home-Assistant-discovered
+behavior is unchanged, since `domain` still takes precedence when
+present. 9 new regression tests (MQTT-discovered fan/cover resolution,
+domain-precedence-over-component, empty-domain fallback, wrong-component
+rejection, and two full end-to-end commands through a real
+`mqtt_connector`), full M12 regression (1252 tests), M11+M12 regression
+(1399 tests), and the full backend regression (3903 tests, 1
+pre-existing unrelated skip) all green; Black/Ruff/Mypy unchanged
+against the `e48911c` baseline. Zero frontend, connector, EventBus,
+Scheduler, or database/schema changes. **M12 now enters its structured
+rework phase; no further M12 feature task group (a "Task Group X")
+begins without a separate, explicit approval.**
+
+**M0–M12 structured rework phase: COMPLETE.** A fresh, repository-wide
+Phase 0 audit (M0 through M12 plus 16 cross-cutting architecture
+areas) found zero P0 findings and two P1 findings; both are now
+closed or explicitly tracked. (1) `SensorService._kind_for`
+(`src/jarvis/services/sensor_service.py`) had the identical
+`metadata["domain"]`-only defect the `ApplianceService` fix above
+closed -- an MQTT-HA-Discovery binary sensor was silently
+misclassified `"numeric"`. Fixed with the same `domain`-then-
+`component` fallback, 7 new regression tests, full M12 (1259 tests),
+M11+M12 (1387 tests), and full backend regression (3910 tests, 1
+pre-existing unrelated skip) all green; Black/Ruff/Mypy unchanged
+against baseline. (2) The `AgentPermissionGate` confirm-callback gap
+(no interactive confirmation channel wired at the DI composition
+root for `confirm_required_tools`) is **not** fixed here -- it is
+correctly owned by M14 (Authorization Engine) and a not-yet-scoped
+confirmation surface, and is now recorded in M10's own Deferred list
+above rather than left undocumented. Three sibling-service docstrings
+(`VacuumHumidifierService`, `MediaPlayerService`, the Water Heater
+service) that described the `ApplianceService` gap as still unfixed
+were corrected to reflect the P1-1 fix. A read-only investigation
+into connector-credential persistence found `ConnectorCredentialStore`
+is fully implemented and unit-tested but has zero call sites wiring
+it into the actual `POST .../connect` flow -- config values live only
+in-process and are lost on restart; no security exposure (nothing is
+logged or leaked), already honestly disclosed by `routes/
+connectivity.py`'s own docstring, classified P2 and **not** fixed
+here pending a separate, explicitly-approved task. **This closure
+does not mark Energy Management's Load Scheduling, Analytics, Remote
+Access, multilingual support, the AI Calibration Engine, or the
+Human Interaction Engine as implemented** -- each remains exactly as
+deferred and owned (M7, M20/M20A, M21, M15, the unscheduled §22
+engine, and M14/a future interaction surface respectively) as
+recorded elsewhere in this document; closing the rework phase means
+the audit's own findings are resolved or tracked, not that every
+M12-adjacent capability now exists.
 
 **None of TG-C, TG-D, TG-E or TG-F has reached Complete.** All four are
 Implementation Complete — written, reviewed, gated and merged — and
@@ -1055,16 +1197,18 @@ Developer Mode/Settings UI) — real vision/OCR capability remains
 future work; see M6's own §3 entry for the full scope note.
 
 **Active (🟡):**
-- **M7 — Workflow Intelligence** (see §8) — Phase 1 (Domain Foundation)
-  and Phase 2 (Parallel Automation Execution) shipped; Phase 3
-  (Structured Graph Planning) 🟠 deferred; Phases 4–6 (Workflow
-  Builder, Recorder, Scheduler) pending, paused pending review of the
-  "UI Foundation" cross-cutting initiative (Typography, SVG Icon
-  System, and an application-state Logic Foundation — a design-system
-  hardening pass, not its own roadmap milestone; see §7) — that review
-  itself completed and was superseded by the decision to migrate the
-  frontend to React + Tauri (M8), so M7's Phases 4–6 remain paused, not
-  actively blocked on anything further. See M7's own §8 entry for the
+- **M7 — Workflow Intelligence** (see §8) — Phase 1 (Domain Foundation),
+  Phase 2 (Parallel Automation Execution), Phase 4 (Workflow Builder),
+  Phase 5 (Recorder), and Phase 6 (Scheduler) all shipped; Phase 3
+  (Structured Graph Planning) 🟠 remains deferred, per its own separate
+  approval requirement. *(Phases 4–6 were originally paused pending
+  review of the "UI Foundation" cross-cutting initiative — Typography,
+  SVG Icon System, and an application-state Logic Foundation, a
+  design-system hardening pass, not its own roadmap milestone; see §7.
+  That review completed and was superseded by the decision to migrate
+  the frontend to React + Tauri (M8); each phase was then resumed and
+  completed against the new `Jarvis-Frontend-main` React repository
+  rather than the paused PySide6 pass.)* See M7's own §8 entry for the
   full phase-by-phase status, including acceptance-criteria detail.
 - **M8 — React Frontend & Desktop Experience** (see §8) — Phase 1
   (React Foundation), Phase 2 (Universal Application Framework & Logic,
@@ -1095,7 +1239,12 @@ future work; see M6's own §3 entry for the full scope note.
   Mode's 9 read-only viewers, DPI/Multi-monitor) remain 🟠 **deferred to
   the Deferred Backlog** (see the subsection under M8's §8 entry) — none
   of it blocks M22 or M9 (see `IMPLEMENTATION_ROADMAP.md` §5's own
-  Dependencies note).
+  Dependencies note). **⚠ Superseded (Aug 2026):** the frontend this
+  phase-summary describes (`2.0-main/frontend`) is no longer canonical —
+  `Jarvis-Frontend-main` is, following a rejected-on-product-grounds
+  reversal, and a separate M8 Phase 1/Phase 2 pass (real backend
+  integration against six features) shipped against it instead. See the
+  supersession note at the top of M8's own §8 entry for the full story.
 - **M22 — Cross-Platform Distribution & Universal Installer** (§8's
   "M22 — Edge AI Platform" entry; the milestone absorbed cross-platform
   distribution in Aug 2026) — 🟡 **current, running out of numeric
@@ -2385,9 +2534,9 @@ workflow engine orchestrates).
 3. A scheduled workflow fires unattended and its result is visible in
    the Agent Trace panel.
 
-**Implementation status (2026-08-01) — M7 is in progress, not
-complete.** Six phases were scoped; two have shipped, one is
-deliberately deferred, three are pending. Grouped by disposition:
+**Implementation status (2026-08-19) — M7 is in progress, not
+complete.** Six phases were scoped; four have shipped, one is
+deliberately deferred, one is pending. Grouped by disposition:
 
 - **Completed:**
   - Phase 1 (Domain Foundation) — `WorkflowDefinition` / `WorkflowStep`
@@ -2395,38 +2544,279 @@ deliberately deferred, three are pending. Grouped by disposition:
     / `AgentSettings.max_parallel_steps` / `SchedulerSettings`,
     `WorkflowStepEvent` / `ScheduledJobFiredEvent`. 21 dedicated tests.
     Domain-only by design — no scheduler, executor, or LangGraph
-    wiring for these models exists yet (that's Phases 4–6, below).
+    wiring for these models exists yet (that's Phases 4–5, below).
   - Phase 2 (Parallel Automation Execution) — `ActionExecutor`
     rewritten for wave-based dispatch using the pre-existing
     `Step.depends_on` / `gather_with_concurrency()`, with rollback and
     `PermissionGate` serialization preserved under concurrency. 11
     dedicated tests, measured (not estimated) parallel-vs-sequential
     speedup.
+  - **Phase 6 (Scheduler MVP) shipped Aug 2026** — a persistent,
+    timezone-aware interval/cron scheduler (`ScheduleService`, new
+    `Schedule`/`WorkflowDefinition`/`WorkflowExecution` tables, `croniter`
+    for next-occurrence computation), executing the minimal workflow
+    representation (an ordered `automation`/`agent_tool` step list) by
+    reusing `AutomationService.run_command` and the same authorize-
+    then-invoke path `agents/nodes/permission_validator.py`/
+    `tool_executor.py` already use — **not a second execution engine**.
+    Bounded-grace-period misfire policy (fire once if overdue by less
+    than `SchedulerSettings.misfire_grace_period_seconds`, else skip
+    and resume from now, never a catch-up burst), per-schedule
+    duplicate-fire prevention, global concurrency bounded by
+    `SchedulerSettings.max_concurrent_jobs`, full restart recovery (no
+    in-memory-only state). **Confirmation policy: Policy A, always
+    deny** — a confirmation-required step fires with no `confirm`
+    callback supplied, so both existing gates (`PermissionGate`,
+    `AgentPermissionGate`) fail-safe to denial exactly as they already
+    do for any other unattended caller; zero new authorization code,
+    zero bypass. **Time-based triggers only** — interval and 5-field
+    cron; device-event/state-change triggers remain explicitly out of
+    scope, blocked on a still-unresolved EventBus capability (no event
+    exists anywhere in this codebase for a device's operational state
+    changing, only connectivity/lifecycle transitions — confirmed by a
+    dedicated Phase 0 audit before this slice was scoped). New REST
+    surface (`/api/v1/schedules`, 7 routes) and 5 agent tools
+    (`list_schedules`/`get_schedule`/`create_schedule`/
+    `enable_schedule`/`disable_schedule` — `delete_schedule`/
+    `cancel_schedule` deliberately REST-only). New `scheduler`
+    permission scope, strictly scoped to Schedule CRUD only — never
+    implies permission to execute a scheduled step's own action. 97
+    dedicated tests (persistence, validation, lifecycle, execution
+    outcomes, misfire policy, concurrency, restart recovery, REST,
+    tools, scope guards). See `docs/M7_SCHEDULER_LOGIC_CONTRACT.md` for
+    the full design and `docs/M7_SCHEDULER_FRONTEND_REQUIREMENTS.md`
+    for the (planning-only, no code) frontend requirements this slice's
+    API surface implies.
+  - **EventBus Tier 1 — Device Command Events, shipped Aug 2026.** Not
+    one of the six original M7 phases above — a small, separately
+    approved infrastructure slice recommended by the Post-Scheduler-MVP
+    Phase 0 audit as the lowest-risk next step. `ConnectivityService.
+    send_command()` (the confirmed single chokepoint every shipped M12
+    device-command service, and Scheduler's own scheduled steps, already
+    route through) now publishes a `DeviceCommandExecutedEvent` — "a
+    command was dispatched, its connector-level outcome observed",
+    never authorization, confirmation, or an actual device state
+    change. No raw command payload carried, no correlation id
+    introduced, zero new persistence, deliberately not yet relayed over
+    WebSocket (declared in `UNPUBLISHED_EVENT_TYPES`, same treatment as
+    `IntegrationConnectionTestEvent`, until a real consumer justifies
+    the surface). **This does not resolve the device-event/state-change
+    trigger gap described below** — it observes a command's dispatch
+    outcome, never whether the device's real state actually changed,
+    so Scheduler's own triggers remain time-based only. (Home
+    Automation's own event-triggered dispatch, shipped below, is built
+    on Tier 2's `DeviceStateChangedEvent`, not this one; automatic
+    Smart Home Memory capture remains unbuilt.) See
+    `docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md`.
+  - **EventBus Tier 2 — Device State-Changed Event, shipped Aug 2026.**
+    A second small, separately approved infrastructure slice, following
+    directly from Tier 1's own documented boundary ("a command
+    executed" is not "state changed"). `SmartHomeService.
+    report_device_state()` — the only place a device's previous
+    lifecycle status was already fetched into scope (previously
+    discarded) — now publishes `DeviceStateChangedEvent` whenever
+    `previous_status != status`: a genuine transition among
+    `discovered`/`pairing`/`paired`/`offline`/`unreachable`/`removed`,
+    never a same-value no-op refresh. Availability transitions flow
+    through this same event, not a separate type. **Purely additive**:
+    the pre-existing, already-relayed `DeviceUpdatedEvent` (`"device.
+    updated"`) keeps its own unconditional-publish behavior on this
+    exact code path completely unchanged — a documented, pre-existing
+    gap against that event's own stated intent, deliberately left
+    unfixed here (Logic Contract §6) rather than risk an
+    unverifiable frontend-consumer regression. Scoped strictly to
+    lifecycle status — **not** per-category attributes (brightness,
+    temperature, etc.), none of which is persisted anywhere for such
+    an event to read; that remains a separate, larger,
+    not-yet-scoped state-normalization initiative. Connector-agnostic
+    (touches neither MQTT nor Home Assistant connector code), no
+    polling loop introduced, deliberately not yet relayed over
+    WebSocket (declared in `UNPUBLISHED_EVENT_TYPES`, same deferred
+    treatment as Tier 1's own event). See
+    `docs/M7_EVENTBUS_DEVICE_STATE_CHANGED_LOGIC_CONTRACT.md`.
+  - **Home Automation MVP, shipped Aug 2026.** Event-triggered
+    automation, built directly on EventBus Tier 2's
+    `DeviceStateChangedEvent`: a new `HomeAutomationService` subscribes
+    once at startup, matches a trigger's `device_id` +
+    `to_status` (+ optional `from_status`, blank = wildcard) against
+    each event, and dispatches the matched workflow as a background
+    task so `EventBus.publish()` — and therefore whatever REST/agent
+    caller triggered the underlying state refresh — is never blocked
+    on execution. **Execution is delegated, not duplicated**: a new
+    `WorkflowExecutionService` was extracted verbatim from
+    `ScheduleService`'s own former private `_run_workflow` (behavior
+    verified byte-for-byte via the full pre-existing Scheduler
+    regression immediately after extraction) and is now the single
+    shared executor both Scheduler and Home Automation dispatch
+    through — not a second execution engine. Loop/re-entrancy is a
+    real, structural guard here (a `min_refire_interval_seconds`
+    cooldown plus a non-terminal-execution check), not the incidental
+    absence of a trigger path Scheduler happened to rely on. Own
+    bounded concurrency (`HomeAutomationSettings.
+    max_concurrent_executions`, a separate semaphore from Scheduler's
+    own — a device-event burst can't starve scheduled workflows or
+    vice versa). Same fail-safe (never fail-open) confirmation policy
+    as Scheduler (Policy A — a confirm-required step is always
+    denied, never auto-approved, for both event-triggered and manual
+    dispatch). Persisted in two new tables, `automation_triggers` /
+    `automation_executions` — deliberately separate from Scheduler's
+    own `Schedule`/`WorkflowExecution` tables, not a shared/widened
+    schema, so Scheduler's already-shipped persistence is completely
+    untouched. Eight REST routes (`/api/v1/home-automation`, including
+    a manual "run now" test-execution route Scheduler's own surface
+    doesn't have) and six agent tools. New `home_automation`
+    permission scope, strictly CRUD-only, same boundary discipline as
+    `scheduler`'s own scope. **Scoped strictly to a device's `status`
+    field** — no condition engine, no attribute-level triggers
+    (brightness/temperature/etc.), no multi-device conditions, no
+    presence/camera/MQTT-native triggers, no AI-generated automations;
+    all confirmed absent by a dedicated Phase 0 audit before this
+    slice was scoped, none added here. 51 dedicated tests (trigger
+    matching, cooldown/re-entry, concurrency, permission/confirmation,
+    lifecycle subscription safety, persistence, REST, tools, scope
+    guards). See `docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md`. A
+    mock-only frontend surface ships alongside this in the separate
+    `Jarvis-Frontend-main` repository (`src/features/homeAutomation/`,
+    28 dedicated frontend tests, mirroring that repo's existing
+    `Automations` feature's exact mock-adapter architecture) — it is
+    not wired to this real REST API yet, since that frontend has no
+    auth mechanism of any kind to carry a session token, a gap that
+    predates this slice and is out of scope for it. See
+    `CHANGELOG.md`'s own M7 Home Automation MVP entry for the full
+    frontend account.
+  - **Workflow Builder MVP, shipped Aug 2026 -- Phase 4, resumed and
+    completed.** Standalone CRUD authoring of a `WorkflowDefinition`
+    (name/description/ordered step list), independent of any Schedule
+    or Automation Trigger -- never attached to one in this MVP. A new
+    `WorkflowBuilderService`, dispatching through the same shared
+    `WorkflowExecutionService` Scheduler and Home Automation already
+    use -- not a second execution engine. The one genuinely new
+    capability relative to both sibling services: **editing** --
+    `WorkflowRepository` gained `update`/`list_all` methods (its prior
+    three, `add`/`get`/`delete`, are unchanged), since neither
+    Scheduler's nor Home Automation's own inline-created workflow rows
+    ever needed either. Manual "run now" is the only execution path,
+    since a standalone workflow has no trigger; awaited synchronously,
+    identical reasoning to Home Automation's own manual run. Persisted
+    in a new `workflow_builder_executions` table -- deliberately
+    separate from `WorkflowExecution`/`AutomationExecution`, so neither
+    sibling's own schema is ever widened. Seven REST routes under
+    `/api/v1/workflows` (the first `PATCH` route in this milestone's
+    entire trigger-based family), five agent tools. New
+    `workflow_builder` permission scope, CRUD-only, identical
+    separation principle as `scheduler`/`home_automation`. **Does not
+    literally "build on `RecipeManager`" as this roadmap's own original
+    Phase 4 description assumed** -- `RecipeManager` (M4) is
+    feature-frozen and models a structurally incompatible,
+    agent-tool-free, string-only step shape; extending it would violate
+    this project's own M0-M6 freeze rule. `RecipeManager` itself is
+    completely untouched. Same fail-safe (never fail-open) confirmation
+    policy as Scheduler/Home Automation. 51 dedicated tests. See
+    `docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md` for the full design,
+    including the documented, evaluated rejection of extending
+    `RecipeManager`. A mock-only frontend surface ships alongside this
+    in the separate `Jarvis-Frontend-main` repository
+    (`src/features/workflowBuilder/`), matching Home Automation's own
+    mock-adapter precedent exactly -- not wired to this real REST API
+    yet, for the identical pre-existing auth gap. See `CHANGELOG.md`'s
+    own M7 Workflow Builder MVP entry for the full frontend account.
+  - **Recorder MVP, shipped Aug 2026 -- Phase 5, completed.** "Watch me
+    do this once, then do it for me" -- a new `RecorderService` starts/
+    stops a recording session and, at stop time only, converts whatever
+    the session captured into a new Workflow Builder workflow.
+    **Query-at-stop-time, not live-subscribe**: Recorder never
+    subscribes to `EventBus` and introduces zero new event
+    infrastructure -- it queries the pre-existing, completely
+    unmodified `HistoryService.list_recent()`, filtered to the
+    session's own time window and `succeeded` steps only, exactly once,
+    when the user clicks Stop. Conversion is deterministic: a fixed
+    `ActionType -> instruction template` map (all 25 `ActionType`
+    members except `UNKNOWN`) turns each captured step into a workflow
+    step; an unrecognized action is silently excluded, never an error.
+    **Fidelity boundary, deliberately not extended**: reconstructed
+    instructions carry action + target only, never `args_json` --
+    `HistoryService`'s own `TaskHistoryEntry` doesn't expose it even
+    though the underlying table stores it, a pre-existing gap left
+    exactly as found (Option A of three evaluated in
+    `docs/M7_RECORDER_LOGIC_CONTRACT.md` §5; extending `HistoryService`
+    itself was Option B, flagged as a possible small follow-up needing
+    its own separate approval, not done here). **Workflow creation and
+    replay are both single delegation points, never duplicated**:
+    `stop_recording` calls `WorkflowBuilderService.create_workflow()`
+    as its only write path -- the `workflow_builder` permission scope
+    is freshly re-checked on that call, never inherited or cached from
+    the separate `recorder` scope check that gates session lifecycle
+    (verified by a dedicated test: a caller holding only `recorder` is
+    denied at `stop` with a genuinely captured step in hand). Replay is
+    exclusively `WorkflowBuilderService.run_workflow()` -- Recorder
+    itself has zero execution code. Single-active-session rule enforced
+    at the DB layer (`get_active()`), proven under real concurrency
+    (two simultaneous `start` calls raced via `asyncio.gather`; exactly
+    one succeeds). New `RecordingSession` table holds session lifecycle
+    only (status/timestamps/`resulting_workflow_id`) -- **not** a copy
+    of captured data; the actual captured steps stay in the
+    pre-existing `automation_task_history` table, read but never
+    duplicated. Five REST routes under `/api/v1/recordings`, four agent
+    tools (no `get_recording` tool, matching this family's established
+    minimum-surface precedent). New `recorder` permission scope (14th),
+    strictly session-lifecycle-only -- recording permission alone can
+    never create a workflow. `HistoryService` remains completely
+    unmodified and backward compatible; no raw keyboard/mouse capture,
+    no agent-tool-invocation capture (no mechanism exists for it), no
+    AI-generated interpretation of what was recorded. 50 dedicated
+    backend tests (session lifecycle, time-window/status filtering,
+    deterministic conversion, fidelity, permission stacking,
+    concurrency, scope guards). See
+    `docs/M7_RECORDER_LOGIC_CONTRACT.md`. A mock-only frontend surface
+    ships alongside this in the separate `Jarvis-Frontend-main`
+    repository (`src/features/recorder/`, 24 dedicated frontend tests),
+    mirroring Workflow Builder's own mock-adapter architecture --
+    including the mock's `stopRecording` genuinely delegating to the
+    real, already-selected `WorkflowBuilderService.createWorkflow()`,
+    so "Open in Workflow Builder"/"Run now" on the generated-workflow
+    preview operate on a workflow that truly exists in that feature's
+    own store, not a disconnected stub. Not wired to the real REST API
+    yet, for the identical pre-existing frontend auth gap every other
+    `core*Adapter.ts` in that repository shares. See `CHANGELOG.md`'s
+    own M7 Recorder MVP entry for the full frontend account.
 - **Deferred:**
   - Phase 3 (Structured Graph Planning) — would extend `AgentState` /
     `planner.py` / `tool_executor.py` / `graph.py` for cross-tool
     parallelism inside the agent runtime itself. Explicitly deferred
     pending its own separate approval per the original phase plan;
     not started.
-- **Pending** (paused after Phase 2, not resumed until the UI overhaul
-  work in §7's "UI Foundation" has been reviewed and approved):
-  - Phase 4 — Workflow Builder (a visual/declarative authoring surface
-    on top of the existing `RecipeManager`, M4).
-  - Phase 5 — Recorder (Macro Engine / Automation Recorder).
-  - Phase 6 — Scheduler (cron-style recurring agent/automation runs).
+  - Recorder args_json fidelity (Logic Contract §5 Option B) — exposing
+    `HistoryService`'s already-persisted `args_json` so reconstructed
+    instructions could carry more than action + target. Not needed for
+    the MVP; would touch `history.py`, which sits adjacent to M4's own
+    territory, so it needs its own separate approval rather than
+    riding in on Recorder.
+  - Recorder capture of agent-tool invocations (as opposed to
+    OS-automation steps only) — no capture mechanism for agent-tool
+    calls exists anywhere in this codebase; genuinely out of scope, not
+    partially built.
 
 **Acceptance criteria status:**
 1. *A workflow with two independent steps measurably runs them in
    parallel, not sequentially* — ✅ **Met**, by Phase 2.
 2. *A recorded macro can be replayed without re-authoring it by hand*
-   — ❌ **Not met** — Phase 5 (Recorder) is pending.
+   — ✅ **Met**, by Phase 5 (Recorder MVP) — a recording converts
+   directly into a Workflow Builder workflow with zero manual
+   re-authoring, and replay reuses `WorkflowBuilderService.
+   run_workflow()` unchanged.
 3. *A scheduled workflow fires unattended and its result is visible in
-   the Agent Trace panel* — ❌ **Not met** — Phase 6 (Scheduler) is
-   pending, and no workflow-to-Agent-Trace wiring exists yet.
+   the Agent Trace panel* — 🟡 **Partially met** — a scheduled workflow
+   now genuinely fires unattended (Phase 6 MVP), but no
+   workflow-execution-to-Agent-Trace wiring exists yet (that panel is
+   desktop UI, explicitly out of scope for this backend-only slice) —
+   execution history is queryable via REST (`GET .../{id}/executions`)
+   instead.
 
-Per §6's versioning policy, an in-progress/paused milestone doesn't
-bump the version or earn its own `CHANGELOG.md` entry yet — that lands
-when M7 actually completes, not before.
+Per §6's versioning policy, M7 as a whole remains in-progress/paused
+and does not bump the version — but, matching the precedent M12's own
+task-group-scoped passes established (a milestone need not be
+*complete* to record a real, shipped, independently-tested slice), the
+Scheduler MVP earns its own `CHANGELOG.md` entry below.
 
 ### M8 — React Frontend & Desktop Experience
 
@@ -2439,6 +2829,33 @@ dropped: it now lives under M9's expanded Runtime & Core Services
 scope, below, since a plugin loader is a backend runtime concern, not
 a frontend one. Nothing about the plugin system's design changed —
 only which milestone number owns it.)*
+
+> **⚠ CANONICAL FRONTEND SUPERSEDED (Aug 2026) — read before trusting
+> anything below at face value.** Phases 1–7 below (v0.29.0–v0.32.0,
+> "M8 is complete") were built against **this repository's own
+> `frontend/` subdirectory**. Following product review, that frontend
+> was rejected on UI/product-design grounds and **`Jarvis-Frontend-main`
+> — a separate, pre-existing React repository
+> (`C:\Users\DELL-5430\Downloads\jarvis-os-rc1-final_1\Jarvis-Frontend-main`)
+> — was declared the canonical frontend going forward instead.**
+> `2.0-main/frontend` remains in this repository, untouched and
+> undeleted, pending a future disposition decision — it is not the
+> product surface a user reaches JARVIS through.
+>
+> A second, separate body of work then shipped against
+> `Jarvis-Frontend-main` under the same M8 number: **M8 Phase 1**
+> (`docs/M8_FRONTEND_REAL_BACKEND_INTEGRATION_LOGIC_CONTRACT.md` — the
+> canonical-frontend decision plus a 28-section real-backend integration
+> contract) and **M8 Phase 2** (the contract's implementation) — a
+> canonical REST/session/WebSocket client, and six real backend
+> integrations: Workflow Builder, Recorder, Home Automation, Smart Home
+> (Device Management), Connectivity (Home Assistant + MQTT), and
+> Chat/Agent (real SSE streaming against `/api/v1/agent/stream`).
+> Automations and Settings were both confirmed, with evidence, to have
+> **no real backend match** and remain mock-only permanently, the same
+> treatment this repository already gives any feature in that position.
+> Everything below this note is accurate **history of what was built**,
+> not a description of the frontend a user runs today.
 
 **Objective:** rebuild JARVIS's entire user-facing surface on React +
 Tauri, replacing the PySide6 desktop shell M5 delivered, feature by
@@ -3217,6 +3634,23 @@ item's own reason, not silently dropped):
   (Authorization Engine), not started; `AgentPermissionGate` is the
   interim single enforcement point, built so swapping in M14 later
   means replacing its `authorize()` body, not the graph wiring.
+- **Confirmation channel for `confirm_required_tools`** -- verified by
+  the M0-M12 Structured Rework Audit: `AgentPermissionGate` gates
+  correctly by tool name (`run_automation`, `unlock_device`,
+  `trigger_panic_mode`, `trigger_vacation_mode`, `turn_siren_on`,
+  `disarm` -- `AgentSettings.confirm_required_tools`), but no
+  `confirm` callback is supplied anywhere in `core/di/container.py`'s
+  `_build_agent_orchestrator`, so every call to one of these six tools
+  currently falls through to `_default_deny` and is denied --
+  fail-safe, not fail-open, and logged as a warning each time, but not
+  currently actionable by a caller. This affects `POST /agent/invoke`/
+  `/agent/stream` unconditionally (both always reach
+  `AgentOrchestrator`) and Desktop Chat/Voice only when
+  `conversation_routing="orchestrator"` (not the default). A real fix
+  needs either M14 (Authorization Engine) or a future interactive
+  confirmation/Human Interaction surface neither of which is scoped in
+  this document yet -- not something to wire ad hoc here. Recorded so
+  it is tracked, not silently rediscovered.
 - **Learning & Feedback** -- needs **M16** (Reflection Engine), not
   started; M10's own spec routes this through M16, not a second
   learning mechanism.
@@ -4533,7 +4967,10 @@ already-shipped grant route Milestone 9's Plugin Platform provides — no
 new authorization mechanism, and denied (`PENDING`) by default until an
 operator grants it. Motion-activated lighting, sunrise/sunset
 automation and scheduled lighting are explicitly out of scope, deferred
-to the unstarted Home Automation module. See
+to the Home Automation module (M7's MVP shipped Aug 2026, but scoped
+to device *lifecycle* status transitions only, not sensor attribute
+values like motion detection — this specific capability remains
+unbuilt; see the M7 section above). See
 `docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md` for the
 full Logic Contract.
 
@@ -4695,10 +5132,12 @@ no actuator code path, no automatic action of any kind. See
 `docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md` for the full Logic
 Contract.
 
-**Not Complete**: seven of this milestone's fifteen modules remain
-entirely unstarted (Smart Cameras, Home Automation, AI Home Assistant,
+**Not Complete**: six of this milestone's fifteen modules remain
+entirely unstarted (Smart Cameras, AI Home Assistant,
 Remote Access, Smart Home Memory, Smart Home Analytics, Developer
-Tools) — and Energy Management, Appliance Control and Security & Safety
+Tools) — Home Automation has since shipped an event-triggered MVP via
+M7's `HomeAutomationService` (see the M7 section and the Home
+Automation catalog entry above for scope) — and Energy Management, Appliance Control and Security & Safety
 each remain only partially shipped: Energy Management's Consumption
 History, Energy Dashboard/Analytics/Trends, Energy Optimization,
 Automatic Power Saving, Load Scheduling and Energy-based Automations
@@ -4776,7 +5215,10 @@ control and scene application only, over both REST
 (`/api/v1/smart-lighting/*`) and seven agent tools. Adaptive Lighting,
 Motion Activated Lighting and Sunrise/Sunset Automation are explicitly
 out of scope for this task group — see its own status note above —
-and remain unstarted, deferred to the Home Automation module.)*
+and remain unbuilt, deferred to the Home Automation module (M7's MVP
+shipped Aug 2026, but scoped to device lifecycle status transitions
+only, not sensor attribute values — this specific capability is still
+not covered).)*
 - On / Off Control ✅
 - Brightness ✅
 - RGB Control ✅
@@ -4798,9 +5240,11 @@ Codes, Guest Access, Auto Lock, Access History and Access Notifications
 are explicitly out of scope for this task group -- no schema exists for
 access codes, and no existing infrastructure captures a queryable
 access-history trail without new tables/event plumbing this task group
-was not asked to add; Auto Lock is trigger-based, deferred to the
-unstarted Home Automation module, same carve-out Smart Lighting already
-established.)*
+was not asked to add; Auto Lock is trigger-based, deferred to the Home
+Automation module (M7's MVP shipped Aug 2026, but scoped to device
+lifecycle status transitions only — Auto Lock's own "N seconds after
+closing" timer shape is not this module's trigger model either),
+same carve-out Smart Lighting already established.)*
 - Wi-Fi Locks
 - Bluetooth Locks
 - Fingerprint Locks
@@ -4953,20 +5397,40 @@ already accept an arbitrary payload dict generically.)*
 - Smart Kitchen Devices *(blocked -- no consistent HA/MQTT domain model)*
 
 #### Home Automation
-- Rule Engine
-- Event-Based Automation
-- Time-Based Automation
-- Sensor-Based Automation
-- Presence-Based Automation
-- Geofencing
-- Multi-Step Workflows
-- Scene Automation
-- Emergency Automation
+- Rule Engine — unstarted; no condition engine exists anywhere in
+  this codebase (confirmed by a dedicated Phase 0 audit before the
+  Event-Based slice below was scoped)
+- Event-Based Automation ✅ *(MVP shipped Aug 2026 as M7's
+  `HomeAutomationService` — a device transitions from an optional
+  `from_status` (blank = wildcard) to a required `to_status`, matched
+  against `DeviceStateChangedEvent`, firing a workflow in the
+  background bounded by its own concurrency limit and a re-fire
+  cooldown; manual "run now" testing and per-fire execution history
+  also ship — condition logic, attribute-level triggers (only a
+  device's `status` field is matched), and multi-device triggers do
+  not. See `docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md`.)*
+- Time-Based Automation ✅ *(Scheduler, M7 Phase 6 — see above)*
+- Sensor-Based Automation — unstarted; a sensor's own reading is not a
+  distinct trigger type from a device status transition today
+- Presence-Based Automation — unstarted
+- Geofencing — unstarted
+- Multi-Step Workflows 🟡 *(the shared `WorkflowExecutionService` both
+  Scheduler and Home Automation dispatch through already executes an
+  ordered multi-step list — the gap is authoring, not execution: Home
+  Automation's own creation surface accepts one step per trigger in
+  this slice)*
+- Scene Automation — unstarted
+- Emergency Automation — unstarted (Security's Panic/Vacation Mode is
+  a related but separate, manually-invoked `SecurityService`
+  capability, not a triggered automation)
 
 Built on M7's Workflow Intelligence (Advanced Agent Runtime,
 Scheduler, event-based workflow triggers) rather than a parallel
 automation engine — the same reuse relationship M11's Workspace
-Automation module has with M7.
+Automation module has with M7. Concretely: Home Automation's
+`WorkflowExecutionService` is the exact same shared executor Scheduler
+uses, extracted from `ScheduleService` for this purpose (Logic
+Contract §8) — not a second, competing execution engine.
 
 #### AI Home Assistant
 - Natural Language Commands
@@ -5008,11 +5472,23 @@ or `SmartSwitchService`), identifying a siren via
 `device_type=="other"` plus the same `metadata["domain"]`/
 `["component"]` fallback every appliance-domain service already uses,
 already captured unconditionally by both connectors with zero
-connector change required. Basic on/off control only
+connector change required. Basic on/off control
 (`turn_on`/`turn_off`, `turn_siren_on` gated via
 `confirm_required_tools` mirroring `unlock_device`'s own asymmetry) --
-tone/duration/volume/pattern control and any coupling to Panic/
-Vacation Mode remain deferred. alarm_control_panel Integration Slice
+any coupling to Panic/Vacation Mode remains deferred. Advanced
+Controls Slice shipped Task Group W, Aug 2026 -- extends `turn_on` in
+place with three optional Home Assistant `siren.turn_on` parameters
+(`tone`/`duration`/`volume_level`, externally verified), never a new
+command/method/endpoint/tool. `SirenEntityFeature` has exactly five
+flags (`TURN_ON`/`TURN_OFF`/`TONES`/`DURATION`/`VOLUME_SET`) -- no
+pattern/waveform flag exists in Home Assistant's siren platform at
+all, closing the "pattern control" phrase in this document's own
+earlier prose as a non-capability, not a still-open item. `tone` is
+validated against the device's own live-reported `available_tones`
+when non-empty; `duration`/`volume_level` are format/range-validated
+locally only, since Home Assistant's own base platform already
+silently filters an unsupported parameter. No read-back of any of the
+three exists in Home Assistant's own siren state model. alarm_control_panel Integration Slice
 shipped Task Group U, Aug 2026 -- a second, independent standalone
 service, `AlarmControlPanelService` (not an extension of
 `SecurityService` or `SirenService`), applying the identical
@@ -5029,12 +5505,13 @@ unprotected connection sends one in the clear, so every action this
 slice sends is a bare, zero-payload command; a code-protected panel
 simply reports the action failed, honestly. Every remaining
 action-taking item below (Emergency Alerts, scheduled/randomized
-Vacation Mode, geofencing, siren tone/duration/volume/pattern control,
-alarm control panel night/vacation/custom-bypass arm modes and
-trigger, any notification channel) is still deferred to Home
-Automation/M7/future separately-scoped slices, all still unstarted.
-Zero `EventBus`, connector, `DEVICE_TYPES` or schema changes in any of
-the four shipped slices.)*
+Vacation Mode, geofencing, alarm control panel night/vacation/
+custom-bypass arm modes and trigger, any notification channel) is
+still deferred to Home Automation/M7/future separately-scoped slices,
+all still unstarted -- siren "pattern control" is not among them,
+having no real Home Assistant capability to defer (above). Zero
+`EventBus`, connector, `DEVICE_TYPES` or schema changes in any of the
+five shipped slices.)*
 - Intrusion Detection *(read-only inputs only -- door/window/motion/
   presence/occupancy state is reported factually and **deliberately
   never inferred as intrusion**; any actual detection logic is
@@ -5045,7 +5522,7 @@ the four shipped slices.)*
 - Water Leak Alerts ✅ *(reporting only, via HA's `moisture` device_class; response is deferred)*
 - Panic Mode ✅ *(on-demand: lock every lock, turn on every light -- scheduled/automated triggering deferred)*
 - Vacation Mode ✅ *(on-demand: lock every lock, turn off every light, best-effort eco-adjust capable thermostats -- scheduled/randomized presence simulation deferred)*
-- Siren Integration ✅ *(basic on/off control via a new standalone `SirenService` -- tone/duration/volume/pattern control and any Panic/Vacation Mode coupling deferred)*
+- Siren Integration ✅ *(on/off control plus tone/duration/volume via a new standalone `SirenService` -- pattern control has no corresponding Home Assistant capability to build; any Panic/Vacation Mode coupling deferred)*
 - alarm_control_panel Integration ✅ *(arm_home/arm_away/disarm control via a new standalone `AlarmControlPanelService` -- no code/PIN support of any kind, permanently and structurally; arm_night/arm_vacation/arm_custom_bypass, a trigger action, and any Siren/Panic/Vacation Mode coupling all deferred)*
 - Home Status Dashboard ✅ *(backend aggregate: overall status, active alerts, hazard/status sensors, lock state, unavailable counts)*
 
@@ -5082,11 +5559,21 @@ owning appliance service's own already-public read method, no shared
 domain-resolution utility introduced), added single-snapshot deletion
 (safely scoped to `"device_snapshot"`-type memories only, never a
 generic memory delete) and a home-wide snapshot operation
-(sequential, partial-success, read-only against devices). Sensor and
-Smart Lock snapshots remain **permanently** excluded on privacy/
-security grounds -- occupancy-signal and security-posture-history
-risk -- not merely unbuilt; this was reaffirmed, not reopened, when
-Task Group S's own Phase 0 audit proposed adding them.)*
+(sequential, partial-success, read-only against devices). Security
+Device-Category Expansion Slice shipped Task Group V, Aug 2026 --
+widened further to eleven, adding Siren and alarm_control_panel via a
+third application of the identical dispatch idiom (a Tier-3 cascade,
+gated on the shared `device_type="other"` bucket, trying
+`SirenService.get_siren_state` then `AlarmControlPanelService.
+get_alarm_control_panel_state` in turn). `snapshot_home` needed zero
+code change of its own to pick up the two new categories. An
+alarm_control_panel snapshot can persist a real security-posture
+history point (including `state: "triggered"`) -- accepted as
+explicit, approved scope. Sensor and Smart Lock snapshots remain
+**permanently** excluded on privacy/security grounds -- occupancy-
+signal and security-posture-history risk -- not merely unbuilt; this
+was reaffirmed, not reopened, when Task Group S's own Phase 0 audit
+proposed adding them, and reaffirmed again by Task Group V.)*
 - Device History *(none of the automatic/continuous items below exist -- only explicit, on-demand snapshots do, see above)*
 - Automation History
 - Home Event Timeline
@@ -10683,8 +11170,8 @@ row below.)*
 | Multi-agent (planner+critic)  | ✅     | M5A       |
 | Agent trace panel             | ✅ (no per-step timings yet) | M5A |
 | Parallel execution             | 🟡 automation-level dispatch shipped (M7 Phase 2, see Windows Automation table above); LangGraph-level cross-tool parallel branches remain Phase 3, deferred pending separate approval | M7 |
-| Workflow builder / macro engine / automation recorder | 🟡 (domain foundation only — `WorkflowDefinition`/`WorkflowStep`/`ScheduleDefinition` shipped in Phase 1; builder/recorder/scheduler themselves not yet built) | M7 |
-| Scheduler                      | 🟡 (domain foundation only, see above) | M7        |
+| Workflow builder / macro engine / automation recorder | ✅ Workflow Builder (Phase 4) and Recorder (Phase 5) both shipped Aug 2026, over the `WorkflowDefinition`/`WorkflowStep` domain foundation Phase 1 shipped | M7 |
+| Scheduler                      | ✅ shipped (Phase 6), see above | M7        |
 | Vision agent tool               | 🟡     | M6        |
 | Chat view routed through agent  | 🟡     | not yet scheduled — deliberate M5A deferral (§3) |
 | True token-level agent streaming | 🟡   | not yet scheduled — deliberate M5A deferral (§3) |
@@ -11296,7 +11783,7 @@ Future (post-1.0).
 | Agent Runtime | M5A (`AgentOrchestrator`, LangGraph `StateGraph`, `agents/tools/` registry, SQLite checkpointer) | M6 (added the `vision_status` tool + an optional `vision` constructor kwarg on `AgentOrchestrator`); M7 Phase 1 (`WorkflowStep.AGENT_TOOL` is modelled to reference the tool registry by name/arguments — a design-time reference only, no runtime wiring yet) | 🟡 Stable core, incrementally extended twice; cross-tool parallelism (M7 Phase 3) explicitly deferred, not built |
 | Memory | M3 / M3.1 (`MemoryService`, `SemanticMemoryRecallHook`, `MemoryRepository`, ChromaDB) | M5A (`agents/tools/memory_tools.py`); M5 (Timeline views, Home dashboard, `greeting_service.py`) | ✅ Stable since M3.1 polish; contract unchanged, only consumed by later milestones |
 | Knowledge Graph | Not yet built — planned M10 (foundation), extended M19 (full) | None yet | ⚪ Foundation and full-graph work both still ahead; no code exists |
-| Workflow Engine | M7 Phase 1 (`WorkflowDefinition`/`WorkflowStep`/`ScheduleDefinition` domain models only) | None yet — M7 Phase 2 extended the separate Automation Engine above, not these models; Workflow Builder / Scheduler / Recorder (Phases 4–6) remain pending | 🟡 Domain foundation shipped; no execution layer yet |
+| Workflow Engine | M7 Phase 1 (`WorkflowDefinition`/`WorkflowStep`/`ScheduleDefinition` domain models only) | M7 Phase 6 (`WorkflowExecutionService`, extracted from `ScheduleService`, the shared executor); Phase 4 (`WorkflowBuilderService`, standalone CRUD authoring, dispatches through the same executor); Phase 5 (`RecorderService`, converts a recording into a workflow via `WorkflowBuilderService.create_workflow()`, replays via the same shared executor) — all three dispatch through one executor, never a duplicate | ✅ Domain foundation, execution, authoring, and recording all shipped |
 | Security Layer | Not yet built as a dedicated milestone — planned M14 | Piecemeal hardening exists ahead of the dedicated milestone: M5 (PBKDF2-HMAC-SHA256 Developer Mode gate); M5.5 (fixed a Developer Mode timing-attack pattern and a browser `file://`/`javascript:`/`data:` URL-scheme validation gap) | 🟡 Hardening work done opportunistically in M5/M5.5; the dedicated audit log, encrypted settings overrides, and Security Center backend are still M14 |
 | Analytics Platform | Not yet built — planned M20A | None yet | ⚪ No code exists |
 | Edge AI Runtime | Not yet built — planned M22 | None yet | ⚪ Described in this section's "Future architecture" diagram as the same architecture deployed to constrained hardware with quantized models; no code exists |

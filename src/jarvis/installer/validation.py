@@ -120,7 +120,7 @@ def check_memory(profile: HardwareProfile) -> ValidationResult:
             "Memory",
             "warn",
             f"{ram_gb:.1f} GB of memory. Below the {MINIMUM_RAM_GB:.0f} GB needed for a "
-            "local model, so JARVIS will rely on cloud AI.",
+            "local model, so Aarya will rely on cloud AI.",
         )
     return _result("memory", "Memory", "pass", f"{ram_gb:.1f} GB of memory.")
 
@@ -195,7 +195,7 @@ def check_internet(profile: HardwareProfile) -> ValidationResult:
             "internet",
             "Internet",
             "warn",
-            "No connection detected. JARVIS installs and runs locally; "
+            "No connection detected. Aarya installs and runs locally; "
             "cloud features become available when a connection returns.",
         )
     return _result("internet", "Internet", "pass", "Connected.")

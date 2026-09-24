@@ -63,11 +63,14 @@ if TYPE_CHECKING:
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
+    from jarvis.services.home_automation_service import HomeAutomationService
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.recorder_service import RecorderService
+    from jarvis.services.schedule_service import ScheduleService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
     from jarvis.services.siren_service import SirenService
@@ -81,6 +84,7 @@ if TYPE_CHECKING:
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
     from jarvis.services.water_heater_service import WaterHeaterService
+    from jarvis.services.workflow_builder_service import WorkflowBuilderService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 _logger = get_logger("jarvis.agents.orchestrator")
@@ -116,6 +120,10 @@ class AgentOrchestrator(IAgentOrchestrator):
         siren: SirenService | None = None,
         alarm_control_panels: AlarmControlPanelService | None = None,
         smart_home_memory: SmartHomeMemoryService | None = None,
+        schedules: ScheduleService | None = None,
+        home_automation: HomeAutomationService | None = None,
+        workflow_builder: WorkflowBuilderService | None = None,
+        recorder: RecorderService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -211,6 +219,26 @@ class AgentOrchestrator(IAgentOrchestrator):
         # same `SmartHomeMemoryService` the REST surface calls -- see
         # `agents/tools/smart_home_memory_tools.py`.
         self._smart_home_memory = smart_home_memory
+        # Milestone 7 Phase 6 (Scheduler MVP): schedule management
+        # reaches the agent as tools on the same registry, converging
+        # on the same `ScheduleService` the REST surface calls -- see
+        # `agents/tools/schedule_tools.py`.
+        self._schedules = schedules
+        # M7 Home Automation (event-based triggers): automation
+        # management reaches the agent as tools on the same registry,
+        # converging on the same `HomeAutomationService` the REST
+        # surface calls -- see `agents/tools/home_automation_tools.py`.
+        self._home_automation = home_automation
+        # M7 Workflow Builder: standalone workflow authoring reaches
+        # the agent as tools on the same registry, converging on the
+        # same `WorkflowBuilderService` the REST surface calls -- see
+        # `agents/tools/workflow_builder_tools.py`.
+        self._workflow_builder = workflow_builder
+        # M7 Recorder: recording-session management reaches the agent
+        # as tools on the same registry, converging on the same
+        # `RecorderService` the REST surface calls -- see
+        # `agents/tools/recorder_tools.py`.
+        self._recorder = recorder
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -262,6 +290,10 @@ class AgentOrchestrator(IAgentOrchestrator):
                 siren=self._siren,
                 alarm_control_panels=self._alarm_control_panels,
                 smart_home_memory=self._smart_home_memory,
+                schedules=self._schedules,
+                home_automation=self._home_automation,
+                workflow_builder=self._workflow_builder,
+                recorder=self._recorder,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

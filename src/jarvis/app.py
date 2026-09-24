@@ -145,6 +145,8 @@ class ApplicationBootstrapper:
         self._register_task_group_e_hooks(runtime_manager, settings)
         self._register_mcp_hooks(runtime_manager, settings, health_monitor)
         self._register_workspace_platform_hooks(settings, health_monitor)
+        self._register_scheduler_hooks(runtime_manager, settings)
+        self._register_home_automation_hooks(runtime_manager)
 
         # Milestone 3.1 — preload the local Whisper model eagerly instead of
         # paying the load cost on the user's first PTT/toggle-listen call.
@@ -519,6 +521,63 @@ class ApplicationBootstrapper:
             }
 
         health_monitor.register_collector("mcp", _collect_mcp_health)
+
+    def _register_scheduler_hooks(
+        self, runtime_manager: RuntimeManager, settings: Settings
+    ) -> None:
+        """Milestone 7 Phase 6 -- Scheduler MVP. Starts last (``PRIORITY_
+        LATE``), after every other Task Group/Milestone's own startup
+        hooks, since a due schedule's first tick could dispatch into any
+        already-registered service (``AutomationService``, any agent
+        tool). Stops first (``PRIORITY_FIRST``), before any of those
+        same dependencies begin shutting down -- the same "start last,
+        stop first" ordering ``_register_task_group_d_hooks`` (Plugin
+        Platform) already uses for an identical reason.
+
+        ``ScheduleService.start()`` is a no-op when
+        ``SchedulerSettings.enabled`` is ``False`` -- honored inside the
+        service itself, not duplicated here as a second check."""
+        from jarvis.core.lifecycle.runtime_manager import PRIORITY_FIRST, PRIORITY_LATE
+
+        assert self._container is not None
+        schedule_service = self._container.schedule_service()
+
+        async def _start_scheduler() -> None:
+            await schedule_service.start()
+
+        runtime_manager.register_startup(
+            "schedule_service", _start_scheduler, priority=PRIORITY_LATE
+        )
+
+        async def _stop_scheduler() -> None:
+            await schedule_service.stop()
+
+        runtime_manager.register("schedule_service", _stop_scheduler, priority=PRIORITY_FIRST)
+
+    def _register_home_automation_hooks(self, runtime_manager: RuntimeManager) -> None:
+        """M7 Home Automation (event-based triggers). Starts last
+        (``PRIORITY_LATE``), stops first (``PRIORITY_FIRST``) -- the
+        identical ordering ``_register_scheduler_hooks`` above already
+        uses, for the identical reason: a matched device event's first
+        dispatch could reach any already-registered service."""
+        from jarvis.core.lifecycle.runtime_manager import PRIORITY_FIRST, PRIORITY_LATE
+
+        assert self._container is not None
+        home_automation_service = self._container.home_automation_service()
+
+        async def _start_home_automation() -> None:
+            await home_automation_service.start()
+
+        runtime_manager.register_startup(
+            "home_automation_service", _start_home_automation, priority=PRIORITY_LATE
+        )
+
+        async def _stop_home_automation() -> None:
+            await home_automation_service.stop()
+
+        runtime_manager.register(
+            "home_automation_service", _stop_home_automation, priority=PRIORITY_FIRST
+        )
 
     def _register_workspace_platform_hooks(
         self, settings: Settings, health_monitor: HealthMonitor

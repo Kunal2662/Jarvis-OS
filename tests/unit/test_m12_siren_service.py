@@ -19,7 +19,7 @@ import pytest
 from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
 from jarvis.core.events.event_bus import EventBus
 from jarvis.core.exceptions import ServiceError
-from jarvis.core.interfaces.connectivity import DeviceState
+from jarvis.core.interfaces.connectivity import ConnectorNotConnectedError, DeviceState
 from jarvis.core.plugins.permissions import PermissionModel
 from jarvis.services.connectivity_service import ConnectivityService
 from jarvis.services.siren_service import (
@@ -518,6 +518,441 @@ async def test_turn_on_is_not_deduplicated_when_called_twice(
     ]
 
 
+# --- Task Group W: advanced controls (tone / duration / volume_level) ---------------
+
+
+@pytest.mark.asyncio
+async def test_turn_on_bare_call_regression_still_sends_empty_payload(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """Byte-for-byte pre-Task-Group-W behavior -- Logic Contract §22."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+
+    result = await service.turn_on(device.id)
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [("siren.front_yard", "turn_on", {})]
+
+
+@pytest.mark.asyncio
+async def test_turn_on_with_tone_only(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+    fake_connector.states["siren.front_yard"] = DeviceState(
+        external_id="siren.front_yard", status="off", attributes={}
+    )
+
+    await service.turn_on(device.id, tone="alarm")
+
+    assert fake_connector.sent_commands == [("siren.front_yard", "turn_on", {"tone": "alarm"})]
+
+
+@pytest.mark.asyncio
+async def test_turn_on_with_duration_only(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+
+    await service.turn_on(device.id, duration=30)
+
+    assert fake_connector.sent_commands == [("siren.front_yard", "turn_on", {"duration": 30})]
+
+
+@pytest.mark.asyncio
+async def test_turn_on_with_volume_level_only(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+
+    await service.turn_on(device.id, volume_level=0.5)
+
+    assert fake_connector.sent_commands == [("siren.front_yard", "turn_on", {"volume_level": 0.5})]
+
+
+@pytest.mark.asyncio
+async def test_turn_on_with_all_three_combined(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+    fake_connector.states["siren.front_yard"] = DeviceState(
+        external_id="siren.front_yard", status="off", attributes={}
+    )
+
+    await service.turn_on(device.id, tone="alarm", duration=30, volume_level=0.5)
+
+    assert fake_connector.sent_commands == [
+        ("siren.front_yard", "turn_on", {"tone": "alarm", "duration": 30, "volume_level": 0.5})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_turn_off_never_carries_advanced_parameters(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """`turn_off` has no advanced-control parameters at all -- HA's own
+    `siren.turn_off` takes none (Logic Contract §7)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+
+    await service.turn_off(device.id)
+
+    assert fake_connector.sent_commands == [("siren.front_yard", "turn_off", {})]
+
+
+@pytest.mark.asyncio
+async def test_mqtt_turn_on_translation_with_parameters(
+    smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    mqtt_connector = FakeDeviceConnector()
+    mqtt_connector.connector_type = "mqtt"
+    registry = ConnectorFactoryRegistry()
+    registry.register("mqtt", lambda config: mqtt_connector)
+    mqtt_connectivity = ConnectivityService(registry=registry, smart_home=smart_home)
+    mqtt_service = SirenService(
+        smart_home=smart_home, connectivity=mqtt_connectivity, permissions=permissions
+    )
+    await mqtt_connectivity.connect("mqtt")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home, connector_type="mqtt", domain_key="component")
+    mqtt_connector.states["siren.front_yard"] = DeviceState(
+        external_id="siren.front_yard", status="off", attributes={}
+    )
+
+    await mqtt_service.turn_on(device.id, tone="alarm", duration=30, volume_level=0.5)
+
+    assert mqtt_connector.sent_commands == [
+        ("siren.front_yard", "turn_on", {"tone": "alarm", "duration": 30, "volume_level": 0.5})
+    ]
+
+
+# --- Task Group W: validation --------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_tone", [123, True, "", "   "])
+async def test_tone_validation_rejects_bad_values(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    bad_tone,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+
+    with pytest.raises(ServiceError, match="tone"):
+        await service.turn_on(device.id, tone=bad_tone)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_duration", [True, "30", -1, 1.5])
+async def test_duration_validation_rejects_bad_values(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    bad_duration,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+
+    with pytest.raises(ServiceError, match="duration"):
+        await service.turn_on(device.id, duration=bad_duration)
+
+
+@pytest.mark.asyncio
+async def test_duration_zero_is_accepted_not_rejected(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """HA's own documentation defines no minimum-positive rule for
+    duration -- 0 is passed through, never invented as an error (Logic
+    Contract §9)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+
+    await service.turn_on(device.id, duration=0)
+
+    assert fake_connector.sent_commands == [("siren.front_yard", "turn_on", {"duration": 0})]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "bad_volume", [True, "0.5", -0.1, 1.1, float("nan"), float("inf"), float("-inf")]
+)
+async def test_volume_level_validation_rejects_bad_values(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    bad_volume,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+
+    with pytest.raises(ServiceError, match="volume_level"):
+        await service.turn_on(device.id, volume_level=bad_volume)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("boundary_volume", [0.0, 1.0])
+async def test_volume_level_boundary_values_are_accepted(
+    *,
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+    boundary_volume: float,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+
+    await service.turn_on(device.id, volume_level=boundary_volume)
+
+    assert fake_connector.sent_commands == [
+        ("siren.front_yard", "turn_on", {"volume_level": boundary_volume})
+    ]
+
+
+# --- Task Group W: tone live-capability check -----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tone_accepted_when_device_reports_it_in_available_tones(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+    fake_connector.states["siren.front_yard"] = DeviceState(
+        external_id="siren.front_yard",
+        status="off",
+        attributes={"available_tones": ["alarm", "chime"]},
+    )
+
+    result = await service.turn_on(device.id, tone="alarm")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [("siren.front_yard", "turn_on", {"tone": "alarm"})]
+
+
+@pytest.mark.asyncio
+async def test_tone_rejected_when_not_in_devices_available_tones(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+    fake_connector.states["siren.front_yard"] = DeviceState(
+        external_id="siren.front_yard",
+        status="off",
+        attributes={"available_tones": ["alarm", "chime"]},
+    )
+
+    with pytest.raises(ServiceError, match="not supported"):
+        await service.turn_on(device.id, tone="sunny_day")
+
+    assert fake_connector.sent_commands == []
+
+
+@pytest.mark.asyncio
+async def test_tone_permissive_when_device_reports_no_available_tones(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """Rejecting a real device over a vocabulary gap is the worse
+    failure -- mirrors `MediaPlayerService._check_source`'s identical
+    precedent (Logic Contract §9)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+    fake_connector.states["siren.front_yard"] = DeviceState(
+        external_id="siren.front_yard", status="off", attributes={}
+    )
+
+    result = await service.turn_on(device.id, tone="anything")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [("siren.front_yard", "turn_on", {"tone": "anything"})]
+
+
+@pytest.mark.asyncio
+async def test_tone_permissive_when_connector_unreachable(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    permissions: PermissionModel,
+) -> None:
+    """No connector connected -- the live tone check itself is skipped
+    entirely (`contextlib.suppress(ConnectivityError)`), never raising
+    its own distinct error. The overall call still fails, but from the
+    exact same downstream `send_command` step -- and with the exact
+    same `ConnectorNotConnectedError` -- a bare, tone-less `turn_on()`
+    would also raise in this scenario; the tone check adds no new
+    failure mode of its own."""
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+
+    with pytest.raises(ConnectorNotConnectedError):
+        await service.turn_on(device.id, tone="anything")
+
+
+# --- Task Group W: error semantics / regression safety -------------------------------
+
+
+@pytest.mark.asyncio
+async def test_unknown_device_with_parameters_still_raises(
+    service: SirenService, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    with pytest.raises(ServiceError):
+        await service.turn_on("no-such-device", tone="alarm", duration=10, volume_level=0.5)
+
+
+@pytest.mark.asyncio
+async def test_non_siren_device_with_parameters_still_raises(
+    service: SirenService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Odd Switch",
+        device_type="switch",
+        external_id="switch.odd",
+        metadata={"connector_type": "home_assistant"},
+    )
+    with pytest.raises(ServiceError, match="not a siren"):
+        await service.turn_on(device.id, tone="alarm")
+
+
+@pytest.mark.asyncio
+async def test_permission_denied_with_parameters_still_raises(
+    service: SirenService, smart_home: SmartHomeService
+) -> None:
+    _, device = await _home_and_siren(smart_home)
+    with pytest.raises(ServiceError, match="permission"):
+        await service.turn_on(device.id, tone="alarm", duration=10, volume_level=0.5)
+
+
+@pytest.mark.asyncio
+async def test_connector_failure_with_parameters_reports_failure_honestly(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    fake_connector.next_command_succeeds = False
+    _, device = await _home_and_siren(smart_home)
+    fake_connector.states["siren.front_yard"] = DeviceState(
+        external_id="siren.front_yard", status="off", attributes={}
+    )
+
+    result = await service.turn_on(device.id, tone="alarm", duration=10, volume_level=0.5)
+
+    assert result["success"] is False
+    assert result["detail"]
+
+
+@pytest.mark.asyncio
+async def test_no_read_model_fabrication_from_advanced_controls(
+    service: SirenService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """`get_siren_state`'s own key set is unchanged -- no `tone`/
+    `duration`/`volume_level`/`available_tones` key ever leaks into the
+    persisted/read model (Logic Contract §15)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_siren(smart_home)
+    fake_connector.states["siren.front_yard"] = DeviceState(
+        external_id="siren.front_yard",
+        status="on",
+        attributes={"available_tones": ["alarm", "chime"]},
+    )
+
+    await service.turn_on(device.id, tone="alarm", duration=10, volume_level=0.5)
+    state = await service.get_siren_state(device.id)
+
+    assert set(state.keys()) == {
+        "id",
+        "home_id",
+        "room_id",
+        "name",
+        "status",
+        "manufacturer",
+        "model",
+        "external_id",
+        "on",
+        "available",
+    }
+    assert "tone" not in state
+    assert "duration" not in state
+    assert "volume_level" not in state
+    assert "available_tones" not in state
+
+
 # --- Cross-cutting invariants -------------------------------------------------------
 
 
@@ -557,5 +992,8 @@ def test_no_alarm_control_panel_or_panic_mode_coupling() -> None:
         "trigger_panic_mode",
         "trigger_vacation_mode",
         "EventBus",
+        "Scheduler",
+        "Analytics",
+        "MemoryService",
     ):
         assert forbidden_term not in code

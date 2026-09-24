@@ -75,6 +75,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         from jarvis.infrastructure.api.routes import connectivity as connectivity_routes
         from jarvis.infrastructure.api.routes import devtools as devtools_routes
         from jarvis.infrastructure.api.routes import files as file_routes
+        from jarvis.infrastructure.api.routes import home_automation as home_automation_routes
         from jarvis.infrastructure.api.routes import integrations as integration_routes
         from jarvis.infrastructure.api.routes import intelligence as intelligence_routes
         from jarvis.infrastructure.api.routes import knowledge as knowledge_routes
@@ -82,7 +83,9 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         from jarvis.infrastructure.api.routes import media_players as media_player_routes
         from jarvis.infrastructure.api.routes import plugins as plugin_routes
         from jarvis.infrastructure.api.routes import productivity as productivity_routes
+        from jarvis.infrastructure.api.routes import recorder as recorder_routes
         from jarvis.infrastructure.api.routes import runtime_ws as runtime_ws_routes
+        from jarvis.infrastructure.api.routes import schedules as schedule_routes
         from jarvis.infrastructure.api.routes import security as security_routes
         from jarvis.infrastructure.api.routes import sensors as sensor_routes
         from jarvis.infrastructure.api.routes import sessions as session_routes
@@ -96,6 +99,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         from jarvis.infrastructure.api.routes import thermostats as thermostat_routes
         from jarvis.infrastructure.api.routes import vacuums_humidifiers as vacuum_humidifier_routes
         from jarvis.infrastructure.api.routes import water_heaters as water_heater_routes
+        from jarvis.infrastructure.api.routes import workflow_builder as workflow_builder_routes
         from jarvis.infrastructure.api.routes import workspaces as workspace_routes
 
         app.state.runtime_ws_hub = container.runtime_ws_hub()
@@ -127,6 +131,10 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(siren_routes.router, prefix="/api/v1")
         app.include_router(alarm_control_panel_routes.router, prefix="/api/v1")
         app.include_router(integration_routes.router, prefix="/api/v1")
+        app.include_router(schedule_routes.router, prefix="/api/v1")
+        app.include_router(home_automation_routes.router, prefix="/api/v1")
+        app.include_router(workflow_builder_routes.router, prefix="/api/v1")
+        app.include_router(recorder_routes.router, prefix="/api/v1")
         # The OAuth callback carries no Bearer token -- a browser
         # redirect cannot -- so it is a separate, session-free router.
         # Its `state` parameter is what authenticates the response; see
@@ -159,6 +167,8 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
 
 def run() -> None:
     """Console entry-point: run only the FastAPI server (no UI)."""
+    import asyncio
+
     import uvicorn
 
     from jarvis.core.config.settings import load_settings
@@ -167,6 +177,14 @@ def run() -> None:
     settings = load_settings()
     container = Container()
     container.settings.override(settings)
+
+    # Mirrors app.py's own "must happen before anything else, fail loudly"
+    # database bootstrap -- the desktop entry point does this inside its
+    # qasync loop; this entry point has no Qt loop to integrate with, so
+    # a plain asyncio.run() is the minimal, standard bridge from this
+    # function's sync signature into the one required async setup step.
+    database = container.database()
+    asyncio.run(database.initialize())
 
     app = create_app(settings, container)
     uvicorn.run(

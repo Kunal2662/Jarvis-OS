@@ -725,6 +725,8 @@ def _build_smart_home_memory_service(
     vacuum_humidifier_service: Any,
     media_player_service: Any,
     water_heater_service: Any,
+    siren_service: Any,
+    alarm_control_panel_service: Any,
     memory_service: Any,
     permission_model: Any,
 ) -> Any:
@@ -739,6 +741,8 @@ def _build_smart_home_memory_service(
         vacuum_humidifier=vacuum_humidifier_service,
         media_players=media_player_service,
         water_heaters=water_heater_service,
+        siren=siren_service,
+        alarm_control_panels=alarm_control_panel_service,
         memory=memory_service,
         permissions=permission_model,
     )
@@ -1211,6 +1215,148 @@ def _build_devtools_connectivity_service(
     )
 
 
+def _build_workflow_execution_service(
+    *,
+    settings: Settings,
+    automation_service: Any,
+    memory_service: Any,
+    browser_service: Any,
+    chat_service: Any,
+    voice_service: Any,
+    system_service: Any,
+    vision_service: Any,
+    knowledge_service: Any,
+    intelligence_service: Any,
+    workspace_assistant_service: Any,
+    integration_service: Any,
+    smart_lighting_service: Any,
+    smart_lock_service: Any,
+    sensor_service: Any,
+    smart_switch_service: Any,
+    appliance_service: Any,
+    thermostat_service: Any,
+    vacuum_humidifier_service: Any,
+    media_player_service: Any,
+    water_heater_service: Any,
+    security_service: Any,
+    siren_service: Any,
+    alarm_control_panel_service: Any,
+    smart_home_memory_service: Any,
+) -> Any:
+    """M7 Home Automation Logic Contract §8 -- the shared execution
+    owner both `ScheduleService` (time-based triggers) and
+    `HomeAutomationService` (event-based triggers) delegate to.
+    Threads through the identical optional-service set
+    `_build_agent_orchestrator` below already assembles -- for
+    `AGENT_TOOL`-kind workflow steps, this service builds its own tool
+    registry from the same `build_tool_registry` factory."""
+    from jarvis.services.workflow_execution_service import WorkflowExecutionService
+
+    return WorkflowExecutionService(
+        settings=settings,
+        automation=automation_service,
+        memory=memory_service,
+        browser=browser_service,
+        chat=chat_service,
+        voice=voice_service,
+        system=system_service,
+        vision=vision_service,
+        knowledge=knowledge_service,
+        intelligence=intelligence_service,
+        workspace_assistant=workspace_assistant_service,
+        integrations=integration_service,
+        smart_lighting=smart_lighting_service,
+        smart_lock=smart_lock_service,
+        sensors=sensor_service,
+        smart_switch=smart_switch_service,
+        appliances=appliance_service,
+        thermostats=thermostat_service,
+        vacuum_humidifier=vacuum_humidifier_service,
+        media_players=media_player_service,
+        water_heaters=water_heater_service,
+        security=security_service,
+        siren=siren_service,
+        alarm_control_panels=alarm_control_panel_service,
+        smart_home_memory=smart_home_memory_service,
+    )
+
+
+def _build_schedule_service(
+    *,
+    database: Any,
+    permission_model: Any,
+    settings: Settings,
+    workflow_execution_service: Any,
+) -> Any:
+    """Milestone 7 Phase 6 (Scheduler MVP)."""
+    from jarvis.services.schedule_service import ScheduleService
+
+    return ScheduleService(
+        database=database,
+        permissions=permission_model,
+        settings=settings,
+        workflow_executor=workflow_execution_service,
+    )
+
+
+def _build_home_automation_service(
+    *,
+    database: Any,
+    permission_model: Any,
+    settings: Settings,
+    event_bus: Any,
+    workflow_execution_service: Any,
+) -> Any:
+    """M7 Home Automation Logic Contract §5/§17."""
+    from jarvis.services.home_automation_service import HomeAutomationService
+
+    return HomeAutomationService(
+        database=database,
+        permissions=permission_model,
+        settings=settings,
+        event_bus=event_bus,
+        workflow_executor=workflow_execution_service,
+    )
+
+
+def _build_workflow_builder_service(
+    *,
+    database: Any,
+    permission_model: Any,
+    workflow_execution_service: Any,
+) -> Any:
+    """M7 Workflow Builder Logic Contract §15."""
+    from jarvis.services.workflow_builder_service import WorkflowBuilderService
+
+    return WorkflowBuilderService(
+        database=database,
+        permissions=permission_model,
+        workflow_executor=workflow_execution_service,
+    )
+
+
+def _build_recorder_service(
+    *,
+    database: Any,
+    permission_model: Any,
+    workflow_builder_service: Any,
+) -> Any:
+    """M7 Recorder Logic Contract §17. `HistoryService` is a
+    stateless facade over `database` (see `AutomationService.__init__`'s
+    own identical `HistoryService(database)` construction) -- building
+    a second instance here is equivalent to reusing the one
+    `AutomationService` holds, not a second capture mechanism."""
+    from jarvis.features.automation.history import HistoryService
+    from jarvis.services.recorder_service import RecorderService
+
+    return RecorderService(
+        database=database,
+        permissions=permission_model,
+        history=HistoryService(database),
+        workflow_builder=workflow_builder_service,
+    )
+
+
 def _build_agent_orchestrator(
     *,
     settings: Settings,
@@ -1239,6 +1385,10 @@ def _build_agent_orchestrator(
     siren: Any,
     alarm_control_panels: Any,
     smart_home_memory: Any,
+    schedules: Any,
+    home_automation: Any,
+    workflow_builder: Any,
+    recorder: Any,
     event_bus: Any,
 ) -> Any:
     from jarvis.agents.orchestrator import AgentOrchestrator
@@ -1270,6 +1420,10 @@ def _build_agent_orchestrator(
         siren=siren,
         alarm_control_panels=alarm_control_panels,
         smart_home_memory=smart_home_memory,
+        schedules=schedules,
+        home_automation=home_automation,
+        workflow_builder=workflow_builder,
+        recorder=recorder,
         event_bus=event_bus,
     )
 
@@ -1694,13 +1848,16 @@ class Container(containers.DeclarativeContainer):
     )
 
     # ---- Milestone 12 Smart Home Memory (Manual/On-Demand Device ----------
-    # Snapshot Slice + Device-Category Expansion Slice) ---------------------
-    # Composes SmartHomeService + nine device-category services (light/
+    # Snapshot Slice + Device-Category Expansion Slice + Security Device ----
+    # Expansion Slice) --------------------------------------------------------
+    # Composes SmartHomeService + eleven device-category services (light/
     # switch/thermostat, unique device_type, Tier 1; fan/cover/vacuum/
     # humidifier/media_player/water_heater, shared "appliance"
-    # device_type, Tier 2 cascade) + MemoryService. Sensor/Lock remain
-    # permanently excluded on privacy/security grounds -- see
-    # docs/M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md §6.
+    # device_type, Tier 2 cascade; siren/alarm_control_panel, shared
+    # "other" device_type, Tier 3 cascade) + MemoryService. Sensor/Lock
+    # remain permanently excluded on privacy/security grounds -- see
+    # docs/M12_SMART_HOME_MEMORY_EXPANSION_LOGIC_CONTRACT.md §6 and
+    # docs/M12_SMART_HOME_MEMORY_SECURITY_DEVICE_EXPANSION_LOGIC_CONTRACT.md §9.
     smart_home_memory_service = providers.Singleton(
         _build_smart_home_memory_service,
         smart_home_service=smart_home_service,
@@ -1711,6 +1868,8 @@ class Container(containers.DeclarativeContainer):
         vacuum_humidifier_service=vacuum_humidifier_service,
         media_player_service=media_player_service,
         water_heater_service=water_heater_service,
+        siren_service=siren_service,
+        alarm_control_panel_service=alarm_control_panel_service,
         memory_service=memory_service,
         permission_model=permission_model,
     )
@@ -1982,6 +2141,71 @@ class Container(containers.DeclarativeContainer):
         intelligence_service=intelligence_service,
     )
 
+    # ---- Workflow execution (shared by Scheduler + Home Automation) -----
+    workflow_execution_service = providers.Singleton(
+        _build_workflow_execution_service,
+        settings=settings,
+        automation_service=automation_service,
+        memory_service=memory_service,
+        browser_service=browser_service,
+        chat_service=chat_service,
+        voice_service=voice_service,
+        system_service=system_service,
+        vision_service=vision_service,
+        knowledge_service=knowledge_service,
+        intelligence_service=intelligence_service,
+        workspace_assistant_service=workspace_assistant_service,
+        integration_service=integration_service,
+        smart_lighting_service=smart_lighting_service,
+        smart_lock_service=smart_lock_service,
+        sensor_service=sensor_service,
+        smart_switch_service=smart_switch_service,
+        appliance_service=appliance_service,
+        thermostat_service=thermostat_service,
+        vacuum_humidifier_service=vacuum_humidifier_service,
+        media_player_service=media_player_service,
+        water_heater_service=water_heater_service,
+        security_service=security_service,
+        siren_service=siren_service,
+        alarm_control_panel_service=alarm_control_panel_service,
+        smart_home_memory_service=smart_home_memory_service,
+    )
+
+    # ---- Scheduler (Milestone 7 Phase 6) ---------------------------------
+    schedule_service = providers.Singleton(
+        _build_schedule_service,
+        database=database,
+        permission_model=permission_model,
+        settings=settings,
+        workflow_execution_service=workflow_execution_service,
+    )
+
+    # ---- Home Automation (Milestone 7 -- event-based triggers) ----------
+    home_automation_service = providers.Singleton(
+        _build_home_automation_service,
+        database=database,
+        permission_model=permission_model,
+        settings=settings,
+        event_bus=event_bus,
+        workflow_execution_service=workflow_execution_service,
+    )
+
+    # ---- Workflow Builder (M7 -- standalone workflow authoring) ---------
+    workflow_builder_service = providers.Singleton(
+        _build_workflow_builder_service,
+        database=database,
+        permission_model=permission_model,
+        workflow_execution_service=workflow_execution_service,
+    )
+
+    # ---- Recorder (M7 -- capture JARVIS's own automation actions) -------
+    recorder_service = providers.Singleton(
+        _build_recorder_service,
+        database=database,
+        permission_model=permission_model,
+        workflow_builder_service=workflow_builder_service,
+    )
+
     # ---- Agents (Milestone 5-Agents) ------------------------------------
     agent_orchestrator = providers.Singleton(
         _build_agent_orchestrator,
@@ -2011,5 +2235,9 @@ class Container(containers.DeclarativeContainer):
         siren=siren_service,
         alarm_control_panels=alarm_control_panel_service,
         smart_home_memory=smart_home_memory_service,
+        schedules=schedule_service,
+        home_automation=home_automation_service,
+        workflow_builder=workflow_builder_service,
+        recorder=recorder_service,
         event_bus=event_bus,
     )

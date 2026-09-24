@@ -20,13 +20,14 @@ keys (``JARVIS_LOG_LEVEL``) and as nested models (``settings.log.level``).
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from dotenv import load_dotenv
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from jarvis.core.config import paths as _paths
 from jarvis.core.config.constants import ENV_PREFIX
@@ -79,8 +80,46 @@ class ApiSettings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8765
     reload: bool = False
-    cors_origins: list[str] = Field(
-        default_factory=lambda: ["http://localhost", "http://127.0.0.1"]
+    #: Exact-match CORS allowlist (Starlette compares the *full* origin,
+    #: including scheme, host AND port -- see ``CORSMiddleware.is_allowed_origin``).
+    #: Deliberately explicit: never ``*``, never a ``tauri://*`` wildcard, and
+    #: never a blanket localhost port range. ``allow_credentials=True`` in
+    #: ``fastapi_server.create_app`` is only safe *because* these stay exact.
+    #:
+    #: - ``http://localhost`` / ``http://127.0.0.1``  -- plain browser dev on port 80.
+    #: - ``http://localhost:3000`` / ``http://127.0.0.1:3000`` -- the canonical
+    #:   frontend's dev server, which is also the packaged shell's ``devUrl``
+    #:   (``Jarvis-Frontend-main/frontend/src-tauri/tauri.conf.json``). Without
+    #:   these, ``tauri dev`` cannot reach Core.
+    #: - ``http://tauri.localhost`` -- the PACKAGED desktop app on Windows.
+    #:   Tauri serves embedded assets from its own custom protocol, whose origin
+    #:   is ``{http|https}://tauri.localhost`` on Windows/Android and
+    #:   ``tauri://localhost`` elsewhere (tauri 2.x ``Manager::tauri_protocol_url``).
+    #:   Verified at runtime against a real packaged build, which reported
+    #:   ``location.origin = http://tauri.localhost`` and sent that exact
+    #:   ``Origin`` header. The ``https://`` variant applies only when a window
+    #:   sets ``useHttpsScheme: true``; the shipped config does not, so it is
+    #:   intentionally omitted rather than guessed at.
+    #: - ``tauri://localhost`` -- the packaged app on macOS/Linux. Included so a
+    #:   non-Windows build does not reproduce this same outage; no browser can
+    #:   ever originate a non-HTTP scheme, so it widens nothing web-reachable.
+    #:
+    #: ``NoDecode`` is load-bearing, not decoration: pydantic-settings treats any
+    #: ``list[str]`` field as "complex" and ``json.loads``-es the raw environment
+    #: value *before* field validators run, so the comma-separated form below
+    #: never reached ``_split_csv`` -- it raised ``SettingsError`` and the process
+    #: refused to start. ``NoDecode`` suppresses that pre-decode and hands the
+    #: validator the raw string. Verified by ``test_api_cors.py``'s env-override
+    #: cases; without it, ``JARVIS_API_CORS_ORIGINS=a,b`` is a startup crash.
+    cors_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [
+            "http://localhost",
+            "http://127.0.0.1",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://tauri.localhost",
+            "tauri://localhost",
+        ]
     )
 
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}API_", extra="ignore")
@@ -89,8 +128,40 @@ class ApiSettings(BaseSettings):
     @classmethod
     def _split_csv(cls, v: object) -> object:
         if isinstance(v, str):
+            # A JSON array is still accepted so that the only shape which worked
+            # before ``NoDecode`` keeps working. It is parsed explicitly rather
+            # than comma-split, because splitting '["a","b"]' would yield the
+            # silent garbage '["a"' -- and a malformed entry in a CORS allowlist
+            # must fail loudly, not quietly widen or narrow it.
+            if v.lstrip().startswith("["):
+                return json.loads(v)
             return [item.strip() for item in v.split(",") if item.strip()]
         return v
+
+    @field_validator("cors_origins", mode="after")
+    @classmethod
+    def _reject_wildcard(cls, origins: list[str]) -> list[str]:
+        """Refuse to boot rather than silently disable the allowlist.
+
+        A single ``*`` entry flips Starlette into ``allow_all_origins``, and
+        because ``create_app`` also passes ``allow_credentials=True`` the
+        middleware then echoes the *caller's* own origin back beside
+        ``Access-Control-Allow-Credentials: true``
+        (``CORSMiddleware.send`` -> ``allow_explicit_origin``). That is not a
+        relaxed allowlist, it is no allowlist: any site on the internet could
+        make credentialed requests and read the responses. Starlette supports
+        no other wildcard form here (patterns belong to the separate
+        ``allow_origin_regex``), so any ``*`` is either that hole or a dead
+        entry -- both worth failing on. Runs ``mode="after"`` so it covers the
+        default, an environment override and a direct constructor call alike.
+        """
+        for origin in origins:
+            if "*" in origin:
+                raise ValueError(
+                    f"wildcard CORS origin {origin!r} is not allowed; "
+                    "list every permitted origin explicitly"
+                )
+        return origins
 
 
 class DatabaseSettings(BaseSettings):
@@ -420,7 +491,19 @@ class VoiceSettings(BaseSettings):
 class WakeWordSettings(BaseSettings):
     enabled: bool = False
     engine: WakeWordEngine = WakeWordEngine.NONE
-    keywords: list[str] = Field(default_factory=lambda: ["jarvis"])
+    #: ``NoDecode`` for the same reason as ``ApiSettings.cors_origins``:
+    #: pydantic-settings treats a ``list[str]`` field as complex and
+    #: ``json.loads``-es the raw environment value *before* ``_split_csv``
+    #: runs, so the comma-separated form below never reached the validator and
+    #: ``Settings()`` raised ``SettingsError`` instead.
+    #:
+    #: This one is not merely inconvenient, it is a delayed self-inflicted
+    #: outage: the desktop Settings UI persists this field as a comma-joined
+    #: string (``wake_word_page.py`` -> ``self._persist("JARVIS_WAKE_KEYWORDS",
+    #: ",".join(keys), ...)``) straight into ``.env``. Before this fix, saving
+    #: wake-word settings succeeded and the *next* launch died on startup,
+    #: unable to parse a value the app itself had written.
+    keywords: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["jarvis"])
     sensitivity: float = 0.5
     model_path: str = ""  # optional custom model (.ppn/.onnx path)
     access_key: SecretStr = SecretStr("")  # Porcupine AccessKey, if that engine is used
@@ -431,6 +514,12 @@ class WakeWordSettings(BaseSettings):
     @classmethod
     def _split_csv(cls, v: object) -> object:
         if isinstance(v, str):
+            # A JSON array is still accepted so the only shape that worked
+            # before ``NoDecode`` keeps working. Parsed explicitly rather than
+            # comma-split, because splitting '["jarvis","aarya"]' would yield
+            # the silent garbage '["jarvis"' as a wake word.
+            if v.lstrip().startswith("["):
+                return json.loads(v)
             return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
@@ -565,15 +654,44 @@ class AgentSettings(BaseSettings):
 class SchedulerSettings(BaseSettings):
     """Tunables for the cron/interval job scheduler (Milestone 7, Phase 6).
 
-    Declared in Phase 1 for forward compatibility only -- no scheduler
-    loop exists yet, so nothing reads these values until Phase 6.
+    ``enabled``/``poll_interval_seconds``/``max_concurrent_jobs`` were
+    declared in Phase 1 for forward compatibility only; ``default_timezone``
+    and ``misfire_grace_period_seconds`` are new in the Phase 6 MVP
+    (``docs/M7_SCHEDULER_LOGIC_CONTRACT.md`` §4/§9). All five are read by
+    ``ScheduleService`` starting this phase.
     """
 
     enabled: bool = True
     poll_interval_seconds: float = 30.0
     max_concurrent_jobs: int = 2
+    # IANA name seeded onto a Schedule when its own `timezone` field is
+    # left unspecified -- UTC, not the host machine's local zone, so
+    # scheduling stays unambiguous and portable (Logic Contract §4).
+    default_timezone: str = "UTC"
+    # Bounded-grace-period misfire policy (Logic Contract §9): a schedule
+    # missed by less than this fires once on restart; missed by more than
+    # this is skipped, never caught up in a burst.
+    misfire_grace_period_seconds: float = 300.0
 
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}SCHEDULER_", extra="ignore")
+
+
+class HomeAutomationSettings(BaseSettings):
+    """Tunables for event-triggered device automation (M7 Home
+    Automation). Mirrors ``SchedulerSettings``'s exact shape --
+    ``max_concurrent_executions`` is a **separate** semaphore from
+    ``SchedulerSettings.max_concurrent_jobs`` (not shared), so a burst
+    of device events cannot starve legitimately-running scheduled
+    workflows or vice versa (``docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md``
+    §14). ``min_refire_interval_seconds`` is the loop/re-entrancy
+    cooldown (§15) -- the smallest safe mechanism that does not depend
+    on today's incidental "commands don't trigger a refresh" gap.
+    """
+
+    max_concurrent_executions: int = 2
+    min_refire_interval_seconds: float = 5.0
+
+    model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}HOME_AUTOMATION_", extra="ignore")
 
 
 class UISettings(BaseSettings):
@@ -765,6 +883,7 @@ class Settings(BaseSettings):
     automation: AutomationSettings = Field(default_factory=AutomationSettings)
     agent: AgentSettings = Field(default_factory=AgentSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
+    home_automation: HomeAutomationSettings = Field(default_factory=HomeAutomationSettings)
     ui: UISettings = Field(default_factory=UISettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     dev_mode: DeveloperModeSettings = Field(default_factory=DeveloperModeSettings)

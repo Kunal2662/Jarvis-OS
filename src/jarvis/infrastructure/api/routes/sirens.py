@@ -22,6 +22,14 @@ precedent.
 plain ``GET .../{id}`` -> 404 on unknown/wrong-domain; every action
 endpoint -> 400 on any ``ServiceError`` (unknown device, wrong domain,
 permission not granted alike).
+
+**Task Group W** -- ``POST .../turn_on`` gains an optional request
+body (``tone``/``duration``/``volume_level``, all ``None`` by
+default) -- the same HA ``siren.turn_on`` service, never a new
+endpoint (Logic Contract §13). An absent or empty body continues to
+produce the exact bare ``turn_on`` call this route has always made.
+``turn_off`` is unchanged -- HA's own ``siren.turn_off`` takes no
+parameters.
 """
 
 from __future__ import annotations
@@ -29,6 +37,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from jarvis.infrastructure.api.auth import Envelope, envelope, get_current_session
 
@@ -36,6 +45,12 @@ if TYPE_CHECKING:
     from jarvis.services.siren_service import SirenService
 
 router = APIRouter(tags=["sirens"], dependencies=[Depends(get_current_session)])
+
+
+class TurnSirenOnRequest(BaseModel):
+    tone: str | None = None
+    duration: int | None = None
+    volume_level: float | None = None
 
 
 def _siren(request: Request) -> SirenService:
@@ -69,11 +84,21 @@ async def get_siren(device_id: str, request: Request) -> Envelope[dict[str, Any]
 
 
 @router.post("/sirens/{device_id}/turn_on", response_model=Envelope[dict[str, Any]])
-async def turn_siren_on(device_id: str, request: Request) -> Envelope[dict[str, Any]]:
+async def turn_siren_on(
+    device_id: str, request: Request, body: TurnSirenOnRequest | None = None
+) -> Envelope[dict[str, Any]]:
+    """A missing or empty body produces the exact bare ``turn_on``
+    call this route has always made (Logic Contract §13/§22)."""
     from jarvis.core.exceptions import ServiceError
 
+    payload = body or TurnSirenOnRequest()
     try:
-        result = await _siren(request).turn_on(device_id)
+        result = await _siren(request).turn_on(
+            device_id,
+            tone=payload.tone,
+            duration=payload.duration,
+            volume_level=payload.volume_level,
+        )
     except ServiceError as err:
         raise _bad_request(err) from err
     return envelope(result, meta={"success": result["success"]})
