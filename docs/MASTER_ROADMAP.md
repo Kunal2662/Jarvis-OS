@@ -5152,13 +5152,26 @@ sanitized by key (token/password/secret/credential/api_key/auth) --
 defense-in-depth, since this data is already reachable today through
 each of the five categories' own existing read route. A failed live
 read is never an HTTP error, only `read_succeeded: false` with a
-`read_error`. MQTT Debug Console, Event Viewer, and Automation Tester
-all remain unbuilt -- Event Viewer specifically blocked on the
-still-unresolved device-command EventBus publishing gap, not merely
-deferred by choice.)*
+`read_error`. Device Logs Slice shipped Task Group V, Aug 2026 -- a
+Phase 0 audit found the obvious approach (mirroring
+`get_plugin_diagnostics`'s `DebugConsole.entries(contains=plugin_id)`
+substring filter verbatim for `device_id`) would always return empty
+for real devices: no service or connector anywhere in this codebase
+logged a device's own `device_id`, and all eleven device-category
+services turned out to have no logging calls of their own at all. Fix:
+one logging call added to `ConnectivityService.send_command` (already
+documented as the single chokepoint every device-category mutation
+routes through), naming `device_id`/`command` per outcome, never
+`payload` (a lock's own PIN can be in there) -- not eleven near-
+duplicate calls scattered across those services. `GET /api/v1/devtools/
+devices/{device_id}/logs` reuses the existing `DebugConsole.entries`
+accessor, no new `core/devtools/` component. MQTT Debug Console, Event
+Viewer, and Automation Tester all remain unbuilt -- Event Viewer
+specifically blocked on the still-unresolved device-command EventBus
+publishing gap, not merely deferred by choice.)*
 - Device Simulator ✅ *(light/switch/thermostat/lock/sensor, `"home_assistant"` connector slot only -- MQTT-slot simulation deferred)*
 - MQTT Debug Console
-- Device Logs
+- Device Logs ✅ *(command outcomes only, via `ConnectivityService.send_command`'s new per-outcome logging -- reads/discovery are not logged per-device)*
 - Event Viewer *(blocked -- no device-command event exists on the EventBus to view)*
 - Automation Tester
 - Integration Health Dashboard ✅ *(connector registration/connection state + per-home device-health counts, read-only)*

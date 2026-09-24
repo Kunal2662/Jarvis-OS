@@ -3,6 +3,64 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Developer Tools — Device Logs Slice (Task Group V)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Developer Tools — Device Logs** item -- **not MQTT
+Debug Console, not Event Viewer (still blocked on the same
+device-command EventBus gap Task Group Q's own Logic Contract named),
+not Automation Tester**. Preceded by a Phase 0 audit that found the
+obvious approach broken before writing any code: mirroring
+`get_plugin_diagnostics`'s `DebugConsole.entries(contains=plugin_id)`
+pattern verbatim for `device_id` would have shipped a route that
+always returns empty for real devices, since (unlike `plugin_id`,
+already embedded in every plugin-lifecycle log line) **no service or
+connector anywhere in this codebase logged a device's own `device_id`
+in a message** -- and, going further, all eleven device-category
+services turned out to have **zero logging calls of their own at
+all**. Preceded by a Logic Contract (`docs/
+M12_DEVELOPER_TOOLS_DEVICE_LOGS_LOGIC_CONTRACT.md`), written and
+approved before any code, which resolved the architecture by adding
+exactly one logging call inside `ConnectivityService.send_command` --
+already documented as "the single chokepoint" every device-category
+service's own mutation routes through -- rather than eleven near-
+duplicate calls scattered across those services. `payload` is
+deliberately never logged (a lock's own PIN can be in there). 15 new
+tests, 0 failures, 0 errors; full backend regression 3851 tests, 3841
+passing, 0 newly introduced failures -- the 10 failing are pre-
+existing and confirmed unrelated by tracing each one's own traceback:
+9 in `test_m12_smart_home_memory_route.py` require a live local Ollama
+daemon for embeddings (absent in this validation environment, not a
+code defect) and 1 in `test_productivity_managers.py` hardcodes a
+`_NOW` reference date whose 5-occurrence weekly recurrence window has
+since elapsed against real wall-clock time -- both pre-date this
+change and reproduce identically on `HEAD` before it. A missing
+`pytest-aiohttp` dev dependency (undeclared in `pyproject.toml`,
+affecting ~104 M11 Integration Platform tests on any freshly-created
+virtualenv) was found and worked around locally to complete this
+validation, but is intentionally **not** fixed in this change -- out
+of scope for a Developer Tools slice; flagged separately.
+
+### Added
+- **`ConnectivityService.send_command`** (`services/
+  connectivity_service.py`) now logs exactly one line per outcome --
+  success, a device-level rejection, no recorded connector, or a
+  connector-level failure -- each naming the device's own `device_id`
+  and `command`, never `payload`.
+- **`GET /api/v1/devtools/devices/{device_id}/logs`**
+  (`infrastructure/api/routes/devtools.py`) -- thin REST read reusing
+  the existing `DebugConsole.entries(contains=...)` accessor
+  `get_plugin_diagnostics`/Device Diagnostics already use. No new
+  `core/devtools/` component. Unknown device -> 404, matching Device
+  Diagnostics' own convention; a device with no commands sent yet is
+  200 with an empty list, never an error.
+- **No `PermissionModel` gate on the route** -- session auth only,
+  matching every other devtools capability.
+- **No agent tool, no database/schema change, no `EventBus`/
+  Scheduler/Analytics/`MemoryService` reference** -- pinned by tests.
+
 ## M12: Security & Safety — alarm_control_panel Integration Slice (Task Group U)
 
 **No version bump**, matching this project's own established
