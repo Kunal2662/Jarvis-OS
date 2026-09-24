@@ -5165,12 +5165,30 @@ routes through), naming `device_id`/`command` per outcome, never
 `payload` (a lock's own PIN can be in there) -- not eleven near-
 duplicate calls scattered across those services. `GET /api/v1/devtools/
 devices/{device_id}/logs` reuses the existing `DebugConsole.entries`
-accessor, no new `core/devtools/` component. MQTT Debug Console, Event
-Viewer, and Automation Tester all remain unbuilt -- Event Viewer
-specifically blocked on the still-unresolved device-command EventBus
-publishing gap, not merely deferred by choice.)*
+accessor, no new `core/devtools/` component. MQTT Debug Console Slice
+shipped Task Group W, Aug 2026 -- a Phase 0 audit resolved the
+multi-instance question this same paragraph's own Device Logs entry
+left open: `ConnectivityService` is a DI singleton caching at most one
+connector per `connector_type`, so there is exactly one live
+`MqttConnector` at a time, system-wide -- multi-home support does not
+multiply connector instances. A single, global, bounded buffer
+(`deque(maxlen=200)`) inside `MqttConnector` itself, populated from its
+own `_on_message` entry point, exposed via a new
+`IConnectorDebugCapture` capability Protocol (`core/interfaces/
+connectivity.py`) and reached through `ConnectivityService.
+get_connector("mqtt")` plus an `isinstance` check -- never by importing
+`MqttConnector` directly. Inbound messages only: `send_command`'s own
+outbound publish is never captured, the identical reasoning Device
+Logs already established for why a command's payload is never logged.
+Captured payloads are truncated and pass through a best-effort
+key-substring text redaction before storage. `GET /api/v1/devtools/
+mqtt/messages` -- no `home_id`/`connector_id` scoping, since there is
+only ever one live connector. Event Viewer and Automation Tester remain
+unbuilt -- Event Viewer specifically blocked on the still-unresolved
+device-command EventBus publishing gap, not merely deferred by
+choice.)*
 - Device Simulator ✅ *(light/switch/thermostat/lock/sensor, `"home_assistant"` connector slot only -- MQTT-slot simulation deferred)*
-- MQTT Debug Console
+- MQTT Debug Console ✅ *(inbound wire messages only, single global buffer -- outbound command payloads deliberately never captured)*
 - Device Logs ✅ *(command outcomes only, via `ConnectivityService.send_command`'s new per-outcome logging -- reads/discovery are not logged per-device)*
 - Event Viewer *(blocked -- no device-command event exists on the EventBus to view)*
 - Automation Tester

@@ -3,6 +3,62 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Developer Tools — MQTT Debug Console Slice (Task Group W)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **MQTT Debug Console** item -- **not Event Viewer
+(still blocked on the device-command EventBus gap), not Automation
+Tester**. Preceded by a Phase 0 audit that resolved a real
+architectural question left open after the Device Logs slice: whether
+Aarya's multi-home data model implies multiple simultaneously-live
+`MqttConnector` instances (one per home). It does not --
+`ConnectivityService` is a DI singleton caching at most one connector
+per `connector_type`, so there is exactly one live `MqttConnector` at a
+time, system-wide, regardless of how many homes exist. Preceded by a
+Logic Contract (`docs/M12_DEVELOPER_TOOLS_MQTT_DEBUG_CONSOLE_LOGIC_
+CONTRACT.md`), written and approved before any code, which resolved the
+design as a single global buffer (the only model the real ownership
+structure supports, not a convenience simplification) and deliberately
+scoped capture to **inbound messages only** -- a command's own outbound
+`send_command` payload is never captured, the identical reasoning the
+Device Logs slice already established for why a payload is never
+logged (it can carry a lock's PIN). 23 new tests (10 connector-level
+against a real local MQTT broker, 13 route-level against the real
+DI-wired production connector factory), 0 failures, 0 errors.
+
+### Added
+- **`ConnectorDebugMessage` + `IConnectorDebugCapture`**
+  (`core/interfaces/connectivity.py`) -- a new optional,
+  `@runtime_checkable` capability Protocol a connector may implement on
+  top of `IDeviceConnector`. `HomeAssistantConnector` (stateless
+  request/response) does not implement it; `MqttConnector` is the
+  first (and, today, only) implementer.
+- **`MqttConnector` inbound message capture**
+  (`core/connectivity/connectors/mqtt.py`) -- a bounded
+  `deque(maxlen=200)`, populated from the single `_on_message` entry
+  point *before* the existing topic-dispatch `try`/`except`, so even an
+  unrecognized/malformed message stays visible for debugging. Captured
+  payloads are truncated at 2000 characters and pass through a
+  best-effort text-level redaction (matching Device Diagnostics' own
+  key-substring convention: `token`/`password`/`secret`/`credential`/
+  `api_key`/`auth`) before ever entering the buffer. Connector
+  credentials (`_username`/`_password`/`_host`/`_port`) are never read
+  by this capability at all.
+- **`ConnectivityService.get_connector`**
+  (`services/connectivity_service.py`) -- a trivial, connector-agnostic
+  accessor (`self._connectors.get(connector_type)`); the service still
+  does not know or care what `IConnectorDebugCapture` is.
+- **`GET /api/v1/devtools/mqtt/messages`**
+  (`infrastructure/api/routes/devtools.py`) -- reached via
+  `ConnectivityService.get_connector("mqtt")` plus an `isinstance`
+  capability check, never by importing `MqttConnector` directly
+  (preserves this router's existing "ports first" architecture guard).
+  No `home_id`/`connector_id` scoping -- there is only ever one live
+  connector. No `PermissionModel` gate, matching every other devtools
+  capability -- session auth only.
+
 ## M12: Developer Tools — Device Logs Slice (Task Group V)
 
 **No version bump**, matching this project's own established
