@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
-from jarvis.core.interfaces.connectivity import ConnectorNotConnectedError
+from jarvis.core.interfaces.connectivity import ConnectivityError, ConnectorNotConnectedError
 from jarvis.core.logging.logger import get_logger
 
 if TYPE_CHECKING:
@@ -219,15 +219,39 @@ class ConnectivityService:
         this task group's Logic Contract. Nothing in this method
         interprets what *command* means; it only routes it to the
         connector that owns the device.
+
+        Every outcome -- success, a device-level rejection, or a
+        connector-level failure -- is logged as one line naming this
+        device's own `device_id` (Milestone 12 Developer Tools, Device
+        Logs Slice: every device-category service's own mutation
+        already funnels through this one method, so this is the single
+        place that makes `GET /devtools/devices/{id}/logs` meaningful
+        for every device type without touching any of them). `payload`
+        is deliberately never logged -- it can carry a lock's own PIN
+        (`{"code": "1234"}`) or similarly sensitive data.
         """
         device = await self._smart_home.require_device(device_id)
         connector_type = connector_type_for(device)
         if connector_type is None:
+            _logger.warning(
+                "Device {!r} command {!r} failed: no recorded connector.", device_id, command
+            )
             raise ConnectorNotConnectedError(
                 f"Device {device_id!r} has no recorded connector; it cannot be commanded."
             )
-        connector = self._require_connector(connector_type)
-        return await connector.send_command(device.external_id or "", command, payload or {})
+        try:
+            connector = self._require_connector(connector_type)
+            result = await connector.send_command(device.external_id or "", command, payload or {})
+        except ConnectivityError as err:
+            _logger.warning("Device {!r} command {!r} failed: {}", device_id, command, err)
+            raise
+        if result.success:
+            _logger.info("Device {!r} command {!r} succeeded.", device_id, command)
+        else:
+            _logger.warning(
+                "Device {!r} command {!r} failed: {}", device_id, command, result.detail
+            )
+        return result
 
     # ------------------------------------------------------------------
     # Events

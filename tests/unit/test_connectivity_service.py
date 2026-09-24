@@ -9,12 +9,14 @@ connector itself faked (there is no real connector until Phase 2).
 from __future__ import annotations
 
 import json
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
+from jarvis.core.devtools.debug_console import DebugConsole
 from jarvis.core.events.event_bus import EventBus
 from jarvis.core.events.events import ConnectivityStatusChangedEvent
 from jarvis.core.exceptions import ServiceError
@@ -26,6 +28,17 @@ from jarvis.core.interfaces.connectivity import (
 from jarvis.services.connectivity_service import ConnectivityService
 from jarvis.services.smart_home_service import SmartHomeService
 from tests.fakes.fake_device_connector import FakeDeviceConnector
+
+
+def _wait_for(predicate, *, timeout: float = 2.0) -> None:
+    """Loguru's ``enqueue=True`` sink runs on a background thread --
+    matches ``test_debug_console.py``'s own identical helper."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.02)
+    raise AssertionError("Condition not met within timeout.")
 
 
 def _settings(tmp_path: Path, monkeypatch):
@@ -323,3 +336,111 @@ async def test_send_command_requires_the_connector_to_be_connected(
 
     with pytest.raises(ConnectorNotConnectedError):
         await service.send_command(device.id, "lock", {})
+
+
+# ---------------------------------------------------------------------------
+# Device Logs -- Milestone 12 Developer Tools (Device Logs Slice).
+# `send_command` is the single chokepoint every device-category
+# service's mutation funnels through; these tests confirm it logs one
+# line per outcome naming the device's own `device_id`, and never the
+# command's own `payload`.
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_send_command_success_is_logged_with_device_id(
+    service: ConnectivityService,
+    smart_home: SmartHomeService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    fake_connector.devices = [DiscoveredDevice(external_id="ha-1", name="Lock")]
+    await service.connect("home_assistant")
+    [device] = await service.run_discovery("home_assistant", home.id)
+
+    console = DebugConsole(EventBus())
+    console.start(level="DEBUG")
+    try:
+        await service.send_command(device.id, "lock", {"code": "1234"})
+        _wait_for(lambda: len(console) >= 1)
+    finally:
+        console.stop()
+
+    entries = console.entries(contains=device.id)
+    assert len(entries) == 1
+    assert entries[0].level == "INFO"
+    assert "lock" in entries[0].message
+    assert "1234" not in entries[0].message  # payload is never logged
+
+
+@pytest.mark.asyncio
+async def test_send_command_device_level_rejection_is_logged_as_a_warning(
+    service: ConnectivityService,
+    smart_home: SmartHomeService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    fake_connector.devices = [DiscoveredDevice(external_id="ha-1", name="Lock")]
+    await service.connect("home_assistant")
+    [device] = await service.run_discovery("home_assistant", home.id)
+    fake_connector.next_command_succeeds = False
+
+    console = DebugConsole(EventBus())
+    console.start(level="DEBUG")
+    try:
+        await service.send_command(device.id, "lock", {"code": "9999"})
+        _wait_for(lambda: len(console) >= 1)
+    finally:
+        console.stop()
+
+    entries = console.entries(contains=device.id)
+    assert len(entries) == 1
+    assert entries[0].level == "WARNING"
+    assert "fake rejection" in entries[0].message
+    assert "9999" not in entries[0].message
+
+
+@pytest.mark.asyncio
+async def test_send_command_no_recorded_connector_is_logged_before_raising(
+    service: ConnectivityService, smart_home: SmartHomeService
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    manual = await smart_home.register_discovered_device(home.id, "Manually Added Sensor")
+
+    console = DebugConsole(EventBus())
+    console.start(level="DEBUG")
+    try:
+        with pytest.raises(ConnectorNotConnectedError):
+            await service.send_command(manual.id, "toggle", {})
+        _wait_for(lambda: len(console) >= 1)
+    finally:
+        console.stop()
+
+    entries = console.entries(contains=manual.id)
+    assert len(entries) == 1
+    assert entries[0].level == "WARNING"
+    assert "no recorded connector" in entries[0].message
+
+
+@pytest.mark.asyncio
+async def test_send_command_connector_not_connected_is_logged_before_raising(
+    service: ConnectivityService,
+    smart_home: SmartHomeService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    fake_connector.devices = [DiscoveredDevice(external_id="ha-1", name="Lock")]
+    await service.connect("home_assistant")
+    [device] = await service.run_discovery("home_assistant", home.id)
+    await service.disconnect("home_assistant")
+
+    console = DebugConsole(EventBus())
+    console.start(level="DEBUG")
+    try:
+        with pytest.raises(ConnectorNotConnectedError):
+            await service.send_command(device.id, "lock", {})
+        _wait_for(lambda: len(console) >= 1)
+    finally:
+        console.stop()
+
+    entries = console.entries(contains=device.id)
+    assert len(entries) == 1
+    assert entries[0].level == "WARNING"

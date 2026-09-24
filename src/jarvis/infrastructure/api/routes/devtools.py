@@ -59,6 +59,17 @@ logic. Reported attributes are sanitized by key (never wholesale
 ``Device.metadata_json``) before inclusion. No ``PermissionModel`` gate
 on the route itself, matching every other devtools capability --
 explicitly evaluated, see the Logic Contract §8.
+
+**Device Logs** (``docs/M12_DEVELOPER_TOOLS_DEVICE_LOGS_LOGIC_CONTRACT.md``)
+is a thin REST read reusing the same ``DebugConsole.entries(contains=...)``
+substring filter ``get_plugin_diagnostics``/Device Diagnostics already
+use -- the only new capture is one logging call added to
+``ConnectivityService.send_command`` (the single chokepoint every
+device-category service's mutation already routes through), naming the
+device's own ``device_id`` per outcome. No new ``core/devtools/``
+component, no command *payload* logged (a lock's own PIN can be in
+there). No ``PermissionModel`` gate, matching every other devtools
+capability -- session auth only.
 """
 
 from __future__ import annotations
@@ -444,6 +455,44 @@ async def get_device_diagnostics(device_id: str, request: Request) -> Envelope[d
         "permission": permission_section,
     }
     return envelope(payload, meta={"device_type": device.device_type})
+
+
+# ---------------------------------------------------------------------------
+# Device Logs -- Milestone 12 Developer Tools (Device Logs Slice)
+#
+# Reuses the same `DebugConsole.entries(contains=...)` substring filter
+# `get_plugin_diagnostics` already uses for `related_logs` -- but that
+# only surfaces real device activity because `ConnectivityService.
+# send_command` (see its own docstring) now logs one line per outcome
+# naming the device's own `device_id`. No new capture mechanism, no new
+# `core/devtools/` component.
+# ---------------------------------------------------------------------------
+@router.get(
+    "/devtools/devices/{device_id}/logs", response_model=Envelope[tuple[dict[str, Any], ...]]
+)
+async def get_device_logs(
+    device_id: str, request: Request, limit: int = 200
+) -> Envelope[tuple[dict[str, Any], ...]]:
+    """Most-recent-first log lines whose message contains this
+    `device_id` -- today that means `ConnectivityService.send_command`
+    outcomes only, since that is the only device-identified logging in
+    the codebase. Unknown device -> 404, matching Device Diagnostics'
+    own convention; an empty result for a real device is not an error,
+    it just means no command has been sent to it yet (or the Debug
+    Console sink was never started)."""
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        await _smart_home(request).require_device(device_id)
+    except ServiceError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+
+    entries = _debug_console(request).entries(contains=device_id, limit=limit)
+    payload = tuple(
+        {"at": e.at.isoformat(), "level": e.level, "logger": e.logger, "message": e.message}
+        for e in entries
+    )
+    return envelope(payload, meta={"device_id": device_id, "count": len(payload)})
 
 
 # ---------------------------------------------------------------------------
