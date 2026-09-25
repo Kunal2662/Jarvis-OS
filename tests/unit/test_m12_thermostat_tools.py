@@ -261,6 +261,31 @@ async def test_set_thermostat_state_tool_fan_mode_only(
 
 
 @pytest.mark.asyncio
+async def test_set_thermostat_state_tool_swing_mode_only(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _register_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = DeviceState(
+        external_id=_EXTERNAL_ID, status="cool", attributes={}
+    )
+
+    result = await tools["set_thermostat_state"].ainvoke(
+        {"device_id": device.id, "swing_mode": "vertical"}
+    )
+
+    assert '"success": true' in result.lower()
+    assert fake_connector.sent_commands == [
+        (_EXTERNAL_ID, "set_swing_mode", {"swing_mode": "vertical"})
+    ]
+
+
+@pytest.mark.asyncio
 async def test_set_thermostat_state_tool_combined_is_one_merged_intent(
     tools,
     smart_home: SmartHomeService,

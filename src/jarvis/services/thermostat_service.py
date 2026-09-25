@@ -38,6 +38,12 @@ apply -- never a full success, and never a silent retry.
 Locks/Smart Switches/Appliance Control -- a setpoint carries no
 Sensors-grade privacy weight); mutations require the existing
 ``smart_home`` scope under a new principal, ``core:thermostats``.
+
+**Swing Mode slice**: one more keyword (``swing_mode``) merged into the
+same ``set_thermostat_state`` mutation, reusing ``_validate_mode``/
+``_validate_against_device``'s existing attribute-agnostic shape
+verbatim -- the identical template Fan Mode already established. See
+``docs/M12_APPLIANCE_THERMOSTAT_SWING_MODE_LOGIC_CONTRACT.md``.
 """
 
 from __future__ import annotations
@@ -92,10 +98,19 @@ class ThermostatCommand(enum.StrEnum):
     #: already named and evaluated by the original Climate slice's own
     #: Logic Contract §17, deliberately deferred until now.
     SET_FAN_MODE = "set_fan_mode"
+    #: Milestone 12 Appliance Control, Thermostat Swing Mode slice. HA's
+    #: own `climate.set_swing_mode` service, one argument (`swing_mode`)
+    #: -- the (vertical/primary) swing axis only, not the separate
+    #: `set_swing_horizontal_mode` feature.
+    SET_SWING_MODE = "set_swing_mode"
 
 
 def _translate_home_assistant(
-    *, temperature: float | None, hvac_mode: str | None, fan_mode: str | None
+    *,
+    temperature: float | None,
+    hvac_mode: str | None,
+    fan_mode: str | None,
+    swing_mode: str | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
     """HA's own climate-domain service names, reached through the
     existing generic dispatcher (`HomeAssistantConnector.send_command`
@@ -109,8 +124,9 @@ def _translate_home_assistant(
     fallback, chosen because no repository evidence confirms HA's
     `set_temperature` accepts an optional `hvac_mode` field; the
     contract forbids inventing a third approach. `fan_mode` (Thermostat
-    Fan Mode slice) has no ordering interdependency with the other two,
-    so its call is appended last, fixed for determinism rather than
+    Fan Mode slice) and `swing_mode` (Thermostat Swing Mode slice) have
+    no ordering interdependency with the other two or each other, so
+    their calls are appended last, fixed for determinism rather than
     meaningful.
     """
     calls: list[tuple[str, dict[str, Any]]] = []
@@ -120,11 +136,17 @@ def _translate_home_assistant(
         calls.append((ThermostatCommand.SET_TEMPERATURE.value, {"temperature": temperature}))
     if fan_mode is not None:
         calls.append((ThermostatCommand.SET_FAN_MODE.value, {"fan_mode": fan_mode}))
+    if swing_mode is not None:
+        calls.append((ThermostatCommand.SET_SWING_MODE.value, {"swing_mode": swing_mode}))
     return calls
 
 
 def _translate_mqtt(
-    *, temperature: float | None, hvac_mode: str | None, fan_mode: str | None
+    *,
+    temperature: float | None,
+    hvac_mode: str | None,
+    fan_mode: str | None,
+    swing_mode: str | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
     """The JARVIS-native MQTT climate vocabulary this module defines --
     `mqtt_envelope.build_command_envelope` leaves command/args
@@ -135,7 +157,8 @@ def _translate_mqtt(
     **Always one merged call**, mirroring Lighting's own MQTT
     `set_state` -- deliberately *not* copying HA's two-service split,
     because the MQTT envelope has no such constraint and a single
-    message applies atomically. `fan_mode` merges into the same dict.
+    message applies atomically. `fan_mode`/`swing_mode` merge into the
+    same dict.
     """
     args: dict[str, Any] = {}
     if temperature is not None:
@@ -144,6 +167,8 @@ def _translate_mqtt(
         args["hvac_mode"] = hvac_mode
     if fan_mode is not None:
         args["fan_mode"] = fan_mode
+    if swing_mode is not None:
+        args["swing_mode"] = swing_mode
     return [("set_state", args)]
 
 
@@ -219,6 +244,8 @@ def _thermostat_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         "max_temp": None,
         "fan_mode": None,
         "fan_modes": [],
+        "swing_mode": None,
+        "swing_modes": [],
         "available": False,
     }
     if raw is None:
@@ -233,6 +260,7 @@ def _thermostat_payload(device: Device, raw: Any = None) -> dict[str, Any]:
     payload["min_temp"] = _coerce_float(attributes.get("min_temp"))
     payload["max_temp"] = _coerce_float(attributes.get("max_temp"))
     payload["fan_modes"] = _coerce_modes(attributes.get("fan_modes"))
+    payload["swing_modes"] = _coerce_modes(attributes.get("swing_modes"))
     if payload["available"]:
         # For an HA climate entity the entity's own state string *is*
         # the HVAC mode -- so an unavailable device must never have
@@ -249,6 +277,11 @@ def _thermostat_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         raw_fan_mode = attributes.get("fan_mode")
         if isinstance(raw_fan_mode, str) and raw_fan_mode.strip():
             payload["fan_mode"] = _normalize_mode(raw_fan_mode)
+        # swing_mode is a plain attribute too, gated the same way
+        # fan_mode already is.
+        raw_swing_mode = attributes.get("swing_mode")
+        if isinstance(raw_swing_mode, str) and raw_swing_mode.strip():
+            payload["swing_mode"] = _normalize_mode(raw_swing_mode)
     return payload
 
 
@@ -320,12 +353,13 @@ class ThermostatService:
         temperature: float | None = None,
         hvac_mode: str | None = None,
         fan_mode: str | None = None,
+        swing_mode: str | None = None,
     ) -> dict[str, Any]:
         self._require_permission()
-        if temperature is None and hvac_mode is None and fan_mode is None:
+        if temperature is None and hvac_mode is None and fan_mode is None and swing_mode is None:
             raise ServiceError(
                 "set_thermostat_state requires at least one of 'temperature', "
-                "'hvac_mode', or 'fan_mode'."
+                "'hvac_mode', 'fan_mode', or 'swing_mode'."
             )
 
         device = await self._require_thermostat(device_id)
@@ -345,17 +379,22 @@ class ThermostatService:
         validated_fan_mode = (
             None if fan_mode is None else self._validate_mode(fan_mode, field_name="fan_mode")
         )
+        validated_swing_mode = (
+            None if swing_mode is None else self._validate_mode(swing_mode, field_name="swing_mode")
+        )
         await self._validate_against_device(
             device_id,
             temperature=validated_temperature,
             hvac_mode=validated_mode,
             fan_mode=validated_fan_mode,
+            swing_mode=validated_swing_mode,
         )
 
         calls = translator(
             temperature=validated_temperature,
             hvac_mode=validated_mode,
             fan_mode=validated_fan_mode,
+            swing_mode=validated_swing_mode,
         )
         return await self._send_all(device_id, calls)
 
@@ -375,11 +414,13 @@ class ThermostatService:
         temperature: float | None,
         hvac_mode: str | None,
         fan_mode: str | None = None,
+        swing_mode: str | None = None,
     ) -> None:
         """Validates the request against the device's **own** declared
         capabilities -- reported `min_temp`/`max_temp` bounds, reported
-        `hvac_modes`, and (Thermostat Fan Mode slice) reported
-        `fan_modes`. One live read serves all three checks.
+        `hvac_modes`, (Thermostat Fan Mode slice) reported `fan_modes`,
+        and (Thermostat Swing Mode slice) reported `swing_modes`. One
+        live read serves all four checks.
 
         Permissive by design where the device declares nothing: no
         safety limit is invented where no `min_temp`/`max_temp` is
@@ -423,6 +464,14 @@ class ThermostatService:
                 raise ServiceError(
                     f"fan_mode {fan_mode!r} is not supported by this device; "
                     f"it reports {sorted(supported_fan_modes)}."
+                )
+
+        if swing_mode is not None:
+            supported_swing_modes = _coerce_modes(attributes.get("swing_modes"))
+            if supported_swing_modes and swing_mode not in supported_swing_modes:
+                raise ServiceError(
+                    f"swing_mode {swing_mode!r} is not supported by this device; "
+                    f"it reports {sorted(supported_swing_modes)}."
                 )
 
     async def _send_all(

@@ -129,6 +129,8 @@ def _climate_state(
     max_temp: float | None = None,
     fan_mode: str | None = None,
     fan_modes: list[str] | None = None,
+    swing_mode: str | None = None,
+    swing_modes: list[str] | None = None,
 ) -> DeviceState:
     attributes: dict = {}
     if current is not None:
@@ -145,6 +147,10 @@ def _climate_state(
         attributes["fan_mode"] = fan_mode
     if fan_modes is not None:
         attributes["fan_modes"] = fan_modes
+    if swing_mode is not None:
+        attributes["swing_mode"] = swing_mode
+    if swing_modes is not None:
+        attributes["swing_modes"] = swing_modes
     return DeviceState(external_id=_EXTERNAL_ID, status=status, attributes=attributes)
 
 
@@ -597,6 +603,172 @@ async def test_empty_fan_mode_string_rejected(
         await service.set_thermostat_state(device.id, fan_mode=bad)
 
 
+# --- Swing mode (Thermostat Swing Mode Logic Contract) -------------------------------
+
+
+@pytest.mark.asyncio
+async def test_swing_mode_only_mutation_sends_one_call(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state()
+
+    result = await service.set_thermostat_state(device.id, swing_mode="vertical")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        (_EXTERNAL_ID, "set_swing_mode", {"swing_mode": "vertical"})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_all_four_attributes_combined_sends_four_calls(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state()
+
+    result = await service.set_thermostat_state(
+        device.id, temperature=20.0, hvac_mode="cool", fan_mode="high", swing_mode="both"
+    )
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        (_EXTERNAL_ID, "set_hvac_mode", {"hvac_mode": "cool"}),
+        (_EXTERNAL_ID, "set_temperature", {"temperature": 20.0}),
+        (_EXTERNAL_ID, "set_fan_mode", {"fan_mode": "high"}),
+        (_EXTERNAL_ID, "set_swing_mode", {"swing_mode": "both"}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_swing_mode_is_normalized(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state()
+
+    await service.set_thermostat_state(device.id, swing_mode="  VERTICAL  ")
+
+    assert fake_connector.sent_commands[0][2] == {"swing_mode": "vertical"}
+
+
+@pytest.mark.asyncio
+async def test_unsupported_swing_mode_is_permitted_when_device_reports_nothing(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """Permissive by design: rejecting a real device over an undeclared
+    vocabulary is the worse failure (Logic Contract §7, same reasoning
+    already applied to hvac_mode/fan_mode)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state()  # no swing_modes reported
+
+    result = await service.set_thermostat_state(device.id, swing_mode="some_vendor_swing_mode")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands[0][2] == {"swing_mode": "some_vendor_swing_mode"}
+
+
+@pytest.mark.asyncio
+async def test_swing_mode_rejected_when_not_in_declared_list(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state(swing_modes=["off", "vertical"])
+
+    with pytest.raises(ServiceError, match="swing_mode 'both' is not supported"):
+        await service.set_thermostat_state(device.id, swing_mode="both")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["", "   "])
+async def test_empty_swing_mode_string_rejected(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    permissions: PermissionModel,
+    bad: str,
+) -> None:
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    with pytest.raises(ServiceError, match="swing_mode must be a non-empty string"):
+        await service.set_thermostat_state(device.id, swing_mode=bad)
+
+
+@pytest.mark.asyncio
+async def test_swing_mode_denied_without_grant(
+    service: ThermostatService, smart_home: SmartHomeService
+) -> None:
+    _, device = await _home_and_thermostat(smart_home)
+    with pytest.raises(ServiceError, match="permission"):
+        await service.set_thermostat_state(device.id, swing_mode="vertical")
+
+
+@pytest.mark.asyncio
+async def test_swing_mode_read_gated_behind_available(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state(swing_mode="vertical")
+
+    state = await service.get_thermostat_state(device.id)
+
+    assert state["swing_mode"] == "vertical"
+
+
+@pytest.mark.asyncio
+async def test_swing_modes_survives_unavailability(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state(
+        status="unavailable", swing_modes=["off", "vertical"]
+    )
+
+    state = await service.get_thermostat_state(device.id)
+
+    assert state["available"] is False
+    assert state["swing_mode"] is None
+    assert state["swing_modes"] == ["off", "vertical"]
+
+
 @pytest.mark.asyncio
 async def test_empty_mutation_rejected(
     service: ThermostatService, smart_home: SmartHomeService, permissions: PermissionModel
@@ -914,6 +1086,29 @@ def test_ha_translator_all_three_is_three_calls_mode_then_temperature_then_fan()
         ("set_temperature", {"temperature": 21.0}),
         ("set_fan_mode", {"fan_mode": "high"}),
     ]
+
+
+def test_ha_translator_swing_mode_only() -> None:
+    assert _translate_home_assistant(
+        temperature=None, hvac_mode=None, fan_mode=None, swing_mode="vertical"
+    ) == [("set_swing_mode", {"swing_mode": "vertical"})]
+
+
+def test_ha_translator_all_four_is_four_calls_mode_temperature_fan_swing() -> None:
+    assert _translate_home_assistant(
+        temperature=21.0, hvac_mode="cool", fan_mode="high", swing_mode="both"
+    ) == [
+        ("set_hvac_mode", {"hvac_mode": "cool"}),
+        ("set_temperature", {"temperature": 21.0}),
+        ("set_fan_mode", {"fan_mode": "high"}),
+        ("set_swing_mode", {"swing_mode": "both"}),
+    ]
+
+
+def test_mqtt_translator_swing_mode_merged() -> None:
+    assert _translate_mqtt(
+        temperature=None, hvac_mode=None, fan_mode=None, swing_mode="vertical"
+    ) == [("set_state", {"swing_mode": "vertical"})]
 
 
 def test_mqtt_translator_is_always_one_merged_call() -> None:

@@ -42,6 +42,7 @@ class SetThermostatStateRequest(BaseModel):
     temperature: float | None = None
     hvac_mode: str | None = None
     fan_mode: str | None = None
+    swing_mode: str | None = None
 
 
 def _thermostats(request: Request) -> ThermostatService:
@@ -83,6 +84,7 @@ async def set_thermostat_state(
             temperature=body.temperature,
             hvac_mode=body.hvac_mode,
             fan_mode=body.fan_mode,
+            swing_mode=body.swing_mode,
         )
     except ServiceError as err:
         raise HTTPException(status_code=400, detail=str(err)) from err

@@ -76,19 +76,21 @@ def build_thermostat_tools(thermostats: ThermostatService) -> list[BaseTool]:
         temperature: float | None = None,
         hvac_mode: str = "",
         fan_mode: str = "",
+        swing_mode: str = "",
     ) -> str:
         """Set a thermostat's target temperature, its HVAC mode, its fan
-        mode, or any combination, in one call. Supply at least one of
-        them. Temperature is in the device's own unit -- no conversion
-        is performed. hvac_mode/fan_mode must each be one the device
-        reports as supported (see get_thermostat_state). Takes real
-        effect on the device."""
+        mode, its swing mode, or any combination, in one call. Supply at
+        least one of them. Temperature is in the device's own unit -- no
+        conversion is performed. hvac_mode/fan_mode/swing_mode must each
+        be one the device reports as supported (see
+        get_thermostat_state). Takes real effect on the device."""
         try:
             result = await thermostats.set_thermostat_state(
                 device_id,
                 temperature=temperature,
                 hvac_mode=hvac_mode or None,
                 fan_mode=fan_mode or None,
+                swing_mode=swing_mode or None,
             )
         except Exception as err:
             _logger.warning("set_thermostat_state tool failed: {}", err)
