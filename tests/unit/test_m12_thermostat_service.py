@@ -127,6 +127,8 @@ def _climate_state(
     modes: list[str] | None = None,
     min_temp: float | None = None,
     max_temp: float | None = None,
+    fan_mode: str | None = None,
+    fan_modes: list[str] | None = None,
 ) -> DeviceState:
     attributes: dict = {}
     if current is not None:
@@ -139,6 +141,10 @@ def _climate_state(
         attributes["min_temp"] = min_temp
     if max_temp is not None:
         attributes["max_temp"] = max_temp
+    if fan_mode is not None:
+        attributes["fan_mode"] = fan_mode
+    if fan_modes is not None:
+        attributes["fan_modes"] = fan_modes
     return DeviceState(external_id=_EXTERNAL_ID, status=status, attributes=attributes)
 
 
@@ -230,6 +236,8 @@ async def test_full_state_normalization(
         modes=["off", "cool", "heat"],
         min_temp=16.0,
         max_temp=30.0,
+        fan_mode="auto",
+        fan_modes=["auto", "low", "high"],
     )
 
     state = await service.get_thermostat_state(device.id)
@@ -241,6 +249,8 @@ async def test_full_state_normalization(
     assert state["hvac_modes"] == ["off", "cool", "heat"]
     assert state["min_temp"] == 16.0
     assert state["max_temp"] == 30.0
+    assert state["fan_mode"] == "auto"
+    assert state["fan_modes"] == ["auto", "low", "high"]
 
 
 @pytest.mark.asyncio
@@ -283,6 +293,7 @@ async def test_unavailable_device_reports_none_mode_not_the_status_string(
     assert state["hvac_mode"] is None
     assert state["current_temperature"] is None
     assert state["target_temperature"] is None
+    assert state["fan_mode"] is None
 
 
 @pytest.mark.asyncio
@@ -297,7 +308,11 @@ async def test_capability_fields_survive_unavailability(
     await connectivity.connect("home_assistant")
     _, device = await _home_and_thermostat(smart_home)
     fake_connector.states[_EXTERNAL_ID] = _climate_state(
-        status="unavailable", modes=["off", "heat"], min_temp=7.0, max_temp=35.0
+        status="unavailable",
+        modes=["off", "heat"],
+        min_temp=7.0,
+        max_temp=35.0,
+        fan_modes=["auto", "low"],
     )
 
     state = await service.get_thermostat_state(device.id)
@@ -306,6 +321,8 @@ async def test_capability_fields_survive_unavailability(
     assert state["hvac_modes"] == ["off", "heat"]
     assert state["min_temp"] == 7.0
     assert state["max_temp"] == 35.0
+    assert state["fan_modes"] == ["auto", "low"]
+    assert state["fan_mode"] is None  # a current reading, unlike fan_modes -- gated by available
 
 
 @pytest.mark.asyncio
@@ -463,6 +480,121 @@ async def test_combined_mutation_sends_mode_first_then_temperature(
         (_EXTERNAL_ID, "set_hvac_mode", {"hvac_mode": "cool"}),
         (_EXTERNAL_ID, "set_temperature", {"temperature": 20.0}),
     ]
+
+
+@pytest.mark.asyncio
+async def test_fan_mode_only_mutation_sends_one_call(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state()
+
+    result = await service.set_thermostat_state(device.id, fan_mode="auto")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [(_EXTERNAL_ID, "set_fan_mode", {"fan_mode": "auto"})]
+
+
+@pytest.mark.asyncio
+async def test_all_three_attributes_combined_sends_three_calls(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state()
+
+    result = await service.set_thermostat_state(
+        device.id, temperature=20.0, hvac_mode="cool", fan_mode="high"
+    )
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        (_EXTERNAL_ID, "set_hvac_mode", {"hvac_mode": "cool"}),
+        (_EXTERNAL_ID, "set_temperature", {"temperature": 20.0}),
+        (_EXTERNAL_ID, "set_fan_mode", {"fan_mode": "high"}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_fan_mode_is_normalized(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state()
+
+    await service.set_thermostat_state(device.id, fan_mode="  HIGH  ")
+
+    assert fake_connector.sent_commands[0][2] == {"fan_mode": "high"}
+
+
+@pytest.mark.asyncio
+async def test_unsupported_fan_mode_is_permitted_when_device_reports_nothing(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """Permissive by design: rejecting a real device over an undeclared
+    vocabulary is the worse failure (Logic Contract §7, same reasoning
+    already applied to hvac_mode)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state()  # no fan_modes reported
+
+    result = await service.set_thermostat_state(device.id, fan_mode="some_vendor_fan_mode")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands[0][2] == {"fan_mode": "some_vendor_fan_mode"}
+
+
+@pytest.mark.asyncio
+async def test_fan_mode_rejected_when_not_in_declared_list(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _climate_state(fan_modes=["auto", "low"])
+
+    with pytest.raises(ServiceError, match="fan_mode 'turbo' is not supported"):
+        await service.set_thermostat_state(device.id, fan_mode="turbo")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["", "   "])
+async def test_empty_fan_mode_string_rejected(
+    service: ThermostatService,
+    smart_home: SmartHomeService,
+    permissions: PermissionModel,
+    bad: str,
+) -> None:
+    await _grant(permissions)
+    _, device = await _home_and_thermostat(smart_home)
+    with pytest.raises(ServiceError, match="fan_mode must be a non-empty string"):
+        await service.set_thermostat_state(device.id, fan_mode=bad)
 
 
 @pytest.mark.asyncio
@@ -752,35 +884,55 @@ async def test_invalid_mode_rejected(
 
 
 def test_ha_translator_temperature_only() -> None:
-    assert _translate_home_assistant(temperature=21.0, hvac_mode=None) == [
+    assert _translate_home_assistant(temperature=21.0, hvac_mode=None, fan_mode=None) == [
         ("set_temperature", {"temperature": 21.0})
     ]
 
 
 def test_ha_translator_mode_only() -> None:
-    assert _translate_home_assistant(temperature=None, hvac_mode="cool") == [
+    assert _translate_home_assistant(temperature=None, hvac_mode="cool", fan_mode=None) == [
         ("set_hvac_mode", {"hvac_mode": "cool"})
     ]
 
 
 def test_ha_translator_combined_is_two_calls_mode_first() -> None:
-    assert _translate_home_assistant(temperature=21.0, hvac_mode="cool") == [
+    assert _translate_home_assistant(temperature=21.0, hvac_mode="cool", fan_mode=None) == [
         ("set_hvac_mode", {"hvac_mode": "cool"}),
         ("set_temperature", {"temperature": 21.0}),
+    ]
+
+
+def test_ha_translator_fan_mode_only() -> None:
+    assert _translate_home_assistant(temperature=None, hvac_mode=None, fan_mode="auto") == [
+        ("set_fan_mode", {"fan_mode": "auto"})
+    ]
+
+
+def test_ha_translator_all_three_is_three_calls_mode_then_temperature_then_fan() -> None:
+    assert _translate_home_assistant(temperature=21.0, hvac_mode="cool", fan_mode="high") == [
+        ("set_hvac_mode", {"hvac_mode": "cool"}),
+        ("set_temperature", {"temperature": 21.0}),
+        ("set_fan_mode", {"fan_mode": "high"}),
     ]
 
 
 def test_mqtt_translator_is_always_one_merged_call() -> None:
     """MQTT deliberately does NOT copy HA's two-service split -- its
     envelope has no such constraint (Logic Contract §8c)."""
-    assert _translate_mqtt(temperature=21.0, hvac_mode=None) == [
+    assert _translate_mqtt(temperature=21.0, hvac_mode=None, fan_mode=None) == [
         ("set_state", {"temperature": 21.0})
     ]
-    assert _translate_mqtt(temperature=None, hvac_mode="cool") == [
+    assert _translate_mqtt(temperature=None, hvac_mode="cool", fan_mode=None) == [
         ("set_state", {"hvac_mode": "cool"})
     ]
-    assert _translate_mqtt(temperature=21.0, hvac_mode="cool") == [
+    assert _translate_mqtt(temperature=21.0, hvac_mode="cool", fan_mode=None) == [
         ("set_state", {"temperature": 21.0, "hvac_mode": "cool"})
+    ]
+    assert _translate_mqtt(temperature=None, hvac_mode=None, fan_mode="auto") == [
+        ("set_state", {"fan_mode": "auto"})
+    ]
+    assert _translate_mqtt(temperature=21.0, hvac_mode="cool", fan_mode="auto") == [
+        ("set_state", {"temperature": 21.0, "hvac_mode": "cool", "fan_mode": "auto"})
     ]
 
 

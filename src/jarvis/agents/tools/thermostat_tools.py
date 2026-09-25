@@ -10,10 +10,10 @@ two tool calls and two wire round-trips, and it would diverge from
 ``smart_lighting_tools.py``, which exposes one ``set_light_state``
 taking every optional attribute rather than one tool per attribute.
 
-``hvac_mode`` uses ``""``-as-unset rather than ``None`` for LangChain
-schema friendliness -- matching ``list_lights(home_id: str = "")``'s
-existing convention -- and is converted to ``None`` at the service
-boundary.
+``hvac_mode``/``fan_mode`` both use ``""``-as-unset rather than
+``None`` for LangChain schema friendliness -- matching
+``list_lights(home_id: str = "")``'s existing convention -- and are
+each converted to ``None`` at the service boundary.
 
 **Every tool calls the same ``ThermostatService`` the REST route does**,
 so both trip the same permission check: reads are ungated, and the
@@ -59,9 +59,10 @@ def build_thermostat_tools(thermostats: ThermostatService) -> list[BaseTool]:
     @tool
     async def get_thermostat_state(device_id: str) -> str:
         """Get one thermostat's live reading by device id: current
-        temperature, target temperature, HVAC mode, the modes the device
-        supports, its reported min/max temperature, and availability.
-        Use list_thermostats first to find the device id."""
+        temperature, target temperature, HVAC mode, fan mode, the HVAC
+        and fan modes the device supports, its reported min/max
+        temperature, and availability. Use list_thermostats first to
+        find the device id."""
         try:
             state = await thermostats.get_thermostat_state(device_id)
         except Exception as err:
@@ -71,16 +72,23 @@ def build_thermostat_tools(thermostats: ThermostatService) -> list[BaseTool]:
 
     @tool
     async def set_thermostat_state(
-        device_id: str, temperature: float | None = None, hvac_mode: str = ""
+        device_id: str,
+        temperature: float | None = None,
+        hvac_mode: str = "",
+        fan_mode: str = "",
     ) -> str:
-        """Set a thermostat's target temperature, its HVAC mode, or both
-        in one call. Supply at least one of them. Temperature is in the
-        device's own unit -- no conversion is performed. hvac_mode must
-        be one the device reports as supported (see
-        get_thermostat_state). Takes real effect on the device."""
+        """Set a thermostat's target temperature, its HVAC mode, its fan
+        mode, or any combination, in one call. Supply at least one of
+        them. Temperature is in the device's own unit -- no conversion
+        is performed. hvac_mode/fan_mode must each be one the device
+        reports as supported (see get_thermostat_state). Takes real
+        effect on the device."""
         try:
             result = await thermostats.set_thermostat_state(
-                device_id, temperature=temperature, hvac_mode=hvac_mode or None
+                device_id,
+                temperature=temperature,
+                hvac_mode=hvac_mode or None,
+                fan_mode=fan_mode or None,
             )
         except Exception as err:
             _logger.warning("set_thermostat_state tool failed: {}", err)

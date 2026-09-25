@@ -97,6 +97,8 @@ def _connected_thermostat(client, auth, fake_connector, home_id: str) -> str:
             "hvac_modes": ["off", "cool", "heat"],
             "min_temp": 16.0,
             "max_temp": 30.0,
+            "fan_mode": "auto",
+            "fan_modes": ["auto", "low", "high"],
         },
     )
     discovered = client.post(
@@ -139,6 +141,8 @@ def test_get_is_ungated_and_returns_live_state(client, auth, fake_connector) -> 
     assert body["target_temperature"] == 22.0
     assert body["hvac_mode"] == "cool"
     assert body["hvac_modes"] == ["off", "cool", "heat"]
+    assert body["fan_mode"] == "auto"
+    assert body["fan_modes"] == ["auto", "low", "high"]
     assert body["available"] is True
 
 
@@ -207,6 +211,23 @@ def test_mode_only_mutation(client, auth, fake_connector) -> None:
         "climate.living_room",
         "set_hvac_mode",
         {"hvac_mode": "heat"},
+    )
+
+
+def test_fan_mode_only_mutation(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_thermostat(client, auth, fake_connector, home_id)
+    _grant(client, auth)
+
+    response = client.post(
+        f"/api/v1/thermostats/{device_id}/state", json={"fan_mode": "auto"}, headers=auth
+    )
+
+    assert response.status_code == 200
+    assert fake_connector.sent_commands[-1] == (
+        "climate.living_room",
+        "set_fan_mode",
+        {"fan_mode": "auto"},
     )
 
 

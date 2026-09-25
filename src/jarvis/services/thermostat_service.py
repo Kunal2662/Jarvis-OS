@@ -87,10 +87,15 @@ class ThermostatCommand(enum.StrEnum):
 
     SET_TEMPERATURE = "set_temperature"
     SET_HVAC_MODE = "set_hvac_mode"
+    #: Milestone 12 Appliance Control, Thermostat Fan Mode slice. HA's
+    #: own `climate.set_fan_mode` service, one argument (`fan_mode`) --
+    #: already named and evaluated by the original Climate slice's own
+    #: Logic Contract §17, deliberately deferred until now.
+    SET_FAN_MODE = "set_fan_mode"
 
 
 def _translate_home_assistant(
-    *, temperature: float | None, hvac_mode: str | None
+    *, temperature: float | None, hvac_mode: str | None, fan_mode: str | None
 ) -> list[tuple[str, dict[str, Any]]]:
     """HA's own climate-domain service names, reached through the
     existing generic dispatcher (`HomeAssistantConnector.send_command`
@@ -103,18 +108,23 @@ def _translate_home_assistant(
     applies to the intended mode. This is the Logic Contract's §8b
     fallback, chosen because no repository evidence confirms HA's
     `set_temperature` accepts an optional `hvac_mode` field; the
-    contract forbids inventing a third approach.
+    contract forbids inventing a third approach. `fan_mode` (Thermostat
+    Fan Mode slice) has no ordering interdependency with the other two,
+    so its call is appended last, fixed for determinism rather than
+    meaningful.
     """
     calls: list[tuple[str, dict[str, Any]]] = []
     if hvac_mode is not None:
         calls.append((ThermostatCommand.SET_HVAC_MODE.value, {"hvac_mode": hvac_mode}))
     if temperature is not None:
         calls.append((ThermostatCommand.SET_TEMPERATURE.value, {"temperature": temperature}))
+    if fan_mode is not None:
+        calls.append((ThermostatCommand.SET_FAN_MODE.value, {"fan_mode": fan_mode}))
     return calls
 
 
 def _translate_mqtt(
-    *, temperature: float | None, hvac_mode: str | None
+    *, temperature: float | None, hvac_mode: str | None, fan_mode: str | None
 ) -> list[tuple[str, dict[str, Any]]]:
     """The JARVIS-native MQTT climate vocabulary this module defines --
     `mqtt_envelope.build_command_envelope` leaves command/args
@@ -125,13 +135,15 @@ def _translate_mqtt(
     **Always one merged call**, mirroring Lighting's own MQTT
     `set_state` -- deliberately *not* copying HA's two-service split,
     because the MQTT envelope has no such constraint and a single
-    message applies atomically.
+    message applies atomically. `fan_mode` merges into the same dict.
     """
     args: dict[str, Any] = {}
     if temperature is not None:
         args["temperature"] = temperature
     if hvac_mode is not None:
         args["hvac_mode"] = hvac_mode
+    if fan_mode is not None:
+        args["fan_mode"] = fan_mode
     return [("set_state", args)]
 
 
@@ -205,6 +217,8 @@ def _thermostat_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         "hvac_modes": [],
         "min_temp": None,
         "max_temp": None,
+        "fan_mode": None,
+        "fan_modes": [],
         "available": False,
     }
     if raw is None:
@@ -218,6 +232,7 @@ def _thermostat_payload(device: Device, raw: Any = None) -> dict[str, Any]:
     payload["hvac_modes"] = _coerce_modes(attributes.get("hvac_modes"))
     payload["min_temp"] = _coerce_float(attributes.get("min_temp"))
     payload["max_temp"] = _coerce_float(attributes.get("max_temp"))
+    payload["fan_modes"] = _coerce_modes(attributes.get("fan_modes"))
     if payload["available"]:
         # For an HA climate entity the entity's own state string *is*
         # the HVAC mode -- so an unavailable device must never have
@@ -226,6 +241,14 @@ def _thermostat_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         payload["hvac_mode"] = _normalize_mode(raw.status) or None
         payload["current_temperature"] = _coerce_float(attributes.get("current_temperature"))
         payload["target_temperature"] = _coerce_float(attributes.get("temperature"))
+        # fan_mode is a plain attribute, not the entity's own state
+        # string -- but it is still a *current* reading, the same
+        # category current_temperature/target_temperature already fall
+        # into, so it is gated the same way (never a stale value from
+        # an unreachable device).
+        raw_fan_mode = attributes.get("fan_mode")
+        if isinstance(raw_fan_mode, str) and raw_fan_mode.strip():
+            payload["fan_mode"] = _normalize_mode(raw_fan_mode)
     return payload
 
 
@@ -296,11 +319,13 @@ class ThermostatService:
         *,
         temperature: float | None = None,
         hvac_mode: str | None = None,
+        fan_mode: str | None = None,
     ) -> dict[str, Any]:
         self._require_permission()
-        if temperature is None and hvac_mode is None:
+        if temperature is None and hvac_mode is None and fan_mode is None:
             raise ServiceError(
-                "set_thermostat_state requires at least one of 'temperature' or 'hvac_mode'."
+                "set_thermostat_state requires at least one of 'temperature', "
+                "'hvac_mode', or 'fan_mode'."
             )
 
         device = await self._require_thermostat(device_id)
@@ -317,24 +342,44 @@ class ThermostatService:
 
         validated_temperature = None if temperature is None else _validate_temperature(temperature)
         validated_mode = None if hvac_mode is None else self._validate_mode(hvac_mode)
+        validated_fan_mode = (
+            None if fan_mode is None else self._validate_mode(fan_mode, field_name="fan_mode")
+        )
         await self._validate_against_device(
-            device_id, temperature=validated_temperature, hvac_mode=validated_mode
+            device_id,
+            temperature=validated_temperature,
+            hvac_mode=validated_mode,
+            fan_mode=validated_fan_mode,
         )
 
-        calls = translator(temperature=validated_temperature, hvac_mode=validated_mode)
+        calls = translator(
+            temperature=validated_temperature,
+            hvac_mode=validated_mode,
+            fan_mode=validated_fan_mode,
+        )
         return await self._send_all(device_id, calls)
 
-    def _validate_mode(self, hvac_mode: Any) -> str:
-        if not isinstance(hvac_mode, str) or not hvac_mode.strip():
-            raise ServiceError(f"hvac_mode must be a non-empty string; got {hvac_mode!r}.")
-        return _normalize_mode(hvac_mode)
+    def _validate_mode(self, value: Any, *, field_name: str = "hvac_mode") -> str:
+        """Attribute-agnostic -- reused verbatim for `fan_mode`
+        (Thermostat Fan Mode slice) via `field_name`, so the error names
+        the field that was actually wrong rather than always saying
+        `hvac_mode`."""
+        if not isinstance(value, str) or not value.strip():
+            raise ServiceError(f"{field_name} must be a non-empty string; got {value!r}.")
+        return _normalize_mode(value)
 
     async def _validate_against_device(
-        self, device_id: str, *, temperature: float | None, hvac_mode: str | None
+        self,
+        device_id: str,
+        *,
+        temperature: float | None,
+        hvac_mode: str | None,
+        fan_mode: str | None = None,
     ) -> None:
         """Validates the request against the device's **own** declared
-        capabilities -- reported `min_temp`/`max_temp` bounds and
-        reported `hvac_modes`. One live read serves both checks.
+        capabilities -- reported `min_temp`/`max_temp` bounds, reported
+        `hvac_modes`, and (Thermostat Fan Mode slice) reported
+        `fan_modes`. One live read serves all three checks.
 
         Permissive by design where the device declares nothing: no
         safety limit is invented where no `min_temp`/`max_temp` is
@@ -370,6 +415,14 @@ class ThermostatService:
                 raise ServiceError(
                     f"hvac_mode {hvac_mode!r} is not supported by this device; "
                     f"it reports {sorted(supported)}."
+                )
+
+        if fan_mode is not None:
+            supported_fan_modes = _coerce_modes(attributes.get("fan_modes"))
+            if supported_fan_modes and fan_mode not in supported_fan_modes:
+                raise ServiceError(
+                    f"fan_mode {fan_mode!r} is not supported by this device; "
+                    f"it reports {sorted(supported_fan_modes)}."
                 )
 
     async def _send_all(

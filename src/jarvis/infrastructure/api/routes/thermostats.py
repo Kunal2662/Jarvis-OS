@@ -35,12 +35,13 @@ router = APIRouter(tags=["thermostats"], dependencies=[Depends(get_current_sessi
 
 
 class SetThermostatStateRequest(BaseModel):
-    """Both fields optional; at least one must be supplied. The service
-    layer -- not this schema -- rejects the both-``None`` case, so REST
+    """All fields optional; at least one must be supplied. The service
+    layer -- not this schema -- rejects the all-``None`` case, so REST
     and agent-tool callers get the identical error."""
 
     temperature: float | None = None
     hvac_mode: str | None = None
+    fan_mode: str | None = None
 
 
 def _thermostats(request: Request) -> ThermostatService:
@@ -78,7 +79,10 @@ async def set_thermostat_state(
 
     try:
         result = await _thermostats(request).set_thermostat_state(
-            device_id, temperature=body.temperature, hvac_mode=body.hvac_mode
+            device_id,
+            temperature=body.temperature,
+            hvac_mode=body.hvac_mode,
+            fan_mode=body.fan_mode,
         )
     except ServiceError as err:
         raise HTTPException(status_code=400, detail=str(err)) from err
