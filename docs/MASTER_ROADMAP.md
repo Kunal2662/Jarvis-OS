@@ -4939,9 +4939,17 @@ brightness (which HA only ever accepts as a `turn_on` parameter). A
 cover's live-read attribute is `current_cover_position`, confirmed
 externally to be a different name from the `position` write
 parameter. Zero connector changes -- both connectors' `send_command`
-already accept an arbitrary payload dict generically.)*
+already accept an arbitrary payload dict generically. Thermostat Fan
+Mode shipped Task Group Y, Aug 2026 -- closes one item the original
+Climate/Thermostat Slice's own Logic Contract explicitly deferred
+(`climate.set_fan_mode`, already researched and recorded then, only
+now built). Additive to the existing `set_thermostat_state` -- a third
+optional keyword, not a new method -- with `fan_mode`/`fan_modes`
+following the identical live-reading/declared-capability split
+`hvac_mode`/`hvac_modes` already established. Swing mode, preset
+modes, and humidity/dehumidify remain deferred, unchanged.)*
 - Smart Fans ✅ *(on/off + speed percentage 0-100 -- oscillation/preset modes deferred)*
-- Smart AC ✅ *(read/write current+target temperature, HVAC mode -- fan mode/swing/presets/humidity/scheduling deferred)*
+- Smart AC ✅ *(read/write current+target temperature, HVAC mode, fan mode -- swing/presets/humidity/scheduling deferred)*
 - Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, now-playing title/artist -- play_media/join-unjoin/shuffle/repeat/sound mode deferred)*
 - Smart Curtains ✅ *(via the cover entity, open/close + position 0-100 -- tilt/stop deferred)*
 - Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 -- tilt/stop deferred)*

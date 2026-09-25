@@ -3,6 +3,38 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Thermostat Fan Mode (Task Group Y)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes one item the original Climate/Thermostat Slice's own Logic
+Contract explicitly named and deferred: "Fan mode (`climate.
+set_fan_mode`) -- own service + own vocabulary; not in the approved
+slice." Swing mode, preset modes, and humidity/dehumidify remain
+separately deferred, unchanged. Preceded by a Logic Contract (`docs/
+M12_APPLIANCE_THERMOSTAT_FAN_MODE_LOGIC_CONTRACT.md`). The original
+slice had already researched and recorded the exact HA service shape
+(`climate.set_fan_mode`, one argument `fan_mode`, identical to
+`set_hvac_mode`'s own shape) -- no new external verification needed.
+10 new tests, 0 failures, 0 errors.
+
+### Added
+- **`ThermostatService.set_thermostat_state`** gains a third optional
+  `fan_mode` keyword, additive to the existing merged-update shape (not
+  a new method) -- mirrors exactly how `temperature`/`hvac_mode`
+  already work, including three-call combined updates and honest
+  partial-failure reporting.
+- **Read model** gains `fan_mode` (current reading, gated behind
+  `available`, like `current_temperature`) and `fan_modes` (declared
+  capability, ungated, like `hvac_modes`).
+- **`_validate_mode`** (already attribute-agnostic) is reused verbatim
+  for `fan_mode` via a new `field_name` parameter, so its error message
+  now names the field that was actually wrong.
+- **REST** (`POST /thermostats/{id}/state`) and the **`set_thermostat_state`
+  agent tool** both pass `fan_mode` through -- no new route, no new
+  tool. Zero connector, `DEVICE_TYPES`, or `CONNECTOR_TYPES` changes.
+
 ## M12: Developer Tools — Event Viewer Slice (Task Group X)
 
 **No version bump**, matching this project's own established
