@@ -3,6 +3,33 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Vacuum Clean Spot + Locate (Task Group GG)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Addresses "Vacuum cleaning mode" by mapping it to the Vacuum + Humidifier
+Core Slice's own deferred-scope entry ("Spot cleaning, locate, room
+targeting, maps, live map streaming, path planning"), which this
+session found had misclassified `clean_spot`/`locate`: neither carries
+or requires spatial data, unlike room targeting/maps/path planning,
+which remain genuinely deferred (no spatial infrastructure exists in
+this repository). Separately confirms HA has no distinct "cleaning
+mode" concept beyond `fan_speed`, already shipped in Task Group AA.
+Preceded by a Logic Contract (`docs/
+M12_APPLIANCE_VACUUM_CLEAN_SPOT_LOCATE_LOGIC_CONTRACT.md`).
+
+### Added
+- **`VacuumHumidifierService.clean_spot`/`locate`** — two new
+  zero-payload commands (`vacuum.clean_spot`/`vacuum.locate`),
+  mirroring `start`/`stop`/`pause`/`return_to_base` exactly. Neither
+  needed a translator or `_send_vacuum` signature change, unlike every
+  other slice's value-bearing keyword this pass.
+- **REST**: `POST /appliances/vacuums/{id}/clean_spot` and `.../locate`.
+- **Two new agent tools** (`vacuum_clean_spot`/`vacuum_locate`),
+  neither in `confirm_required_tools` — same risk tier as the four
+  existing vacuum transport commands.
+
 ## M12: Appliance Control — Humidifier Mode Control (Task Group FF)
 
 **No version bump**, matching this project's own established

@@ -5060,13 +5060,24 @@ reported `available_modes` only when non-empty, mirroring
 `MediaPlayerService._check_source`'s identical "no invented enum"
 discipline. Additive to the existing `set_humidifier_state` -- a third
 optional keyword, not a new method. Presets and water-level automation
-remain deferred, unchanged.)*
+remain deferred, unchanged.)* Vacuum Clean Spot + Locate shipped Task
+Group GG, Aug 2026 -- addresses "Vacuum cleaning mode" by mapping it to
+the original slice's own "Spot cleaning, locate, room targeting, maps,
+live map streaming, path planning" deferred entry, which this session
+found had misclassified `clean_spot`/`locate`: neither carries or
+requires spatial data (both are zero-payload, entity-target-only HA
+services), unlike room targeting/maps/live map streaming/path planning,
+which remain genuinely deferred -- no spatial/map infrastructure exists
+in this repository. Separately confirms HA has no distinct "cleaning
+mode" concept beyond `fan_speed`, already shipped in Task Group AA.
+Two new `VacuumCommand` members and methods, needing no translator/
+`_send_vacuum` signature change since both are zero-payload.)*
 - Smart Fans ✅ *(on/off + speed percentage 0-100 -- oscillation/preset modes deferred)*
 - Smart AC ✅ *(read/write current+target temperature, HVAC mode, fan mode, swing mode, preset mode -- humidity/scheduling deferred)*
 - Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, shuffle/repeat/sound mode, now-playing title/artist -- play_media/join-unjoin deferred)*
 - Smart Curtains ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
 - Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
-- Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level, fan speed -- cleaning modes/maps/scheduling deferred)*
+- Smart Vacuums ✅ *(start/stop/pause/return-to-base, clean spot, locate, battery level, fan speed -- maps/room targeting/scheduling deferred)*
 - Smart Humidifiers ✅ *(on/off, target humidity, mode control -- presets/water-level automation deferred)*
 - Smart Geysers ✅ *(via the water_heater entity -- on/off, operation mode, target temperature, away/vacation mode -- dual setpoint deferred)*
 - Smart Pumps
