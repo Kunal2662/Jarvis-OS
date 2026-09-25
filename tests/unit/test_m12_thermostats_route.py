@@ -101,6 +101,8 @@ def _connected_thermostat(client, auth, fake_connector, home_id: str) -> str:
             "fan_modes": ["auto", "low", "high"],
             "swing_mode": "vertical",
             "swing_modes": ["off", "vertical"],
+            "preset_mode": "eco",
+            "preset_modes": ["eco", "away"],
         },
     )
     discovered = client.post(
@@ -147,6 +149,8 @@ def test_get_is_ungated_and_returns_live_state(client, auth, fake_connector) -> 
     assert body["fan_modes"] == ["auto", "low", "high"]
     assert body["swing_mode"] == "vertical"
     assert body["swing_modes"] == ["off", "vertical"]
+    assert body["preset_mode"] == "eco"
+    assert body["preset_modes"] == ["eco", "away"]
     assert body["available"] is True
 
 
@@ -249,6 +253,23 @@ def test_swing_mode_only_mutation(client, auth, fake_connector) -> None:
         "climate.living_room",
         "set_swing_mode",
         {"swing_mode": "vertical"},
+    )
+
+
+def test_preset_mode_only_mutation(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_thermostat(client, auth, fake_connector, home_id)
+    _grant(client, auth)
+
+    response = client.post(
+        f"/api/v1/thermostats/{device_id}/state", json={"preset_mode": "eco"}, headers=auth
+    )
+
+    assert response.status_code == 200
+    assert fake_connector.sent_commands[-1] == (
+        "climate.living_room",
+        "set_preset_mode",
+        {"preset_mode": "eco"},
     )
 
 

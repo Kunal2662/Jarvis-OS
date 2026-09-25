@@ -44,6 +44,14 @@ same ``set_thermostat_state`` mutation, reusing ``_validate_mode``/
 ``_validate_against_device``'s existing attribute-agnostic shape
 verbatim -- the identical template Fan Mode already established. See
 ``docs/M12_APPLIANCE_THERMOSTAT_SWING_MODE_LOGIC_CONTRACT.md``.
+
+**Preset Mode slice**: one more keyword (``preset_mode``) merged into
+the same ``set_thermostat_state`` mutation, the third and final reuse
+of ``_validate_mode``/``_validate_against_device``'s attribute-agnostic
+shape. A thin pass-through only -- no scheduling, no automatic preset
+selection, no energy calculation -- so it does not encroach on Energy
+Management's own optimization scope. See ``docs/
+M12_APPLIANCE_THERMOSTAT_PRESET_MODE_LOGIC_CONTRACT.md``.
 """
 
 from __future__ import annotations
@@ -103,6 +111,12 @@ class ThermostatCommand(enum.StrEnum):
     #: -- the (vertical/primary) swing axis only, not the separate
     #: `set_swing_horizontal_mode` feature.
     SET_SWING_MODE = "set_swing_mode"
+    #: Milestone 12 Appliance Control, Thermostat Preset Mode slice.
+    #: HA's own `climate.set_preset_mode` service, one argument
+    #: (`preset_mode`) -- already named and evaluated by the original
+    #: Climate slice's own Logic Contract §17, deliberately deferred
+    #: until now.
+    SET_PRESET_MODE = "set_preset_mode"
 
 
 def _translate_home_assistant(
@@ -111,6 +125,7 @@ def _translate_home_assistant(
     hvac_mode: str | None,
     fan_mode: str | None,
     swing_mode: str | None = None,
+    preset_mode: str | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
     """HA's own climate-domain service names, reached through the
     existing generic dispatcher (`HomeAssistantConnector.send_command`
@@ -124,10 +139,10 @@ def _translate_home_assistant(
     fallback, chosen because no repository evidence confirms HA's
     `set_temperature` accepts an optional `hvac_mode` field; the
     contract forbids inventing a third approach. `fan_mode` (Thermostat
-    Fan Mode slice) and `swing_mode` (Thermostat Swing Mode slice) have
-    no ordering interdependency with the other two or each other, so
-    their calls are appended last, fixed for determinism rather than
-    meaningful.
+    Fan Mode slice), `swing_mode` (Thermostat Swing Mode slice), and
+    `preset_mode` (Thermostat Preset Mode slice) have no ordering
+    interdependency with the other two or each other, so their calls
+    are appended last, fixed for determinism rather than meaningful.
     """
     calls: list[tuple[str, dict[str, Any]]] = []
     if hvac_mode is not None:
@@ -138,6 +153,8 @@ def _translate_home_assistant(
         calls.append((ThermostatCommand.SET_FAN_MODE.value, {"fan_mode": fan_mode}))
     if swing_mode is not None:
         calls.append((ThermostatCommand.SET_SWING_MODE.value, {"swing_mode": swing_mode}))
+    if preset_mode is not None:
+        calls.append((ThermostatCommand.SET_PRESET_MODE.value, {"preset_mode": preset_mode}))
     return calls
 
 
@@ -147,6 +164,7 @@ def _translate_mqtt(
     hvac_mode: str | None,
     fan_mode: str | None,
     swing_mode: str | None = None,
+    preset_mode: str | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
     """The JARVIS-native MQTT climate vocabulary this module defines --
     `mqtt_envelope.build_command_envelope` leaves command/args
@@ -157,8 +175,8 @@ def _translate_mqtt(
     **Always one merged call**, mirroring Lighting's own MQTT
     `set_state` -- deliberately *not* copying HA's two-service split,
     because the MQTT envelope has no such constraint and a single
-    message applies atomically. `fan_mode`/`swing_mode` merge into the
-    same dict.
+    message applies atomically. `fan_mode`/`swing_mode`/`preset_mode`
+    merge into the same dict.
     """
     args: dict[str, Any] = {}
     if temperature is not None:
@@ -169,6 +187,8 @@ def _translate_mqtt(
         args["fan_mode"] = fan_mode
     if swing_mode is not None:
         args["swing_mode"] = swing_mode
+    if preset_mode is not None:
+        args["preset_mode"] = preset_mode
     return [("set_state", args)]
 
 
@@ -246,6 +266,8 @@ def _thermostat_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         "fan_modes": [],
         "swing_mode": None,
         "swing_modes": [],
+        "preset_mode": None,
+        "preset_modes": [],
         "available": False,
     }
     if raw is None:
@@ -261,6 +283,7 @@ def _thermostat_payload(device: Device, raw: Any = None) -> dict[str, Any]:
     payload["max_temp"] = _coerce_float(attributes.get("max_temp"))
     payload["fan_modes"] = _coerce_modes(attributes.get("fan_modes"))
     payload["swing_modes"] = _coerce_modes(attributes.get("swing_modes"))
+    payload["preset_modes"] = _coerce_modes(attributes.get("preset_modes"))
     if payload["available"]:
         # For an HA climate entity the entity's own state string *is*
         # the HVAC mode -- so an unavailable device must never have
@@ -282,6 +305,11 @@ def _thermostat_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         raw_swing_mode = attributes.get("swing_mode")
         if isinstance(raw_swing_mode, str) and raw_swing_mode.strip():
             payload["swing_mode"] = _normalize_mode(raw_swing_mode)
+        # preset_mode is a plain attribute too, gated the same way
+        # fan_mode/swing_mode already are.
+        raw_preset_mode = attributes.get("preset_mode")
+        if isinstance(raw_preset_mode, str) and raw_preset_mode.strip():
+            payload["preset_mode"] = _normalize_mode(raw_preset_mode)
     return payload
 
 
@@ -354,12 +382,19 @@ class ThermostatService:
         hvac_mode: str | None = None,
         fan_mode: str | None = None,
         swing_mode: str | None = None,
+        preset_mode: str | None = None,
     ) -> dict[str, Any]:
         self._require_permission()
-        if temperature is None and hvac_mode is None and fan_mode is None and swing_mode is None:
+        if (
+            temperature is None
+            and hvac_mode is None
+            and fan_mode is None
+            and swing_mode is None
+            and preset_mode is None
+        ):
             raise ServiceError(
                 "set_thermostat_state requires at least one of 'temperature', "
-                "'hvac_mode', 'fan_mode', or 'swing_mode'."
+                "'hvac_mode', 'fan_mode', 'swing_mode', or 'preset_mode'."
             )
 
         device = await self._require_thermostat(device_id)
@@ -382,12 +417,18 @@ class ThermostatService:
         validated_swing_mode = (
             None if swing_mode is None else self._validate_mode(swing_mode, field_name="swing_mode")
         )
+        validated_preset_mode = (
+            None
+            if preset_mode is None
+            else self._validate_mode(preset_mode, field_name="preset_mode")
+        )
         await self._validate_against_device(
             device_id,
             temperature=validated_temperature,
             hvac_mode=validated_mode,
             fan_mode=validated_fan_mode,
             swing_mode=validated_swing_mode,
+            preset_mode=validated_preset_mode,
         )
 
         calls = translator(
@@ -395,6 +436,7 @@ class ThermostatService:
             hvac_mode=validated_mode,
             fan_mode=validated_fan_mode,
             swing_mode=validated_swing_mode,
+            preset_mode=validated_preset_mode,
         )
         return await self._send_all(device_id, calls)
 
@@ -415,12 +457,14 @@ class ThermostatService:
         hvac_mode: str | None,
         fan_mode: str | None = None,
         swing_mode: str | None = None,
+        preset_mode: str | None = None,
     ) -> None:
         """Validates the request against the device's **own** declared
         capabilities -- reported `min_temp`/`max_temp` bounds, reported
         `hvac_modes`, (Thermostat Fan Mode slice) reported `fan_modes`,
-        and (Thermostat Swing Mode slice) reported `swing_modes`. One
-        live read serves all four checks.
+        (Thermostat Swing Mode slice) reported `swing_modes`, and
+        (Thermostat Preset Mode slice) reported `preset_modes`. One live
+        read serves all five checks.
 
         Permissive by design where the device declares nothing: no
         safety limit is invented where no `min_temp`/`max_temp` is
@@ -472,6 +516,14 @@ class ThermostatService:
                 raise ServiceError(
                     f"swing_mode {swing_mode!r} is not supported by this device; "
                     f"it reports {sorted(supported_swing_modes)}."
+                )
+
+        if preset_mode is not None:
+            supported_preset_modes = _coerce_modes(attributes.get("preset_modes"))
+            if supported_preset_modes and preset_mode not in supported_preset_modes:
+                raise ServiceError(
+                    f"preset_mode {preset_mode!r} is not supported by this device; "
+                    f"it reports {sorted(supported_preset_modes)}."
                 )
 
     async def _send_all(
