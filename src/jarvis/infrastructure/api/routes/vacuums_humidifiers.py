@@ -51,6 +51,10 @@ class SetHumidifierStateRequest(BaseModel):
     target_humidity: float | None = None
 
 
+class SetVacuumFanSpeedRequest(BaseModel):
+    fan_speed: str
+
+
 def _service(request: Request) -> VacuumHumidifierService:
     return cast("VacuumHumidifierService", request.app.state.container.vacuum_humidifier_service())
 
@@ -127,6 +131,21 @@ async def dock_vacuum(device_id: str, request: Request) -> Envelope[dict[str, An
 
     try:
         result = await _service(request).return_to_base(device_id)
+    except ServiceError as err:
+        raise _bad_request(err) from err
+    return envelope(result, meta={"success": result["success"]})
+
+
+@router.post(
+    "/appliances/vacuums/{device_id}/set_fan_speed", response_model=Envelope[dict[str, Any]]
+)
+async def set_vacuum_fan_speed(
+    device_id: str, body: SetVacuumFanSpeedRequest, request: Request
+) -> Envelope[dict[str, Any]]:
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        result = await _service(request).set_fan_speed(device_id, body.fan_speed)
     except ServiceError as err:
         raise _bad_request(err) from err
     return envelope(result, meta={"success": result["success"]})

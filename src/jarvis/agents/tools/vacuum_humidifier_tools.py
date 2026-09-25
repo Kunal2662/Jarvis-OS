@@ -2,8 +2,10 @@
 :class:`~jarvis.services.vacuum_humidifier_service.VacuumHumidifierService`
 (Milestone 12 Appliance Control -- Vacuum + Humidifier Core Slice).
 
-**Vacuum -- six tools, one per verb**, mirroring ``appliance_tools.py``'s
-own one-tool-per-command shape: four independent commands, not
+**Vacuum -- seven tools, one per verb**, mirroring ``appliance_tools.py``'s
+own one-tool-per-command shape: four independent zero-payload commands,
+plus ``vacuum_set_fan_speed`` (Vacuum Fan Speed slice) -- one
+standalone value-bearing command, never merged into another verb, not
 attributes that combine, so no merged mutation tool exists for them.
 
 **Humidifier -- three tools, merged mutation**, mirroring
@@ -103,6 +105,20 @@ def build_vacuum_humidifier_tools(service: VacuumHumidifierService) -> list[Base
         return await _run_vacuum_command("vacuum_dock", "dock", service.return_to_base(device_id))
 
     @tool
+    async def vacuum_set_fan_speed(device_id: str, fan_speed: str) -> str:
+        """Set a robot vacuum's fan/suction speed by device id. Accepts
+        whatever label the device itself reports (call get_vacuum_state
+        first for its current fan_speed and fan_speed_list) -- there is
+        no fixed set of speed names across vacuums. Takes real effect on
+        the device -- confirm with the user before calling it."""
+        try:
+            result = await service.set_fan_speed(device_id, fan_speed)
+        except Exception as err:
+            _logger.warning("vacuum_set_fan_speed tool failed: {}", err)
+            return f"Couldn't set that vacuum's fan speed: {err}"
+        return _clip(json.dumps(result, indent=2, default=str))
+
+    @tool
     async def list_humidifiers(home_id: str = "", room_id: str = "") -> str:
         """List known humidifiers, optionally filtered by home_id or
         room_id. Entries show last-known DB fields only; call
@@ -153,6 +169,7 @@ def build_vacuum_humidifier_tools(service: VacuumHumidifierService) -> list[Base
         vacuum_stop,
         vacuum_pause,
         vacuum_dock,
+        vacuum_set_fan_speed,
         list_humidifiers,
         get_humidifier_state,
         set_humidifier_state,

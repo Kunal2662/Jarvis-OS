@@ -542,6 +542,255 @@ async def test_vacuum_mqtt_device_uses_defined_vocabulary(
     assert mqtt_connector.sent_commands == [(_VACUUM_EXTERNAL_ID, "start", {})]
 
 
+# --- Vacuum fan speed (Vacuum Fan Speed Logic Contract) ---------------------------------
+
+
+@pytest.mark.asyncio
+async def test_vacuum_fan_speed_read_gated_behind_available(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_vacuum(smart_home)
+    fake_connector.states[_VACUUM_EXTERNAL_ID] = _state(
+        status="cleaning", attributes={"fan_speed": "turbo"}, external_id=_VACUUM_EXTERNAL_ID
+    )
+
+    state = await service.get_vacuum_state(device.id)
+
+    assert state["fan_speed"] == "turbo"
+
+
+@pytest.mark.asyncio
+async def test_vacuum_fan_speed_unavailable_reports_none(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_vacuum(smart_home)
+    fake_connector.states[_VACUUM_EXTERNAL_ID] = _state(
+        status="unavailable", attributes={"fan_speed": "turbo"}, external_id=_VACUUM_EXTERNAL_ID
+    )
+
+    state = await service.get_vacuum_state(device.id)
+
+    assert state["fan_speed"] is None
+
+
+@pytest.mark.asyncio
+async def test_vacuum_fan_speed_list_survives_unavailability(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_vacuum(smart_home)
+    fake_connector.states[_VACUUM_EXTERNAL_ID] = _state(
+        status="unavailable",
+        attributes={"fan_speed_list": ["eco", "turbo"]},
+        external_id=_VACUUM_EXTERNAL_ID,
+    )
+
+    state = await service.get_vacuum_state(device.id)
+
+    assert state["available"] is False
+    assert state["fan_speed_list"] == ["eco", "turbo"]
+
+
+@pytest.mark.asyncio
+async def test_vacuum_fan_speed_list_missing_is_empty_list_not_none(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_vacuum(smart_home)
+    fake_connector.states[_VACUUM_EXTERNAL_ID] = _state(
+        status="docked", external_id=_VACUUM_EXTERNAL_ID
+    )
+
+    state = await service.get_vacuum_state(device.id)
+
+    assert state["fan_speed"] is None
+    assert state["fan_speed_list"] == []
+
+
+@pytest.mark.asyncio
+async def test_set_fan_speed_denied_without_grant(
+    service: VacuumHumidifierService, smart_home: SmartHomeService
+) -> None:
+    _, device = await _home_and_vacuum(smart_home)
+    with pytest.raises(ServiceError, match="permission"):
+        await service.set_fan_speed(device.id, "turbo")
+
+
+@pytest.mark.asyncio
+async def test_set_fan_speed_rejects_humidifier_device(
+    service: VacuumHumidifierService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    _, device = await _home_and_humidifier(smart_home)
+    with pytest.raises(ServiceError, match="not a vacuum"):
+        await service.set_fan_speed(device.id, "turbo")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["", "   "])
+async def test_empty_fan_speed_rejected(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    permissions: PermissionModel,
+    bad: str,
+) -> None:
+    await _grant(permissions)
+    _, device = await _home_and_vacuum(smart_home)
+    with pytest.raises(ServiceError, match="fan_speed must be a non-empty string"):
+        await service.set_fan_speed(device.id, bad)
+
+
+@pytest.mark.asyncio
+async def test_fan_speed_validated_against_device_reported_list(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_vacuum(smart_home)
+    fake_connector.states[_VACUUM_EXTERNAL_ID] = _state(
+        status="cleaning",
+        attributes={"fan_speed_list": ["eco", "turbo"]},
+        external_id=_VACUUM_EXTERNAL_ID,
+    )
+
+    with pytest.raises(ServiceError, match="not supported by this device"):
+        await service.set_fan_speed(device.id, "max")
+
+
+@pytest.mark.asyncio
+async def test_fan_speed_permissive_when_device_reports_no_list(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """No fixed fan-speed enum is invented -- rejecting a real device
+    over a vocabulary gap is the worse failure (Vacuum Fan Speed Logic
+    Contract §5, mirroring MediaPlayerService's identical rule)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_vacuum(smart_home)
+    fake_connector.states[_VACUUM_EXTERNAL_ID] = _state(
+        status="cleaning", external_id=_VACUUM_EXTERNAL_ID
+    )
+
+    result = await service.set_fan_speed(device.id, "Some Vendor Speed")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        (_VACUUM_EXTERNAL_ID, "set_fan_speed", {"fan_speed": "Some Vendor Speed"})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_set_fan_speed_sends_exactly_one_command_never_start(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_vacuum(smart_home)
+    fake_connector.states[_VACUUM_EXTERNAL_ID] = _state(
+        status="cleaning",
+        attributes={"fan_speed_list": ["eco", "turbo"]},
+        external_id=_VACUUM_EXTERNAL_ID,
+    )
+
+    result = await service.set_fan_speed(device.id, "turbo")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        (_VACUUM_EXTERNAL_ID, "set_fan_speed", {"fan_speed": "turbo"})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_set_fan_speed_failure_surfaced_not_raised(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_vacuum(smart_home)
+    fake_connector.states[_VACUUM_EXTERNAL_ID] = _state(
+        status="cleaning", external_id=_VACUUM_EXTERNAL_ID
+    )
+    fake_connector.next_command_succeeds = False
+
+    result = await service.set_fan_speed(device.id, "turbo")
+
+    assert result["success"] is False
+    assert "fake rejection" in result["detail"]
+
+
+def test_vacuum_ha_translator_fan_speed_payload() -> None:
+    from jarvis.services.vacuum_humidifier_service import VacuumCommand
+
+    assert _translate_vacuum_home_assistant(VacuumCommand.SET_FAN_SPEED, fan_speed="turbo") == (
+        "set_fan_speed",
+        {"fan_speed": "turbo"},
+    )
+
+
+def test_vacuum_mqtt_translator_fan_speed_payload() -> None:
+    from jarvis.services.vacuum_humidifier_service import VacuumCommand
+
+    assert _translate_vacuum_mqtt(VacuumCommand.SET_FAN_SPEED, fan_speed="turbo") == (
+        "set_fan_speed",
+        {"fan_speed": "turbo"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_vacuum_mqtt_device_set_fan_speed_uses_defined_vocabulary(
+    smart_home: SmartHomeService, permissions: PermissionModel, bus: EventBus
+) -> None:
+    mqtt_connector = FakeDeviceConnector()
+    mqtt_connector.connector_type = "mqtt"
+    reg = ConnectorFactoryRegistry()
+    reg.register("mqtt", lambda config: mqtt_connector)
+    conn = ConnectivityService(registry=reg, smart_home=smart_home, event_bus=bus)
+    svc = VacuumHumidifierService(smart_home=smart_home, connectivity=conn, permissions=permissions)
+    await conn.connect("mqtt")
+    await permissions.grant(VACUUM_HUMIDIFIER_PRINCIPAL, SMART_HOME_SCOPE)
+    _, device = await _home_and_vacuum(smart_home, connector_type="mqtt")
+    mqtt_connector.states[_VACUUM_EXTERNAL_ID] = _state(
+        status="cleaning", external_id=_VACUUM_EXTERNAL_ID
+    )
+
+    result = await svc.set_fan_speed(device.id, "turbo")
+
+    assert result["success"] is True
+    assert mqtt_connector.sent_commands == [
+        (_VACUUM_EXTERNAL_ID, "set_fan_speed", {"fan_speed": "turbo"})
+    ]
+
+
 # --- Humidifier state normalization ---------------------------------------------------
 
 

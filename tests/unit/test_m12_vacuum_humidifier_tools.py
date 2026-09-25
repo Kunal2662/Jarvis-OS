@@ -127,7 +127,7 @@ def test_registry_omits_tools_when_not_wired() -> None:
 
 
 @pytest.mark.asyncio
-async def test_registry_includes_all_nine_tools_when_service_provided(
+async def test_registry_includes_all_ten_tools_when_service_provided(
     service: VacuumHumidifierService,
 ) -> None:
     from jarvis.agents.tools.registry import build_tool_registry
@@ -141,13 +141,14 @@ async def test_registry_includes_all_nine_tools_when_service_provided(
         "vacuum_stop",
         "vacuum_pause",
         "vacuum_dock",
+        "vacuum_set_fan_speed",
         "list_humidifiers",
         "get_humidifier_state",
         "set_humidifier_state",
     } <= names
 
 
-def test_exactly_nine_tools_are_built(service: VacuumHumidifierService) -> None:
+def test_exactly_ten_tools_are_built(service: VacuumHumidifierService) -> None:
     built = {t.name for t in build_vacuum_humidifier_tools(service)}
     assert built == {
         "list_vacuums",
@@ -156,6 +157,7 @@ def test_exactly_nine_tools_are_built(service: VacuumHumidifierService) -> None:
         "vacuum_stop",
         "vacuum_pause",
         "vacuum_dock",
+        "vacuum_set_fan_speed",
         "list_humidifiers",
         "get_humidifier_state",
         "set_humidifier_state",
@@ -237,6 +239,70 @@ async def test_vacuum_tool_reports_unknown_device_without_raising(
     await _grant(permissions)
     result = await tools["vacuum_start"].ainvoke({"device_id": "no-such-device"})
     assert "Couldn't" in result
+
+
+@pytest.mark.asyncio
+async def test_vacuum_set_fan_speed_tool_denied_without_grant(
+    tools, smart_home: SmartHomeService
+) -> None:
+    device = await _register_vacuum(smart_home)
+    result = await tools["vacuum_set_fan_speed"].ainvoke(
+        {"device_id": device.id, "fan_speed": "turbo"}
+    )
+    assert "Couldn't" in result
+    assert "permission" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_vacuum_set_fan_speed_tool_succeeds_after_grant(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _register_vacuum(smart_home)
+    fake_connector.states[_VACUUM_EXTERNAL_ID] = DeviceState(
+        external_id=_VACUUM_EXTERNAL_ID,
+        status="cleaning",
+        attributes={"fan_speed_list": ["eco", "turbo"]},
+    )
+
+    result = await tools["vacuum_set_fan_speed"].ainvoke(
+        {"device_id": device.id, "fan_speed": "turbo"}
+    )
+
+    assert '"success": true' in result.lower()
+    assert fake_connector.sent_commands == [
+        (_VACUUM_EXTERNAL_ID, "set_fan_speed", {"fan_speed": "turbo"})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_vacuum_set_fan_speed_tool_rejects_unsupported_value_without_raising(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _register_vacuum(smart_home)
+    fake_connector.states[_VACUUM_EXTERNAL_ID] = DeviceState(
+        external_id=_VACUUM_EXTERNAL_ID,
+        status="cleaning",
+        attributes={"fan_speed_list": ["eco", "turbo"]},
+    )
+
+    result = await tools["vacuum_set_fan_speed"].ainvoke(
+        {"device_id": device.id, "fan_speed": "max"}
+    )
+
+    assert "Couldn't" in result
+    assert "not supported by this device" in result
 
 
 # --- Humidifier tools -------------------------------------------------------------

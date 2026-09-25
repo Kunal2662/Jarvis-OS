@@ -32,7 +32,14 @@ shape -- distinct verbs, not attributes that combine, so no merged
 mutation method exists for it. `state` is an open pass-through string,
 never validated against a closed vocabulary (Vacuum's real state
 vocabulary has zero repository evidence, unlike Cover's small,
-HA-standard set).
+HA-standard set). `set_fan_speed` (Vacuum Fan Speed slice) is a fifth,
+value-bearing command sent through the same `_send_vacuum` dispatch --
+`fan_speed` is validated against the device's own reported
+`fan_speed_list` only when non-empty, mirroring
+`MediaPlayerService._check_source`'s identical "no invented enum"
+discipline (HA defines no fixed fan-speed vocabulary, unlike Cover's
+tilt/position integers) -- see
+`docs/M12_APPLIANCE_VACUUM_FAN_SPEED_LOGIC_CONTRACT.md`.
 
 **Humidifier**: one merged mutation, `set_humidifier_state(on?,
 target_humidity?)`, mirroring `ThermostatService.set_thermostat_state`'s
@@ -89,30 +96,47 @@ _OFF_VALUES = frozenset({"off", "false", "0"})
 
 
 class VacuumCommand(enum.StrEnum):
-    """Four independent, zero-payload commands -- see module docstring."""
+    """Four independent, zero-payload commands, plus one value-bearing
+    command (`SET_FAN_SPEED`, Vacuum Fan Speed slice) -- see module
+    docstring."""
 
     START = "start"
     STOP = "stop"
     PAUSE = "pause"
     RETURN_TO_BASE = "return_to_base"
+    #: HA's own `vacuum.set_fan_speed` service -- one parameter,
+    #: `fan_speed` (externally verified this slice: a string label,
+    #: platform-dependent, no fixed HA-wide enum).
+    SET_FAN_SPEED = "set_fan_speed"
 
 
-def _translate_vacuum_home_assistant(command: VacuumCommand) -> tuple[str, dict[str, Any]]:
+def _translate_vacuum_home_assistant(
+    command: VacuumCommand, *, fan_speed: str | None = None
+) -> tuple[str, dict[str, Any]]:
     """HA's own `vacuum`-domain service names -- confirmed against HA's
     public documentation this session (start/stop/pause/return_to_base,
     each zero-payload); this repository carries no prior reference to
     any of them, so this remains the first time they are exercised
     here. Reached through the existing generic dispatcher
     (`HomeAssistantConnector.send_command` derives `domain` from
-    `external_id.split(".", 1)[0]`) -- zero connector changes."""
+    `external_id.split(".", 1)[0]`) -- zero connector changes.
+    `set_fan_speed` carries the one value HA's own service accepts
+    (Vacuum Fan Speed Logic Contract §1); the four original commands
+    are unaffected since `fan_speed` defaults to `None`."""
+    if fan_speed is not None:
+        return command.value, {"fan_speed": fan_speed}
     return command.value, {}
 
 
-def _translate_vacuum_mqtt(command: VacuumCommand) -> tuple[str, dict[str, Any]]:
+def _translate_vacuum_mqtt(
+    command: VacuumCommand, *, fan_speed: str | None = None
+) -> tuple[str, dict[str, Any]]:
     """A JARVIS-native vocabulary this module defines -- no prior MQTT
     consumer of vacuum commands existed. Reuses the identical literal
     strings for cross-connector predictability, the same choice
     Fan/Cover/Thermostat already made."""
+    if fan_speed is not None:
+        return command.value, {"fan_speed": fan_speed}
     return command.value, {}
 
 
@@ -196,6 +220,35 @@ def _coerce_float(value: Any) -> float | None:
     return None if math.isnan(parsed) or math.isinf(parsed) else parsed
 
 
+def _coerce_text(value: Any) -> str | None:
+    """Mirrors `MediaPlayerService._coerce_text` exactly -- `fan_speed`
+    is a free-form label, not a number, so `_coerce_float` does not
+    apply."""
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _coerce_fan_speed_list(value: Any) -> list[str]:
+    """The device's own reported supported-fan-speed list, stripped of
+    empty/non-string entries. `[]` when unreported or not a list --
+    never a fabricated default vocabulary. Case is preserved, mirroring
+    `MediaPlayerService._coerce_source_list`'s identical reasoning
+    (fan-speed labels like ``"Turbo"`` are often human-facing
+    mixed-case, not a normalized enum)."""
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [str(entry).strip() for entry in value if isinstance(entry, str) and entry.strip()]
+
+
+def _validate_fan_speed(value: Any) -> str:
+    """Mirrors `MediaPlayerService._validate_source` verbatim -- no
+    fixed vocabulary exists at the validation layer itself; the
+    device's own reported `fan_speed_list` is checked separately, by
+    `_check_fan_speed`, only when non-empty."""
+    if not isinstance(value, str) or not value.strip():
+        raise ServiceError(f"fan_speed must be a non-empty string; got {value!r}.")
+    return value.strip()
+
+
 def _infer_on(status: str) -> bool | None:
     normalized = status.strip().lower()
     if normalized in _ON_VALUES:
@@ -230,19 +283,29 @@ def _vacuum_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         "external_id": device.external_id,
         "state": None,
         "battery_level": None,
+        "fan_speed": None,
+        "fan_speed_list": [],
         "available": False,
     }
     if raw is None:
         return payload
 
     payload["available"] = raw.status.strip().lower() not in _OFFLINE_STATUS_VALUES
+    attributes = raw.attributes or {}
+    # Capability field survives unavailability -- it describes the
+    # device's declared fan-speed vocabulary, not a live reading
+    # (mirrors MediaPlayerService's identical rule for source_list).
+    payload["fan_speed_list"] = _coerce_fan_speed_list(attributes.get("fan_speed_list"))
     if payload["available"]:
         # Open pass-through -- never validated against a closed
         # vocabulary; unlike Cover, Vacuum's real state vocabulary has
         # zero repository evidence (Logic Contract §5).
         normalized = raw.status.strip().lower()
         payload["state"] = normalized or None
-    attributes = raw.attributes or {}
+        payload["fan_speed"] = _coerce_text(attributes.get("fan_speed"))
+    # battery_level is read unconditionally (unchanged from before this
+    # slice) -- a vacuum's battery reading is not itself gated behind
+    # `available` the way state/fan_speed are.
     payload["battery_level"] = _coerce_float(attributes.get("battery_level"))
     return payload
 
@@ -368,7 +431,35 @@ class VacuumHumidifierService:
         self._require_permission()
         return await self._send_vacuum(device_id, VacuumCommand.RETURN_TO_BASE)
 
-    async def _send_vacuum(self, device_id: str, command: VacuumCommand) -> dict[str, Any]:
+    async def set_fan_speed(self, device_id: str, fan_speed: str) -> dict[str, Any]:
+        """Sends exactly one `set_fan_speed` wire command -- never an
+        implicit accompanying `start`/`pause` call, mirroring
+        `ApplianceService.set_cover_position`'s own "exactly one
+        standalone wire command" discipline (Vacuum Fan Speed Logic
+        Contract §5)."""
+        self._require_permission()
+        validated = _validate_fan_speed(fan_speed)
+        await self._check_fan_speed(device_id, validated)
+        return await self._send_vacuum(device_id, VacuumCommand.SET_FAN_SPEED, fan_speed=validated)
+
+    async def _check_fan_speed(self, device_id: str, fan_speed: str) -> None:
+        """Mirrors `MediaPlayerService._check_source` verbatim --
+        permissive when the device reports no `fan_speed_list`, and a
+        read failure here is never fatal to the mutation."""
+        raw = None
+        with contextlib.suppress(ConnectivityError):
+            raw = await self._connectivity.read_raw_state(device_id)
+        if raw is None:
+            return
+        supported = _coerce_fan_speed_list((raw.attributes or {}).get("fan_speed_list"))
+        if supported and fan_speed not in supported:
+            raise ServiceError(
+                f"fan_speed {fan_speed!r} is not supported by this device; it reports {supported}."
+            )
+
+    async def _send_vacuum(
+        self, device_id: str, command: VacuumCommand, *, fan_speed: str | None = None
+    ) -> dict[str, Any]:
         device = await self._require_vacuum(device_id)
         connector_type = connector_type_for(device)
         if connector_type is None:
@@ -380,7 +471,7 @@ class VacuumHumidifierService:
             raise ServiceError(
                 f"Vacuum control has no command translation for connector type {connector_type!r}."
             )
-        wire_command, payload = translator(command)
+        wire_command, payload = translator(command, fan_speed=fan_speed)
         result = await self._connectivity.send_command(device_id, wire_command, payload)
         return {"device_id": device_id, "success": result.success, "detail": result.detail}
 
