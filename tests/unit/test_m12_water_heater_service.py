@@ -747,6 +747,32 @@ def test_mqtt_state_translator_is_always_one_merged_call() -> None:
     ]
 
 
+# --- Away/Vacation Mode translators (Away/Vacation Mode Logic Contract) --------------
+
+
+def test_state_translators_away_mode_individually() -> None:
+    assert _translate_state_home_assistant(
+        on=None, operation_mode=None, temperature=None, away_mode=True
+    ) == [("set_away_mode", {"away_mode": True})]
+
+
+def test_state_translators_ordering_extends_to_away_mode() -> None:
+    assert _translate_state_home_assistant(
+        on=True, operation_mode="eco", temperature=55.0, away_mode=True
+    ) == [
+        ("turn_on", {}),
+        ("set_operation_mode", {"operation_mode": "eco"}),
+        ("set_temperature", {"temperature": 55.0}),
+        ("set_away_mode", {"away_mode": True}),
+    ]
+
+
+def test_mqtt_state_translator_away_mode_merged() -> None:
+    assert _translate_state_mqtt(
+        on=None, operation_mode=None, temperature=None, away_mode=True
+    ) == [("set_state", {"away_mode": True})]
+
+
 @pytest.mark.asyncio
 async def test_mqtt_device_uses_merged_vocabulary(
     smart_home: SmartHomeService, permissions: PermissionModel, bus: EventBus
@@ -996,6 +1022,148 @@ async def test_non_bool_on_rejected(
         await service.set_water_heater_state(device.id, on=bad)
 
 
+# --- Away/Vacation Mode (Away/Vacation Mode Logic Contract) --------------------------
+
+
+@pytest.mark.asyncio
+async def test_away_mode_denied_without_grant(
+    service: WaterHeaterService, smart_home: SmartHomeService
+) -> None:
+    _, device = await _home_and_water_heater(smart_home)
+    with pytest.raises(ServiceError, match="permission"):
+        await service.set_water_heater_state(device.id, away_mode=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["true", 1, 0])
+async def test_non_bool_away_mode_rejected(
+    service: WaterHeaterService,
+    smart_home: SmartHomeService,
+    permissions: PermissionModel,
+    bad,
+) -> None:
+    await _grant(permissions)
+    _, device = await _home_and_water_heater(smart_home)
+    with pytest.raises(ServiceError, match="away_mode must be a boolean"):
+        await service.set_water_heater_state(device.id, away_mode=bad)
+
+
+@pytest.mark.asyncio
+async def test_away_mode_only_mutation_true(
+    service: WaterHeaterService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_water_heater(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(status="eco")
+
+    result = await service.set_water_heater_state(device.id, away_mode=True)
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [(_EXTERNAL_ID, "set_away_mode", {"away_mode": True})]
+
+
+@pytest.mark.asyncio
+async def test_away_mode_only_mutation_false(
+    service: WaterHeaterService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_water_heater(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(status="eco")
+
+    result = await service.set_water_heater_state(device.id, away_mode=False)
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [(_EXTERNAL_ID, "set_away_mode", {"away_mode": False})]
+
+
+@pytest.mark.asyncio
+async def test_all_four_combined_ordering_on_mode_temperature_away(
+    service: WaterHeaterService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_water_heater(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(
+        status="eco", attributes={"operation_list": ["eco", "electric"]}
+    )
+
+    result = await service.set_water_heater_state(
+        device.id, on=True, operation_mode="electric", temperature=55.0, away_mode=True
+    )
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        (_EXTERNAL_ID, "turn_on", {}),
+        (_EXTERNAL_ID, "set_operation_mode", {"operation_mode": "electric"}),
+        (_EXTERNAL_ID, "set_temperature", {"temperature": 55.0}),
+        (_EXTERNAL_ID, "set_away_mode", {"away_mode": True}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_away_mode_read_gated_behind_available(
+    service: WaterHeaterService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_water_heater(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(status="eco", attributes={"away_mode": True})
+
+    state = await service.get_water_heater_state(device.id)
+
+    assert state["away_mode"] is True
+
+
+@pytest.mark.asyncio
+async def test_away_mode_unavailable_reports_none(
+    service: WaterHeaterService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_water_heater(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(
+        status="unavailable", attributes={"away_mode": True}
+    )
+
+    state = await service.get_water_heater_state(device.id)
+
+    assert state["away_mode"] is None
+
+
+@pytest.mark.asyncio
+async def test_away_mode_missing_reports_none(
+    service: WaterHeaterService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_water_heater(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(status="eco")
+
+    state = await service.get_water_heater_state(device.id)
+
+    assert state["away_mode"] is None
+
+
 # --- Cross-cutting invariants --------------------------------------------------------
 
 
@@ -1047,17 +1215,17 @@ def test_appliance_service_was_not_extended() -> None:
 
 
 def test_no_deferred_functionality_exists() -> None:
-    """Away/vacation mode, dual setpoint, scheduling, and every other
-    deferred item must not exist anywhere in the implementation (Logic
-    Contract §16)."""
+    """Dual setpoint, scheduling, and every other deferred item must
+    not exist anywhere in the implementation (Logic Contract §16).
+    away_mode/vacation were closed by the Away/Vacation Mode slice and
+    are no longer deferred -- see that slice's own dedicated tests
+    below."""
     import inspect
 
     from jarvis.services import water_heater_service
 
     source = inspect.getsource(water_heater_service).lower()
     for deferred_term in (
-        "away_mode",
-        "vacation",
         "target_temperature_high",
         "target_temperature_low",
         "schedule",

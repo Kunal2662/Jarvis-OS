@@ -340,6 +340,45 @@ def test_invalid_on_type_is_422(client, auth, fake_connector) -> None:
     assert response.status_code == 422
 
 
+def test_away_mode_update_succeeds_after_grant(client, auth, fake_connector) -> None:
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    _connect(client, auth)
+    discovered = _discover(client, auth, fake_connector, home_id, [_water_heater()])
+    device_id = discovered[0]["id"]
+    fake_connector.states[_EXTERNAL_ID] = DeviceState(
+        external_id=_EXTERNAL_ID, status="eco", attributes={}
+    )
+    _grant(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/water-heaters/{device_id}/state",
+        json={"away_mode": True},
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["success"] is True
+    assert fake_connector.sent_commands == [(_EXTERNAL_ID, "set_away_mode", {"away_mode": True})]
+
+
+def test_invalid_away_mode_type_is_422(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    _connect(client, auth)
+    discovered = _discover(client, auth, fake_connector, home_id, [_water_heater()])
+    device_id = discovered[0]["id"]
+    _grant(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/water-heaters/{device_id}/state",
+        json={"away_mode": "not-a-bool"},
+        headers=auth,
+    )
+
+    assert response.status_code == 422
+
+
 def test_bad_operation_mode_is_400(client, auth, fake_connector) -> None:
     from jarvis.core.interfaces.connectivity import DeviceState
 

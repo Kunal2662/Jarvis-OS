@@ -44,6 +44,7 @@ class SetWaterHeaterStateRequest(BaseModel):
     temperature: float | None = None
     operation_mode: str | None = None
     on: bool | None = None
+    away_mode: bool | None = None
 
 
 def _service(request: Request) -> WaterHeaterService:
@@ -89,6 +90,7 @@ async def set_water_heater_state(
             temperature=body.temperature,
             operation_mode=body.operation_mode,
             on=body.on,
+            away_mode=body.away_mode,
         )
     except ServiceError as err:
         raise _bad_request(err) from err

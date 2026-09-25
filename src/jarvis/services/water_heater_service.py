@@ -39,6 +39,12 @@ three sequential calls, ordered on/off, then mode, then temperature (a
 stated convention, not a discovered HA dependency -- Logic Contract
 §10). MQTT's own envelope has no such constraint and stays one merged
 `set_state` call.
+
+**Away/Vacation Mode slice**: one more keyword (`away_mode`) merged
+into the same `set_water_heater_state` mutation, appended last in call
+order. A plain boolean, the same shape `on` already has -- no
+device-reported capability list exists for it. See
+`docs/M12_APPLIANCE_WATER_HEATER_AWAY_MODE_LOGIC_CONTRACT.md`.
 """
 
 from __future__ import annotations
@@ -77,9 +83,13 @@ _OFF_VALUES = frozenset({"off", "false", "0"})
 
 
 def _translate_state_home_assistant(
-    *, on: bool | None, operation_mode: str | None, temperature: float | None
+    *,
+    on: bool | None,
+    operation_mode: str | None,
+    temperature: float | None,
+    away_mode: bool | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
-    """HA's own three independent single-purpose services -- `turn_on`/
+    """HA's own independent single-purpose services -- `turn_on`/
     `turn_off`, `set_operation_mode`, `set_temperature` -- verified
     against HA's actual `services.yaml` this session (Logic Contract
     §8/§20's evidence ledger): `set_operation_mode` takes exactly
@@ -87,12 +97,13 @@ def _translate_state_home_assistant(
     `{"temperature": <float>}` (it also optionally accepts
     `operation_mode`, but this module never uses that combined form --
     the contract's own three-independent-calls design is retained
-    deliberately, not silently replaced by a discovered shortcut).
-    **Up to three calls when all three are requested**, in the
-    contract's declared order (on/off, mode, temperature) -- a
-    convention, not a discovered HA dependency, since no evidence ties
-    operation mode to what a temperature setpoint means the way
-    Thermostat's HVAC mode does."""
+    deliberately, not silently replaced by a discovered shortcut), plus
+    `set_away_mode` (Away/Vacation Mode Logic Contract §1), taking
+    exactly `{"away_mode": <bool>}`. **Up to four calls when all four
+    are requested**, in the contract's declared order (on/off, mode,
+    temperature, away_mode) -- a convention, not a discovered HA
+    dependency, since no evidence ties any of the four to what another
+    means the way Thermostat's HVAC mode does."""
     calls: list[tuple[str, dict[str, Any]]] = []
     if on is True:
         calls.append(("turn_on", {}))
@@ -102,17 +113,23 @@ def _translate_state_home_assistant(
         calls.append(("set_operation_mode", {"operation_mode": operation_mode}))
     if temperature is not None:
         calls.append(("set_temperature", {"temperature": temperature}))
+    if away_mode is not None:
+        calls.append(("set_away_mode", {"away_mode": away_mode}))
     return calls
 
 
 def _translate_state_mqtt(
-    *, on: bool | None, operation_mode: str | None, temperature: float | None
+    *,
+    on: bool | None,
+    operation_mode: str | None,
+    temperature: float | None,
+    away_mode: bool | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
     """The JARVIS-native MQTT vocabulary this module defines -- always
     one merged `set_state` call, mirroring `ThermostatService`'s/
     `VacuumHumidifierService`'s/`MediaPlayerService`'s own MQTT
-    convention. Deliberately *not* copying HA's three-service split --
-    the MQTT envelope has no such constraint."""
+    convention. Deliberately *not* copying HA's per-attribute service
+    split -- the MQTT envelope has no such constraint."""
     args: dict[str, Any] = {}
     if on is not None:
         args["on"] = on
@@ -120,6 +137,8 @@ def _translate_state_mqtt(
         args["operation_mode"] = operation_mode
     if temperature is not None:
         args["temperature"] = temperature
+    if away_mode is not None:
+        args["away_mode"] = away_mode
     return [("set_state", args)]
 
 
@@ -220,6 +239,16 @@ def _validate_on(value: Any) -> bool:
     return value
 
 
+def _validate_away_mode(value: Any) -> bool:
+    """Mirrors `_validate_on` verbatim -- a distinct helper per field,
+    even with an identical body, so a validation error names the field
+    that was actually wrong (this module's own established convention,
+    e.g. `_validate_operation_mode`/`_validate_on`)."""
+    if not isinstance(value, bool):
+        raise ServiceError(f"away_mode must be a boolean; got {value!r}.")
+    return value
+
+
 def _water_heater_payload(device: Device, raw: Any = None) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id": device.id,
@@ -239,6 +268,7 @@ def _water_heater_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         "operation_list": [],
         "min_temp": None,
         "max_temp": None,
+        "away_mode": None,
     }
     if raw is None:
         return payload
@@ -264,6 +294,8 @@ def _water_heater_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         payload["operation_mode"] = payload["state"]
         payload["current_temperature"] = _coerce_float(attributes.get("current_temperature"))
         payload["target_temperature"] = _coerce_float(attributes.get("temperature"))
+        away_mode = attributes.get("away_mode")
+        payload["away_mode"] = away_mode if isinstance(away_mode, bool) else None
     return payload
 
 
@@ -336,12 +368,13 @@ class WaterHeaterService:
         temperature: float | None = None,
         operation_mode: str | None = None,
         on: bool | None = None,
+        away_mode: bool | None = None,
     ) -> dict[str, Any]:
         self._require_permission()
-        if temperature is None and operation_mode is None and on is None:
+        if temperature is None and operation_mode is None and on is None and away_mode is None:
             raise ServiceError(
                 "set_water_heater_state requires at least one of 'temperature', "
-                "'operation_mode', or 'on'."
+                "'operation_mode', 'on', or 'away_mode'."
             )
 
         device = await self._require_water_heater(device_id)
@@ -361,13 +394,17 @@ class WaterHeaterService:
             None if operation_mode is None else _validate_operation_mode(operation_mode)
         )
         validated_temperature = None if temperature is None else _validate_temperature(temperature)
+        validated_away_mode = None if away_mode is None else _validate_away_mode(away_mode)
         if validated_mode is not None:
             await self._check_operation_mode(device_id, validated_mode)
         if validated_temperature is not None:
             await self._check_temperature_bounds(device_id, validated_temperature)
 
         calls = translator(
-            on=validated_on, operation_mode=validated_mode, temperature=validated_temperature
+            on=validated_on,
+            operation_mode=validated_mode,
+            temperature=validated_temperature,
+            away_mode=validated_away_mode,
         )
         return await self._send_all(device_id, calls)
 

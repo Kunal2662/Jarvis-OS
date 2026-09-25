@@ -235,6 +235,29 @@ async def test_set_water_heater_state_tool_reports_error_without_raising(tools) 
     assert "Couldn't" in result
 
 
+@pytest.mark.asyncio
+async def test_set_water_heater_state_tool_away_mode(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _register_water_heater(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = DeviceState(
+        external_id=_EXTERNAL_ID, status="eco", attributes={}
+    )
+
+    result = await tools["set_water_heater_state"].ainvoke(
+        {"device_id": device.id, "away_mode": True}
+    )
+
+    assert '"success": true' in result.lower()
+    assert fake_connector.sent_commands == [(_EXTERNAL_ID, "set_away_mode", {"away_mode": True})]
+
+
 # --- Confirmation metadata (Logic Contract §11/§13) ---------------------------------
 
 

@@ -73,19 +73,21 @@ def build_water_heater_tools(service: WaterHeaterService) -> list[BaseTool]:
         temperature: float | None = None,
         operation_mode: str = "",
         on: bool | None = None,
+        away_mode: bool | None = None,
     ) -> str:
         """Set a water heater's target temperature, operation mode,
-        and/or on/off in one call. Supply at least one of them.
-        Temperature is in the device's own unit -- no conversion is
-        performed. operation_mode must be one the device reports as
-        supported (see get_water_heater_state). Takes real effect on
-        the device."""
+        on/off, and/or away (vacation) mode in one call. Supply at
+        least one of them. Temperature is in the device's own unit --
+        no conversion is performed. operation_mode must be one the
+        device reports as supported (see get_water_heater_state).
+        Takes real effect on the device."""
         try:
             result = await service.set_water_heater_state(
                 device_id,
                 temperature=temperature,
                 operation_mode=operation_mode or None,
                 on=on,
+                away_mode=away_mode,
             )
         except Exception as err:
             _logger.warning("set_water_heater_state tool failed: {}", err)
