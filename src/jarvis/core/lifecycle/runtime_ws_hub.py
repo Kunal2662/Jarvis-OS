@@ -265,6 +265,15 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
 #: change outside those task groups' backend-only scope. Internal
 #: subscribers (audit, a future observability consumer) can still
 #: receive them from the event bus today.
+#:
+#: ``DeviceCommandExecutedEvent`` (Milestone 12 Developer Tools, Event
+#: Viewer slice) is published (by ``ConnectivityService.send_command``,
+#: for every outcome) and joins this list for the identical reason: its
+#: own devtools capability (``DeviceEventLog``, queried over
+#: ``/api/v1/devtools/events``) is backend-only by design, matching
+#: every M12 Developer Tools slice shipped so far -- relay is not being
+#: skipped by omission, it is the same deliberately-deferred decision
+#: as the four Integration events above.
 UNPUBLISHED_EVENT_TYPES: tuple[str, ...] = (
     "WorkflowStepEvent",
     "ScheduledJobFiredEvent",
@@ -274,6 +283,7 @@ UNPUBLISHED_EVENT_TYPES: tuple[str, ...] = (
     "IntegrationSwitchEvent",
     "IntegrationFailoverEvent",
     "IntegrationDiscoveryEvent",
+    "DeviceCommandExecutedEvent",
 )
 
 #: ``DebugLogCapturedEvent`` is published (by ``DebugConsole``) and is

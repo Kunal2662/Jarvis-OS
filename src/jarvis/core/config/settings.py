@@ -721,6 +721,13 @@ class DevToolsSettings(BaseSettings):
     #: M12_DEVELOPER_TOOLS_DEVICE_SIMULATOR_LOGIC_CONTRACT.md` §2/§4).
     #: Never affects the `"mqtt"` registry key.
     simulator_enabled: bool = False
+    #: Milestone 12 Developer Tools (Event Viewer Slice). On by default,
+    #: matching `debug_console_enabled`'s own "opt-out-if-you-must"
+    #: posture -- the capture cost is one `EventBus` subscription and a
+    #: bounded deque append per device command, negligible next to
+    #: `debug_console`'s own per-log-line sink.
+    device_event_log_enabled: bool = True
+    device_event_log_max_entries: int = 200
 
     model_config = SettingsConfigDict(env_prefix=f"{ENV_PREFIX}DEVTOOLS_", extra="ignore")
 

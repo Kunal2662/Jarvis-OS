@@ -18,7 +18,7 @@ import pytest
 from jarvis.core.connectivity.registry import ConnectorFactoryRegistry
 from jarvis.core.devtools.debug_console import DebugConsole
 from jarvis.core.events.event_bus import EventBus
-from jarvis.core.events.events import ConnectivityStatusChangedEvent
+from jarvis.core.events.events import ConnectivityStatusChangedEvent, DeviceCommandExecutedEvent
 from jarvis.core.exceptions import ServiceError
 from jarvis.core.interfaces.connectivity import (
     ConnectorNotConnectedError,
@@ -444,3 +444,116 @@ async def test_send_command_connector_not_connected_is_logged_before_raising(
     entries = console.entries(contains=device.id)
     assert len(entries) == 1
     assert entries[0].level == "WARNING"
+
+
+# ---------------------------------------------------------------------------
+# Event Viewer -- Milestone 12 Developer Tools (Event Viewer Slice).
+# `send_command` is the single chokepoint every device-category
+# service's mutation funnels through; these tests confirm it publishes
+# one `DeviceCommandExecutedEvent` per outcome, and never one carrying
+# `payload`-derived data (there is no `payload` field on the event at
+# all, structurally).
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def device_events(bus: EventBus) -> list[DeviceCommandExecutedEvent]:
+    seen: list[DeviceCommandExecutedEvent] = []
+    bus.subscribe(DeviceCommandExecutedEvent, lambda e: seen.append(e) or None)
+    return seen
+
+
+@pytest.mark.asyncio
+async def test_send_command_success_publishes_an_event(
+    service: ConnectivityService,
+    smart_home: SmartHomeService,
+    fake_connector: FakeDeviceConnector,
+    device_events: list[DeviceCommandExecutedEvent],
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    fake_connector.devices = [DiscoveredDevice(external_id="ha-1", name="Lock")]
+    await service.connect("home_assistant")
+    [device] = await service.run_discovery("home_assistant", home.id)
+
+    await service.send_command(device.id, "lock", {"code": "1234"})
+
+    assert len(device_events) == 1
+    event = device_events[0]
+    assert event.device_id == device.id
+    assert event.command == "lock"
+    assert event.success is True
+    assert event.detail == ""
+    assert not hasattr(event, "payload")
+
+
+@pytest.mark.asyncio
+async def test_send_command_device_level_rejection_publishes_an_event(
+    service: ConnectivityService,
+    smart_home: SmartHomeService,
+    fake_connector: FakeDeviceConnector,
+    device_events: list[DeviceCommandExecutedEvent],
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    fake_connector.devices = [DiscoveredDevice(external_id="ha-1", name="Lock")]
+    await service.connect("home_assistant")
+    [device] = await service.run_discovery("home_assistant", home.id)
+    fake_connector.next_command_succeeds = False
+
+    await service.send_command(device.id, "lock", {"code": "9999"})
+
+    assert len(device_events) == 1
+    assert device_events[0].success is False
+    assert device_events[0].detail == "fake rejection"
+
+
+@pytest.mark.asyncio
+async def test_send_command_no_recorded_connector_publishes_an_event_before_raising(
+    service: ConnectivityService,
+    smart_home: SmartHomeService,
+    device_events: list[DeviceCommandExecutedEvent],
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    manual = await smart_home.register_discovered_device(home.id, "Manually Added Sensor")
+
+    with pytest.raises(ConnectorNotConnectedError):
+        await service.send_command(manual.id, "toggle", {})
+
+    assert len(device_events) == 1
+    assert device_events[0].device_id == manual.id
+    assert device_events[0].success is False
+    assert "no recorded connector" in device_events[0].detail
+
+
+@pytest.mark.asyncio
+async def test_send_command_connector_not_connected_publishes_an_event_before_raising(
+    service: ConnectivityService,
+    smart_home: SmartHomeService,
+    fake_connector: FakeDeviceConnector,
+    device_events: list[DeviceCommandExecutedEvent],
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    fake_connector.devices = [DiscoveredDevice(external_id="ha-1", name="Lock")]
+    await service.connect("home_assistant")
+    [device] = await service.run_discovery("home_assistant", home.id)
+    await service.disconnect("home_assistant")
+
+    with pytest.raises(ConnectorNotConnectedError):
+        await service.send_command(device.id, "lock", {})
+
+    assert len(device_events) == 1
+    assert device_events[0].success is False
+
+
+@pytest.mark.asyncio
+async def test_no_event_published_without_an_event_bus(
+    smart_home: SmartHomeService,
+    registry: ConnectorFactoryRegistry,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    service_without_bus = ConnectivityService(registry=registry, smart_home=smart_home)
+    home = await smart_home.create_home("Primary Residence")
+    fake_connector.devices = [DiscoveredDevice(external_id="ha-1", name="Lock")]
+    await service_without_bus.connect("home_assistant")
+    [device] = await service_without_bus.run_discovery("home_assistant", home.id)
+
+    # Must not raise even with no event_bus configured.
+    result = await service_without_bus.send_command(device.id, "lock", {})
+    assert result.success is True

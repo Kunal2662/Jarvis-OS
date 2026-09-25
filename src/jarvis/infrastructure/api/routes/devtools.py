@@ -82,6 +82,17 @@ directly. ``ConnectivityService`` caches at most one connector per
 global buffer, never scoped per home. Inbound messages only, redacted
 and length-bounded before storage. No ``PermissionModel`` gate,
 matching every other devtools capability -- session auth only.
+
+**Event Viewer** (``docs/M12_DEVELOPER_TOOLS_EVENT_VIEWER_LOGIC_CONTRACT.md``)
+is a thin REST read over ``DeviceEventLog`` (``core/devtools/
+device_event_log.py``), which captures ``DeviceCommandExecutedEvent``
+-- a new event ``ConnectivityService.send_command`` now publishes for
+every outcome, closing the previously-named gap in Device Diagnostics'/
+Device Logs' own Logic Contracts. Deliberately not relayed over
+WebSocket (see ``core/lifecycle/runtime_ws_hub.py``'s
+``UNPUBLISHED_EVENT_TYPES``) -- backend-only, matching every M12
+Developer Tools slice's own scope. No ``PermissionModel`` gate,
+matching every other devtools capability -- session auth only.
 """
 
 from __future__ import annotations
@@ -98,6 +109,7 @@ if TYPE_CHECKING:
     from jarvis.core.connectivity.connectors.simulator import SimulatorConnector
     from jarvis.core.devtools.api_inspector import ApiInspector
     from jarvis.core.devtools.debug_console import DebugConsole
+    from jarvis.core.devtools.device_event_log import DeviceEventLog
     from jarvis.core.devtools.performance_profiler import PerformanceProfiler
     from jarvis.core.devtools.state_inspector import StateInspector
     from jarvis.core.plugins.permissions import PermissionModel
@@ -169,6 +181,10 @@ class SetSimulatorFaultRequest(BaseModel):
 # ---------------------------------------------------------------------------
 def _debug_console(request: Request) -> DebugConsole:
     return cast("DebugConsole", request.app.state.container.debug_console())
+
+
+def _device_event_log(request: Request) -> DeviceEventLog:
+    return cast("DeviceEventLog", request.app.state.container.device_event_log())
 
 
 def _performance_profiler(request: Request) -> PerformanceProfiler:
@@ -251,6 +267,39 @@ async def get_debug_logs(
 @router.delete("/devtools/logs", response_model=Envelope[dict[str, Any]])
 async def clear_debug_logs(request: Request) -> Envelope[dict[str, Any]]:
     _debug_console(request).clear()
+    return envelope({"cleared": True})
+
+
+# ---------------------------------------------------------------------------
+# Event Viewer -- Milestone 12 Developer Tools (Event Viewer Slice)
+# ---------------------------------------------------------------------------
+@router.get("/devtools/events", response_model=Envelope[tuple[dict[str, Any], ...]])
+async def get_device_events(
+    request: Request, device_id: str | None = None, limit: int = 200
+) -> Envelope[tuple[dict[str, Any], ...]]:
+    """Most-recent-first `DeviceCommandExecutedEvent` history, captured
+    by `DeviceEventLog` regardless of whether the id/topic is
+    recognized. No device-existence check -- unlike Device Logs' own
+    `/devices/{id}/logs`, an unknown or typo'd `device_id` here just
+    means "nothing happened for that id," never a 404."""
+    log = _device_event_log(request)
+    entries = log.entries(device_id=device_id, limit=limit)
+    payload = tuple(
+        {
+            "at": e.at.isoformat(),
+            "device_id": e.device_id,
+            "command": e.command,
+            "success": e.success,
+            "detail": e.detail,
+        }
+        for e in entries
+    )
+    return envelope(payload, meta={"count": len(payload), "running": log.is_running})
+
+
+@router.delete("/devtools/events", response_model=Envelope[dict[str, Any]])
+async def clear_device_events(request: Request) -> Envelope[dict[str, Any]]:
+    _device_event_log(request).clear()
     return envelope({"cleared": True})
 
 

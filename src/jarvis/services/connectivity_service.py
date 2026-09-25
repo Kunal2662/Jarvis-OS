@@ -236,15 +236,20 @@ class ConnectivityService:
         Logs Slice: every device-category service's own mutation
         already funnels through this one method, so this is the single
         place that makes `GET /devtools/devices/{id}/logs` meaningful
-        for every device type without touching any of them). `payload`
-        is deliberately never logged -- it can carry a lock's own PIN
-        (`{"code": "1234"}`) or similarly sensitive data.
+        for every device type without touching any of them) and
+        published as one `DeviceCommandExecutedEvent` (Event Viewer
+        Slice), the same four outcomes either way. `payload` is
+        deliberately never logged or published -- it can carry a lock's
+        own PIN (`{"code": "1234"}`) or similarly sensitive data.
         """
         device = await self._smart_home.require_device(device_id)
         connector_type = connector_type_for(device)
         if connector_type is None:
             _logger.warning(
                 "Device {!r} command {!r} failed: no recorded connector.", device_id, command
+            )
+            await self._publish_command_event(
+                device_id, command, success=False, detail="no recorded connector"
             )
             raise ConnectorNotConnectedError(
                 f"Device {device_id!r} has no recorded connector; it cannot be commanded."
@@ -254,6 +259,7 @@ class ConnectivityService:
             result = await connector.send_command(device.external_id or "", command, payload or {})
         except ConnectivityError as err:
             _logger.warning("Device {!r} command {!r} failed: {}", device_id, command, err)
+            await self._publish_command_event(device_id, command, success=False, detail=str(err))
             raise
         if result.success:
             _logger.info("Device {!r} command {!r} succeeded.", device_id, command)
@@ -261,6 +267,9 @@ class ConnectivityService:
             _logger.warning(
                 "Device {!r} command {!r} failed: {}", device_id, command, result.detail
             )
+        await self._publish_command_event(
+            device_id, command, success=result.success, detail=result.detail
+        )
         return result
 
     # ------------------------------------------------------------------
@@ -274,5 +283,18 @@ class ConnectivityService:
         await self._event_bus.publish(
             ConnectivityStatusChangedEvent(
                 connector_type=connector_type, status=status, detail=detail
+            )
+        )
+
+    async def _publish_command_event(
+        self, device_id: str, command: str, *, success: bool, detail: str
+    ) -> None:
+        if self._event_bus is None:
+            return
+        from jarvis.core.events.events import DeviceCommandExecutedEvent
+
+        await self._event_bus.publish(
+            DeviceCommandExecutedEvent(
+                device_id=device_id, command=command, success=success, detail=detail
             )
         )

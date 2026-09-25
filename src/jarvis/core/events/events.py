@@ -969,3 +969,25 @@ class ConnectivityStatusChangedEvent(Event):
     connector_type: str = ""
     status: str = "disconnected"  # connecting|connected|disconnecting|disconnected
     detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class DeviceCommandExecutedEvent(Event):
+    """Published by :class:`~jarvis.services.connectivity_service.
+    ConnectivityService` for every ``send_command`` outcome (success, a
+    device-level rejection, no recorded connector, or a connector-level
+    failure) -- Milestone 12 Developer Tools, Event Viewer slice. Closes
+    the "no device-command event exists on the EventBus" gap Device
+    Diagnostics'/Device Logs' own Logic Contracts both named explicitly.
+    Deliberately not relayed over WebSocket (see
+    ``core/lifecycle/runtime_ws_hub.py``'s ``UNPUBLISHED_EVENT_TYPES``) --
+    a backend-only capture, same scope discipline every other M12
+    Developer Tools slice has kept. No ``payload`` field, structurally,
+    not merely filtered: a command's payload can carry a lock's own PIN,
+    the same reasoning Device Logs already established for never
+    logging it."""
+
+    device_id: str = ""
+    command: str = ""
+    success: bool = False
+    detail: str = ""

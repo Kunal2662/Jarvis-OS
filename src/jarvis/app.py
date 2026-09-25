@@ -595,14 +595,18 @@ class ApplicationBootstrapper:
         report health), shutdown priority 8 (one later than Task Group
         C's Crash Recovery mark-clean at 7, so they keep capturing
         until the very end). Neither is a hard dependency of anything
-        else -- both are no-ops if `settings.devtools.*_enabled` is
-        false.
+        else -- all three are no-ops if `settings.devtools.*_enabled` is
+        false. Device Event Log (Milestone 12 Developer Tools, Event
+        Viewer slice) joins the same bookend band for the same reason --
+        it should capture every `DeviceCommandExecutedEvent` from as
+        early in startup as possible.
         """
         from jarvis.core.lifecycle.runtime_manager import PRIORITY_FIRST
 
         assert self._container is not None
         debug_console = self._container.debug_console()
         performance_profiler = self._container.performance_profiler()
+        device_event_log = self._container.device_event_log()
 
         if settings.devtools.debug_console_enabled:
 
@@ -618,6 +622,22 @@ class ApplicationBootstrapper:
 
             runtime_manager.register(
                 "debug_console", _stop_debug_console, priority=PRIORITY_FIRST + 8
+            )
+
+        if settings.devtools.device_event_log_enabled:
+
+            async def _start_device_event_log() -> None:
+                device_event_log.start()
+
+            runtime_manager.register_startup(
+                "device_event_log", _start_device_event_log, priority=PRIORITY_FIRST - 1
+            )
+
+            async def _stop_device_event_log() -> None:
+                device_event_log.stop()
+
+            runtime_manager.register(
+                "device_event_log", _stop_device_event_log, priority=PRIORITY_FIRST + 8
             )
 
         async def _start_performance_profiler() -> None:

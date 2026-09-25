@@ -1175,6 +1175,12 @@ def _build_debug_console(*, event_bus: Any, settings: Settings) -> Any:
     return DebugConsole(event_bus, max_entries=settings.devtools.debug_console_max_entries)
 
 
+def _build_device_event_log(*, event_bus: Any, settings: Settings) -> Any:
+    from jarvis.core.devtools.device_event_log import DeviceEventLog
+
+    return DeviceEventLog(event_bus, max_entries=settings.devtools.device_event_log_max_entries)
+
+
 def _build_performance_profiler(*, event_bus: Any, settings: Settings) -> Any:
     from jarvis.core.devtools.performance_profiler import PerformanceProfiler
 
@@ -1921,6 +1927,11 @@ class Container(containers.DeclarativeContainer):
     # ---- Milestone 9 Task Group E -- Developer Platform Tools --------------
     debug_console = providers.Singleton(
         _build_debug_console,
+        event_bus=event_bus,
+        settings=settings,
+    )
+    device_event_log = providers.Singleton(
+        _build_device_event_log,
         event_bus=event_bus,
         settings=settings,
     )
