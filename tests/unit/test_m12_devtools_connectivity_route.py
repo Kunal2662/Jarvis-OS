@@ -204,11 +204,16 @@ def test_no_mutation_route_exists(client, auth) -> None:
 
 
 def test_no_convenience_endpoints_beyond_contract(client, auth) -> None:
+    """`/api/v1/devtools/events` was originally pinned here too, back
+    when this slice shipped and nothing served that path -- it is a
+    real, intentional route as of the Event Viewer slice (Task Group X,
+    `GET/DELETE /api/v1/devtools/events`), so it is no longer a
+    "convenience endpoint beyond contract" and is removed from this
+    list rather than left to bit-rot into a false regression."""
     for path in (
         "/api/v1/devtools/connectivity/latency",
         "/api/v1/devtools/connectivity/uptime",
         "/api/v1/devtools/connectivity/history",
         "/api/v1/devtools/mqtt",
-        "/api/v1/devtools/events",
     ):
         assert client.get(path, headers=auth).status_code == 404
