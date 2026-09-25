@@ -3,6 +3,36 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Water Heater Away/Vacation Mode (Task Group CC)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes the "Away/vacation mode" item the Water Heater Core Slice's own
+Logic Contract explicitly named and deferred: "Real HA feature
+(VERIFIED EXTERNALLY, §7's source) but out of this MVP's named scope."
+Dual setpoint and everything else in that slice's own deferred table
+remain separately deferred, unchanged. Preceded by a Logic Contract
+(`docs/M12_APPLIANCE_WATER_HEATER_AWAY_MODE_LOGIC_CONTRACT.md`). The HA
+service (`water_heater.set_away_mode`) and its read attribute
+(`away_mode`, confirmed against `home-assistant/core`'s own
+`ATTR_AWAY_MODE` constant) were re-verified this session. 14 new
+tests, 0 failures, 0 errors.
+
+### Added
+- **`WaterHeaterService.set_water_heater_state`** gains a fourth
+  optional keyword, `away_mode`, additive to the existing merged-update
+  shape (not a new method) -- a plain boolean, the same shape `on`
+  already has (no device-reported capability list exists for it, unlike
+  `operation_mode`). Call order extends to on/off, mode, temperature,
+  away_mode.
+- **Read model** gains `away_mode` (current reading, gated behind
+  `available`, like `is_on`/`current_temperature`).
+- **REST** (`POST /appliances/water-heaters/{id}/state`) and the
+  **`set_water_heater_state` agent tool** both pass `away_mode` through
+  -- no new route, no new tool. Zero connector, `DEVICE_TYPES`, or
+  `CONNECTOR_TYPES` changes.
+
 ## M12: Appliance Control — Media Player Shuffle/Repeat/Sound Mode (Task Group BB)
 
 **No version bump**, matching this project's own established

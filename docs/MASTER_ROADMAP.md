@@ -4983,7 +4983,17 @@ exception, validated against HA's own fixed protocol-level enum
 the existing `set_media_player_state` -- three more optional keywords,
 not a new method, call order extending to volume/mute/source/shuffle/
 repeat/sound_mode. `play_media`, join/unjoin, album/duration/playback
-position, and queue management remain deferred, unchanged.)*
+position, and queue management remain deferred, unchanged.)* Water
+Heater Away/Vacation Mode shipped Task Group CC, Aug 2026 -- closes the
+"Away/vacation mode" item the Water Heater Core Slice's own Logic
+Contract explicitly deferred. `away_mode` (`water_heater.set_away_mode`,
+plain boolean, own `ATTR_AWAY_MODE` constant confirmed against
+`home-assistant/core`) follows the same shape `on` already has -- no
+device-reported capability list exists for it, unlike `operation_mode`.
+Additive to the existing `set_water_heater_state` -- a fourth optional
+keyword, not a new method, call order extending to on/off/mode/
+temperature/away_mode. Dual setpoint and everything else remain
+deferred, unchanged.)*
 - Smart Fans ✅ *(on/off + speed percentage 0-100 -- oscillation/preset modes deferred)*
 - Smart AC ✅ *(read/write current+target temperature, HVAC mode, fan mode -- swing/presets/humidity/scheduling deferred)*
 - Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, shuffle/repeat/sound mode, now-playing title/artist -- play_media/join-unjoin deferred)*
@@ -4991,7 +5001,7 @@ position, and queue management remain deferred, unchanged.)*
 - Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
 - Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level, fan speed -- cleaning modes/maps/scheduling deferred)*
 - Smart Humidifiers ✅ *(on/off, target humidity, mode read-only -- mode control/presets/water-level automation deferred)*
-- Smart Geysers ✅ *(via the water_heater entity -- on/off, operation mode, target temperature -- away/vacation mode/dual setpoint deferred)*
+- Smart Geysers ✅ *(via the water_heater entity -- on/off, operation mode, target temperature, away/vacation mode -- dual setpoint deferred)*
 - Smart Pumps
 - Smart Irrigation *(blocked -- HA's `valve` domain maps to `device_type="other"`, not `"appliance"`)*
 - Smart Kitchen Devices *(blocked -- no consistent HA/MQTT domain model)*
