@@ -42,14 +42,18 @@ tilt/position integers) -- see
 `docs/M12_APPLIANCE_VACUUM_FAN_SPEED_LOGIC_CONTRACT.md`.
 
 **Humidifier**: one merged mutation, `set_humidifier_state(on?,
-target_humidity?)`, mirroring `ThermostatService.set_thermostat_state`'s
-shape. HA has no known merged service accepting both at once, so a
-combined update sends two sequential calls, on/off first (unlike
-Thermostat's mode-first ordering -- a humidifier's on/off state does
-not change what a humidity setpoint means, so the order is a
-readability convention, not a correctness requirement). `mode` is
-reported when the device provides it but is **read-only** in this
-MVP -- see Logic Contract §8 for the full reasoning.
+target_humidity?, mode?)`, mirroring `ThermostatService.
+set_thermostat_state`'s shape. HA has no known merged service accepting
+all three at once, so a combined update sends up to three sequential
+calls, on/off first (unlike Thermostat's mode-first ordering -- a
+humidifier's on/off state does not change what a humidity setpoint or
+mode means, so the order is a readability convention, not a
+correctness requirement). `mode` (Humidifier Mode Control slice) is
+validated against the device's own reported `available_modes` only
+when non-empty, mirroring `MediaPlayerService._check_source`'s/
+`ThermostatService._validate_against_device`'s identical "no invented
+enum" discipline -- see
+`docs/M12_APPLIANCE_HUMIDIFIER_MODE_CONTROL_LOGIC_CONTRACT.md`.
 
 **No invented limits or vocabulary.** Humidity bounds are enforced only
 when the device itself reports `min_humidity`/`max_humidity`; mode has
@@ -147,15 +151,19 @@ _VACUUM_TRANSLATORS = {
 
 
 def _translate_humidifier_home_assistant(
-    *, on: bool | None, target_humidity: float | None
+    *, on: bool | None, target_humidity: float | None, mode: str | None = None
 ) -> list[tuple[str, dict[str, Any]]]:
     """HA's own humidifier-domain service names -- `turn_on`/`turn_off`/
     `set_humidity` (payload `{"humidity": <value>}`), confirmed against
-    HA's public documentation this session. **Two calls for a combined
-    update**, on/off first -- Logic Contract §9's documented ordering,
-    chosen because no HA service is known to accept both in one call
-    (the same fallback shape `ThermostatService` uses for
-    `set_hvac_mode`/`set_temperature`, reused here)."""
+    HA's public documentation this session, plus `set_mode` (payload
+    `{"mode": <value>}`, Humidifier Mode Control Logic Contract §1).
+    **Up to three calls for a combined update**, on/off first -- Logic
+    Contract §9's documented ordering, chosen because no HA service is
+    known to accept more than one of these at once (the same fallback
+    shape `ThermostatService` uses for `set_hvac_mode`/
+    `set_temperature`, reused here). `mode` has no ordering
+    interdependency with the other two, so it is appended last, fixed
+    for determinism rather than meaningful."""
     calls: list[tuple[str, dict[str, Any]]] = []
     if on is True:
         calls.append(("turn_on", {}))
@@ -163,22 +171,26 @@ def _translate_humidifier_home_assistant(
         calls.append(("turn_off", {}))
     if target_humidity is not None:
         calls.append(("set_humidity", {"humidity": target_humidity}))
+    if mode is not None:
+        calls.append(("set_mode", {"mode": mode}))
     return calls
 
 
 def _translate_humidifier_mqtt(
-    *, on: bool | None, target_humidity: float | None
+    *, on: bool | None, target_humidity: float | None, mode: str | None = None
 ) -> list[tuple[str, dict[str, Any]]]:
     """A JARVIS-native vocabulary this module defines -- always one
     merged `set_state` call, mirroring `SmartLightingService`'s/
     `ThermostatService`'s own MQTT convention. MQTT's envelope has no
-    constraint requiring two calls the way HA's two-service model
-    does."""
+    constraint requiring separate calls the way HA's multi-service
+    model does. `mode` merges into the same dict."""
     args: dict[str, Any] = {}
     if on is not None:
         args["on"] = on
     if target_humidity is not None:
         args["target_humidity"] = target_humidity
+    if mode is not None:
+        args["mode"] = mode
     return [("set_state", args)]
 
 
@@ -258,6 +270,28 @@ def _infer_on(status: str) -> bool | None:
     return None
 
 
+def _coerce_mode_list(value: Any) -> list[str]:
+    """The device's own reported supported-mode list, stripped of
+    empty/non-string entries. `[]` when unreported or not a list --
+    never a fabricated default vocabulary. Case is preserved, mirroring
+    `MediaPlayerService._coerce_source_list`'s identical reasoning
+    (humidifier mode labels like ``"Sleep"`` are often human-facing
+    mixed-case, not a normalized enum)."""
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [str(entry).strip() for entry in value if isinstance(entry, str) and entry.strip()]
+
+
+def _validate_mode(value: Any) -> str:
+    """Mirrors `MediaPlayerService._validate_source` verbatim -- no
+    fixed vocabulary exists at the validation layer itself; the
+    device's own reported `available_modes` is checked separately, by
+    `_check_mode`, only when non-empty."""
+    if not isinstance(value, str) or not value.strip():
+        raise ServiceError(f"mode must be a non-empty string; got {value!r}.")
+    return value.strip()
+
+
 def _validate_target_humidity(value: Any) -> float:
     """Rejects `bool`, non-numerics, NaN and +/-inf. Imposes no range
     of its own -- device-reported `min_humidity`/`max_humidity` are the
@@ -324,6 +358,7 @@ def _humidifier_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         "current_humidity": None,
         "target_humidity": None,
         "mode": None,
+        "available_modes": [],
         "min_humidity": None,
         "max_humidity": None,
         "available": False,
@@ -338,6 +373,7 @@ def _humidifier_payload(device: Device, raw: Any = None) -> dict[str, Any]:
     # ThermostatService's identical rule for hvac_modes/min_temp/max_temp).
     mode = attributes.get("mode")
     payload["mode"] = str(mode) if isinstance(mode, str) and mode.strip() else None
+    payload["available_modes"] = _coerce_mode_list(attributes.get("available_modes"))
     payload["min_humidity"] = _coerce_float(attributes.get("min_humidity"))
     payload["max_humidity"] = _coerce_float(attributes.get("max_humidity"))
     if payload["available"]:
@@ -504,11 +540,13 @@ class VacuumHumidifierService:
         *,
         on: bool | None = None,
         target_humidity: float | None = None,
+        mode: str | None = None,
     ) -> dict[str, Any]:
         self._require_permission()
-        if on is None and target_humidity is None:
+        if on is None and target_humidity is None and mode is None:
             raise ServiceError(
-                "set_humidifier_state requires at least one of 'on' or 'target_humidity'."
+                "set_humidifier_state requires at least one of 'on', 'target_humidity', "
+                "or 'mode'."
             )
 
         device = await self._require_humidifier(device_id)
@@ -527,11 +565,29 @@ class VacuumHumidifierService:
         validated_humidity = (
             None if target_humidity is None else _validate_target_humidity(target_humidity)
         )
+        validated_mode = None if mode is None else _validate_mode(mode)
         if validated_humidity is not None:
             await self._check_humidity_bounds(device_id, validated_humidity)
+        if validated_mode is not None:
+            await self._check_mode(device_id, validated_mode)
 
-        calls = translator(on=on, target_humidity=validated_humidity)
+        calls = translator(on=on, target_humidity=validated_humidity, mode=validated_mode)
         return await self._send_all(device_id, calls)
+
+    async def _check_mode(self, device_id: str, mode: str) -> None:
+        """Mirrors `MediaPlayerService._check_source` verbatim --
+        permissive when the device reports no `available_modes`, and a
+        read failure here is never fatal to the mutation."""
+        raw = None
+        with contextlib.suppress(ConnectivityError):
+            raw = await self._connectivity.read_raw_state(device_id)
+        if raw is None:
+            return
+        supported = _coerce_mode_list((raw.attributes or {}).get("available_modes"))
+        if supported and mode not in supported:
+            raise ServiceError(
+                f"mode {mode!r} is not supported by this device; it reports {supported}."
+            )
 
     async def _check_humidity_bounds(self, device_id: str, target_humidity: float) -> None:
         """Enforces **only** the device's own reported `min_humidity`/

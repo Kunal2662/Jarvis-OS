@@ -135,9 +135,9 @@ def build_vacuum_humidifier_tools(service: VacuumHumidifierService) -> list[Base
     @tool
     async def get_humidifier_state(device_id: str) -> str:
         """Get one humidifier's live reading by device id: on/off,
-        current humidity, target humidity, mode (read-only), reported
-        min/max humidity, and availability. Use list_humidifiers first
-        to find the device id."""
+        current humidity, target humidity, mode, reported available
+        modes/min/max humidity, and availability. Use list_humidifiers
+        first to find the device id."""
         try:
             state = await service.get_humidifier_state(device_id)
         except Exception as err:
@@ -147,15 +147,18 @@ def build_vacuum_humidifier_tools(service: VacuumHumidifierService) -> list[Base
 
     @tool
     async def set_humidifier_state(
-        device_id: str, on: bool | None = None, target_humidity: float | None = None
+        device_id: str,
+        on: bool | None = None,
+        target_humidity: float | None = None,
+        mode: str = "",
     ) -> str:
-        """Turn a humidifier on/off, set its target humidity, or both
-        in one call. Supply at least one of them. Mode cannot be
-        changed through this tool -- it is read-only. Takes real effect
-        on the device."""
+        """Turn a humidifier on/off, set its target humidity, set its
+        mode, or any combination, in one call. Supply at least one of
+        them. mode must be one the device reports as supported (see
+        get_humidifier_state). Takes real effect on the device."""
         try:
             result = await service.set_humidifier_state(
-                device_id, on=on, target_humidity=target_humidity
+                device_id, on=on, target_humidity=target_humidity, mode=mode or None
             )
         except Exception as err:
             _logger.warning("set_humidifier_state tool failed: {}", err)

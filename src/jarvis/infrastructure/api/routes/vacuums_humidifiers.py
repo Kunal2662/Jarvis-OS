@@ -43,12 +43,13 @@ router = APIRouter(tags=["vacuums-humidifiers"], dependencies=[Depends(get_curre
 
 
 class SetHumidifierStateRequest(BaseModel):
-    """Both fields optional; at least one must be supplied -- the
-    service layer rejects the both-``None`` case, so REST and
+    """All fields optional; at least one must be supplied -- the
+    service layer rejects the all-``None`` case, so REST and
     agent-tool callers get the identical error."""
 
     on: bool | None = None
     target_humidity: float | None = None
+    mode: str | None = None
 
 
 class SetVacuumFanSpeedRequest(BaseModel):
@@ -184,7 +185,7 @@ async def set_humidifier_state(
 
     try:
         result = await _service(request).set_humidifier_state(
-            device_id, on=body.on, target_humidity=body.target_humidity
+            device_id, on=body.on, target_humidity=body.target_humidity, mode=body.mode
         )
     except ServiceError as err:
         raise _bad_request(err) from err

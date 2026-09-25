@@ -302,7 +302,9 @@ def test_humidifier_list_get(client, auth, fake_connector) -> None:
     )
     device_id = discovered[0]["id"]
     fake_connector.states["humidifier.bedroom"] = DeviceState(
-        external_id="humidifier.bedroom", status="on", attributes={"humidity": 45.0}
+        external_id="humidifier.bedroom",
+        status="on",
+        attributes={"humidity": 45.0, "mode": "auto", "available_modes": ["auto", "sleep"]},
     )
 
     listed = client.get("/api/v1/appliances/humidifiers", headers=auth)
@@ -313,6 +315,8 @@ def test_humidifier_list_get(client, auth, fake_connector) -> None:
     assert fetched.status_code == 200
     assert fetched.json()["data"]["on"] is True
     assert fetched.json()["data"]["target_humidity"] == 45.0
+    assert fetched.json()["data"]["mode"] == "auto"
+    assert fetched.json()["data"]["available_modes"] == ["auto", "sleep"]
 
 
 def test_humidifier_get_unknown_is_404(client, auth) -> None:
@@ -380,6 +384,59 @@ def test_humidifier_empty_body_is_400(client, auth, fake_connector) -> None:
     )
 
     assert response.status_code == 400
+
+
+def test_humidifier_mode_update_succeeds_after_grant(client, auth, fake_connector) -> None:
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    _connect(client, auth)
+    discovered = _discover(
+        client, auth, fake_connector, home_id, [_humidifier("humidifier.bedroom")]
+    )
+    device_id = discovered[0]["id"]
+    fake_connector.states["humidifier.bedroom"] = DeviceState(
+        external_id="humidifier.bedroom",
+        status="on",
+        attributes={"available_modes": ["auto", "sleep"]},
+    )
+    _grant(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/humidifiers/{device_id}/state",
+        json={"mode": "sleep"},
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["success"] is True
+    assert fake_connector.sent_commands == [("humidifier.bedroom", "set_mode", {"mode": "sleep"})]
+
+
+def test_humidifier_mode_rejects_unsupported_value(client, auth, fake_connector) -> None:
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    _connect(client, auth)
+    discovered = _discover(
+        client, auth, fake_connector, home_id, [_humidifier("humidifier.bedroom")]
+    )
+    device_id = discovered[0]["id"]
+    fake_connector.states["humidifier.bedroom"] = DeviceState(
+        external_id="humidifier.bedroom",
+        status="on",
+        attributes={"available_modes": ["auto", "sleep"]},
+    )
+    _grant(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/humidifiers/{device_id}/state",
+        json={"mode": "baby"},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert "not supported by this device" in response.json()["detail"]
 
 
 def test_humidifier_get_wrong_type_is_404(client, auth) -> None:

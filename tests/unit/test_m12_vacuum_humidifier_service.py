@@ -858,7 +858,12 @@ async def test_humidifier_capability_fields_survive_unavailability(
     _, device = await _home_and_humidifier(smart_home)
     fake_connector.states[_HUMIDIFIER_EXTERNAL_ID] = _state(
         status="unavailable",
-        attributes={"mode": "sleep", "min_humidity": 30.0, "max_humidity": 80.0},
+        attributes={
+            "mode": "sleep",
+            "available_modes": ["auto", "sleep"],
+            "min_humidity": 30.0,
+            "max_humidity": 80.0,
+        },
         external_id=_HUMIDIFIER_EXTERNAL_ID,
     )
 
@@ -866,6 +871,7 @@ async def test_humidifier_capability_fields_survive_unavailability(
 
     assert state["available"] is False
     assert state["mode"] == "sleep"
+    assert state["available_modes"] == ["auto", "sleep"]
     assert state["min_humidity"] == 30.0
     assert state["max_humidity"] == 80.0
 
@@ -888,6 +894,7 @@ async def test_humidifier_missing_attributes_report_none_not_zero(
     assert state["current_humidity"] is None
     assert state["target_humidity"] is None
     assert state["mode"] is None
+    assert state["available_modes"] == []
     assert state["min_humidity"] is None
     assert state["max_humidity"] is None
 
@@ -1039,6 +1046,129 @@ async def test_humidifier_empty_mutation_rejected(
         await service.set_humidifier_state(device.id)
 
 
+# --- Humidifier mode control (Humidifier Mode Control Logic Contract) ------------------
+
+
+@pytest.mark.asyncio
+async def test_humidifier_mode_denied_without_grant(
+    service: VacuumHumidifierService, smart_home: SmartHomeService
+) -> None:
+    _, device = await _home_and_humidifier(smart_home)
+    with pytest.raises(ServiceError, match="permission"):
+        await service.set_humidifier_state(device.id, mode="sleep")
+
+
+@pytest.mark.asyncio
+async def test_humidifier_mode_only_mutation(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_humidifier(smart_home)
+    fake_connector.states[_HUMIDIFIER_EXTERNAL_ID] = _state(
+        status="on", external_id=_HUMIDIFIER_EXTERNAL_ID
+    )
+
+    result = await service.set_humidifier_state(device.id, mode="sleep")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        (_HUMIDIFIER_EXTERNAL_ID, "set_mode", {"mode": "sleep"})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_humidifier_combined_mutation_sends_on_off_humidity_then_mode(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_humidifier(smart_home)
+    fake_connector.states[_HUMIDIFIER_EXTERNAL_ID] = _state(
+        status="off", external_id=_HUMIDIFIER_EXTERNAL_ID
+    )
+
+    result = await service.set_humidifier_state(
+        device.id, on=True, target_humidity=45.0, mode="auto"
+    )
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        (_HUMIDIFIER_EXTERNAL_ID, "turn_on", {}),
+        (_HUMIDIFIER_EXTERNAL_ID, "set_humidity", {"humidity": 45.0}),
+        (_HUMIDIFIER_EXTERNAL_ID, "set_mode", {"mode": "auto"}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_humidifier_mode_validated_against_device_reported_list(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_humidifier(smart_home)
+    fake_connector.states[_HUMIDIFIER_EXTERNAL_ID] = _state(
+        status="on",
+        attributes={"available_modes": ["auto", "sleep"]},
+        external_id=_HUMIDIFIER_EXTERNAL_ID,
+    )
+
+    with pytest.raises(ServiceError, match="not supported by this device"):
+        await service.set_humidifier_state(device.id, mode="baby")
+
+
+@pytest.mark.asyncio
+async def test_humidifier_mode_permissive_when_device_reports_no_list(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """No fixed mode enum is invented -- rejecting a real device over a
+    vocabulary gap is the worse failure (Humidifier Mode Control Logic
+    Contract §3, mirroring MediaPlayerService's identical rule)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_humidifier(smart_home)
+    fake_connector.states[_HUMIDIFIER_EXTERNAL_ID] = _state(
+        status="on", external_id=_HUMIDIFIER_EXTERNAL_ID
+    )
+
+    result = await service.set_humidifier_state(device.id, mode="some_vendor_mode")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        (_HUMIDIFIER_EXTERNAL_ID, "set_mode", {"mode": "some_vendor_mode"})
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["", "   "])
+async def test_empty_humidifier_mode_rejected(
+    service: VacuumHumidifierService,
+    smart_home: SmartHomeService,
+    permissions: PermissionModel,
+    bad: str,
+) -> None:
+    await _grant(permissions)
+    _, device = await _home_and_humidifier(smart_home)
+    with pytest.raises(ServiceError, match="mode must be a non-empty string"):
+        await service.set_humidifier_state(device.id, mode=bad)
+
+
 @pytest.mark.asyncio
 async def test_humidifier_partial_failure_reported_honestly(
     service: VacuumHumidifierService,
@@ -1063,11 +1193,16 @@ async def test_humidifier_partial_failure_reported_honestly(
 # --- Humidifier mode is read-only ------------------------------------------------------
 
 
-def test_humidifier_mode_not_in_mutation_signature() -> None:
+def test_humidifier_mode_is_in_mutation_signature() -> None:
+    """Superseded by the Humidifier Mode Control slice -- `mode` was
+    deliberately read-only in the original MVP (Logic Contract §8), but
+    is now an intentional part of the mutation surface. Pinned here so
+    a future change cannot silently remove it without deliberately
+    touching this test."""
     import inspect
 
     sig = inspect.signature(VacuumHumidifierService.set_humidifier_state)
-    assert "mode" not in sig.parameters
+    assert "mode" in sig.parameters
 
 
 # --- Humidity validation ----------------------------------------------------------------
@@ -1200,6 +1335,26 @@ def test_humidifier_mqtt_translator_is_always_one_merged_call() -> None:
     ]
     assert _translate_humidifier_mqtt(on=True, target_humidity=45.0) == [
         ("set_state", {"on": True, "target_humidity": 45.0})
+    ]
+
+
+def test_humidifier_ha_translator_mode_only() -> None:
+    assert _translate_humidifier_home_assistant(on=None, target_humidity=None, mode="sleep") == [
+        ("set_mode", {"mode": "sleep"})
+    ]
+
+
+def test_humidifier_ha_translator_all_three_is_three_calls_on_off_humidity_then_mode() -> None:
+    assert _translate_humidifier_home_assistant(on=True, target_humidity=45.0, mode="auto") == [
+        ("turn_on", {}),
+        ("set_humidity", {"humidity": 45.0}),
+        ("set_mode", {"mode": "auto"}),
+    ]
+
+
+def test_humidifier_mqtt_translator_mode_merged() -> None:
+    assert _translate_humidifier_mqtt(on=None, target_humidity=None, mode="sleep") == [
+        ("set_state", {"mode": "sleep"})
     ]
 
 

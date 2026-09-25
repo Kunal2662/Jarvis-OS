@@ -378,6 +378,32 @@ async def test_set_humidifier_state_tool_reports_error_without_raising(tools) ->
     assert isinstance(result, str)
 
 
-def test_set_humidifier_state_tool_has_no_mode_parameter(tools) -> None:
+@pytest.mark.asyncio
+async def test_set_humidifier_state_tool_mode_only(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _register_humidifier(smart_home)
+    fake_connector.states[_HUMIDIFIER_EXTERNAL_ID] = DeviceState(
+        external_id=_HUMIDIFIER_EXTERNAL_ID, status="on", attributes={}
+    )
+
+    result = await tools["set_humidifier_state"].ainvoke({"device_id": device.id, "mode": "sleep"})
+
+    assert '"success": true' in result.lower()
+    assert fake_connector.sent_commands == [
+        (_HUMIDIFIER_EXTERNAL_ID, "set_mode", {"mode": "sleep"})
+    ]
+
+
+def test_set_humidifier_state_tool_has_a_mode_parameter(tools) -> None:
+    """Superseded by the Humidifier Mode Control slice -- pinned here so
+    a future change cannot silently remove it without deliberately
+    touching this test."""
     schema_fields = tools["set_humidifier_state"].args_schema.model_fields
-    assert "mode" not in schema_fields
+    assert "mode" in schema_fields
