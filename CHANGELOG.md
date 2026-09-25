@@ -3,6 +3,44 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Media Player Shuffle/Repeat/Sound Mode (Task Group BB)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes the "Shuffle, repeat, sound mode" item the Media Player Core
+Slice's own Logic Contract explicitly named and deferred, following
+that same contract's own suggested `source`/`source_list` template.
+Preceded by a Logic Contract (`docs/
+M12_APPLIANCE_MEDIA_PLAYER_SHUFFLE_REPEAT_SOUND_MODE_LOGIC_CONTRACT.md`).
+HA service and attribute names (`media_player.shuffle_set`,
+`media_player.repeat_set`, `media_player.select_sound_mode`, and the
+`shuffle`/`repeat`/`sound_mode`/`sound_mode_list` read attributes) were
+externally verified against current Home Assistant documentation
+before implementation. 20 new tests, 0 failures, 0 errors.
+
+### Added
+- **`MediaPlayerService.set_media_player_state`** gains three more
+  optional keywords, additive to the existing merged-update shape (not
+  a new method): `shuffle`/`sound_mode` follow the `source`/
+  `source_list` template exactly (device-list-validated, permissive
+  when the device reports none); `repeat` is validated against HA's
+  own fixed, protocol-level enum (`{"off", "all", "one"}`) instead —
+  the one exception to this module's "no invented enum" rule, the same
+  justification `_validate_volume`'s `0.0`-`1.0` bound already relies
+  on. Call order extends to volume, mute, source, shuffle, repeat,
+  sound_mode.
+- **Read model** gains `shuffle`/`repeat`/`sound_mode` (current
+  readings, gated behind `available`) and `sound_mode_list` (declared
+  capability, survives unavailability, like `source_list`).
+- **REST** (`POST /appliances/media-players/{id}/state`) and the
+  **`set_media_player_state` agent tool** both pass the three new
+  fields through -- no new route, no new tool. The tool's optional
+  parameters were made keyword-only to stay under ruff's
+  positional-argument limit now that it has seven parameters;
+  LangChain always invokes tools by keyword, so this is not a behavior
+  change. Zero connector, `DEVICE_TYPES`, or `CONNECTOR_TYPES` changes.
+
 ## M12: Appliance Control — Vacuum Fan Speed (Task Group AA)
 
 **No version bump**, matching this project's own established

@@ -4971,10 +4971,22 @@ non-empty, mirroring `MediaPlayerService._check_source`'s identical
 vocabulary, unlike Cover's integer position/tilt range. `VacuumCommand`
 and both translators gained an optional `fan_speed` keyword; the four
 original zero-payload commands are unaffected. Zero connector
-changes.)*
+changes.)* Media Player Shuffle/Repeat/Sound Mode shipped Task Group
+BB, Aug 2026 -- closes the "Shuffle, repeat, sound mode" item the
+Media Player Core Slice's own Logic Contract explicitly deferred,
+following that same contract's own suggested `source`/`source_list`
+template. `shuffle`/`sound_mode` follow that template exactly
+(device-list-validated, permissive when absent); `repeat` is the one
+exception, validated against HA's own fixed protocol-level enum
+(`{"off", "all", "one"}`) instead, the same justification
+`_validate_volume`'s `0.0`-`1.0` bound already relies on. Additive to
+the existing `set_media_player_state` -- three more optional keywords,
+not a new method, call order extending to volume/mute/source/shuffle/
+repeat/sound_mode. `play_media`, join/unjoin, album/duration/playback
+position, and queue management remain deferred, unchanged.)*
 - Smart Fans ✅ *(on/off + speed percentage 0-100 -- oscillation/preset modes deferred)*
 - Smart AC ✅ *(read/write current+target temperature, HVAC mode, fan mode -- swing/presets/humidity/scheduling deferred)*
-- Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, now-playing title/artist -- play_media/join-unjoin/shuffle/repeat/sound mode deferred)*
+- Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, shuffle/repeat/sound mode, now-playing title/artist -- play_media/join-unjoin deferred)*
 - Smart Curtains ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
 - Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
 - Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level, fan speed -- cleaning modes/maps/scheduling deferred)*
