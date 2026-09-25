@@ -3,6 +3,43 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Vacuum Fan Speed (Task Group AA)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes the "Fan speed, cleaning mode" item the Vacuum + Humidifier
+Core Slice's own Logic Contract explicitly named and deferred
+(cleaning mode itself remains deferred — no repository evidence for a
+normalized cleaning-mode vocabulary exists). Preceded by a Logic
+Contract (`docs/M12_APPLIANCE_VACUUM_FAN_SPEED_LOGIC_CONTRACT.md`). HA
+service and attribute names (`vacuum.set_fan_speed` with its
+`fan_speed` parameter, and the `fan_speed`/`fan_speed_list` read
+attributes) were externally verified against current Home Assistant
+documentation before implementation. 22 new tests, 0 failures, 0
+errors.
+
+### Added
+- **`VacuumHumidifierService.set_fan_speed`** — one new method sending
+  exactly one `set_fan_speed` wire command, never an implicit
+  accompanying `start`/`pause` call. `fan_speed` is validated as a
+  non-empty string, then checked against the device's own reported
+  `fan_speed_list` only when non-empty — mirroring
+  `MediaPlayerService._check_source`'s identical "no invented enum"
+  discipline, since HA defines no fixed fan-speed vocabulary across
+  vacuum platforms (unlike Cover's integer position/tilt range).
+- **`VacuumCommand.SET_FAN_SPEED`**, plus a `fan_speed` keyword added
+  to both the HA and MQTT translators — the four original zero-payload
+  commands (`start`/`stop`/`pause`/`return_to_base`) are unaffected,
+  since the new parameter defaults to `None`.
+- **Read model** gains `fan_speed` (current reading, gated behind
+  `available`) and `fan_speed_list` (declared capability, survives
+  unavailability, mirroring `source_list`/`hvac_modes`).
+- **REST**: `POST /appliances/vacuums/{id}/set_fan_speed`.
+- **One new agent tool** (`vacuum_set_fan_speed`), not added to
+  `AgentSettings.confirm_required_tools` — no more safety-relevant
+  than `set_cover_position`/`set_media_player_state`.
+
 ## M12: Appliance Control — Cover Tilt + Stop (Task Group Z)
 
 **No version bump**, matching this project's own established

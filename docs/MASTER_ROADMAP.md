@@ -4960,12 +4960,24 @@ value-bearing fan/cover commands from one table. A cover's live tilt
 attribute is `current_tilt_position`, confirmed externally to be a
 different name from the `tilt_position` write parameter, same pattern
 as `current_cover_position`/`position`. Zero connector changes.)*
+Vacuum Fan Speed shipped Task Group AA, Aug 2026 -- closes the "Fan
+speed, cleaning mode" item the Vacuum + Humidifier Core Slice's own
+Logic Contract explicitly deferred (cleaning mode itself remains
+deferred -- no repository evidence for a normalized vocabulary exists).
+`set_fan_speed` (`vacuum.set_fan_speed`, parameter `fan_speed`)
+validates against the device's own reported `fan_speed_list` only when
+non-empty, mirroring `MediaPlayerService._check_source`'s identical
+"no invented enum" discipline -- HA defines no fixed fan-speed
+vocabulary, unlike Cover's integer position/tilt range. `VacuumCommand`
+and both translators gained an optional `fan_speed` keyword; the four
+original zero-payload commands are unaffected. Zero connector
+changes.)*
 - Smart Fans ✅ *(on/off + speed percentage 0-100 -- oscillation/preset modes deferred)*
 - Smart AC ✅ *(read/write current+target temperature, HVAC mode, fan mode -- swing/presets/humidity/scheduling deferred)*
 - Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, now-playing title/artist -- play_media/join-unjoin/shuffle/repeat/sound mode deferred)*
 - Smart Curtains ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
 - Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
-- Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level -- fan speed/cleaning modes/maps/scheduling deferred)*
+- Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level, fan speed -- cleaning modes/maps/scheduling deferred)*
 - Smart Humidifiers ✅ *(on/off, target humidity, mode read-only -- mode control/presets/water-level automation deferred)*
 - Smart Geysers ✅ *(via the water_heater entity -- on/off, operation mode, target temperature -- away/vacation mode/dual setpoint deferred)*
 - Smart Pumps
