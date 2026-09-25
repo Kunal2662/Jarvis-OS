@@ -294,6 +294,78 @@ def test_invalid_volume_is_400(client, auth, fake_connector) -> None:
     assert response.status_code == 400
 
 
+def test_shuffle_repeat_sound_mode_update_succeeds_after_grant(
+    client, auth, fake_connector
+) -> None:
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    _connect(client, auth)
+    discovered = _discover(client, auth, fake_connector, home_id, [_media_player()])
+    device_id = discovered[0]["id"]
+    fake_connector.states[_EXTERNAL_ID] = DeviceState(
+        external_id=_EXTERNAL_ID,
+        status="playing",
+        attributes={"sound_mode_list": ["Movie", "Music"]},
+    )
+    _grant(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/media-players/{device_id}/state",
+        json={"shuffle": True, "repeat": "all", "sound_mode": "Movie"},
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["success"] is True
+    assert fake_connector.sent_commands == [
+        (_EXTERNAL_ID, "shuffle_set", {"shuffle": True}),
+        (_EXTERNAL_ID, "repeat_set", {"repeat": "all"}),
+        (_EXTERNAL_ID, "select_sound_mode", {"sound_mode": "Movie"}),
+    ]
+
+
+def test_invalid_repeat_is_400(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    _connect(client, auth)
+    discovered = _discover(client, auth, fake_connector, home_id, [_media_player()])
+    device_id = discovered[0]["id"]
+    _grant(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/media-players/{device_id}/state",
+        json={"repeat": "loop"},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert "repeat must be one of" in response.json()["detail"]
+
+
+def test_unsupported_sound_mode_is_400(client, auth, fake_connector) -> None:
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    _connect(client, auth)
+    discovered = _discover(client, auth, fake_connector, home_id, [_media_player()])
+    device_id = discovered[0]["id"]
+    fake_connector.states[_EXTERNAL_ID] = DeviceState(
+        external_id=_EXTERNAL_ID,
+        status="playing",
+        attributes={"sound_mode_list": ["Movie", "Music"]},
+    )
+    _grant(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/media-players/{device_id}/state",
+        json={"sound_mode": "Night"},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert "not supported by this device" in response.json()["detail"]
+
+
 # --- Envelope shape ----------------------------------------------------------------
 
 

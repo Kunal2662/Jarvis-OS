@@ -285,3 +285,52 @@ async def test_set_media_player_state_tool_reports_error_without_raising(tools) 
         {"device_id": "no-such-device", "volume": 0.5}
     )
     assert isinstance(result, str)
+
+
+@pytest.mark.asyncio
+async def test_set_media_player_state_tool_shuffle_repeat_sound_mode(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    device = await _register_media_player(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = DeviceState(
+        external_id=_EXTERNAL_ID,
+        status="playing",
+        attributes={"sound_mode_list": ["Movie", "Music"]},
+    )
+
+    result = await tools["set_media_player_state"].ainvoke(
+        {
+            "device_id": device.id,
+            "shuffle": True,
+            "repeat": "all",
+            "sound_mode": "Movie",
+        }
+    )
+
+    assert '"success": true' in result.lower()
+    assert fake_connector.sent_commands == [
+        (_EXTERNAL_ID, "shuffle_set", {"shuffle": True}),
+        (_EXTERNAL_ID, "repeat_set", {"repeat": "all"}),
+        (_EXTERNAL_ID, "select_sound_mode", {"sound_mode": "Movie"}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_set_media_player_state_tool_rejects_invalid_repeat_without_raising(
+    tools, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    device = await _register_media_player(smart_home)
+
+    result = await tools["set_media_player_state"].ainvoke(
+        {"device_id": device.id, "repeat": "loop"}
+    )
+
+    assert "Couldn't" in result
+    assert "repeat must be one of" in result

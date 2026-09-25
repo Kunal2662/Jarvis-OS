@@ -48,6 +48,9 @@ class SetMediaPlayerStateRequest(BaseModel):
     volume: float | None = None
     muted: bool | None = None
     source: str | None = None
+    shuffle: bool | None = None
+    repeat: str | None = None
+    sound_mode: str | None = None
 
 
 def _service(request: Request) -> MediaPlayerService:
@@ -146,7 +149,13 @@ async def set_media_player_state(
 
     try:
         result = await _service(request).set_media_player_state(
-            device_id, volume=body.volume, muted=body.muted, source=body.source
+            device_id,
+            volume=body.volume,
+            muted=body.muted,
+            source=body.source,
+            shuffle=body.shuffle,
+            repeat=body.repeat,
+            sound_mode=body.sound_mode,
         )
     except ServiceError as err:
         raise _bad_request(err) from err

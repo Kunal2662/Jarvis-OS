@@ -826,6 +826,50 @@ def test_mqtt_state_translator_is_always_one_merged_call() -> None:
     ]
 
 
+# --- Shuffle/Repeat/Sound Mode translators (Shuffle/Repeat/Sound Mode Logic Contract) ---
+
+
+def test_state_translators_shuffle_repeat_sound_mode_individually() -> None:
+    assert _translate_state_home_assistant(volume=None, muted=None, source=None, shuffle=True) == [
+        ("shuffle_set", {"shuffle": True})
+    ]
+    assert _translate_state_home_assistant(volume=None, muted=None, source=None, repeat="all") == [
+        ("repeat_set", {"repeat": "all"})
+    ]
+    assert _translate_state_home_assistant(
+        volume=None, muted=None, source=None, sound_mode="Movie"
+    ) == [("select_sound_mode", {"sound_mode": "Movie"})]
+
+
+def test_state_translators_ordering_extends_to_all_six() -> None:
+    assert _translate_state_home_assistant(
+        volume=0.5,
+        muted=True,
+        source="X",
+        shuffle=True,
+        repeat="one",
+        sound_mode="Movie",
+    ) == [
+        ("volume_set", {"volume_level": 0.5}),
+        ("volume_mute", {"is_volume_muted": True}),
+        ("select_source", {"source": "X"}),
+        ("shuffle_set", {"shuffle": True}),
+        ("repeat_set", {"repeat": "one"}),
+        ("select_sound_mode", {"sound_mode": "Movie"}),
+    ]
+
+
+def test_mqtt_state_translator_shuffle_repeat_sound_mode_merged() -> None:
+    assert _translate_state_mqtt(
+        volume=None,
+        muted=None,
+        source=None,
+        shuffle=True,
+        repeat="one",
+        sound_mode="Movie",
+    ) == [("set_state", {"shuffle": True, "repeat": "one", "sound_mode": "Movie"})]
+
+
 # --- Volume validation ------------------------------------------------------------
 
 
@@ -988,6 +1032,230 @@ async def test_empty_source_rejected(
         await service.set_media_player_state(device.id, source=bad)
 
 
+# --- Shuffle validation (Shuffle/Repeat/Sound Mode Logic Contract) -------------------
+
+
+@pytest.mark.asyncio
+async def test_shuffle_denied_without_grant(
+    service: MediaPlayerService, smart_home: SmartHomeService
+) -> None:
+    _, device = await _home_and_media_player(smart_home)
+    with pytest.raises(ServiceError, match="permission"):
+        await service.set_media_player_state(device.id, shuffle=True)
+
+
+@pytest.mark.asyncio
+async def test_non_bool_shuffle_rejected(
+    service: MediaPlayerService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    _, device = await _home_and_media_player(smart_home)
+    with pytest.raises(ServiceError, match="shuffle must be a boolean"):
+        await service.set_media_player_state(device.id, shuffle="on")  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_shuffle_only_mutation(
+    service: MediaPlayerService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_media_player(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(status="playing")
+
+    result = await service.set_media_player_state(device.id, shuffle=True)
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [(_EXTERNAL_ID, "shuffle_set", {"shuffle": True})]
+
+
+# --- Repeat validation (Shuffle/Repeat/Sound Mode Logic Contract) --------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["off", "all", "one"])
+async def test_repeat_accepts_fixed_enum_values(
+    service: MediaPlayerService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+    value: str,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_media_player(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(status="playing")
+
+    result = await service.set_media_player_state(device.id, repeat=value)
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [(_EXTERNAL_ID, "repeat_set", {"repeat": value})]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["OFF", "loop", "", "1"])
+async def test_repeat_rejects_anything_outside_fixed_enum(
+    service: MediaPlayerService,
+    smart_home: SmartHomeService,
+    permissions: PermissionModel,
+    bad: str,
+) -> None:
+    """No device-reported list is consulted for `repeat` -- it is HA's
+    own protocol-level closed vocabulary, not a device-specific list
+    (Logic Contract §3)."""
+    await _grant(permissions)
+    _, device = await _home_and_media_player(smart_home)
+    with pytest.raises(ServiceError, match="repeat must be one of"):
+        await service.set_media_player_state(device.id, repeat=bad)
+
+
+# --- Sound mode validation (Shuffle/Repeat/Sound Mode Logic Contract) ----------------
+
+
+@pytest.mark.asyncio
+async def test_sound_mode_validated_against_device_reported_list(
+    service: MediaPlayerService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_media_player(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(
+        status="playing", attributes={"sound_mode_list": ["Movie", "Music"]}
+    )
+
+    with pytest.raises(ServiceError, match="not supported by this device"):
+        await service.set_media_player_state(device.id, sound_mode="Night")
+
+
+@pytest.mark.asyncio
+async def test_sound_mode_permissive_when_device_reports_no_list(
+    service: MediaPlayerService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """No fixed sound-mode enum is invented -- mirrors `source`'s
+    identical permissive-when-absent rule (Logic Contract §3)."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_media_player(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(status="playing")
+
+    result = await service.set_media_player_state(device.id, sound_mode="Some Vendor Mode")
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        (_EXTERNAL_ID, "select_sound_mode", {"sound_mode": "Some Vendor Mode"})
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad", ["", "   "])
+async def test_empty_sound_mode_rejected(
+    service: MediaPlayerService,
+    smart_home: SmartHomeService,
+    permissions: PermissionModel,
+    bad: str,
+) -> None:
+    await _grant(permissions)
+    _, device = await _home_and_media_player(smart_home)
+    with pytest.raises(ServiceError, match="sound_mode must be a non-empty string"):
+        await service.set_media_player_state(device.id, sound_mode=bad)
+
+
+# --- Shuffle/Repeat/Sound Mode read model --------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_shuffle_repeat_sound_mode_read_gated_behind_available(
+    service: MediaPlayerService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_media_player(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(
+        status="playing",
+        attributes={"shuffle": True, "repeat": "all", "sound_mode": "Movie"},
+    )
+
+    state = await service.get_media_player_state(device.id)
+
+    assert state["shuffle"] is True
+    assert state["repeat"] == "all"
+    assert state["sound_mode"] == "Movie"
+
+
+@pytest.mark.asyncio
+async def test_shuffle_repeat_sound_mode_unavailable_reports_none(
+    service: MediaPlayerService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_media_player(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(
+        status="unavailable",
+        attributes={"shuffle": True, "repeat": "all", "sound_mode": "Movie"},
+    )
+
+    state = await service.get_media_player_state(device.id)
+
+    assert state["shuffle"] is None
+    assert state["repeat"] is None
+    assert state["sound_mode"] is None
+
+
+@pytest.mark.asyncio
+async def test_sound_mode_list_survives_unavailability(
+    service: MediaPlayerService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_media_player(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(
+        status="unavailable", attributes={"sound_mode_list": ["Movie", "Music"]}
+    )
+
+    state = await service.get_media_player_state(device.id)
+
+    assert state["available"] is False
+    assert state["sound_mode_list"] == ["Movie", "Music"]
+
+
+@pytest.mark.asyncio
+async def test_shuffle_repeat_sound_mode_missing_report_none_and_empty_list(
+    service: MediaPlayerService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_media_player(smart_home)
+    fake_connector.states[_EXTERNAL_ID] = _state(status="playing")
+
+    state = await service.get_media_player_state(device.id)
+
+    assert state["shuffle"] is None
+    assert state["repeat"] is None
+    assert state["sound_mode"] is None
+    assert state["sound_mode_list"] == []
+
+
 # --- Cross-cutting invariants --------------------------------------------------------
 
 
@@ -1044,8 +1312,10 @@ def test_appliance_service_was_not_extended() -> None:
 
 
 def test_no_deferred_functionality_exists() -> None:
-    """play_media/join/unjoin/shuffle/repeat/sound_mode/queue/playlist
-    must not exist anywhere in the implementation (Logic Contract §18)."""
+    """play_media/join/unjoin/queue/playlist must not exist anywhere in
+    the implementation (Logic Contract §18). shuffle/repeat/sound_mode
+    were closed by the Shuffle/Repeat/Sound Mode slice and are no
+    longer deferred -- see that slice's own dedicated tests below."""
     import inspect
 
     from jarvis.services import media_player_service
@@ -1060,9 +1330,6 @@ def test_no_deferred_functionality_exists() -> None:
         "play_media",
         "unjoin",
         "clear_playlist",
-        "shuffle",
-        "repeat",
-        "sound_mode",
         "media_position",
         "media_duration",
         "media_content_id",

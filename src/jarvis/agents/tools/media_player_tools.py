@@ -115,18 +115,30 @@ def build_media_player_tools(service: MediaPlayerService) -> list[BaseTool]:
     @tool
     async def set_media_player_state(
         device_id: str,
+        *,
         volume: float | None = None,
         muted: bool | None = None,
         source: str = "",
+        shuffle: bool | None = None,
+        repeat: str = "",
+        sound_mode: str = "",
     ) -> str:
-        """Set a media player's volume (0.0-1.0), mute state, and/or
-        source in one call. Supply at least one of them. volume must be
-        the device's native 0.0-1.0 scale, not a percentage. source
-        must be one the device reports as supported (see
-        get_media_player_state). Takes real effect on the device."""
+        """Set a media player's volume (0.0-1.0), mute state, source,
+        shuffle, repeat mode, and/or sound mode in one call. Supply at
+        least one of them. volume must be the device's native 0.0-1.0
+        scale, not a percentage. source/sound_mode must be one the
+        device reports as supported (see get_media_player_state).
+        repeat must be exactly one of "off", "all", or "one". Takes
+        real effect on the device."""
         try:
             result = await service.set_media_player_state(
-                device_id, volume=volume, muted=muted, source=source or None
+                device_id,
+                volume=volume,
+                muted=muted,
+                source=source or None,
+                shuffle=shuffle,
+                repeat=repeat or None,
+                sound_mode=sound_mode or None,
             )
         except Exception as err:
             _logger.warning("set_media_player_state tool failed: {}", err)

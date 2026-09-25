@@ -43,6 +43,16 @@ on the parameter itself, not a guessed device limit.
 directly reusing `ThermostatService`'s `hvac_mode`/`hvac_modes`
 template. Case is preserved, not lowercased, since source names are
 often human-facing mixed-case labels.
+
+**Shuffle/Repeat/Sound Mode slice**: three more keywords merged into
+the same `set_media_player_state` mutation (Logic Contract §3).
+`sound_mode` gets the identical `source`/`source_list` treatment.
+`repeat` is the one exception to the "no invented enum" rule -- HA
+defines it as a protocol-level closed vocabulary (`off`/`all`/`one`)
+identical across every media player, the same justification
+`_validate_volume`'s `0.0`-`1.0` bound already relies on, not a guessed
+device limit. See
+`docs/M12_APPLIANCE_MEDIA_PLAYER_SHUFFLE_REPEAT_SOUND_MODE_LOGIC_CONTRACT.md`.
 """
 
 from __future__ import annotations
@@ -115,15 +125,23 @@ _TRANSPORT_TRANSLATORS = {
 
 
 def _translate_state_home_assistant(
-    *, volume: float | None, muted: bool | None, source: str | None
+    *,
+    volume: float | None,
+    muted: bool | None,
+    source: str | None,
+    shuffle: bool | None = None,
+    repeat: str | None = None,
+    sound_mode: str | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
-    """HA's own three independent single-purpose services --
-    `volume_set`, `volume_mute`, `select_source` (Logic Contract §10,
-    verified externally, not repository-derived). **Three calls when
-    all three are requested**, in the contract's declared order
-    (volume, mute, source) -- a convention, not a discovered
-    dependency, since none of the three changes what another means
-    (unlike Thermostat's mode-before-temperature)."""
+    """HA's own independent single-purpose services -- `volume_set`,
+    `volume_mute`, `select_source` (Logic Contract §10, verified
+    externally, not repository-derived), plus `shuffle_set`/
+    `repeat_set`/`select_sound_mode` (Shuffle/Repeat/Sound Mode Logic
+    Contract §1). **One call per requested attribute**, in the
+    contract's declared order (volume, mute, source, shuffle, repeat,
+    sound_mode) -- a convention, not a discovered dependency, since
+    none of the six changes what another means (unlike Thermostat's
+    mode-before-temperature)."""
     calls: list[tuple[str, dict[str, Any]]] = []
     if volume is not None:
         calls.append(("volume_set", {"volume_level": volume}))
@@ -131,17 +149,29 @@ def _translate_state_home_assistant(
         calls.append(("volume_mute", {"is_volume_muted": muted}))
     if source is not None:
         calls.append(("select_source", {"source": source}))
+    if shuffle is not None:
+        calls.append(("shuffle_set", {"shuffle": shuffle}))
+    if repeat is not None:
+        calls.append(("repeat_set", {"repeat": repeat}))
+    if sound_mode is not None:
+        calls.append(("select_sound_mode", {"sound_mode": sound_mode}))
     return calls
 
 
 def _translate_state_mqtt(
-    *, volume: float | None, muted: bool | None, source: str | None
+    *,
+    volume: float | None,
+    muted: bool | None,
+    source: str | None,
+    shuffle: bool | None = None,
+    repeat: str | None = None,
+    sound_mode: str | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
     """The JARVIS-native MQTT vocabulary this module defines -- always
     one merged `set_state` call, mirroring `ThermostatService`'s/
     `SmartLightingService`'s own MQTT convention. Deliberately *not*
-    copying HA's three-service split -- the MQTT envelope has no such
-    constraint."""
+    copying HA's per-attribute service split -- the MQTT envelope has
+    no such constraint."""
     args: dict[str, Any] = {}
     if volume is not None:
         args["volume"] = volume
@@ -149,6 +179,12 @@ def _translate_state_mqtt(
         args["muted"] = muted
     if source is not None:
         args["source"] = source
+    if shuffle is not None:
+        args["shuffle"] = shuffle
+    if repeat is not None:
+        args["repeat"] = repeat
+    if sound_mode is not None:
+        args["sound_mode"] = sound_mode
     return [("set_state", args)]
 
 
@@ -232,6 +268,39 @@ def _validate_source(value: Any) -> str:
     return value.strip()
 
 
+def _validate_shuffle(value: Any) -> bool:
+    """Mirrors `_validate_muted` verbatim."""
+    if not isinstance(value, bool):
+        raise ServiceError(f"shuffle must be a boolean; got {value!r}.")
+    return value
+
+
+#: HA's own protocol-level closed vocabulary for `repeat` -- identical
+#: across every media player, unlike `source`/`sound_mode`, which are
+#: device-reported (Shuffle/Repeat/Sound Mode Logic Contract §3).
+_REPEAT_VALUES = frozenset({"off", "all", "one"})
+
+
+def _validate_repeat(value: Any) -> str:
+    """The one exception to this module's "no invented enum" rule --
+    justified the same way `_validate_volume`'s `0.0`-`1.0` bound
+    already is: a protocol-level constraint, not a guessed device
+    limit."""
+    if not isinstance(value, str) or value not in _REPEAT_VALUES:
+        raise ServiceError(f"repeat must be one of {sorted(_REPEAT_VALUES)}; got {value!r}.")
+    return value
+
+
+def _validate_sound_mode(value: Any) -> str:
+    """Mirrors `_validate_source` verbatim -- no fixed vocabulary at
+    the validation layer; the device's own reported `sound_mode_list`
+    is checked separately, by `_check_sound_mode`, only when
+    non-empty."""
+    if not isinstance(value, str) or not value.strip():
+        raise ServiceError(f"sound_mode must be a non-empty string; got {value!r}.")
+    return value.strip()
+
+
 def _media_player_payload(device: Device, raw: Any = None) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id": device.id,
@@ -250,16 +319,24 @@ def _media_player_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         "source_list": [],
         "media_title": None,
         "media_artist": None,
+        "shuffle": None,
+        "repeat": None,
+        "sound_mode": None,
+        "sound_mode_list": [],
     }
     if raw is None:
         return payload
 
     payload["available"] = raw.status.strip().lower() not in _OFFLINE_STATUS_VALUES
     attributes = raw.attributes or {}
-    # Capability field survives unavailability -- it describes the
-    # device's declared source list, not a live reading (mirrors
-    # ThermostatService's identical rule for hvac_modes/min_temp/max_temp).
+    # Capability fields survive unavailability -- they describe the
+    # device's declared source/sound-mode lists, not a live reading
+    # (mirrors ThermostatService's identical rule for hvac_modes/
+    # min_temp/max_temp). `_coerce_source_list` is a generic
+    # non-empty-string-list coercion despite its name -- reused here
+    # for `sound_mode_list` rather than duplicated.
     payload["source_list"] = _coerce_source_list(attributes.get("source_list"))
+    payload["sound_mode_list"] = _coerce_source_list(attributes.get("sound_mode_list"))
     if payload["available"]:
         # Open pass-through -- never validated against a closed
         # vocabulary; the entity's own state string IS the playback
@@ -272,6 +349,13 @@ def _media_player_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         payload["source"] = _coerce_text(attributes.get("source"))
         payload["media_title"] = _coerce_text(attributes.get("media_title"))
         payload["media_artist"] = _coerce_text(attributes.get("media_artist"))
+        shuffle = attributes.get("shuffle")
+        payload["shuffle"] = shuffle if isinstance(shuffle, bool) else None
+        # `repeat` is an open pass-through of HA's own state string,
+        # like `state` itself -- never independently re-validated on
+        # read (Shuffle/Repeat/Sound Mode Logic Contract §4).
+        payload["repeat"] = _coerce_text(attributes.get("repeat"))
+        payload["sound_mode"] = _coerce_text(attributes.get("sound_mode"))
     return payload
 
 
@@ -383,11 +467,22 @@ class MediaPlayerService:
         volume: float | None = None,
         muted: bool | None = None,
         source: str | None = None,
+        shuffle: bool | None = None,
+        repeat: str | None = None,
+        sound_mode: str | None = None,
     ) -> dict[str, Any]:
         self._require_permission()
-        if volume is None and muted is None and source is None:
+        if (
+            volume is None
+            and muted is None
+            and source is None
+            and shuffle is None
+            and repeat is None
+            and sound_mode is None
+        ):
             raise ServiceError(
-                "set_media_player_state requires at least one of 'volume', 'muted', or 'source'."
+                "set_media_player_state requires at least one of 'volume', 'muted', "
+                "'source', 'shuffle', 'repeat', or 'sound_mode'."
             )
 
         device = await self._require_media_player(device_id)
@@ -405,10 +500,22 @@ class MediaPlayerService:
         validated_volume = None if volume is None else _validate_volume(volume)
         validated_muted = None if muted is None else _validate_muted(muted)
         validated_source = None if source is None else _validate_source(source)
+        validated_shuffle = None if shuffle is None else _validate_shuffle(shuffle)
+        validated_repeat = None if repeat is None else _validate_repeat(repeat)
+        validated_sound_mode = None if sound_mode is None else _validate_sound_mode(sound_mode)
         if validated_source is not None:
             await self._check_source(device_id, validated_source)
+        if validated_sound_mode is not None:
+            await self._check_sound_mode(device_id, validated_sound_mode)
 
-        calls = translator(volume=validated_volume, muted=validated_muted, source=validated_source)
+        calls = translator(
+            volume=validated_volume,
+            muted=validated_muted,
+            source=validated_source,
+            shuffle=validated_shuffle,
+            repeat=validated_repeat,
+            sound_mode=validated_sound_mode,
+        )
         return await self._send_all(device_id, calls)
 
     async def _check_source(self, device_id: str, source: str) -> None:
@@ -426,6 +533,22 @@ class MediaPlayerService:
         if supported and source not in supported:
             raise ServiceError(
                 f"source {source!r} is not supported by this device; it reports {supported}."
+            )
+
+    async def _check_sound_mode(self, device_id: str, sound_mode: str) -> None:
+        """Mirrors `_check_source` verbatim -- permissive when the
+        device reports no `sound_mode_list` (Shuffle/Repeat/Sound Mode
+        Logic Contract §5)."""
+        raw = None
+        with contextlib.suppress(ConnectivityError):
+            raw = await self._connectivity.read_raw_state(device_id)
+        if raw is None:
+            return
+        supported = _coerce_source_list((raw.attributes or {}).get("sound_mode_list"))
+        if supported and sound_mode not in supported:
+            raise ServiceError(
+                f"sound_mode {sound_mode!r} is not supported by this device; "
+                f"it reports {supported}."
             )
 
     async def _send_all(
