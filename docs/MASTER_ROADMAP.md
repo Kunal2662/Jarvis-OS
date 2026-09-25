@@ -4993,9 +4993,18 @@ device-reported capability list exists for it, unlike `operation_mode`.
 Additive to the existing `set_water_heater_state` -- a fourth optional
 keyword, not a new method, call order extending to on/off/mode/
 temperature/away_mode. Dual setpoint and everything else remain
-deferred, unchanged.)*
+deferred, unchanged.)* Thermostat Swing Mode shipped Task Group DD,
+Aug 2026 -- closes the "Swing mode (`set_swing_mode`)" item the
+original Climate/Thermostat Slice's own Logic Contract explicitly
+deferred, reusing the Thermostat Fan Mode slice's own template exactly
+(`climate.set_swing_mode`, `_validate_mode`/`_validate_against_device`
+reused verbatim via `field_name="swing_mode"`). Scoped to HA's original
+(vertical/primary) swing axis only, not the separate, newer
+`set_swing_horizontal_mode` feature. Additive to the existing
+`set_thermostat_state` -- a fourth optional keyword, not a new method.
+Preset modes and humidity/dehumidify remain deferred, unchanged.)*
 - Smart Fans ✅ *(on/off + speed percentage 0-100 -- oscillation/preset modes deferred)*
-- Smart AC ✅ *(read/write current+target temperature, HVAC mode, fan mode -- swing/presets/humidity/scheduling deferred)*
+- Smart AC ✅ *(read/write current+target temperature, HVAC mode, fan mode, swing mode -- presets/humidity/scheduling deferred)*
 - Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, shuffle/repeat/sound mode, now-playing title/artist -- play_media/join-unjoin deferred)*
 - Smart Curtains ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
 - Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*

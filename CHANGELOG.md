@@ -3,6 +3,38 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Thermostat Swing Mode (Task Group DD)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes the "Swing mode (`set_swing_mode`)" item the original Climate/
+Thermostat Slice's own Logic Contract explicitly named and deferred.
+Preset modes and humidity/dehumidify remain separately deferred,
+unchanged. Preceded by a Logic Contract (`docs/
+M12_APPLIANCE_THERMOSTAT_SWING_MODE_LOGIC_CONTRACT.md`). Reuses the
+Thermostat Fan Mode slice's own template exactly: `climate.
+set_swing_mode` (parameter `swing_mode`) verified against current Home
+Assistant documentation, scoped to HA's original (vertical/primary)
+swing axis only, not the separate, newer
+`set_swing_horizontal_mode`/`swing_horizontal_mode` feature. 14 new
+tests, 0 failures, 0 errors.
+
+### Added
+- **`ThermostatService.set_thermostat_state`** gains a fourth optional
+  `swing_mode` keyword, additive to the existing merged-update shape
+  (not a new method) -- reuses the already attribute-agnostic
+  `_validate_mode` verbatim (`field_name="swing_mode"`) and
+  `_validate_against_device` gains one more device-list check against
+  `swing_modes`, permissive when the device reports none, mirroring
+  `hvac_mode`/`fan_mode` exactly.
+- **Read model** gains `swing_mode` (current reading, gated behind
+  `available`, like `fan_mode`) and `swing_modes` (declared capability,
+  survives unavailability, like `hvac_modes`/`fan_modes`).
+- **REST** (`POST /thermostats/{id}/state`) and the **`set_thermostat_state`
+  agent tool** both pass `swing_mode` through -- no new route, no new
+  tool. Zero connector, `DEVICE_TYPES`, or `CONNECTOR_TYPES` changes.
+
 ## M12: Appliance Control — Water Heater Away/Vacation Mode (Task Group CC)
 
 **No version bump**, matching this project's own established
