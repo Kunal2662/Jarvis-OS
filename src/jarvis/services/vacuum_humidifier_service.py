@@ -40,6 +40,11 @@ value-bearing command sent through the same `_send_vacuum` dispatch --
 discipline (HA defines no fixed fan-speed vocabulary, unlike Cover's
 tilt/position integers) -- see
 `docs/M12_APPLIANCE_VACUUM_FAN_SPEED_LOGIC_CONTRACT.md`.
+`clean_spot`/`locate` (Vacuum Clean Spot + Locate slice) are two more
+zero-payload commands -- neither carries or requires spatial data
+despite the original slice grouping them with genuinely map-dependent
+items, see
+`docs/M12_APPLIANCE_VACUUM_CLEAN_SPOT_LOCATE_LOGIC_CONTRACT.md`.
 
 **Humidifier**: one merged mutation, `set_humidifier_state(on?,
 target_humidity?, mode?)`, mirroring `ThermostatService.
@@ -100,7 +105,7 @@ _OFF_VALUES = frozenset({"off", "false", "0"})
 
 
 class VacuumCommand(enum.StrEnum):
-    """Four independent, zero-payload commands, plus one value-bearing
+    """Six independent, zero-payload commands, plus one value-bearing
     command (`SET_FAN_SPEED`, Vacuum Fan Speed slice) -- see module
     docstring."""
 
@@ -112,6 +117,11 @@ class VacuumCommand(enum.StrEnum):
     #: `fan_speed` (externally verified this slice: a string label,
     #: platform-dependent, no fixed HA-wide enum).
     SET_FAN_SPEED = "set_fan_speed"
+    #: HA's own `vacuum.clean_spot` service -- no parameters (Vacuum
+    #: Clean Spot + Locate Logic Contract §1).
+    CLEAN_SPOT = "clean_spot"
+    #: HA's own `vacuum.locate` service -- no parameters.
+    LOCATE = "locate"
 
 
 def _translate_vacuum_home_assistant(
@@ -466,6 +476,14 @@ class VacuumHumidifierService:
     async def return_to_base(self, device_id: str) -> dict[str, Any]:
         self._require_permission()
         return await self._send_vacuum(device_id, VacuumCommand.RETURN_TO_BASE)
+
+    async def clean_spot(self, device_id: str) -> dict[str, Any]:
+        self._require_permission()
+        return await self._send_vacuum(device_id, VacuumCommand.CLEAN_SPOT)
+
+    async def locate(self, device_id: str) -> dict[str, Any]:
+        self._require_permission()
+        return await self._send_vacuum(device_id, VacuumCommand.LOCATE)
 
     async def set_fan_speed(self, device_id: str, fan_speed: str) -> dict[str, Any]:
         """Sends exactly one `set_fan_speed` wire command -- never an

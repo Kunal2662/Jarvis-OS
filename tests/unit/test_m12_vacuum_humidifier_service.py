@@ -439,6 +439,8 @@ async def test_vacuum_list_is_db_only_no_live_read(
         ("stop", "stop"),
         ("pause", "pause"),
         ("return_to_base", "return_to_base"),
+        ("clean_spot", "clean_spot"),
+        ("locate", "locate"),
     ],
 )
 async def test_vacuum_command_sends_zero_payload_ha_call(

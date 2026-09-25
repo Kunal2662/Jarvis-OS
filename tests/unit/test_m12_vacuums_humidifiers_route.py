@@ -186,7 +186,7 @@ def test_vacuum_action_denied_without_grant_is_400(client, auth, fake_connector)
     assert "permission" in response.json()["detail"].lower()
 
 
-@pytest.mark.parametrize("verb", ["start", "stop", "pause", "dock"])
+@pytest.mark.parametrize("verb", ["start", "stop", "pause", "dock", "clean_spot", "locate"])
 def test_vacuum_action_succeeds_after_grant(client, auth, fake_connector, verb: str) -> None:
     from jarvis.core.interfaces.connectivity import DeviceState
 
@@ -275,6 +275,9 @@ def test_vacuum_set_fan_speed_rejects_unsupported_value(client, auth, fake_conne
 
 
 def test_vacuum_no_extra_endpoints(client, auth, fake_connector) -> None:
+    """`locate` is deliberately excluded here -- it shipped as a real
+    endpoint in the Clean Spot + Locate slice; see
+    test_vacuum_clean_spot_and_locate_succeed_after_grant below."""
     home_id = _home(client, auth)
     _connect(client, auth)
     discovered = _discover(client, auth, fake_connector, home_id, [_vacuum("vacuum.living_room")])
@@ -283,7 +286,6 @@ def test_vacuum_no_extra_endpoints(client, auth, fake_connector) -> None:
 
     for method, path in (
         ("post", f"/api/v1/appliances/vacuums/{device_id}/state"),
-        ("post", f"/api/v1/appliances/vacuums/{device_id}/locate"),
         ("post", f"/api/v1/appliances/vacuums/{device_id}"),
     ):
         assert getattr(client, method)(path, headers=auth).status_code in (404, 405)

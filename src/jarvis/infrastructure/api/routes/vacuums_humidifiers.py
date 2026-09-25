@@ -137,6 +137,28 @@ async def dock_vacuum(device_id: str, request: Request) -> Envelope[dict[str, An
     return envelope(result, meta={"success": result["success"]})
 
 
+@router.post("/appliances/vacuums/{device_id}/clean_spot", response_model=Envelope[dict[str, Any]])
+async def clean_spot_vacuum(device_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        result = await _service(request).clean_spot(device_id)
+    except ServiceError as err:
+        raise _bad_request(err) from err
+    return envelope(result, meta={"success": result["success"]})
+
+
+@router.post("/appliances/vacuums/{device_id}/locate", response_model=Envelope[dict[str, Any]])
+async def locate_vacuum(device_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        result = await _service(request).locate(device_id)
+    except ServiceError as err:
+        raise _bad_request(err) from err
+    return envelope(result, meta={"success": result["success"]})
+
+
 @router.post(
     "/appliances/vacuums/{device_id}/set_fan_speed", response_model=Envelope[dict[str, Any]]
 )

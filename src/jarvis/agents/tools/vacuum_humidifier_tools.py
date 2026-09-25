@@ -2,11 +2,14 @@
 :class:`~jarvis.services.vacuum_humidifier_service.VacuumHumidifierService`
 (Milestone 12 Appliance Control -- Vacuum + Humidifier Core Slice).
 
-**Vacuum -- seven tools, one per verb**, mirroring ``appliance_tools.py``'s
-own one-tool-per-command shape: four independent zero-payload commands,
-plus ``vacuum_set_fan_speed`` (Vacuum Fan Speed slice) -- one
-standalone value-bearing command, never merged into another verb, not
-attributes that combine, so no merged mutation tool exists for them.
+**Vacuum -- nine tools, one per verb**, mirroring ``appliance_tools.py``'s
+own one-tool-per-command shape: six independent zero-payload commands
+(the original four, plus ``vacuum_clean_spot``/``vacuum_locate`` from
+the Clean Spot + Locate slice -- neither carries spatial data despite
+looking map-adjacent), plus ``vacuum_set_fan_speed`` (Vacuum Fan Speed
+slice) -- one standalone value-bearing command, never merged into
+another verb, not attributes that combine, so no merged mutation tool
+exists for them.
 
 **Humidifier -- three tools, merged mutation**, mirroring
 ``thermostat_tools.py``'s shape: on/off and target humidity combine
@@ -105,6 +108,21 @@ def build_vacuum_humidifier_tools(service: VacuumHumidifierService) -> list[Base
         return await _run_vacuum_command("vacuum_dock", "dock", service.return_to_base(device_id))
 
     @tool
+    async def vacuum_clean_spot(device_id: str) -> str:
+        """Have a robot vacuum spot-clean its current location by
+        device id -- the robot decides the exact spot, no coordinates
+        are given. Takes real effect on the device."""
+        return await _run_vacuum_command(
+            "vacuum_clean_spot", "spot-clean", service.clean_spot(device_id)
+        )
+
+    @tool
+    async def vacuum_locate(device_id: str) -> str:
+        """Have a robot vacuum play a sound or flash lights to help
+        find it, by device id. Takes real effect on the device."""
+        return await _run_vacuum_command("vacuum_locate", "locate", service.locate(device_id))
+
+    @tool
     async def vacuum_set_fan_speed(device_id: str, fan_speed: str) -> str:
         """Set a robot vacuum's fan/suction speed by device id. Accepts
         whatever label the device itself reports (call get_vacuum_state
@@ -172,6 +190,8 @@ def build_vacuum_humidifier_tools(service: VacuumHumidifierService) -> list[Base
         vacuum_stop,
         vacuum_pause,
         vacuum_dock,
+        vacuum_clean_spot,
+        vacuum_locate,
         vacuum_set_fan_speed,
         list_humidifiers,
         get_humidifier_state,

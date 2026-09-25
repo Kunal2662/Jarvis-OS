@@ -127,7 +127,7 @@ def test_registry_omits_tools_when_not_wired() -> None:
 
 
 @pytest.mark.asyncio
-async def test_registry_includes_all_ten_tools_when_service_provided(
+async def test_registry_includes_all_twelve_tools_when_service_provided(
     service: VacuumHumidifierService,
 ) -> None:
     from jarvis.agents.tools.registry import build_tool_registry
@@ -141,6 +141,8 @@ async def test_registry_includes_all_ten_tools_when_service_provided(
         "vacuum_stop",
         "vacuum_pause",
         "vacuum_dock",
+        "vacuum_clean_spot",
+        "vacuum_locate",
         "vacuum_set_fan_speed",
         "list_humidifiers",
         "get_humidifier_state",
@@ -148,7 +150,7 @@ async def test_registry_includes_all_ten_tools_when_service_provided(
     } <= names
 
 
-def test_exactly_ten_tools_are_built(service: VacuumHumidifierService) -> None:
+def test_exactly_twelve_tools_are_built(service: VacuumHumidifierService) -> None:
     built = {t.name for t in build_vacuum_humidifier_tools(service)}
     assert built == {
         "list_vacuums",
@@ -157,6 +159,8 @@ def test_exactly_ten_tools_are_built(service: VacuumHumidifierService) -> None:
         "vacuum_stop",
         "vacuum_pause",
         "vacuum_dock",
+        "vacuum_clean_spot",
+        "vacuum_locate",
         "vacuum_set_fan_speed",
         "list_humidifiers",
         "get_humidifier_state",
@@ -208,6 +212,8 @@ async def test_vacuum_start_tool_denied_without_grant(tools, smart_home: SmartHo
         ("vacuum_stop", "stop"),
         ("vacuum_pause", "pause"),
         ("vacuum_dock", "return_to_base"),
+        ("vacuum_clean_spot", "clean_spot"),
+        ("vacuum_locate", "locate"),
     ],
 )
 async def test_vacuum_command_tools_succeed_after_grant(
