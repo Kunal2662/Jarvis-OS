@@ -3,6 +3,70 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Humidifier Mode Control (Task Group FF)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes "Humidifier mode control" — the Vacuum + Humidifier Core
+Slice's own Logic Contract explicitly deferred it, marking `mode`
+read-only pending real demand and marking the `humidifier.set_mode`
+service and `available_modes` attribute **(UNVERIFIED)**. Both are
+externally verified this session. Preceded by a Logic Contract
+(`docs/M12_APPLIANCE_HUMIDIFIER_MODE_CONTROL_LOGIC_CONTRACT.md`). 14
+new tests, 0 failures, 0 errors.
+
+### Added
+- **`VacuumHumidifierService.set_humidifier_state`** gains a `mode`
+  keyword, additive to the existing merged-update shape (not a new
+  method) — validated as a non-empty string, then checked against the
+  device's own reported `available_modes` only when non-empty,
+  mirroring `MediaPlayerService._check_source`'s identical "no
+  invented enum" discipline. Call order extends to on/off, target
+  humidity, mode.
+- **Read model** gains `available_modes` (declared capability,
+  survives unavailability); `mode` itself was already read
+  unconditionally by the original slice, unchanged.
+- **REST** (`POST /appliances/humidifiers/{id}/state`) and the
+  **`set_humidifier_state` agent tool** both pass `mode` through — no
+  new route, no new tool. Two pinned tests that asserted `mode` was
+  absent from the mutation surface are inverted to assert its
+  deliberate presence.
+
+## M12: Appliance Control — Thermostat Preset Modes (Task Group EE)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes "Preset modes (`set_preset_mode`, e.g. eco/away/boost)" — the
+original Climate/Thermostat Slice's own Logic Contract explicitly
+deferred it. This slice is a thin pass-through only (sends the
+requested `preset_mode`, reports the reported one back) — no
+scheduling, no automatic preset selection, no energy calculation — so
+it does not encroach on Energy Management's own (unstarted)
+optimization scope, the reason the original slice cited for deferring
+it. Preceded by a Logic Contract (`docs/
+M12_APPLIANCE_THERMOSTAT_PRESET_MODE_LOGIC_CONTRACT.md`). Third and
+final reuse of the Fan Mode/Swing Mode template. 14 new tests, 0
+failures, 0 errors.
+
+### Added
+- **`ThermostatService.set_thermostat_state`** gains a fifth optional
+  `preset_mode` keyword, additive to the existing merged-update shape
+  (not a new method) — reuses the already attribute-agnostic
+  `_validate_mode` verbatim (`field_name="preset_mode"`) and
+  `_validate_against_device` gains one more device-list check against
+  `preset_modes`, permissive when the device reports none.
+- **Read model** gains `preset_mode` (current reading, gated behind
+  `available`) and `preset_modes` (declared capability, survives
+  unavailability).
+- **REST** (`POST /thermostats/{id}/state`) and the
+  **`set_thermostat_state` agent tool** both pass `preset_mode`
+  through — no new route, no new tool. The tool's non-`device_id`
+  parameters are now keyword-only to stay under ruff's
+  positional-argument limit at six parameters; LangChain always
+  invokes tools by keyword, so this is not a behavior change.
+
 ## M12: Appliance Control — Thermostat Swing Mode (Task Group DD)
 
 **No version bump**, matching this project's own established

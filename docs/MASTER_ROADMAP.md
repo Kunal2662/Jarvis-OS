@@ -4559,6 +4559,44 @@ queryable trail without new infrastructure this task group was not
 asked to add), or any automation trigger. See
 `docs/M12_SMART_LOCKS_LOGIC_CONTRACT.md` for the full Logic Contract.
 
+*Aug 2026 addendum — Guest/temporary access codes evaluated and found
+blocked, not merely deferred.* Unlike every other M12 Appliance Control
+slice shipped this pass (Fan Speed, Cover Tilt/Stop, Shuffle/Repeat/
+Sound Mode, Away/Vacation Mode, Swing Mode, Preset Mode — all thin,
+zero-schema pass-throughs of an existing normalized HA service), guest
+codes fail on architecture, not scope, for three independent reasons,
+each sufficient alone: **(1)** Home Assistant has **no generic `lock.*`
+domain service for user codes** even as of the 2026.9 release — code
+management is fragmented per integration (`zwave_js.set_lock_usercode`/
+`clear_lock_usercode`, `zha.set_lock_user_code`/`clear_lock_user_code`,
+Matter's 2026.4 credential manager, vendor-cloud APIs), each with a
+different parameter shape, and Z-Wave JS's own service was reshaped
+again in 2026.9 to require an admin account — there is no single wire
+call this module could translate to the way `lock.lock`/`climate.
+set_fan_mode` already exist. **(2)** Every one of those integration
+services is a **cross-domain service call** (`zwave_js.*`/`zha.*`, not
+`lock.*`), but `HomeAssistantConnector.send_command` derives the
+service domain from the entity's own `external_id` domain
+(`home_assistant.py:234`, `domain = external_id.split(".", 1)[0]`) —
+reaching any of them would require a **connector-layer structural
+change**, which this project's own established discipline (`docs/
+M12_APPLIANCE_CLIMATE_LOGIC_CONTRACT.md` §16: "must raise it as a
+blocker rather than edit a connector") says to raise, not make
+unilaterally. **(3)** Storing a code at all needs **schema this
+codebase does not have** — the original Logic Contract's own §11/§19
+already recorded "no schema exists for any of it" — plus a real
+security design (hashing/encryption at rest, expiration enforcement,
+revocation, and an audit trail of every grant/use/revoke) that no
+existing table or mechanism provides a template for; `PermissionModel`
+grants an API scope to a principal, it does not manage a per-code
+lifecycle. **Recommendation, not a decision this session made
+unilaterally**: guest/temporary codes need a product decision (which
+protocol(s) to support, since HA itself has no unified answer) and a
+security design pass before any schema or connector work begins — this
+is the one M12 Appliance Control item this pass could not close as a
+routine engineering task, and is surfaced to the user rather than
+built partially or insecurely.
+
 **Task Group E (Sensors) shipped, Aug 2026**, no version bump. The
 first read-only M12 module — a new `SensorService` (`services/
 sensor_service.py`) reporting normalized state for `device_type=
@@ -5003,13 +5041,33 @@ reused verbatim via `field_name="swing_mode"`). Scoped to HA's original
 `set_swing_horizontal_mode` feature. Additive to the existing
 `set_thermostat_state` -- a fourth optional keyword, not a new method.
 Preset modes and humidity/dehumidify remain deferred, unchanged.)*
+Thermostat Preset Modes shipped Task Group EE, Aug 2026 -- closes
+"Preset modes (`set_preset_mode`, e.g. eco/away/boost)", the third and
+final reuse of the Fan Mode/Swing Mode template
+(`climate.set_preset_mode`, `_validate_mode`/`_validate_against_device`
+reused verbatim via `field_name="preset_mode"`). A thin pass-through
+only -- no scheduling, no automatic preset selection, no energy
+calculation -- so it does not encroach on Energy Management's own
+(unstarted) optimization scope, the reason the original slice cited
+for deferring it. Additive to the existing `set_thermostat_state` -- a
+fifth optional keyword, not a new method. Humidity/dehumidify remains
+deferred, unchanged.)* Humidifier Mode Control shipped Task Group FF,
+Aug 2026 -- closes "Humidifier mode control", resolving the original
+slice's own two `(UNVERIFIED)` markers by externally confirming
+`humidifier.set_mode` (parameter `mode`) and the `available_modes`
+capability-list attribute. `mode` is checked against the device's own
+reported `available_modes` only when non-empty, mirroring
+`MediaPlayerService._check_source`'s identical "no invented enum"
+discipline. Additive to the existing `set_humidifier_state` -- a third
+optional keyword, not a new method. Presets and water-level automation
+remain deferred, unchanged.)*
 - Smart Fans ✅ *(on/off + speed percentage 0-100 -- oscillation/preset modes deferred)*
-- Smart AC ✅ *(read/write current+target temperature, HVAC mode, fan mode, swing mode -- presets/humidity/scheduling deferred)*
+- Smart AC ✅ *(read/write current+target temperature, HVAC mode, fan mode, swing mode, preset mode -- humidity/scheduling deferred)*
 - Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, shuffle/repeat/sound mode, now-playing title/artist -- play_media/join-unjoin deferred)*
 - Smart Curtains ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
 - Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
 - Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level, fan speed -- cleaning modes/maps/scheduling deferred)*
-- Smart Humidifiers ✅ *(on/off, target humidity, mode read-only -- mode control/presets/water-level automation deferred)*
+- Smart Humidifiers ✅ *(on/off, target humidity, mode control -- presets/water-level automation deferred)*
 - Smart Geysers ✅ *(via the water_heater entity -- on/off, operation mode, target temperature, away/vacation mode -- dual setpoint deferred)*
 - Smart Pumps
 - Smart Irrigation *(blocked -- HA's `valve` domain maps to `device_type="other"`, not `"appliance"`)*
