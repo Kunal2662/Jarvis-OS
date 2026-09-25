@@ -418,6 +418,98 @@ def test_set_cover_position_succeeds_after_grant(client, auth, fake_connector) -
     ]
 
 
+# --- stop / set_tilt_position (Cover Tilt + Stop Logic Contract) -----------------
+
+
+def test_cover_stop_denied_without_grant_is_400(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_cover(client, auth, fake_connector, home_id)
+
+    response = client.post(f"/api/v1/appliances/covers/{device_id}/stop", headers=auth)
+
+    assert response.status_code == 400
+    assert fake_connector.sent_commands == []
+
+
+def test_cover_stop_succeeds_after_grant(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_cover(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(f"/api/v1/appliances/covers/{device_id}/stop", headers=auth)
+
+    assert response.status_code == 200
+    assert response.json()["data"]["success"] is True
+    assert fake_connector.sent_commands == [
+        (fake_connector.devices[0].external_id, "stop_cover", {})
+    ]
+
+
+def test_set_cover_tilt_position_denied_without_grant_is_400(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_cover(client, auth, fake_connector, home_id)
+
+    response = client.post(
+        f"/api/v1/appliances/covers/{device_id}/set_tilt_position",
+        json={"tilt_position": 50},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert fake_connector.sent_commands == []
+
+
+def test_set_cover_tilt_position_succeeds_after_grant(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_cover(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/covers/{device_id}/set_tilt_position",
+        json={"tilt_position": 88},
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["success"] is True
+    assert fake_connector.sent_commands == [
+        (fake_connector.devices[0].external_id, "set_cover_tilt_position", {"tilt_position": 88})
+    ]
+
+
+def test_set_cover_tilt_position_out_of_range_is_400(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_cover(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(
+        f"/api/v1/appliances/covers/{device_id}/set_tilt_position",
+        json={"tilt_position": 200},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert "0-100" in response.json()["detail"]
+    assert fake_connector.sent_commands == []
+
+
+def test_read_reports_tilt_position_from_current_tilt_position(
+    client, auth, fake_connector
+) -> None:
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    cover_id = _connected_cover(client, auth, fake_connector, home_id)
+    fake_connector.states[fake_connector.devices[0].external_id] = DeviceState(
+        external_id=fake_connector.devices[0].external_id,
+        status="open",
+        attributes={"current_tilt_position": 66},
+    )
+
+    fetched = client.get(f"/api/v1/appliances/covers/{cover_id}", headers=auth)
+    assert fetched.json()["data"]["tilt_position"] == 66
+
+
 def test_set_fan_percentage_out_of_range_is_400(client, auth, fake_connector) -> None:
     home_id = _home(client, auth)
     device_id = _connected_fan(client, auth, fake_connector, home_id)

@@ -682,10 +682,11 @@ async def test_cover_failed_command_reports_failure_not_success(
 
 @pytest.mark.asyncio
 async def test_appliance_service_has_exactly_the_approved_public_methods() -> None:
-    """Fan percentage and cover position are now shipped (Task Group T,
-    Fan Percentage + Cover Position Logic Contract) -- this pins the
-    exact public surface so a future change cannot silently grow it
-    further without deliberately touching this test."""
+    """Fan percentage and cover position (Task Group T), then cover
+    stop/tilt (Task Group Z, Cover Tilt + Stop Logic Contract), are now
+    shipped -- this pins the exact public surface so a future change
+    cannot silently grow it further without deliberately touching this
+    test."""
     public_methods = {
         name
         for name in dir(ApplianceService)
@@ -702,6 +703,8 @@ async def test_appliance_service_has_exactly_the_approved_public_methods() -> No
         "cover_open",
         "cover_close",
         "set_cover_position",
+        "cover_stop",
+        "set_cover_tilt_position",
     }
 
 
@@ -1045,6 +1048,273 @@ async def test_mqtt_set_cover_position_translation(
     assert mqtt_connector.sent_commands == [
         ("cover.living_room_blind", "set_cover_position", {"position": 30})
     ]
+
+
+# --- Cover stop + tilt (Cover Tilt + Stop Logic Contract §5) ---------------------
+
+
+@pytest.mark.asyncio
+async def test_cover_stop_denied_by_default(
+    service: ApplianceService, smart_home: SmartHomeService
+) -> None:
+    _, device = await _home_and_cover(smart_home)
+    with pytest.raises(ServiceError, match="permission"):
+        await service.cover_stop(device.id)
+
+
+@pytest.mark.asyncio
+async def test_cover_stop_rejects_fan_device(
+    service: ApplianceService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    _, fan = await _home_and_fan(smart_home)
+    with pytest.raises(ServiceError, match="not a cover"):
+        await service.cover_stop(fan.id)
+
+
+@pytest.mark.asyncio
+async def test_cover_stop_sends_one_no_payload_call(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_cover(smart_home)
+
+    result = await service.cover_stop(device.id)
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [("cover.living_room_blind", "stop_cover", {})]
+
+
+@pytest.mark.asyncio
+async def test_cover_stop_reports_failure_not_success(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    fake_connector.next_command_succeeds = False
+    _, device = await _home_and_cover(smart_home)
+
+    result = await service.cover_stop(device.id)
+
+    assert result["success"] is False
+    assert result["detail"]
+
+
+@pytest.mark.asyncio
+async def test_set_cover_tilt_position_denied_by_default(
+    service: ApplianceService, smart_home: SmartHomeService
+) -> None:
+    _, device = await _home_and_cover(smart_home)
+    with pytest.raises(ServiceError, match="permission"):
+        await service.set_cover_tilt_position(device.id, 50)
+
+
+@pytest.mark.asyncio
+async def test_set_cover_tilt_position_rejects_fan_device(
+    service: ApplianceService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    await _grant(permissions)
+    _, fan = await _home_and_fan(smart_home)
+    with pytest.raises(ServiceError, match="not a cover"):
+        await service.set_cover_tilt_position(fan.id, 50)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [0, 1, 50, 99, 100])
+async def test_set_cover_tilt_position_accepts_valid_range(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+    value: int,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_cover(smart_home)
+
+    result = await service.set_cover_tilt_position(device.id, value)
+
+    assert result["success"] is True
+    assert fake_connector.sent_commands == [
+        ("cover.living_room_blind", "set_cover_tilt_position", {"tilt_position": value})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_set_cover_tilt_position_never_implies_open_close_or_position(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_cover(smart_home)
+
+    await service.set_cover_tilt_position(device.id, 50)
+
+    assert fake_connector.sent_commands == [
+        ("cover.living_room_blind", "set_cover_tilt_position", {"tilt_position": 50})
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [-1, 101, 1000, -100])
+async def test_set_cover_tilt_position_rejects_out_of_range(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    permissions: PermissionModel,
+    value: int,
+) -> None:
+    await _grant(permissions)
+    _, device = await _home_and_cover(smart_home)
+    with pytest.raises(ServiceError, match="0-100"):
+        await service.set_cover_tilt_position(device.id, value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [50.5, "50", None, True, False])
+async def test_set_cover_tilt_position_rejects_non_integer(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    permissions: PermissionModel,
+    value,
+) -> None:
+    await _grant(permissions)
+    _, device = await _home_and_cover(smart_home)
+    with pytest.raises(ServiceError, match="0-100"):
+        await service.set_cover_tilt_position(device.id, value)
+
+
+@pytest.mark.asyncio
+async def test_set_cover_tilt_position_reports_failure_not_success(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    fake_connector.next_command_succeeds = False
+    _, device = await _home_and_cover(smart_home)
+
+    result = await service.set_cover_tilt_position(device.id, 50)
+
+    assert result["success"] is False
+    assert result["detail"]
+
+
+@pytest.mark.asyncio
+async def test_mqtt_set_cover_tilt_position_translation(
+    smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    mqtt_connector = FakeDeviceConnector()
+    mqtt_connector.connector_type = "mqtt"
+    registry = ConnectorFactoryRegistry()
+    registry.register("mqtt", lambda config: mqtt_connector)
+    mqtt_connectivity = ConnectivityService(registry=registry, smart_home=smart_home)
+    mqtt_service = ApplianceService(
+        smart_home=smart_home, connectivity=mqtt_connectivity, permissions=permissions
+    )
+    await mqtt_connectivity.connect("mqtt")
+    await _grant(permissions)
+    _, device = await _home_and_cover(smart_home, connector_type="mqtt")
+
+    await mqtt_service.set_cover_tilt_position(device.id, 30)
+
+    assert mqtt_connector.sent_commands == [
+        ("cover.living_room_blind", "set_cover_tilt_position", {"tilt_position": 30})
+    ]
+
+
+def test_value_payload_keys_maps_every_value_bearing_command() -> None:
+    from jarvis.services.appliance_service import (
+        _VALUE_PAYLOAD_KEYS,
+        CoverCommand,
+        FanCommand,
+    )
+
+    assert _VALUE_PAYLOAD_KEYS == {
+        FanCommand.SET_PERCENTAGE: "percentage",
+        CoverCommand.SET_POSITION: "position",
+        CoverCommand.SET_TILT_POSITION: "tilt_position",
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_cover_state_reports_tilt_position_from_current_tilt_position(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """Read attribute is `current_tilt_position` -- deliberately NOT
+    `tilt_position` (the write parameter name), externally verified
+    this session (Logic Contract §1)."""
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_cover(smart_home)
+    fake_connector.states["cover.living_room_blind"] = DeviceState(
+        external_id="cover.living_room_blind",
+        status="open",
+        attributes={"current_tilt_position": 42},
+    )
+
+    state = await service.get_cover_state(device.id)
+
+    assert state["tilt_position"] == 42
+
+
+@pytest.mark.asyncio
+async def test_get_cover_state_ignores_bare_tilt_position_attribute(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """A stray `tilt_position` attribute (the write-side name) must not
+    be misread as the current tilt -- only `current_tilt_position`
+    counts."""
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_cover(smart_home)
+    fake_connector.states["cover.living_room_blind"] = DeviceState(
+        external_id="cover.living_room_blind", status="open", attributes={"tilt_position": 42}
+    )
+
+    state = await service.get_cover_state(device.id)
+
+    assert state["tilt_position"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_cover_state_tilt_position_none_when_unavailable(
+    service: ApplianceService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    _, device = await _home_and_cover(smart_home)
+    fake_connector.states["cover.living_room_blind"] = DeviceState(
+        external_id="cover.living_room_blind",
+        status="unavailable",
+        attributes={"current_tilt_position": 42},
+    )
+
+    state = await service.get_cover_state(device.id)
+
+    assert state["tilt_position"] is None
 
 
 @pytest.mark.asyncio

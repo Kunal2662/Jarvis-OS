@@ -88,6 +88,27 @@ class CoverCommand(enum.StrEnum):
     OPEN = "open_cover"
     CLOSE = "close_cover"
     SET_POSITION = "set_cover_position"
+    #: Milestone 12 Appliance Control, Cover Tilt + Stop slice. HA's own
+    #: `cover.stop_cover` service -- no parameters.
+    STOP = "stop_cover"
+    #: HA's own `cover.set_cover_tilt_position` service -- one
+    #: parameter, `tilt_position` (externally verified this slice, 0-100
+    #: integer, same convention as `position`).
+    SET_TILT_POSITION = "set_cover_tilt_position"
+
+
+#: Value-bearing commands only -- `turn_on`/`turn_off`/`open_cover`/
+#: `close_cover`/`stop_cover` carry no payload and need no entry here.
+#: Explicit mapping (Cover Tilt + Stop Logic Contract §3), replacing an
+#: earlier binary `"percentage" if command is SET_PERCENTAGE else
+#: "position"` that would have silently mislabeled `set_cover_tilt_
+#: position`'s own payload key too -- correct by construction for any
+#: future value-bearing command, not just the two that existed before.
+_VALUE_PAYLOAD_KEYS: dict[FanCommand | CoverCommand, str] = {
+    FanCommand.SET_PERCENTAGE: "percentage",
+    CoverCommand.SET_POSITION: "position",
+    CoverCommand.SET_TILT_POSITION: "tilt_position",
+}
 
 
 def _translate_home_assistant(
@@ -100,13 +121,14 @@ def _translate_home_assistant(
     `turn_on`/`turn_off`/`open_cover`/`close_cover` carry no payload,
     unchanged. `set_percentage`/`set_cover_position` carry exactly the
     one value HA's own `fan.set_percentage`/`cover.set_cover_position`
-    services accept (`percentage`/`position`, externally verified
-    0-100 integers -- Fan Percentage + Cover Position Logic Contract
-    §8) -- no scale conversion, unlike Lighting's own brightness_pct
-    split, since this module's normalized range already matches HA's."""
+    services accept (`percentage`/`position`/`tilt_position`,
+    externally verified 0-100 integers -- Fan Percentage + Cover
+    Position Logic Contract §8, extended by Cover Tilt + Stop Logic
+    Contract §1) -- no scale conversion, unlike Lighting's own
+    brightness_pct split, since this module's normalized range already
+    matches HA's."""
     if value is not None:
-        key = "percentage" if command is FanCommand.SET_PERCENTAGE else "position"
-        return command.value, {key: value}
+        return command.value, {_VALUE_PAYLOAD_KEYS[command]: value}
     return command.value, {}
 
 
@@ -124,8 +146,7 @@ def _translate_mqtt(
     `MqttConnector.send_command`/`build_command_envelope` this
     session."""
     if value is not None:
-        key = "percentage" if command is FanCommand.SET_PERCENTAGE else "position"
-        return command.value, {key: value}
+        return command.value, {_VALUE_PAYLOAD_KEYS[command]: value}
     return command.value, {}
 
 
@@ -240,6 +261,7 @@ def _cover_payload(device: Device, raw: Any = None) -> dict[str, Any]:
         "external_id": device.external_id,
         "state": None,
         "position": None,
+        "tilt_position": None,
         "available": raw is not None,
     }
     if raw is not None:
@@ -248,6 +270,12 @@ def _cover_payload(device: Device, raw: Any = None) -> dict[str, Any]:
             payload["state"] = _infer_cover_state(raw.status)
             attributes = raw.attributes or {}
             payload["position"] = _coerce_int(attributes.get("current_cover_position"))
+            # `current_tilt_position` -- externally verified this
+            # session to be the real HA attribute name, distinct from
+            # `tilt_position` (the write parameter), mirroring
+            # `current_cover_position`'s own established
+            # different-name-from-write-parameter pattern.
+            payload["tilt_position"] = _coerce_int(attributes.get("current_tilt_position"))
     return payload
 
 
@@ -383,6 +411,24 @@ class ApplianceService:
         self._require_permission()
         _validate_percent_range(position, "position")
         return await self._send_cover(device_id, CoverCommand.SET_POSITION, value=position)
+
+    async def cover_stop(self, device_id: str) -> dict[str, Any]:
+        """Sends `stop_cover` -- a third existing HA service, distinct
+        from open/close/position (Cover Tilt + Stop Logic Contract §5).
+        No payload, mirroring `cover_open`/`cover_close` exactly."""
+        self._require_permission()
+        return await self._send_cover(device_id, CoverCommand.STOP)
+
+    async def set_cover_tilt_position(self, device_id: str, tilt_position: int) -> dict[str, Any]:
+        """Sends exactly one `set_cover_tilt_position` wire command --
+        never an implicit accompanying open/close/position call, the
+        same discipline `set_cover_position` already establishes (Cover
+        Tilt + Stop Logic Contract §5)."""
+        self._require_permission()
+        _validate_percent_range(tilt_position, "tilt_position")
+        return await self._send_cover(
+            device_id, CoverCommand.SET_TILT_POSITION, value=tilt_position
+        )
 
     async def _send_cover(
         self, device_id: str, command: CoverCommand, *, value: int | None = None

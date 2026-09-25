@@ -3,10 +3,11 @@
 12 Appliance Control -- Core Appliance Slice: Fans + Covers; Fan
 Percentage + Cover Position Slice).
 
-Ten tools, mirroring ``smart_switch_tools.py``'s structure, doubled for
-the two capabilities this slice supports, plus one dedicated
-percentage/position-setting tool per capability -- not an optional
-argument added to ``fan_on``/``cover_open`` (see
+Twelve tools (Cover Tilt + Stop slice added ``cover_stop``/
+``set_cover_tilt_position`` to the original ten), mirroring
+``smart_switch_tools.py``'s structure, doubled for the two capabilities
+this slice supports, plus one dedicated tool per cover/fan capability
+-- not an optional argument added to ``fan_on``/``cover_open`` (see
 ``docs/M12_APPLIANCE_FAN_COVER_POSITION_LOGIC_CONTRACT.md`` §11).
 
 **No tool authorizes anything, and no tool bypasses the permission
@@ -169,7 +170,40 @@ def _build_cover_tools(appliances: ApplianceService) -> list[BaseTool]:
             return f"Couldn't set that cover's position: {err}"
         return _clip(json.dumps(result, indent=2, default=str))
 
-    return [list_covers, get_cover_state, cover_open, cover_close, set_cover_position]
+    @tool
+    async def cover_stop(device_id: str) -> str:
+        """Stop a cover/blind/curtain's current movement by device id.
+        Takes real effect on the device -- confirm with the user before
+        calling it."""
+        try:
+            result = await appliances.cover_stop(device_id)
+        except Exception as err:
+            _logger.warning("cover_stop tool failed: {}", err)
+            return f"Couldn't stop that cover: {err}"
+        return _clip(json.dumps(result, indent=2, default=str))
+
+    @tool
+    async def set_cover_tilt_position(device_id: str, tilt_position: int) -> str:
+        """Set a cover/blind's slat tilt to an exact position (0-100,
+        0=fully closed tilt, 100=fully open tilt) by device id. Takes
+        real effect on the device -- confirm with the user before
+        calling it."""
+        try:
+            result = await appliances.set_cover_tilt_position(device_id, tilt_position)
+        except Exception as err:
+            _logger.warning("set_cover_tilt_position tool failed: {}", err)
+            return f"Couldn't set that cover's tilt position: {err}"
+        return _clip(json.dumps(result, indent=2, default=str))
+
+    return [
+        list_covers,
+        get_cover_state,
+        cover_open,
+        cover_close,
+        set_cover_position,
+        cover_stop,
+        set_cover_tilt_position,
+    ]
 
 
 def _clip(text: str) -> str:

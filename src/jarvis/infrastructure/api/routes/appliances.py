@@ -49,6 +49,10 @@ class SetCoverPositionRequest(BaseModel):
     position: int
 
 
+class SetCoverTiltPositionRequest(BaseModel):
+    tilt_position: int
+
+
 def _appliances(request: Request) -> ApplianceService:
     return cast("ApplianceService", request.app.state.container.appliance_service())
 
@@ -172,6 +176,32 @@ async def set_cover_position(
 
     try:
         result = await _appliances(request).set_cover_position(device_id, body.position)
+    except ServiceError as err:
+        raise _bad_request(err) from err
+    return envelope(result, meta={"success": result["success"]})
+
+
+@router.post("/appliances/covers/{device_id}/stop", response_model=Envelope[dict[str, Any]])
+async def stop_cover(device_id: str, request: Request) -> Envelope[dict[str, Any]]:
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        result = await _appliances(request).cover_stop(device_id)
+    except ServiceError as err:
+        raise _bad_request(err) from err
+    return envelope(result, meta={"success": result["success"]})
+
+
+@router.post(
+    "/appliances/covers/{device_id}/set_tilt_position", response_model=Envelope[dict[str, Any]]
+)
+async def set_cover_tilt_position(
+    device_id: str, body: SetCoverTiltPositionRequest, request: Request
+) -> Envelope[dict[str, Any]]:
+    from jarvis.core.exceptions import ServiceError
+
+    try:
+        result = await _appliances(request).set_cover_tilt_position(device_id, body.tilt_position)
     except ServiceError as err:
         raise _bad_request(err) from err
     return envelope(result, meta={"success": result["success"]})

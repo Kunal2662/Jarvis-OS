@@ -406,6 +406,120 @@ async def test_set_cover_position_tool_rejects_out_of_range_without_raising(
 
 
 @pytest.mark.asyncio
+async def test_cover_stop_tool_denied_without_grant(tools, smart_home: SmartHomeService) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Living Room Blind",
+        device_type="appliance",
+        external_id="cover.living_room_blind",
+        metadata={"connector_type": "home_assistant", "domain": "cover"},
+    )
+
+    result = await tools["cover_stop"].ainvoke({"device_id": device.id})
+
+    assert "Couldn't" in result
+    assert "permission" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_cover_stop_tool_succeeds_once_granted(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await permissions.grant(APPLIANCE_PRINCIPAL, SMART_HOME_SCOPE)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Living Room Blind",
+        device_type="appliance",
+        external_id="cover.living_room_blind",
+        metadata={"connector_type": "home_assistant", "domain": "cover"},
+    )
+
+    result = await tools["cover_stop"].ainvoke({"device_id": device.id})
+
+    assert '"success": true' in result.lower()
+    assert fake_connector.sent_commands == [("cover.living_room_blind", "stop_cover", {})]
+
+
+@pytest.mark.asyncio
+async def test_set_cover_tilt_position_tool_denied_without_grant(
+    tools, smart_home: SmartHomeService
+) -> None:
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Living Room Blind",
+        device_type="appliance",
+        external_id="cover.living_room_blind",
+        metadata={"connector_type": "home_assistant", "domain": "cover"},
+    )
+
+    result = await tools["set_cover_tilt_position"].ainvoke(
+        {"device_id": device.id, "tilt_position": 50}
+    )
+
+    assert "Couldn't" in result
+    assert "permission" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_set_cover_tilt_position_tool_succeeds_once_granted(
+    tools,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    await connectivity.connect("home_assistant")
+    await permissions.grant(APPLIANCE_PRINCIPAL, SMART_HOME_SCOPE)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Living Room Blind",
+        device_type="appliance",
+        external_id="cover.living_room_blind",
+        metadata={"connector_type": "home_assistant", "domain": "cover"},
+    )
+
+    result = await tools["set_cover_tilt_position"].ainvoke(
+        {"device_id": device.id, "tilt_position": 20}
+    )
+
+    assert '"success": true' in result.lower()
+    assert fake_connector.sent_commands == [
+        ("cover.living_room_blind", "set_cover_tilt_position", {"tilt_position": 20})
+    ]
+
+
+@pytest.mark.asyncio
+async def test_set_cover_tilt_position_tool_rejects_out_of_range_without_raising(
+    tools, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    await permissions.grant(APPLIANCE_PRINCIPAL, SMART_HOME_SCOPE)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Living Room Blind",
+        device_type="appliance",
+        external_id="cover.living_room_blind",
+        metadata={"connector_type": "home_assistant", "domain": "cover"},
+    )
+
+    result = await tools["set_cover_tilt_position"].ainvoke(
+        {"device_id": device.id, "tilt_position": -5}
+    )
+
+    assert "Couldn't" in result
+    assert "0-100" in result
+
+
+@pytest.mark.asyncio
 async def test_get_fan_state_tool_reports_unknown_device_without_raising(tools) -> None:
     result = await tools["get_fan_state"].ainvoke({"device_id": "no-such-device"})
     assert "Couldn't read" in result
