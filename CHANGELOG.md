@@ -3,6 +3,44 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Appliance Control — Cover Tilt + Stop (Task Group Z)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes the two items the Fan Percentage + Cover Position slice's own
+Logic Contract explicitly named and deferred for covers: stop-in-place
+(`cover.stop_cover`) and slat tilt (`cover.set_cover_tilt_position`).
+Preceded by a Logic Contract (`docs/
+M12_APPLIANCE_COVER_TILT_STOP_LOGIC_CONTRACT.md`). HA service and
+attribute names (`cover.stop_cover`, `cover.set_cover_tilt_position`
+with its `tilt_position` parameter, and the `current_tilt_position`
+read attribute) were externally verified against current Home
+Assistant documentation before implementation, per this project's own
+verification discipline. 29 new tests, 0 failures, 0 errors.
+
+### Added
+- **`ApplianceService.cover_stop`** and **`set_cover_tilt_position`** —
+  two new public methods, each permission-gated through the same
+  `_send_cover`/`ConnectivityService.send_command` path every other
+  mutating cover command already uses. `set_cover_tilt_position`
+  rejects a device that is not a cover, exactly like
+  `set_cover_position`.
+- **`CoverCommand.STOP`** / **`CoverCommand.SET_TILT_POSITION`** enum
+  members, plus a `_VALUE_PAYLOAD_KEYS` mapping that replaces the
+  prior two-way if/else in both HA and MQTT translators with a single
+  table shared by every value-bearing fan/cover command.
+- **Read model** gains `tilt_position` (current reading, gated behind
+  `available`, read from `current_tilt_position`), mirroring how
+  `percentage`/`position` already work.
+- **REST**: `POST /appliances/covers/{id}/stop` and `POST /appliances/
+  covers/{id}/set_tilt_position`, following this router's own
+  one-endpoint-per-command-vocabulary convention (`docs/
+  M12_APPLIANCE_FAN_COVER_POSITION_LOGIC_CONTRACT.md` §10).
+- **Two new agent tools** (`cover_stop`, `set_cover_tilt_position`),
+  neither added to `AgentSettings.confirm_required_tools` — no more
+  physically safety-relevant than the existing cover commands.
+
 ## M12: Appliance Control — Thermostat Fan Mode (Task Group Y)
 
 **No version bump**, matching this project's own established

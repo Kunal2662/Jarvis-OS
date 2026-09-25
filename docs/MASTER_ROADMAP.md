@@ -4947,12 +4947,24 @@ now built). Additive to the existing `set_thermostat_state` -- a third
 optional keyword, not a new method -- with `fan_mode`/`fan_modes`
 following the identical live-reading/declared-capability split
 `hvac_mode`/`hvac_modes` already established. Swing mode, preset
-modes, and humidity/dehumidify remain deferred, unchanged.)*
+modes, and humidity/dehumidify remain deferred, unchanged. Cover Tilt
++ Stop shipped Task Group Z, Aug 2026 -- closes the two items the Fan
+Percentage + Cover Position Slice's own Logic Contract explicitly
+deferred for covers: `cover_stop` (`cover.stop_cover`, zero-payload,
+same shape as Vacuum's transport commands) and
+`set_cover_tilt_position` (`cover.set_cover_tilt_position`, parameter
+`tilt_position`, externally verified 0-100 integer, no scale
+conversion). A `_VALUE_PAYLOAD_KEYS` mapping replaced the prior
+two-way if/else in both translators, now covering all four
+value-bearing fan/cover commands from one table. A cover's live tilt
+attribute is `current_tilt_position`, confirmed externally to be a
+different name from the `tilt_position` write parameter, same pattern
+as `current_cover_position`/`position`. Zero connector changes.)*
 - Smart Fans ✅ *(on/off + speed percentage 0-100 -- oscillation/preset modes deferred)*
 - Smart AC ✅ *(read/write current+target temperature, HVAC mode, fan mode -- swing/presets/humidity/scheduling deferred)*
 - Smart TV ✅ *(via the media_player entity -- playback transport, volume/mute/source, now-playing title/artist -- play_media/join-unjoin/shuffle/repeat/sound mode deferred)*
-- Smart Curtains ✅ *(via the cover entity, open/close + position 0-100 -- tilt/stop deferred)*
-- Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 -- tilt/stop deferred)*
+- Smart Curtains ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
+- Smart Blinds ✅ *(via the cover entity, open/close + position 0-100 + tilt + stop -- fully shipped)*
 - Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level -- fan speed/cleaning modes/maps/scheduling deferred)*
 - Smart Humidifiers ✅ *(on/off, target humidity, mode read-only -- mode control/presets/water-level automation deferred)*
 - Smart Geysers ✅ *(via the water_heater entity -- on/off, operation mode, target temperature -- away/vacation mode/dual setpoint deferred)*
