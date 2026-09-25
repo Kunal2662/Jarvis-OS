@@ -3,6 +3,52 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Developer Tools — Event Viewer Slice (Task Group X)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Closes M12's own **Event Viewer** item -- **not Automation Tester
+(still genuinely blocked: nothing to test until Home Automation/M7
+exists)**. Closes the "no device-command event exists on the EventBus"
+gap named explicitly in Device Diagnostics'/Device Logs' own Logic
+Contracts. Preceded by a Logic Contract (`docs/
+M12_DEVELOPER_TOOLS_EVENT_VIEWER_LOGIC_CONTRACT.md`), written and
+approved before any code. The central architecture decision: the new
+`DeviceCommandExecutedEvent` joins `runtime_ws_hub.py`'s own
+`UNPUBLISHED_EVENT_TYPES` allowlist rather than `EVENT_TYPE_NAMES`,
+reusing this codebase's own already-established precedent for four M11
+Integration events verbatim -- wiring a new relayed event pulls in the
+frontend WS contract and its four pinned tests, outside every M12
+Developer Tools slice's backend-only scope so far. Both existing
+relay-completeness guard tests (`test_runtime_ws_hub.py`,
+`test_platform_integration.py`) pass with zero edits to their own
+assertion logic. 28 new tests, 0 failures, 0 errors.
+
+### Added
+- **`DeviceCommandExecutedEvent`** (`core/events/events.py`) --
+  `device_id`, `command`, `success`, `detail`. No `payload` field,
+  structurally -- the same reasoning Device Logs already established
+  for never logging a command's payload (a lock's own PIN can be in
+  there). Published by `ConnectivityService.send_command` for all four
+  outcomes (success, device-level rejection, no recorded connector,
+  connector-level failure), alongside its existing Device Logs
+  logging.
+- **`DeviceEventLog`** (`core/devtools/device_event_log.py`) -- a new
+  capture component structurally parallel to `DebugConsole`, simpler
+  since `EventBus.subscribe` calls its handler synchronously with no
+  loguru sink or background thread needed. Settings-gated
+  (`devtools.device_event_log_enabled`, default `True`, matching
+  `debug_console_enabled`'s own "opt-out-if-you-must" posture), wired
+  into the DI container and `app.py`'s startup/shutdown hooks exactly
+  like Debug Console.
+- **`GET /api/v1/devtools/events`** / **`DELETE /api/v1/devtools/events`**
+  (`infrastructure/api/routes/devtools.py`) -- most-recent-first,
+  optionally filtered by `device_id`. No `PermissionModel` gate,
+  matching every other devtools capability -- session auth only.
+  Deliberately not relayed over WebSocket -- backend-only, matching
+  every M12 Developer Tools slice shipped so far.
+
 ## M12: Developer Tools — MQTT Debug Console Slice (Task Group W)
 
 **No version bump**, matching this project's own established

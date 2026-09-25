@@ -5183,15 +5183,27 @@ Logs already established for why a command's payload is never logged.
 Captured payloads are truncated and pass through a best-effort
 key-substring text redaction before storage. `GET /api/v1/devtools/
 mqtt/messages` -- no `home_id`/`connector_id` scoping, since there is
-only ever one live connector. Event Viewer and Automation Tester remain
-unbuilt -- Event Viewer specifically blocked on the still-unresolved
-device-command EventBus publishing gap, not merely deferred by
-choice.)*
+only ever one live connector. Event Viewer Slice shipped Task Group X,
+Aug 2026 -- closed the "no device-command event exists on the EventBus"
+gap this same paragraph's own earlier entries named explicitly. A new
+`DeviceCommandExecutedEvent` (`device_id`/`command`/`success`/`detail`,
+no `payload` field structurally) is published by `ConnectivityService.
+send_command` for all four outcomes, captured by a new `DeviceEventLog`
+component (`core/devtools/`, structurally parallel to `DebugConsole`)
+and exposed over `GET`/`DELETE /api/v1/devtools/events`. Deliberately
+joins `runtime_ws_hub.py`'s own `UNPUBLISHED_EVENT_TYPES` allowlist
+rather than `EVENT_TYPE_NAMES` -- reusing this codebase's own
+already-established precedent for four M11 Integration events verbatim
+(relaying a new event pulls in the frontend WS contract and its four
+pinned tests, outside this backend-only pass's scope), so both existing
+relay-completeness guard tests pass with zero edits to their own
+assertion logic. Automation Tester remains unbuilt and genuinely
+blocked: nothing exists to test until Home Automation/M7 does.)*
 - Device Simulator ✅ *(light/switch/thermostat/lock/sensor, `"home_assistant"` connector slot only -- MQTT-slot simulation deferred)*
 - MQTT Debug Console ✅ *(inbound wire messages only, single global buffer -- outbound command payloads deliberately never captured)*
 - Device Logs ✅ *(command outcomes only, via `ConnectivityService.send_command`'s new per-outcome logging -- reads/discovery are not logged per-device)*
-- Event Viewer *(blocked -- no device-command event exists on the EventBus to view)*
-- Automation Tester
+- Event Viewer ✅ *(structured `DeviceCommandExecutedEvent` history via a new `DeviceEventLog` component -- backend-only, deliberately not relayed over WebSocket)*
+- Automation Tester *(blocked -- nothing exists to test until Home Automation/M7 does)*
 - Integration Health Dashboard ✅ *(connector registration/connection state + per-home device-health counts, read-only)*
 - Device Diagnostics ✅ *(per-device identity + live connectivity + permission-grant aggregate; appliance/camera permission resolution deferred)*
 
