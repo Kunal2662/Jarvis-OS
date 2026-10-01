@@ -670,6 +670,18 @@ def _build_water_heater_service(
     )
 
 
+def _build_camera_service(
+    *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
+) -> Any:
+    from jarvis.services.camera_service import CameraService
+
+    return CameraService(
+        smart_home=smart_home_service,
+        connectivity=connectivity_service,
+        permissions=permission_model,
+    )
+
+
 def _build_security_service(
     *,
     sensor_service: Any,
@@ -1241,6 +1253,7 @@ def _build_agent_orchestrator(
     vacuum_humidifier: Any,
     media_players: Any,
     water_heaters: Any,
+    cameras: Any,
     security: Any,
     siren: Any,
     alarm_control_panels: Any,
@@ -1272,6 +1285,7 @@ def _build_agent_orchestrator(
         vacuum_humidifier=vacuum_humidifier,
         media_players=media_players,
         water_heaters=water_heaters,
+        cameras=cameras,
         security=security,
         siren=siren,
         alarm_control_panels=alarm_control_panels,
@@ -1661,6 +1675,18 @@ class Container(containers.DeclarativeContainer):
         permission_model=permission_model,
     )
 
+    # ---- Milestone 12 Smart Cameras (Core Camera Slice) -------------------
+    # Its own service -- device_type="camera" is already reserved and
+    # already mapped by both connectors, so this is a module-opening
+    # slice with zero connector changes; see
+    # docs/M12_SMART_CAMERAS_LOGIC_CONTRACT.md §2/§4.
+    camera_service = providers.Singleton(
+        _build_camera_service,
+        smart_home_service=smart_home_service,
+        connectivity_service=connectivity_service,
+        permission_model=permission_model,
+    )
+
     # ---- Milestone 12 Security & Safety (Read-Only Alert/Status Slice) ----
     # Pull-based aggregation over sensor_service/smart_lock_service only --
     # deliberately NOT smart_home_service/connectivity_service, per
@@ -2018,6 +2044,7 @@ class Container(containers.DeclarativeContainer):
         vacuum_humidifier=vacuum_humidifier_service,
         media_players=media_player_service,
         water_heaters=water_heater_service,
+        cameras=camera_service,
         security=security_service,
         siren=siren_service,
         alarm_control_panels=alarm_control_panel_service,

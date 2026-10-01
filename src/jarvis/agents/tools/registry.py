@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
+    from jarvis.services.camera_service import CameraService
     from jarvis.services.chat_service import ChatService
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
@@ -64,6 +65,7 @@ def build_tool_registry(
     vacuum_humidifier: VacuumHumidifierService | None = None,
     media_players: MediaPlayerService | None = None,
     water_heaters: WaterHeaterService | None = None,
+    cameras: CameraService | None = None,
     security: SecurityService | None = None,
     siren: SirenService | None = None,
     alarm_control_panels: AlarmControlPanelService | None = None,
@@ -173,6 +175,13 @@ def build_tool_registry(
         from jarvis.agents.tools.water_heater_tools import build_water_heater_tools
 
         tools += build_water_heater_tools(water_heaters)
+    if cameras is not None:
+        # Milestone 12 Smart Cameras (Core Camera Slice). Six tools,
+        # one per verb, mirroring Smart Lock's own registration -- see
+        # `agents/tools/camera_tools.py`.
+        from jarvis.agents.tools.camera_tools import build_camera_tools
+
+        tools += build_camera_tools(cameras)
     if security is not None:
         # Milestone 12 Security & Safety (Read-Only Alert/Status
         # Slice). Two read-only tools, mirroring Sensors' own

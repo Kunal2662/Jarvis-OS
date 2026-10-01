@@ -540,6 +540,8 @@ class AgentSettings(BaseSettings):
             "trigger_vacation_mode",
             "turn_siren_on",
             "disarm",
+            "camera_turn_off",
+            "disable_camera_motion_detection",
         }
     )
     # Conversational Orchestration Routing (M10 -- see

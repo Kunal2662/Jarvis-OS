@@ -72,6 +72,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
             alarm_control_panels as alarm_control_panel_routes,
         )
         from jarvis.infrastructure.api.routes import appliances as appliance_routes
+        from jarvis.infrastructure.api.routes import cameras as camera_routes
         from jarvis.infrastructure.api.routes import connectivity as connectivity_routes
         from jarvis.infrastructure.api.routes import devtools as devtools_routes
         from jarvis.infrastructure.api.routes import files as file_routes
@@ -123,6 +124,7 @@ def create_app(settings: Settings, container: Container | None = None) -> FastAP
         app.include_router(media_player_routes.router, prefix="/api/v1")
         app.include_router(water_heater_routes.router, prefix="/api/v1")
         app.include_router(sensor_routes.router, prefix="/api/v1")
+        app.include_router(camera_routes.router, prefix="/api/v1")
         app.include_router(security_routes.router, prefix="/api/v1")
         app.include_router(siren_routes.router, prefix="/api/v1")
         app.include_router(alarm_control_panel_routes.router, prefix="/api/v1")

@@ -62,6 +62,7 @@ if TYPE_CHECKING:
     from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
+    from jarvis.services.camera_service import CameraService
     from jarvis.services.chat_service import ChatService
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
@@ -112,6 +113,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         vacuum_humidifier: VacuumHumidifierService | None = None,
         media_players: MediaPlayerService | None = None,
         water_heaters: WaterHeaterService | None = None,
+        cameras: CameraService | None = None,
         security: SecurityService | None = None,
         siren: SirenService | None = None,
         alarm_control_panels: AlarmControlPanelService | None = None,
@@ -188,6 +190,12 @@ class AgentOrchestrator(IAgentOrchestrator):
         # REST surface calls -- see
         # `agents/tools/water_heater_tools.py`.
         self._water_heaters = water_heaters
+        # Milestone 12 Smart Cameras (Core Camera Slice): normalized
+        # camera state/on-off/motion-detection control reaches the
+        # agent as tools on the same registry, converging on the same
+        # `CameraService` the REST surface calls -- see
+        # `agents/tools/camera_tools.py`.
+        self._cameras = cameras
         # Milestone 12 Security & Safety (Read-Only Alert/Status
         # Slice): read-only hazard/status aggregation reaches the agent
         # as tools on the same registry, converging on the same
@@ -258,6 +266,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 vacuum_humidifier=self._vacuum_humidifier,
                 media_players=self._media_players,
                 water_heaters=self._water_heaters,
+                cameras=self._cameras,
                 security=self._security,
                 siren=self._siren,
                 alarm_control_panels=self._alarm_control_panels,
