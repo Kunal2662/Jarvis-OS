@@ -288,7 +288,7 @@ Plugin Platform provides (`POST /api/v1/plugins/{id}/permissions/
 permission is `PENDING` (denied) until an operator grants it, the same
 interim posture M11's own integrations ship with. Explicitly **not**
 in scope: motion-activated lighting, sunrise/sunset automation and
-scheduled lighting — all deferred to the separate, unstarted Home
+scheduled lighting — all deferred to the separate Home
 Automation module, per this task group's own Logic Contract
 (`docs/M12_CONNECTIVITY_REST_SMART_LIGHTING_LOGIC_CONTRACT.md`).
 
@@ -339,7 +339,7 @@ rejected that finer split (see `docs/M12_SENSORS_LOGIC_CONTRACT.md`
 only — no mutation route exists) and as four read-only agent tools.
 Explicitly not built: any automation/trigger logic, energy-specific
 logic, or security-response logic — all deferred to their own
-still-unstarted modules; sensors expose normalized data only.
+modules; sensors expose normalized data only.
 
 **Task Group F (Energy Management — Core Energy Slice) shipped, Aug
 2026**, no version bump. **Not the full Energy Management module** —
@@ -361,8 +361,9 @@ rows, never a combined "SmartPlug" entity. Consumption History, Energy
 Dashboard/Analytics/Trends, Energy Optimization, Automatic Power
 Saving, Load Scheduling and Energy-based Automations are all
 explicitly out of scope, deferred respectively to Smart Home Memory,
-Smart Home Analytics/M20A, and Home Automation/M7 — all four still
-unstarted/unshipped.
+Smart Home Analytics/M20A, and Home Automation/M7 — two of the three
+have since shipped (Smart Home Memory via Task Groups O/S/V, Home
+Automation via M7), leaving only Smart Home Analytics/M20A unshipped.
 
 **Task Group G (Appliance Control — Core Appliance Slice) shipped, Aug
 2026**, no version bump. **Not the full Appliance Control module** —
@@ -400,11 +401,14 @@ M12 candidates and found Security & Safety the only fully-buildable
 one: its entire data substrate already shipped (motion, presence,
 occupancy, door, window, smoke, gas, water-leak via `SensorService`;
 lock state via `SmartLockService`), and a **pull-based** read-only
-aggregate needs neither M7's Scheduler (confirmed entirely unstarted —
-no scheduler file exists anywhere in `src/jarvis/`) nor the
-device-command event-publishing gap the same audit surfaced (none of
-the five per-category command services publishes `DeviceUpdatedEvent`
-on actuation), both of which block Home Automation. A new
+aggregate needs neither M7's Scheduler (confirmed entirely unstarted at
+the time — no scheduler file then existed anywhere in `src/jarvis/`)
+nor the device-command event-publishing gap the same audit surfaced
+(none of the five per-category command services published
+`DeviceUpdatedEvent` on actuation), both of which blocked Home
+Automation — both since resolved by M7, which shipped the Scheduler,
+the device-command/state-changed EventBus events, and an
+event-triggered Home Automation MVP. A new
 `SecurityService` (`services/security_service.py`) aggregates the two
 already-shipped services — never a connector, never
 `ConnectivityService`/`SmartHomeService`, no `EventBus` dependency —
@@ -1057,16 +1061,19 @@ permission resolution; `appliance`/`camera`/every other category
 reports an unresolved principal, not a guess) only — MQTT Debug
 Console, MQTT-slot simulation, Event Viewer, and appliance-
 sub-domain principal resolution all remain deferred, Event Viewer
-explicitly blocked on the still-unresolved device-command EventBus
-publishing gap; Smart Home Memory: manual snapshot creation and
+explicitly blocked on the device-command EventBus publishing gap —
+which has since been closed by M7's eventbus work, leaving that slice
+merely unbuilt; Smart Home Memory: manual snapshot creation and
 retrieval for eleven device categories (light/switch/thermostat/fan/
 cover/vacuum/humidifier/media_player/water_heater/siren/
 alarm_control_panel), single-snapshot deletion, and home-wide
 snapshotting — Sensor/Lock snapshots remain **permanently** excluded
 on privacy/security grounds (not merely unbuilt), and
 automatic/scheduled/event-driven capture and diff/trend/analytics
-views remain deferred to the still-unresolved EventBus gap and M20A
-Analytics respectively). **No version bump accompanied any
+views remain unbuilt — the device-command EventBus gap that had
+blocked capture has since been closed by M7's eventbus work (so
+capture is no longer blocked, only unbuilt), while the analytics
+views stay deferred to M20A Analytics). **No version bump accompanied any
 of the twenty-five task-group passes** -- unlike M22's own task groups
 (each of which shipped real code and bumped the version in turn), all
 twenty-five ship real code at `0.38.0` unchanged. Recorded here as a
@@ -1399,7 +1406,7 @@ future work; see M6's own §3 entry for the full scope note.
   command vocabulary), gated by the existing `PermissionModel` under a
   new principal (`core:smart_lighting`) via the existing generic grant
   route — no new permission mechanism. Motion/sunrise-sunset/scheduled
-  lighting automation explicitly deferred to the unstarted Home
+  lighting automation explicitly deferred to the Home
   Automation module. Task Group D (Smart Locks) shipped: a new
   `SmartLockService` mirroring Task Group C's own architecture exactly
   — normalized lock/unlock control and state/availability reporting,
@@ -1434,9 +1441,11 @@ future work; see M6's own §3 entry for the full scope note.
   smart plug is one `switch` row plus sibling `sensor` rows, never a
   combined entity. Consumption History/Analytics/Optimization/
   Scheduling/energy automations all deferred to Smart Home
-  Memory/Analytics/Home Automation/M7 (all unstarted). **Not the full
-  Energy Management module.** Task Group G (Appliance Control — Core
-  Appliance Slice) shipped: a new `ApplianceService` covering Fan
+  Memory/Analytics/Home Automation/M7 (then all unstarted; Smart Home
+  Memory and Home Automation/M7 have since shipped, Analytics/M20A
+  still unshipped). **Not the full Energy Management module.** Task
+  Group G (Appliance Control — Core Appliance Slice) shipped: a new
+  `ApplianceService` covering Fan
   control and Cover/Blind/Curtain control under one `device_type=
   "appliance"` category, distinguished by the existing
   `metadata["domain"]` discovery field (already captured for every
@@ -1527,7 +1536,7 @@ future work; see M6's own §3 entry for the full scope note.
   template. Exposed under the existing `/appliances/*` prefix and
   eight agent tools, gated by the same `PermissionModel` under a new
   principal (`core:media_players`) — reads **ungated**. **Not the
-  full Appliance Control module.** **Not Complete**: seven of fifteen
+  full Appliance Control module.** **Not Complete**: four of fifteen
   M12 modules remain entirely unstarted.
 
 **Technology direction (Aug 2026):** JARVIS's frontend is migrating
@@ -5032,7 +5041,7 @@ catches by type, not by sniffing the message — mirroring
 `core/exceptions.py`'s own `AutomationPermissionDeniedError` precedent.
 Explicitly not built: any automation/trigger logic, energy-specific
 logic (optimization, billing, dashboards), or security-response logic
-— all deferred to their own still-unstarted modules; sensors expose
+— all deferred to their own modules; sensors expose
 normalized data only, never a reaction.
 
 **Task Group F (Energy Management — Core Energy Slice) shipped, Aug
@@ -5048,8 +5057,10 @@ Sensors module** (HA's own numeric `power`/`energy`/`voltage`/
 changes) — and Consumption History, Energy Dashboard/Analytics/Trends,
 Energy Optimization, Automatic Power Saving and Load Scheduling all
 found blocked on Smart Home Memory, Smart Home Analytics/M20A, or Home
-Automation/M7 (all still unstarted/unshipped, unchanged since the
-Home Automation and Sensors audits). A new `SmartSwitchService`
+Automation/M7 (all three then still unstarted/unshipped, unchanged
+since the Home Automation and Sensors audits; Smart Home Memory and
+Home Automation/M7 have since shipped, only Smart Home Analytics/M20A
+remains unshipped). A new `SmartSwitchService`
 (`services/smart_switch_service.py`) was built, mirroring
 `SmartLockService`'s architecture exactly for `device_type="switch"`:
 `turn_on`/`turn_off` (HA's own switch-domain services, no attribute
@@ -5104,9 +5115,12 @@ for the full Logic Contract.
 candidates and found Security & Safety the only fully-buildable one —
 its whole data substrate already shipped in Task Groups D/E, and a
 **pull-based** read-only aggregate needs neither M7's Scheduler
-(confirmed entirely unstarted) nor the device-command
-event-publishing gap the same audit surfaced, both of which block Home
-Automation, Smart Home Memory and Developer Tools' Event Viewer. A new
+(confirmed entirely unstarted at that audit, since shipped by M7) nor
+the device-command event-publishing gap the same audit surfaced, both
+of which blocked Home Automation, Smart Home Memory and Developer
+Tools' Event Viewer — the first two have since shipped (M7, M12 Task
+Groups O/S/V) and Event Viewer's blocker has since been closed,
+leaving that slice merely unbuilt. A new
 `SecurityService` (`services/security_service.py`) aggregates
 `SensorService` + `SmartLockService` only — never a connector, never
 `ConnectivityService`/`SmartHomeService`, and with **no `EventBus`
@@ -5132,24 +5146,45 @@ no actuator code path, no automatic action of any kind. See
 `docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md` for the full Logic
 Contract.
 
-**Not Complete**: six of this milestone's fifteen modules remain
+**Not Complete**: four of this milestone's fifteen modules remain
 entirely unstarted (Smart Cameras, AI Home Assistant,
-Remote Access, Smart Home Memory, Smart Home Analytics, Developer
-Tools) — Home Automation has since shipped an event-triggered MVP via
-M7's `HomeAutomationService` (see the M7 section and the Home
-Automation catalog entry above for scope) — and Energy Management, Appliance Control and Security & Safety
-each remain only partially shipped: Energy Management's Consumption
-History, Energy Dashboard/Analytics/Trends, Energy Optimization,
-Automatic Power Saving, Load Scheduling and Energy-based Automations
-are all still outstanding, deferred to the modules named above;
-Appliance Control's five deferred categories and two blocked categories
-(above) remain outstanding; and Security & Safety's entire
-action-taking half — Panic Mode, Vacation Mode, Emergency Alerts, Fire/
-Gas/Water-leak *response* (as opposed to reporting), automated safety
-actions, scene/multi-device response, event-driven and scheduler-based
-security automation, and notifications — remains outstanding, deferred
-to Home Automation/M7/future separately-scoped slices. See
-`IMPLEMENTATION_ROADMAP.md` §5H for the full account of what was built.
+Remote Access, Smart Home Analytics), and six more are only partially
+shipped: Home Automation (event-triggered MVP only, via M7's
+`HomeAutomationService` — see the M7 section and the Home Automation
+catalog entry above for scope), Energy Management, Appliance Control,
+Security & Safety, Smart Home Memory and Developer Tools. Energy
+Management's Consumption History, Energy Dashboard/Analytics/Trends,
+Energy Optimization, Automatic Power Saving, Load Scheduling and
+Energy-based Automations are all still outstanding, deferred to Smart
+Home Analytics and Home Automation; Appliance Control's two blocked
+categories (Smart Pumps/Irrigation and Smart Kitchen Devices) remain
+outstanding, while the five categories formerly listed as deferred
+(Climate/AC, Media Players/Smart TVs, Vacuum, Water Heater/Geysers,
+Humidifier) have since shipped as Task Groups I/J/K/L; Smart Home
+Memory covers manual, explicit-call-only snapshots (eleven device
+categories, single- and home-wide, with deletion) while Device
+History, automatic/continuous capture and every analytics view remain
+deferred, with Sensor/Lock snapshots permanently excluded on
+privacy/security grounds; Developer Tools covers Integration Health,
+Device Simulator and Device Diagnostics while Device Logs, the MQTT
+Debug Console, the Event Viewer and Automation Tester all remain
+unbuilt on this branch — the device-command EventBus publishing gap
+that used to block the Event Viewer has since been closed by M7's
+eventbus work, so those slices are no longer architecturally blocked,
+just unbuilt (the Event Viewer additionally still needs its deferred
+WebSocket relay, since `DeviceCommandExecutedEvent` remains in
+`UNPUBLISHED_EVENT_TYPES`), and Automation Tester now has an
+automation surface to test (M7's event-triggered MVP, Scheduler,
+Workflow Builder, Recorder) but still depends on the Rule/condition
+engine that remains unstarted. Security & Safety's still-outstanding
+scope — Emergency Alerts, Fire/Gas/Water-leak *response* (as opposed
+to reporting), automated safety actions, scene/multi-device response,
+event-driven and scheduler-based security automation, and
+notifications — stays deferred to future separately-scoped slices;
+its action-taking half (Panic Mode, Vacation Mode, siren on/off with
+tone/duration/volume, and alarm `arm_home`/`arm_away`/`disarm`) has
+already shipped above. See `IMPLEMENTATION_ROADMAP.md` §5H for the
+full account of what was built.
 
 *(Formerly "Smart Home Bridge" — see §9. Redesigned Jul 2026 from a
 single-bus device bridge into a complete enterprise-grade Smart Home
@@ -5640,13 +5675,13 @@ defense-in-depth, since this data is already reachable today through
 each of the five categories' own existing read route. A failed live
 read is never an HTTP error, only `read_succeeded: false` with a
 `read_error`. MQTT Debug Console, Event Viewer, and Automation Tester
-all remain unbuilt -- Event Viewer specifically blocked on the
-still-unresolved device-command EventBus publishing gap, not merely
-deferred by choice.)*
+all remain unbuilt -- Event Viewer's specific blocker, the device-
+command EventBus publishing gap, has since been closed by M7's
+eventbus work, leaving that slice merely unbuilt rather than blocked.)*
 - Device Simulator ✅ *(light/switch/thermostat/lock/sensor, `"home_assistant"` connector slot only -- MQTT-slot simulation deferred)*
 - MQTT Debug Console
 - Device Logs
-- Event Viewer *(blocked -- no device-command event exists on the EventBus to view)*
+- Event Viewer *(unbuilt -- device-command events now exist on the EventBus via M7's eventbus work; no viewer surface built yet)*
 - Automation Tester
 - Integration Health Dashboard ✅ *(connector registration/connection state + per-home device-health counts, read-only)*
 - Device Diagnostics ✅ *(per-device identity + live connectivity + permission-grant aggregate; appliance/camera permission resolution deferred)*
