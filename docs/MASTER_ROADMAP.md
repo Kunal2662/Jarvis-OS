@@ -4733,16 +4733,20 @@ no actuator code path, no automatic action of any kind. See
 `docs/M12_SECURITY_SAFETY_LOGIC_CONTRACT.md` for the full Logic
 Contract.
 
-**Not Complete**: seven of this milestone's fifteen modules remain
-entirely unstarted (Smart Cameras, Home Automation, AI Home Assistant,
+**Not Complete**: six of this milestone's fifteen modules remain
+entirely unstarted (Home Automation, AI Home Assistant,
 Remote Access, Smart Home Memory, Smart Home Analytics, Developer
-Tools) — and Energy Management, Appliance Control and Security & Safety
-each remain only partially shipped: Energy Management's Consumption
+Tools) — and Energy Management, Appliance Control, Security & Safety
+and Smart Cameras each remain only partially shipped: Energy Management's Consumption
 History, Energy Dashboard/Analytics/Trends, Energy Optimization,
 Automatic Power Saving, Load Scheduling and Energy-based Automations
 are all still outstanding, deferred to the modules named above;
 Appliance Control's five deferred categories and two blocked categories
-(above) remain outstanding; and Security & Safety's entire
+(above) remain outstanding; Smart Cameras' Live Streaming, Recording
+Management, Event Recording, Snapshot Capture and all four ML-detection
+categories (Person/Package/Vehicle Detection, Face Recognition) remain
+outstanding (see Task Group HH's status note above); and Security &
+Safety's entire
 action-taking half — Panic Mode, Vacation Mode, Emergency Alerts, Fire/
 Gas/Water-leak *response* (as opposed to reporting), automated safety
 actions, scene/multi-device response, event-driven and scheduler-based
@@ -4877,9 +4881,36 @@ Quality" is supported generically — HA has no single unified
 - Vibration Sensors ✅
 
 #### Smart Cameras
-- Camera Integration
+*(Core Camera Slice — on/off control and motion-detection toggle plus
+state/availability reporting — shipped Task Group HH, Aug 2026, the
+first slice for this previously 100%-unstarted module. Device-agnostic
+over whichever connector already discovered the camera; `device_type
+="camera"` was already a reserved value in `DEVICE_TYPES` and already
+mapped by both connectors, so zero connector changes were needed. Over
+both REST (`/api/v1/cameras/*`) and six agent tools. Reads are
+**gated** — following Sensors'/Security & Safety's precedent rather
+than Smart Lighting/Smart Locks/Smart Switches/Appliance Control's
+ungated one, since observing a camera is itself privacy-sensitive —
+under a new principal (`core:cameras`). `camera_turn_off` and
+`disable_camera_motion_detection` are in `confirm_required_tools`,
+same risk tier as `unlock_device` (reducing surveillance posture is a
+safety-reducing action). Live Streaming, Recording Management, Event
+Recording and Snapshot Capture are explicitly out of scope for this
+task group — `camera.snapshot` requires a filename on the Home
+Assistant host's own filesystem, confirming these need new storage and
+security architecture this task group was not asked to add. Person
+Detection, Package Detection, Vehicle Detection and Face Recognition
+are ML-detection features with no HA-side generic service to pass
+through to — deferred pending a dedicated ML/vision architecture
+decision, not merely unwired. See
+`docs/M12_SMART_CAMERAS_LOGIC_CONTRACT.md` for the full Logic
+Contract.)*
+- Camera Integration ✅
 - Live Streaming
-- Motion Detection
+- Motion Detection ✅ *(enable/disable toggle only — HA's generic
+  `enable_motion_detection`/`disable_motion_detection` services and
+  `motion_detection` attribute; not ML-based detection, see Person/
+  Package/Vehicle Detection below)*
 - Person Detection
 - Package Detection
 - Face Recognition (optional, off by default — see Architecture notes)

@@ -3,6 +3,66 @@
 All notable changes to JARVIS OS are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
+## M12: Smart Cameras — Core Camera Slice (Task Group HH)
+
+**No version bump**, matching this project's own established
+precedent for a task-group-scoped pass; unchanged from `0.38.0`.
+
+Opens the previously 100%-unstarted **Smart Cameras** module — the
+first new module this session, every prior Task Group (EE/FF/GG) only
+extended an already-shipped module. `device_type="camera"` was
+already a reserved value in `DEVICE_TYPES` and already mapped by both
+connectors (`home_assistant.py`, `mqtt.py`), so no connector changes
+were needed. External verification via WebSearch plus a direct read
+of Home Assistant's own source (`camera/__init__.py`, `camera/
+const.py`) confirmed `camera.turn_on`/`turn_off`/
+`enable_motion_detection`/`disable_motion_detection` are real, generic,
+zero-payload services, and that the `motion_detection` state attribute
+is only ever present when truthy — absent must read as `None`, never
+fabricated `False`. Preceded by a module-opening Logic Contract
+(`docs/M12_SMART_CAMERAS_LOGIC_CONTRACT.md`). 59 new tests, 0
+failures, 0 errors.
+
+### Added
+- **`CameraService`** (`services/camera_service.py`) — new service
+  over `SmartHomeService` + `ConnectivityService`, gated by a new
+  `core:cameras`/`smart_home` principal/scope. `list_cameras`/
+  `get_camera_state` plus four zero-payload commands (`turn_on`,
+  `turn_off`, `enable_motion_detection`, `disable_motion_detection`).
+  **Reads are gated**, a deliberate departure from Lock/Switch/
+  Appliance's ungated-read convention and instead following Sensors'/
+  Security & Safety's precedent — observing a camera is itself
+  privacy-sensitive. State is an open pass-through (`idle`/
+  `recording`/`streaming`, mirroring Vacuum's own unenumerated status
+  strings); `motion_detection` is `bool | None`, never defaulted to
+  `False` when the device doesn't report it.
+- **REST** (`/api/v1/cameras/*`) — `GET /cameras`, `GET /cameras/{id}`,
+  `POST /cameras/{id}/turn_on|turn_off|enable_motion_detection|
+  disable_motion_detection`, mirroring Sensors' gated-read pattern
+  combined with Smart Locks' four-action-endpoint shape.
+- **Six new agent tools** (`list_cameras`, `get_camera_state`,
+  `camera_turn_on`, `camera_turn_off`, `enable_camera_motion_detection`,
+  `disable_camera_motion_detection`), wired through the DI container
+  and `AgentOrchestrator`/`build_tool_registry` exactly like every
+  other optional service.
+- **`camera_turn_off`/`disable_camera_motion_detection`** added to
+  `AgentSettings.confirm_required_tools` — same risk tier as
+  `unlock_device` (reducing surveillance posture is a
+  safety-reducing action).
+
+### Not included (explicitly deferred, not merely unwired)
+- Live Streaming, Recording Management, Event Recording, Snapshot
+  Capture — `camera.snapshot` requires a filename on the Home
+  Assistant host's own filesystem, confirming these need new storage
+  and security architecture this task group was not asked to add.
+- Person/Package/Vehicle Detection, Face Recognition — ML-detection
+  features with no HA-side generic service to pass through to;
+  deferred pending a dedicated ML/vision architecture decision.
+- Not wired into `SmartHomeMemoryService` (which permanently excludes
+  Sensor/Lock on privacy grounds, and now Cameras by the same
+  reasoning) or `SecurityService` (whose `trigger_panic_mode`
+  docstring already states it never touches cameras).
+
 ## M12: Appliance Control — Vacuum Clean Spot + Locate (Task Group GG)
 
 **No version bump**, matching this project's own established
