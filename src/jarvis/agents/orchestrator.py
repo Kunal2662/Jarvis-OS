@@ -77,6 +77,7 @@ if TYPE_CHECKING:
     from jarvis.services.smart_home_memory_service import SmartHomeMemoryService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
+    from jarvis.services.smart_pump_service import SmartPumpService
     from jarvis.services.smart_switch_service import SmartSwitchService
     from jarvis.services.system_service import SystemService
     from jarvis.services.thermostat_service import ThermostatService
@@ -111,6 +112,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         smart_lock: SmartLockService | None = None,
         sensors: SensorService | None = None,
         smart_switch: SmartSwitchService | None = None,
+        pumps: SmartPumpService | None = None,
         appliances: ApplianceService | None = None,
         thermostats: ThermostatService | None = None,
         vacuum_humidifier: VacuumHumidifierService | None = None,
@@ -168,6 +170,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # converging on the same `SmartSwitchService` the REST surface
         # calls -- see `agents/tools/smart_switch_tools.py`.
         self._smart_switch = smart_switch
+        # Milestone 12 Smart Pumps (Switch-Backed Device Slice): pump
+        # control reaches the agent as tools on the same registry,
+        # converging on the same `SmartPumpService` the REST surface
+        # calls -- see `agents/tools/smart_pump_tools.py`.
+        self._pumps = pumps
         # Milestone 12 Appliance Control (Core Appliance Slice): fan
         # and cover control reach the agent as tools on the same
         # registry, converging on the same `ApplianceService` the REST
@@ -281,6 +288,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 smart_lock=self._smart_lock,
                 sensors=self._sensors,
                 smart_switch=self._smart_switch,
+                pumps=self._pumps,
                 appliances=self._appliances,
                 thermostats=self._thermostats,
                 vacuum_humidifier=self._vacuum_humidifier,

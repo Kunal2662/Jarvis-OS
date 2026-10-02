@@ -621,6 +621,17 @@ class AgentSettings(BaseSettings):
     # its own safe-direction counterparts ("arm_home"/"arm_away") are
     # deliberately NOT gated. See
     # docs/M12_SECURITY_ALARM_CONTROL_PANEL_LOGIC_CONTRACT.md §12.
+    # "pump_on"/"pump_off" added by Milestone 12 Smart Pumps
+    # (Switch-Backed Device Slice) -- the one pair that deliberately
+    # gates BOTH directions, breaking the directional asymmetry above
+    # on purpose: neither pump direction is unambiguously fail-safe
+    # (starting risks flooding/dry-run, stopping can end active
+    # protection or required circulation), and this roadmap's own
+    # acceptance criterion flags the water pump as safety_critical with
+    # "no silent execution". Interactive contexts only -- a scheduled
+    # workflow hardcodes confirm=None, so these steps are denied there
+    # (Policy A) and scheduled pump control goes through the
+    # deliberately-ungated switch_on/switch_off tools instead.
     confirm_required_tools: frozenset[str] = frozenset(
         {
             "run_automation",
@@ -629,6 +640,8 @@ class AgentSettings(BaseSettings):
             "trigger_vacation_mode",
             "turn_siren_on",
             "disarm",
+            "pump_on",
+            "pump_off",
         }
     )
     # Conversational Orchestration Routing (M10 -- see

@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from jarvis.services.smart_home_memory_service import SmartHomeMemoryService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
+    from jarvis.services.smart_pump_service import SmartPumpService
     from jarvis.services.smart_switch_service import SmartSwitchService
     from jarvis.services.system_service import SystemService
     from jarvis.services.thermostat_service import ThermostatService
@@ -63,6 +64,7 @@ def build_tool_registry(
     smart_lock: SmartLockService | None = None,
     sensors: SensorService | None = None,
     smart_switch: SmartSwitchService | None = None,
+    pumps: SmartPumpService | None = None,
     appliances: ApplianceService | None = None,
     thermostats: ThermostatService | None = None,
     vacuum_humidifier: VacuumHumidifierService | None = None,
@@ -137,6 +139,17 @@ def build_tool_registry(
         from jarvis.agents.tools.smart_switch_tools import build_smart_switch_tools
 
         tools += build_smart_switch_tools(smart_switch)
+    if pumps is not None:
+        # Milestone 12 Smart Pumps (Switch-Backed Device Slice). Three
+        # tools, mirroring Smart Switch's own registration minus the
+        # list tool (pumps are switch-backed, so `list_switches` already
+        # enumerates them) -- `pump_on` and `pump_off` are both added to
+        # `AgentSettings.confirm_required_tools`, the existing
+        # confirmation mechanism, not a new one -- see
+        # `agents/tools/smart_pump_tools.py`.
+        from jarvis.agents.tools.smart_pump_tools import build_smart_pump_tools
+
+        tools += build_smart_pump_tools(pumps)
     if appliances is not None:
         # Milestone 12 Appliance Control (Core Appliance Slice: Fans +
         # Covers). Eight tools, mirroring Smart Switches' own

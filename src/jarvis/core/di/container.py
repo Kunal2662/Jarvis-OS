@@ -610,6 +610,19 @@ def _build_smart_switch_service(
     )
 
 
+def _build_smart_pump_service(*, smart_home_service: Any, smart_switch_service: Any) -> Any:
+    """Milestone 12 Smart Pumps (Switch-Backed Device Slice) -- pure
+    composition: the pump service owns pump-identity validation only and
+    delegates every command to the already-registered switch service
+    (permission, translation, chokepoint), never a second command path."""
+    from jarvis.services.smart_pump_service import SmartPumpService
+
+    return SmartPumpService(
+        switches=smart_switch_service,
+        smart_home=smart_home_service,
+    )
+
+
 def _build_appliance_service(
     *, smart_home_service: Any, connectivity_service: Any, permission_model: Any
 ) -> Any:
@@ -1233,6 +1246,7 @@ def _build_workflow_execution_service(
     smart_lock_service: Any,
     sensor_service: Any,
     smart_switch_service: Any,
+    smart_pump_service: Any,
     appliance_service: Any,
     thermostat_service: Any,
     vacuum_humidifier_service: Any,
@@ -1269,6 +1283,7 @@ def _build_workflow_execution_service(
         smart_lock=smart_lock_service,
         sensors=sensor_service,
         smart_switch=smart_switch_service,
+        pumps=smart_pump_service,
         appliances=appliance_service,
         thermostats=thermostat_service,
         vacuum_humidifier=vacuum_humidifier_service,
@@ -1376,6 +1391,7 @@ def _build_agent_orchestrator(
     smart_lock: Any,
     sensors: Any,
     smart_switch: Any,
+    smart_pump: Any,
     appliances: Any,
     thermostats: Any,
     vacuum_humidifier: Any,
@@ -1411,6 +1427,7 @@ def _build_agent_orchestrator(
         smart_lock=smart_lock,
         sensors=sensors,
         smart_switch=smart_switch,
+        pumps=smart_pump,
         appliances=appliances,
         thermostats=thermostats,
         vacuum_humidifier=vacuum_humidifier,
@@ -1758,6 +1775,17 @@ class Container(containers.DeclarativeContainer):
         smart_home_service=smart_home_service,
         connectivity_service=connectivity_service,
         permission_model=permission_model,
+    )
+
+    # ---- Milestone 12 Smart Pumps (Switch-Backed Device Slice) ------------
+    # A pump IS a switch-backed device in this model, so this composes
+    # the switch service below rather than declaring its own principal,
+    # connector path or list surface -- see
+    # services/smart_pump_service.py's module docstring.
+    smart_pump_service = providers.Singleton(
+        _build_smart_pump_service,
+        smart_home_service=smart_home_service,
+        smart_switch_service=smart_switch_service,
     )
 
     # ---- Milestone 12 Appliance Control (Core Appliance Slice) ------------
@@ -2160,6 +2188,7 @@ class Container(containers.DeclarativeContainer):
         smart_lock_service=smart_lock_service,
         sensor_service=sensor_service,
         smart_switch_service=smart_switch_service,
+        smart_pump_service=smart_pump_service,
         appliance_service=appliance_service,
         thermostat_service=thermostat_service,
         vacuum_humidifier_service=vacuum_humidifier_service,
@@ -2226,6 +2255,7 @@ class Container(containers.DeclarativeContainer):
         smart_lock=smart_lock_service,
         sensors=sensor_service,
         smart_switch=smart_switch_service,
+        smart_pump=smart_pump_service,
         appliances=appliance_service,
         thermostats=thermostat_service,
         vacuum_humidifier=vacuum_humidifier_service,
