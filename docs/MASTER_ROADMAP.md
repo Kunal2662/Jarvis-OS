@@ -211,9 +211,10 @@ Also active (deliberate exception -- see below)
           percentage and cover position deliberately deferred, not
           built. Climate/AC, Media Players, Vacuum, Water Heater,
           Humidifier deferred to future Appliance Control slices; Smart
-          Pumps/Irrigation blocked on the "valve" domain mapping to
-          device_type="other"; Smart Kitchen Devices blocked on no
-          consistent domain model)
+          Irrigation blocked on the "valve" domain mapping to
+          device_type="other" (switch-backed Smart Pumps have since
+          shipped as their own slice); Smart Kitchen Devices blocked
+          on no consistent domain model)
 
 Deferred
   M23 — Core Intelligence
@@ -389,7 +390,9 @@ deferred**, not built — architecturally supportable via
 but out of this pass's approved scope. Climate/AC, Media Players/Smart
 TVs, Vacuum, Water Heater/Geysers and Humidifier are deferred to future
 Appliance Control slices (each spans a structurally different HA
-domain/command vocabulary). Smart Pumps/Irrigation is **blocked**: HA's
+domain/command vocabulary). Smart Pumps have since shipped as a
+separate switch-backed slice (any `switch` device is pump-controllable,
+zero connector changes); Smart Irrigation remains **blocked**: HA's
 `valve` domain — the natural mapping for irrigation — currently maps to
 `device_type="other"`, not `"appliance"`. Smart Kitchen Devices is
 **blocked**: no single HA/MQTT domain represents "kitchen appliance" as
@@ -1037,10 +1040,12 @@ swing/presets/humidity/dual setpoint/scheduling, Humidifier's own mode
 control/presets/water-level automation, Media Player's own play_media/
 join-unjoin/shuffle/repeat/sound mode/album/duration/playback
 position, and Water Heater's own away/vacation mode/dual setpoint all
-deferred; the two remaining named appliance categories (Smart Kitchen,
-Smart Pumps/Irrigation) are both blocked on the current connector
-domain mapping, not merely unbuilt -- no further Appliance Control
-category remains buildable without a connector or domain-model change;
+deferred; of the two remaining named appliance categories (Smart
+Kitchen, Smart Pumps/Irrigation), only switch-backed Smart Pumps have
+since shipped (zero connector changes) -- Smart Kitchen and the
+irrigation half remain blocked on the current connector domain mapping,
+not merely unbuilt, so no further Appliance Control category remains
+buildable without a connector or domain-model change;
 Security & Safety: Panic Mode, a narrowly-scoped Vacation Mode, siren
 on/off control **plus** tone/duration/volume, and `arm_home`/
 `arm_away`/`disarm` control for alarm control panels (permanently,
@@ -1456,8 +1461,9 @@ future work; see M6's own §3 entry for the full scope note.
   Lighting/Locks/Switches' precedent. Fan percentage and cover position
   evaluated and deliberately deferred. Climate/AC, Media Players,
   Vacuum, Water Heater, Humidifier deferred to future Appliance Control
-  slices; Smart Pumps/Irrigation and Smart Kitchen Devices blocked on
-  the current connector domain mapping. **Not the full Appliance
+  slices; Smart Irrigation and Smart Kitchen Devices blocked on the
+  current connector domain mapping (switch-backed Smart Pumps have
+  since shipped as their own slice). **Not the full Appliance
   Control module.** Task Group H (Security & Safety — Read-Only Alert/
   Status Slice) shipped: a new `SecurityService` aggregating the
   already-shipped `SensorService` and `SmartLockService` **pull-based**
@@ -5103,8 +5109,10 @@ and **deliberately deferred**, kept out of this pass's approved scope.
 Climate/AC, Media Players/Smart TVs, Vacuum, Water Heater/Geysers and
 Humidifier are deferred to future, separately-scoped Appliance Control
 slices, each spanning a structurally different HA domain and command
-vocabulary. Smart Pumps/Irrigation is **blocked**: HA's `valve` domain
-— the natural mapping for irrigation valves — currently maps to
+vocabulary. Smart Pumps have since shipped as a separate switch-backed
+slice (any `switch` device is pump-controllable -- see the Smart Pumps
+bullet below); Smart Irrigation remains **blocked**: HA's `valve`
+domain — the natural mapping for irrigation valves — currently maps to
 `device_type="other"`, not `"appliance"`. Smart Kitchen Devices is
 **blocked**: no single HA/MQTT domain represents "kitchen appliance" as
 a consistent category. See `docs/M12_APPLIANCE_CONTROL_LOGIC_CONTRACT.md`
@@ -5156,9 +5164,10 @@ Security & Safety, Smart Home Memory and Developer Tools. Energy
 Management's Consumption History, Energy Dashboard/Analytics/Trends,
 Energy Optimization, Automatic Power Saving, Load Scheduling and
 Energy-based Automations are all still outstanding, deferred to Smart
-Home Analytics and Home Automation; Appliance Control's two blocked
-categories (Smart Pumps/Irrigation and Smart Kitchen Devices) remain
-outstanding, while the five categories formerly listed as deferred
+Home Analytics and Home Automation; Appliance Control's blocked
+categories (Smart Irrigation's valve mapping and Smart Kitchen Devices)
+remain outstanding (switch-backed Smart Pumps have since shipped as
+their own slice), while the five categories formerly listed as deferred
 (Climate/AC, Media Players/Smart TVs, Vacuum, Water Heater/Geysers,
 Humidifier) have since shipped as Task Groups I/J/K/L; Smart Home
 Memory covers manual, explicit-call-only snapshots (eleven device
@@ -5402,9 +5411,10 @@ mutation (up to three sequential HA calls, one merged MQTT call),
 operation mode writable and validated against device-reported
 `operation_list`, temperature bounded only when device-reported.
 Away/vacation mode and dual setpoint deliberately deferred. Smart
-Pumps/Irrigation is blocked: HA's `valve` domain -- irrigation's
+Irrigation is blocked: HA's `valve` domain -- irrigation's
 natural mapping -- currently maps to `device_type="other"`, not
-`"appliance"`. Smart Kitchen Devices is blocked: no single HA/MQTT
+`"appliance"` (switch-backed Smart Pumps have since shipped as their
+own slice). Smart Kitchen Devices is blocked: no single HA/MQTT
 domain represents "kitchen appliance" as a consistent category. Fan
 Percentage + Cover Position Slice shipped Task Group T, Aug 2026 --
 closes the one gap the Core Appliance Slice's own docstring named
@@ -5427,7 +5437,14 @@ already accept an arbitrary payload dict generically.)*
 - Smart Vacuums ✅ *(start/stop/pause/return-to-base, battery level -- fan speed/cleaning modes/maps/scheduling deferred)*
 - Smart Humidifiers ✅ *(on/off, target humidity, mode read-only -- mode control/presets/water-level automation deferred)*
 - Smart Geysers ✅ *(via the water_heater entity -- on/off, operation mode, target temperature -- away/vacation mode/dual setpoint deferred)*
-- Smart Pumps
+- Smart Pumps ✅ *(Switch-Backed Device Slice: on/off/state for any
+  `switch` device via `SmartPumpService` -- REST `/pumps/{device_id}` +
+  `pump_on`/`pump_off`/`get_pump_state` agent tools, both command
+  directions in `confirm_required_tools`, scheduled control riding the
+  existing `switch_on`/`switch_off` steps; zero connector changes.
+  Valve/irrigation control, water-level/moisture-triggered activation
+  (rule engine, M7), runtime-hour tracking, tank/irrigation logic and
+  pump-specific scheduling deferred)*
 - Smart Irrigation *(blocked -- HA's `valve` domain maps to `device_type="other"`, not `"appliance"`)*
 - Smart Kitchen Devices *(blocked -- no consistent HA/MQTT domain model)*
 
@@ -5782,6 +5799,14 @@ Intelligence Graph, M21 Mobile Platform)*.
 3. Any device flagged `safety_critical: true` (locks, water pump, and
    every Security & Safety module item by default) requires the M4
    confirm-before-run modal — no silent execution.
+   *(Status note: `safety_critical` is not yet a per-device flag
+   anywhere in the device model, so this criterion stays open until it
+   exists. Pump control already ships the intended behavior at the tool
+   level: both `pump_on` and `pump_off` are in
+   `agent.confirm_required_tools` — and a scheduled workflow hardcodes
+   `confirm=None`, so those steps are denied, never silently allowed;
+   scheduled pump control rides the deliberately-ungated
+   `switch_on`/`switch_off` steps instead.)*
 4. **Smart Home architecture is fully modular** — each of the 15
    feature modules above maps to an independently pluggable adapter
    set, verifiable by disabling any one module in the DI container
