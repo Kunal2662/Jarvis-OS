@@ -253,18 +253,27 @@ EVENT_TYPE_NAMES: dict[type[Event], str] = {
 #: oversight the next audit re-discovers.
 #:
 #: ``IntegrationConnectionTestEvent``, ``IntegrationSwitchEvent``,
-#: ``IntegrationFailoverEvent`` and ``IntegrationDiscoveryEvent`` are a
-#: different case from the other four -- all four *are* published (by
-#: ``IntegrationService`` on every M11 Connection Test / Runtime Switch
-#: / Failover attempt / Discovery sweep, Task Groups B, E and F) -- but
-#: relaying them is a separate, deliberately deferred decision: wiring
-#: a new relayed event also means regenerating the frontend WS contract
-#: and its four pinned tests (``export_ws_contract.py``,
+#: ``IntegrationFailoverEvent``, ``IntegrationDiscoveryEvent``,
+#: ``DeviceCommandExecutedEvent`` and ``DeviceStateChangedEvent`` are a
+#: different case from the other four -- all six *are* published (the
+#: first four by ``IntegrationService`` on every M11 Connection Test /
+#: Runtime Switch / Failover attempt / Discovery sweep, Task Groups B,
+#: E and F; ``DeviceCommandExecutedEvent`` by ``ConnectivityService.
+#: send_command()``, M7 EventBus Tier 1; ``DeviceStateChangedEvent`` by
+#: ``SmartHomeService.report_device_state()``, M7 EventBus Tier 2) --
+#: but relaying them is a separate, deliberately deferred decision:
+#: wiring a new relayed event also means regenerating the frontend WS
+#: contract and its four pinned tests (``export_ws_contract.py``,
 #: ``event-contract.generated.json``, ``types.ts``'s
 #: ``RELAYED_EVENTS``, the contract test), which is a frontend-touching
-#: change outside those task groups' backend-only scope. Internal
-#: subscribers (audit, a future observability consumer) can still
-#: receive them from the event bus today.
+#: change outside those task groups' backend-only scope -- for
+#: ``DeviceCommandExecutedEvent``/``DeviceStateChangedEvent``
+#: specifically, deferred until a real consumer (a future Event
+#: Viewer, not part of either Tier) exists to justify the surface; see
+#: ``docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md`` and
+#: ``docs/M7_EVENTBUS_DEVICE_STATE_CHANGED_LOGIC_CONTRACT.md``.
+#: Internal subscribers (audit, a future observability consumer) can
+#: still receive them from the event bus today.
 UNPUBLISHED_EVENT_TYPES: tuple[str, ...] = (
     "WorkflowStepEvent",
     "ScheduledJobFiredEvent",
@@ -274,6 +283,8 @@ UNPUBLISHED_EVENT_TYPES: tuple[str, ...] = (
     "IntegrationSwitchEvent",
     "IntegrationFailoverEvent",
     "IntegrationDiscoveryEvent",
+    "DeviceCommandExecutedEvent",
+    "DeviceStateChangedEvent",
 )
 
 #: ``DebugLogCapturedEvent`` is published (by ``DebugConsole``) and is

@@ -15,6 +15,13 @@ loud, disruptive, and can draw an unwanted emergency response; turning
 one off is always the safe direction. ``turn_siren_on`` is added to
 ``AgentSettings.confirm_required_tools`` -- the existing
 ``AgentPermissionGate`` mechanism, not a new one (Logic Contract §10).
+
+**Task Group W** -- ``turn_siren_on`` gains three optional arguments
+(``tone``/``duration``/``volume_level``), never a new tool.
+``AgentPermissionGate.authorize`` gates purely by tool *name*, never
+by ``args``, so the existing confirmation requirement covers a
+parameterized call exactly as it already covers a bare one (Logic
+Contract §12/§14).
 """
 
 from __future__ import annotations
@@ -61,12 +68,23 @@ def build_siren_tools(sirens: SirenService) -> list[BaseTool]:
         return _clip(json.dumps(state, indent=2, default=str))
 
     @tool
-    async def turn_siren_on(device_id: str) -> str:
+    async def turn_siren_on(
+        device_id: str, tone: str = "", duration: int = 0, volume_level: float = 0.0
+    ) -> str:
         """Turn a siren on by device id. Loud and disruptive -- takes
         real effect on the device. Requires interactive confirmation
-        before it runs."""
+        before it runs. tone, duration (seconds), and volume_level
+        (0.0-1.0) are all optional -- leave any at their default to
+        omit it. Only devices that report support for a given option
+        will actually apply it; unsupported options are ignored by
+        Home Assistant itself, not an error."""
         try:
-            result = await sirens.turn_on(device_id)
+            result = await sirens.turn_on(
+                device_id,
+                tone=tone or None,
+                duration=duration or None,
+                volume_level=volume_level or None,
+            )
         except Exception as err:
             _logger.warning("turn_siren_on tool failed: {}", err)
             return f"Couldn't turn that siren on: {err}"

@@ -24,29 +24,36 @@ Task Group S expansion below).
            (get_fan_state / get_cover_state / get_vacuum_state /
             get_humidifier_state / get_media_player_state /
             get_water_heater_state)
+        -> {SirenService, AlarmControlPanelService}
+           (get_siren_state / get_alarm_control_panel_state)
         -> MemoryService (remember / browse / forget)
 
 Never reaches a connector directly, never re-derives normalization --
 every state dict this module persists is the owning service's own,
 verbatim (Logic Contract §16/§17B).
 
-**Device-category scope, Task Group S (Expansion Logic Contract §6-8).**
-Nine categories total. ``light``/``switch``/``thermostat`` each have a
-unique ``device_type``, resolved by a direct dict lookup (Tier 1,
+**Device-category scope, Task Group S (Expansion Logic Contract §6-8)
++ Task Group V (Security Device Expansion Logic Contract).**
+Eleven categories total. ``light``/``switch``/``thermostat`` each have
+a unique ``device_type``, resolved by a direct dict lookup (Tier 1,
 unchanged since Task Group O). ``fan``/``cover``/``vacuum``/
 ``humidifier``/``media_player``/``water_heater`` all share
 ``device_type="appliance"`` and are resolved by trying each owning
 service's own already-public ``get_<category>_state`` method in turn
 (Tier 2, `_read_state` below) -- never a private ``_domain_for``
-duplicated, never a new shared domain-resolution abstraction. Sensors
+duplicated, never a new shared domain-resolution abstraction.
+``siren``/``alarm_control_panel`` both share ``device_type="other"``
+and are resolved the identical way (Tier 3, Security Device Expansion
+Logic Contract §7) -- trying `SirenService.get_siren_state`/
+`AlarmControlPanelService.get_alarm_control_panel_state` in turn,
+catching each one's own `ServiceError` as "not this category." Sensors
 and Smart Locks remain **permanently excluded**, on privacy/security
 grounds, not architectural ones -- re-verified, not re-opened, by the
-Expansion Logic Contract's own §6/§9/§10: a persisted, browsable
-snapshot history of occupancy-revealing sensor data or security-
-posture-revealing lock state is a materially larger risk than either
-category's own already-established live-read gating. Sirens and
-Cameras are simply out of this task group's named scope (Expansion
-Logic Contract §8).
+Expansion Logic Contract's own §6/§9/§10 and reaffirmed again by Task
+Group V: a persisted, browsable snapshot history of occupancy-revealing
+sensor data or security-posture-revealing lock state is a materially
+larger risk than either category's own already-established live-read
+gating. Cameras remain out of scope -- no `CameraService` exists.
 
 **Permission departs from the majority M12 precedent on purpose.**
 Every prior appliance-category module's "reads ungated" decision was
@@ -78,9 +85,11 @@ if TYPE_CHECKING:
 
     from jarvis.core.plugins.permissions import PermissionModel
     from jarvis.infrastructure.database.models import Device
+    from jarvis.services.alarm_control_panel_service import AlarmControlPanelService
     from jarvis.services.appliance_service import ApplianceService
     from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.siren_service import SirenService
     from jarvis.services.smart_home_service import SmartHomeService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_switch_service import SmartSwitchService
@@ -120,6 +129,13 @@ _IDENTITY_KEYS = frozenset(
 #: Contract §7: this module never imports another service's private
 #: constant, only the well-known shared vocabulary string itself).
 _APPLIANCE_DEVICE_TYPE = "appliance"
+
+#: The shared `device_type` Siren and alarm_control_panel both register
+#: under -- a local copy of the same literal each of those services'
+#: own private constant already holds (Security Device Expansion Logic
+#: Contract §7, same "no private constant imported" principle
+#: `_APPLIANCE_DEVICE_TYPE` above already establishes).
+_OTHER_DEVICE_TYPE = "other"
 
 #: Upper bound on how many snapshot-type records `delete_snapshot`
 #: scans to confirm a target id is a real snapshot before calling
@@ -220,6 +236,8 @@ class SmartHomeMemoryService:
         vacuum_humidifier: VacuumHumidifierService,
         media_players: MediaPlayerService,
         water_heaters: WaterHeaterService,
+        siren: SirenService,
+        alarm_control_panels: AlarmControlPanelService,
         memory: MemoryService,
         permissions: PermissionModel,
     ) -> None:
@@ -250,6 +268,19 @@ class SmartHomeMemoryService:
             ("media_player", media_players.get_media_player_state),
             ("water_heater", water_heaters.get_water_heater_state),
         ]
+        # Ordered (name, reader) cascade for the shared "other"
+        # device_type (Tier 3) -- Security Device Expansion Logic
+        # Contract §7. Same shape as Tier 2 above: each reader is that
+        # category's own already-public `get_<category>_state`; a
+        # `ServiceError` from one candidate means "not this category,"
+        # never a private `_domain_for` re-implemented here. Ordered to
+        # match ship order (Siren, Task Group R, before
+        # alarm_control_panel, Task Group U) -- the two domains are
+        # mutually exclusive, so order has no effect on outcome.
+        self._security_readers: list[tuple[str, _DeviceStateReader]] = [
+            ("siren", siren.get_siren_state),
+            ("alarm_control_panel", alarm_control_panels.get_alarm_control_panel_state),
+        ]
 
     # ------------------------------------------------------------------
     # Permission
@@ -267,11 +298,13 @@ class SmartHomeMemoryService:
     async def _read_state(self, device: Device) -> dict[str, Any]:
         """Resolves *device* to its owning service's normalized state,
         Tier 1 (unique `device_type`) then Tier 2 (shared `"appliance"`
-        cascade). Raises `UnsupportedSnapshotCategoryError` if neither
-        tier resolves it -- callers have already confirmed the device
-        itself exists (`SmartHomeService.require_device`/`list_devices`),
-        so this is purely a category-support decision, never conflated
-        with "unknown device" (Expansion Logic Contract §7)."""
+        cascade) then Tier 3 (shared `"other"` cascade, Security Device
+        Expansion Logic Contract §7). Raises
+        `UnsupportedSnapshotCategoryError` if no tier resolves it --
+        callers have already confirmed the device itself exists
+        (`SmartHomeService.require_device`/`list_devices`), so this is
+        purely a category-support decision, never conflated with
+        "unknown device" (Expansion Logic Contract §7)."""
         reader = self._readers.get(device.device_type)
         if reader is not None:
             return await reader(device.id)
@@ -281,10 +314,16 @@ class SmartHomeMemoryService:
                     return await appliance_reader(device.id)
                 except ServiceError:
                     continue
+        if device.device_type == _OTHER_DEVICE_TYPE:
+            for _name, security_reader in self._security_readers:
+                try:
+                    return await security_reader(device.id)
+                except ServiceError:
+                    continue
         raise UnsupportedSnapshotCategoryError(
             f"Device {device.id!r} is a {device.device_type!r}; snapshotting is only "
             "supported for light/switch/thermostat/fan/cover/vacuum/humidifier/"
-            "media_player/water_heater devices in this release."
+            "media_player/water_heater/siren/alarm_control_panel devices in this release."
         )
 
     async def _capture_snapshot(self, device: Device) -> dict[str, Any]:

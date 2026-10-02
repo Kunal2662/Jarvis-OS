@@ -99,12 +99,13 @@ async def _home_and_sensor(
     smart_home: SmartHomeService,
     *,
     domain: str = "sensor",
+    domain_key: str = "domain",
     device_class: str | None = None,
     external_id: str = "sensor.living_room_temp",
     connector_type: str = "home_assistant",
 ):
     home = await smart_home.create_home("Primary Residence")
-    metadata = {"connector_type": connector_type, "domain": domain}
+    metadata: dict[str, str] = {"connector_type": connector_type, domain_key: domain}
     if device_class is not None:
         metadata["device_class"] = device_class
     device = await smart_home.register_discovered_device(
@@ -468,6 +469,184 @@ async def test_device_with_no_recorded_domain_defaults_to_numeric(
 
     assert state["kind"] == "numeric"
     assert state["value"] is None
+
+
+# --- MQTT component fallback (M0-M12 Structured Rework Audit, P1-2) --------------
+#
+# `MqttConnector._handle_ha_discovery` writes `metadata["component"]`,
+# never `metadata["domain"]` -- `_kind_for` must fall back to it, the
+# same fallback order every other `device_type="appliance"`/`"other"`
+# service already established (and `ApplianceService` restored, P1-1).
+# Regression coverage for the fix.
+
+
+@pytest.mark.asyncio
+async def test_component_only_binary_sensor_is_classified_binary(
+    service: SensorService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    fake_connector: FakeDeviceConnector,
+) -> None:
+    """`metadata["domain"]` absent, `metadata["component"]` present --
+    component fallback resolves the kind (a real, MQTT Discovery-sourced
+    binary sensor), and a full read parses/labels it correctly."""
+    await connectivity.connect("home_assistant")
+    await _grant(permissions)
+    _, device = await _home_and_sensor(
+        smart_home,
+        domain="binary_sensor",
+        domain_key="component",
+        device_class="motion",
+        external_id="binary_sensor.mqtt_motion",
+    )
+    fake_connector.states["binary_sensor.mqtt_motion"] = DeviceState(
+        external_id="binary_sensor.mqtt_motion", status="on", attributes={}
+    )
+
+    state = await service.get_sensor_state(device.id)
+
+    assert state["kind"] == "binary"
+    assert state["value"] is True
+    assert state["state"] == "detected"
+
+
+@pytest.mark.asyncio
+async def test_component_only_non_binary_sensor_is_classified_numeric(
+    service: SensorService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """`metadata["domain"]` absent, `metadata["component"]="sensor"` --
+    still correctly numeric, not accidentally binary."""
+    await _grant(permissions)
+    _, device = await _home_and_sensor(smart_home, domain="sensor", domain_key="component")
+
+    state = await service.get_sensor_state(device.id)
+
+    assert state["kind"] == "numeric"
+
+
+@pytest.mark.asyncio
+async def test_domain_takes_precedence_over_component(
+    service: SensorService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """Both keys present -- `domain` wins, mirroring every sibling
+    service's own identical precedence rule."""
+    await _grant(permissions)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Ambiguous Sensor",
+        device_type="sensor",
+        external_id="sensor.ambiguous",
+        metadata={
+            "connector_type": "home_assistant",
+            "domain": "binary_sensor",
+            "component": "sensor",
+        },
+    )
+
+    state = await service.get_sensor_state(device.id)
+
+    assert state["kind"] == "binary"
+
+
+@pytest.mark.asyncio
+async def test_empty_domain_falls_back_to_component(
+    service: SensorService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """An empty-string `domain` is falsy -- falls through to
+    `component`, never treated as "domain present but blank"."""
+    await _grant(permissions)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "Blank Domain Sensor",
+        device_type="sensor",
+        external_id="sensor.blank_domain",
+        metadata={"connector_type": "mqtt", "domain": "", "component": "binary_sensor"},
+    )
+
+    state = await service.get_sensor_state(device.id)
+
+    assert state["kind"] == "binary"
+
+
+@pytest.mark.asyncio
+async def test_neither_domain_nor_component_defaults_to_numeric(
+    service: SensorService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """Neither key present -- preserves the existing "detect at use,
+    not fabricate" default, never falsely classified binary."""
+    await _grant(permissions)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "No Metadata Sensor",
+        device_type="sensor",
+        external_id="sensor.no_metadata",
+        metadata={"connector_type": "home_assistant"},
+    )
+
+    state = await service.get_sensor_state(device.id)
+
+    assert state["kind"] == "numeric"
+
+
+@pytest.mark.asyncio
+async def test_mqtt_discovered_binary_sensor_reads_correctly_end_to_end(
+    smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """End-to-end: an MQTT-discovered binary sensor (`component`-only
+    metadata, no `domain`) now classifies and reads correctly -- the
+    exact defect this fix closes."""
+    mqtt_connector = FakeDeviceConnector()
+    mqtt_connector.connector_type = "mqtt"
+    registry = ConnectorFactoryRegistry()
+    registry.register("mqtt", lambda config: mqtt_connector)
+    mqtt_connectivity = ConnectivityService(registry=registry, smart_home=smart_home)
+    mqtt_service = SensorService(
+        smart_home=smart_home, connectivity=mqtt_connectivity, permissions=permissions
+    )
+    await mqtt_connectivity.connect("mqtt")
+    await _grant(permissions)
+    _, device = await _home_and_sensor(
+        smart_home,
+        domain="binary_sensor",
+        domain_key="component",
+        device_class="door",
+        connector_type="mqtt",
+        external_id="binary_sensor.mqtt_door",
+    )
+    mqtt_connector.states["binary_sensor.mqtt_door"] = DeviceState(
+        external_id="binary_sensor.mqtt_door", status="on", attributes={}
+    )
+
+    state = await mqtt_service.get_sensor_state(device.id)
+
+    assert state["kind"] == "binary"
+    assert state["state"] == "open"
+
+
+@pytest.mark.asyncio
+async def test_unrelated_component_value_is_not_misclassified_binary(
+    service: SensorService, smart_home: SmartHomeService, permissions: PermissionModel
+) -> None:
+    """A `component` naming an unrelated domain is still correctly
+    numeric -- the fallback does not weaken discrimination to a loose
+    substring/prefix match."""
+    await _grant(permissions)
+    home = await smart_home.create_home("Primary Residence")
+    device = await smart_home.register_discovered_device(
+        home.id,
+        "MQTT Switch-Backed Sensor",
+        device_type="sensor",
+        external_id="sensor.mqtt_switch_backed",
+        metadata={"connector_type": "mqtt", "component": "switch"},
+    )
+
+    state = await service.get_sensor_state(device.id)
+
+    assert state["kind"] == "numeric"
 
 
 # --- Cross-cutting invariant ------------------------------------------------------

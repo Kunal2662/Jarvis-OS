@@ -110,7 +110,7 @@
         "approximate_download_mb": 65,
         "required": true,
         "enabled": true,
-        "reason": "Lets JARVIS speak without a connection."
+        "reason": "Lets Aarya speak without a connection."
       },
       {
         "key": "faster_whisper",
@@ -119,7 +119,7 @@
         "approximate_download_mb": 480,
         "required": true,
         "enabled": true,
-        "reason": "Lets JARVIS listen without a connection."
+        "reason": "Lets Aarya listen without a connection."
       },
       {
         "key": "elevenlabs",

@@ -84,6 +84,11 @@ websockets>=13.1,<14.0
 # committing to it.
 gmqtt>=0.7,<1.0
 
+# ---------- Scheduling --------------------------------------------------------
+# Milestone 7 Phase 6 (Scheduler MVP) -- see pyproject.toml for the full note.
+croniter>=2.0,<7.0
+tzdata>=2024.1
+
 # ---------- Security ---------------------------------------------------------
 # Upgraded from >=43.0,<44.0 -- 43.0.3 carried 4 known advisories, all
 # resolved by 48.0.1 (see pyproject.toml for the full note).

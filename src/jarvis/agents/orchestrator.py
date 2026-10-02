@@ -63,17 +63,21 @@ if TYPE_CHECKING:
     from jarvis.services.automation_service import AutomationService
     from jarvis.services.browser_service import BrowserService
     from jarvis.services.chat_service import ChatService
+    from jarvis.services.home_automation_service import HomeAutomationService
     from jarvis.services.integration_service import IntegrationService
     from jarvis.services.intelligence_service import IntelligenceService
     from jarvis.services.knowledge_service import KnowledgeService
     from jarvis.services.media_player_service import MediaPlayerService
     from jarvis.services.memory_service import MemoryService
+    from jarvis.services.recorder_service import RecorderService
+    from jarvis.services.schedule_service import ScheduleService
     from jarvis.services.security_service import SecurityService
     from jarvis.services.sensor_service import SensorService
     from jarvis.services.siren_service import SirenService
     from jarvis.services.smart_home_memory_service import SmartHomeMemoryService
     from jarvis.services.smart_lighting_service import SmartLightingService
     from jarvis.services.smart_lock_service import SmartLockService
+    from jarvis.services.smart_pump_service import SmartPumpService
     from jarvis.services.smart_switch_service import SmartSwitchService
     from jarvis.services.system_service import SystemService
     from jarvis.services.thermostat_service import ThermostatService
@@ -81,6 +85,7 @@ if TYPE_CHECKING:
     from jarvis.services.vision_service import VisionService
     from jarvis.services.voice_service import VoiceService
     from jarvis.services.water_heater_service import WaterHeaterService
+    from jarvis.services.workflow_builder_service import WorkflowBuilderService
     from jarvis.services.workspace_ai_service import WorkspaceAssistantService
 
 _logger = get_logger("jarvis.agents.orchestrator")
@@ -107,6 +112,7 @@ class AgentOrchestrator(IAgentOrchestrator):
         smart_lock: SmartLockService | None = None,
         sensors: SensorService | None = None,
         smart_switch: SmartSwitchService | None = None,
+        pumps: SmartPumpService | None = None,
         appliances: ApplianceService | None = None,
         thermostats: ThermostatService | None = None,
         vacuum_humidifier: VacuumHumidifierService | None = None,
@@ -116,6 +122,10 @@ class AgentOrchestrator(IAgentOrchestrator):
         siren: SirenService | None = None,
         alarm_control_panels: AlarmControlPanelService | None = None,
         smart_home_memory: SmartHomeMemoryService | None = None,
+        schedules: ScheduleService | None = None,
+        home_automation: HomeAutomationService | None = None,
+        workflow_builder: WorkflowBuilderService | None = None,
+        recorder: RecorderService | None = None,
         event_bus: EventBus | None = None,
         confirm: ConfirmationCallback | None = None,
     ) -> None:
@@ -160,6 +170,11 @@ class AgentOrchestrator(IAgentOrchestrator):
         # converging on the same `SmartSwitchService` the REST surface
         # calls -- see `agents/tools/smart_switch_tools.py`.
         self._smart_switch = smart_switch
+        # Milestone 12 Smart Pumps (Switch-Backed Device Slice): pump
+        # control reaches the agent as tools on the same registry,
+        # converging on the same `SmartPumpService` the REST surface
+        # calls -- see `agents/tools/smart_pump_tools.py`.
+        self._pumps = pumps
         # Milestone 12 Appliance Control (Core Appliance Slice): fan
         # and cover control reach the agent as tools on the same
         # registry, converging on the same `ApplianceService` the REST
@@ -211,6 +226,26 @@ class AgentOrchestrator(IAgentOrchestrator):
         # same `SmartHomeMemoryService` the REST surface calls -- see
         # `agents/tools/smart_home_memory_tools.py`.
         self._smart_home_memory = smart_home_memory
+        # Milestone 7 Phase 6 (Scheduler MVP): schedule management
+        # reaches the agent as tools on the same registry, converging
+        # on the same `ScheduleService` the REST surface calls -- see
+        # `agents/tools/schedule_tools.py`.
+        self._schedules = schedules
+        # M7 Home Automation (event-based triggers): automation
+        # management reaches the agent as tools on the same registry,
+        # converging on the same `HomeAutomationService` the REST
+        # surface calls -- see `agents/tools/home_automation_tools.py`.
+        self._home_automation = home_automation
+        # M7 Workflow Builder: standalone workflow authoring reaches
+        # the agent as tools on the same registry, converging on the
+        # same `WorkflowBuilderService` the REST surface calls -- see
+        # `agents/tools/workflow_builder_tools.py`.
+        self._workflow_builder = workflow_builder
+        # M7 Recorder: recording-session management reaches the agent
+        # as tools on the same registry, converging on the same
+        # `RecorderService` the REST surface calls -- see
+        # `agents/tools/recorder_tools.py`.
+        self._recorder = recorder
         self._event_bus = event_bus
         # Milestone 10 AC3 (interim Permission Validation): the confirmation
         # channel forwarded to every proposed tool call's AgentPermissionGate
@@ -253,6 +288,7 @@ class AgentOrchestrator(IAgentOrchestrator):
                 smart_lock=self._smart_lock,
                 sensors=self._sensors,
                 smart_switch=self._smart_switch,
+                pumps=self._pumps,
                 appliances=self._appliances,
                 thermostats=self._thermostats,
                 vacuum_humidifier=self._vacuum_humidifier,
@@ -262,6 +298,10 @@ class AgentOrchestrator(IAgentOrchestrator):
                 siren=self._siren,
                 alarm_control_panels=self._alarm_control_panels,
                 smart_home_memory=self._smart_home_memory,
+                schedules=self._schedules,
+                home_automation=self._home_automation,
+                workflow_builder=self._workflow_builder,
+                recorder=self._recorder,
             )
             saver = await self._checkpointer.open()
             permission_gate = AgentPermissionGate(

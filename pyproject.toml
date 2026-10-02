@@ -88,6 +88,19 @@ dependencies = [
     # compatibility, verified empirically, not a style preference).
     "gmqtt>=0.7,<1.0",
 
+    # Scheduling
+    # Milestone 7 Phase 6 (Scheduler MVP) -- next-occurrence computation for
+    # interval/cron schedules only; no built-in daemon/thread of its own, so
+    # it cannot conflict with this project's own asyncio-based execution
+    # model (see the Windows ProactorEventLoop constraint in CLAUDE.md).
+    "croniter>=2.0,<7.0",
+    # zoneinfo (stdlib) ships no IANA tzdata of its own on Windows -- this
+    # is the CPython-blessed, pure-data companion package (no code, just
+    # the tz database) required for `ZoneInfo("...")` to resolve any named
+    # timezone at all on this platform. Verified empirically this session:
+    # `ZoneInfo("Asia/Kolkata")` raises `ZoneInfoNotFoundError` without it.
+    "tzdata>=2024.1",
+
     # Security
     # Upgraded from >=43.0,<44.0 during the dependency upgrade pass: 43.0.3
     # carried 4 known advisories (PYSEC-2026-35, PYSEC-2026-1284,
@@ -114,6 +127,7 @@ dev = [
     "mypy>=1.13,<2.0",
     "pre-commit>=4.0,<5.0",
     "types-requests",
+    "types-croniter",
 ]
 build = [
     "pyinstaller>=6.11,<7.0",

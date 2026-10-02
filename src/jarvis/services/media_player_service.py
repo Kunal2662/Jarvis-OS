@@ -20,7 +20,8 @@ identical domain vocabulary HA's own REST connector calls `domain`
 (`_HA_COMPONENT_DEVICE_TYPES`'s keys are identical to
 `_DEVICE_DOMAINS`'s keys), so this is a safe, narrow extension of the
 existing "detect at use, not fabricate" discipline, not a new
-mechanism. `ApplianceService`'s own identical gap is not touched here.
+mechanism. `ApplianceService`'s own identical gap was fixed separately
+(M0-M12 Structured Rework Audit, P1-1), not touched here.
 
 **Hybrid command shape** (`docs/M12_APPLIANCE_MEDIA_PLAYER_LOGIC_
 CONTRACT.md` §8/§9): five independent, zero-payload transport commands

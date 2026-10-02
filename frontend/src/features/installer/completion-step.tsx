@@ -76,7 +76,7 @@ export function CompletionStep({
         <CircleCheck className="size-10 text-emerald-500" aria-hidden="true" />
         <h2 className="font-semibold text-card-title">Installation complete</h2>
         <p className="text-muted-foreground text-secondary">
-          JARVIS is set up and ready on this device.
+          Aarya is set up and ready on this device.
         </p>
       </header>
 
@@ -136,7 +136,7 @@ export function CompletionStep({
           title={onLaunch === null ? "Available from the desktop application" : undefined}
         >
           <Rocket className="size-4" aria-hidden="true" />
-          Launch JARVIS
+          Launch Aarya
         </Button>
         <Button
           size="lg"

@@ -43,6 +43,31 @@ PERMISSION_SCOPES: frozenset[str] = frozenset(
         "memory.write",
         "smart_home",
         "notifications",
+        # Milestone 7 Phase 6 (Scheduler MVP): CRUD on Schedule/
+        # WorkflowDefinition/WorkflowExecution rows only -- never implies
+        # permission to execute a scheduled step's own underlying action,
+        # which stays independently gated by PermissionGate/
+        # AgentPermissionGate (docs/M7_SCHEDULER_LOGIC_CONTRACT.md §12).
+        "scheduler",
+        # M7 Home Automation: CRUD on AutomationTrigger/AutomationExecution
+        # rows only -- the identical separation principle as "scheduler"
+        # above, never implies permission to execute a triggered step's
+        # own underlying action (docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md
+        # §17).
+        "home_automation",
+        # M7 Workflow Builder: CRUD on standalone WorkflowDefinition/
+        # WorkflowBuilderExecution rows only -- the identical separation
+        # principle as "scheduler"/"home_automation" above, never implies
+        # permission to execute a step's own underlying action
+        # (docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md §11).
+        "workflow_builder",
+        # M7 Recorder: gates the recording-session lifecycle
+        # (start/stop/cancel/list) only -- never implies permission to
+        # create the resulting workflow, which stays independently
+        # gated by WorkflowBuilderService's own "workflow_builder"
+        # scope check every time (docs/M7_RECORDER_LOGIC_CONTRACT.md
+        # §11).
+        "recorder",
     }
 )
 

@@ -214,7 +214,7 @@ def check_disk_space(root: Path) -> CheckResult:
             "disk",
             "Disk space",
             "fail",
-            f"Only {free_gb:.1f} GB free. JARVIS needs room for logs and cache.",
+            f"Only {free_gb:.1f} GB free. Aarya needs room for logs and cache.",
         )
     return _result("disk", "Disk space", "pass", f"{free_gb:.1f} GB free.")
 

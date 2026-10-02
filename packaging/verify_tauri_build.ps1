@@ -86,7 +86,7 @@ if ($installers.Count -eq 1) {
 
     # 3. Product/publisher metadata is real, not a tauri.conf.json
     #    template default. (Build Verification Task #6.)
-    Check "Product name is 'JARVIS OS'" ($versionInfo.ProductName -eq "JARVIS OS") `
+    Check "Product name is 'Aarya OS'" ($versionInfo.ProductName -eq "Aarya OS") `
         "found '$($versionInfo.ProductName)'"
     Check "Publisher is set" (-not [string]::IsNullOrWhiteSpace($versionInfo.CompanyName)) `
         "CompanyName is empty"

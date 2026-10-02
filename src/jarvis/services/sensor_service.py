@@ -102,9 +102,24 @@ def _metadata(device: Device) -> dict[str, Any]:
 
 def _kind_for(device: Device) -> str:
     """`"binary"` for a `binary_sensor`-domain device, `"numeric"`
-    otherwise (including a device with no recorded domain -- Logic
-    Contract §4's "detect at use, not fabricate" default)."""
-    return "binary" if _metadata(device).get("domain") == "binary_sensor" else "numeric"
+    otherwise (including a device with no recorded domain/component --
+    Logic Contract §4's "detect at use, not fabricate" default).
+
+    Reads `metadata["domain"]` (HA-sourced discovery), falling back to
+    `metadata["component"]` (MQTT-native discovery) -- the same
+    fallback order every other `device_type="appliance"`/`"other"`
+    service already uses (`ApplianceService`, `SirenService`,
+    `AlarmControlPanelService`, the Water Heater service,
+    `MediaPlayerService`, `VacuumHumidifierService`); restored here
+    after being the one remaining M12 device category never backported
+    to the convention (M0-M12 Structured Rework Audit, P1-2) --
+    `MqttConnector._handle_ha_discovery` writes `metadata["component"]`,
+    never `metadata["domain"]`, so a bare `metadata["domain"]` lookup
+    silently misclassified any MQTT-discovered binary sensor as
+    numeric."""
+    meta = _metadata(device)
+    resolved = meta.get("domain") or meta.get("component")
+    return "binary" if resolved == "binary_sensor" else "numeric"
 
 
 def _device_class_for(device: Device) -> str | None:

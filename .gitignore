@@ -89,3 +89,7 @@ playwright-report/
 *.env
 credentials.json
 .credentials
+
+# --- Verification / recovery scratch (local audit artifacts) ------------------
+.verify*
+.RECOVERED*

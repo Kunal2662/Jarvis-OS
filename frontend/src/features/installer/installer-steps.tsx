@@ -87,8 +87,8 @@ export function WelcomeStep() {
   return (
     <div className="flex flex-col gap-4">
       <StepHeading
-        title="Welcome to JARVIS"
-        blurb="A local-first AI assistant for your desktop. This installer will check your device and set JARVIS up to suit it."
+        title="Welcome to Aarya"
+        blurb="A local-first AI assistant for your desktop. This installer will check your device and set Aarya up to suit it."
       />
       <ul className="flex flex-col gap-2 text-secondary">
         {[
@@ -119,14 +119,14 @@ export function LicenseStep() {
         role="region"
         aria-label="License agreement text"
       >
-        <p className="font-medium">JARVIS OS — Proprietary License</p>
+        <p className="font-medium">Aarya OS — Proprietary License</p>
         <p className="pt-2 text-muted-foreground">
           This software is provided under a proprietary license. Installing it means you accept
           the terms distributed with this package. The software is provided &ldquo;as is&rdquo;,
           without warranty of any kind, express or implied.
         </p>
         <p className="pt-2 text-muted-foreground">
-          JARVIS processes your data locally by default. Optional cloud features send data to
+          Aarya processes your data locally by default. Optional cloud features send data to
           third-party providers only when you enable them and supply your own credentials.
         </p>
       </div>
@@ -150,7 +150,7 @@ export function LocationStep({ defaultLocation }: { defaultLocation: string }) {
   return (
     <div className="flex flex-col gap-4">
       <StepHeading
-        title="Where should JARVIS live?"
+        title="Where should Aarya live?"
         blurb="This folder holds the application, your local AI model and your data."
       />
       <label className="flex flex-col gap-1.5">
@@ -187,7 +187,7 @@ export function AccountStep() {
       key: "personal" as const,
       icon: User,
       title: "Personal",
-      blurb: "JARVIS configures itself. Nothing technical to manage.",
+      blurb: "Aarya configures itself. Nothing technical to manage.",
       points: ["Automatic tuning", "Automatic model choice", "Automatic voice setup"],
     },
     {
@@ -202,7 +202,7 @@ export function AccountStep() {
   return (
     <div className="flex flex-col gap-4">
       <StepHeading
-        title="How will you use JARVIS?"
+        title="How will you use Aarya?"
         blurb="Both get the same features. The difference is how much you manage."
       />
       <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Account type">
@@ -277,7 +277,7 @@ function HardwareFacts({ hardware }: { hardware: HardwareProfile }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <StepHeading title="Your device" blurb="Here is what JARVIS found." />
+      <StepHeading title="Your device" blurb="Here is what Aarya found." />
 
       <div className="grid gap-2 sm:grid-cols-2">
         <Fact icon={Cpu} label="Processor" value={hardware.cpu.model} hint={
@@ -330,9 +330,9 @@ export function CalibrationStep({ plan }: { plan: InstallationPlan }) {
   const isAdmin = plan.account_type === "administrator";
 
   const profileCopy: Record<string, string> = {
-    performance: "JARVIS will use this device's full capability.",
-    balanced: "JARVIS will balance speed against leaving your device responsive.",
-    conservative: "JARVIS will keep its footprint small on this device.",
+    performance: "Aarya will use this device's full capability.",
+    balanced: "Aarya will balance speed against leaving your device responsive.",
+    conservative: "Aarya will keep its footprint small on this device.",
   };
 
   return (
@@ -406,7 +406,7 @@ export function ModelStep({ plan }: { plan: InstallationPlan }) {
           blurb="This device is below the minimum for a local model."
         />
         <p className="rounded-lg border border-border/60 bg-muted/30 p-4 text-secondary">
-          JARVIS will use cloud AI where it is available. Everything else works as normal.
+          Aarya will use cloud AI where it is available. Everything else works as normal.
         </p>
       </div>
     );
@@ -442,7 +442,7 @@ export function VoiceStep({ plan }: { plan: InstallationPlan }) {
     <div className="flex flex-col gap-4">
       <StepHeading
         title="Voice"
-        blurb={`JARVIS speaks with one voice everywhere${voice.can_test_offline ? ", and it works offline" : ""}.`}
+        blurb={`Aarya speaks with one voice everywhere${voice.can_test_offline ? ", and it works offline" : ""}.`}
       />
 
       <div className="flex items-center gap-4 rounded-lg border border-border/60 bg-card p-4">
@@ -512,7 +512,7 @@ export function SummaryStep({ plan }: { plan: InstallationPlan }) {
         blurb={
           plan.validation.can_install
             ? "Here is what will happen."
-            : "These need attention before JARVIS can be installed."
+            : "These need attention before Aarya can be installed."
         }
       />
 

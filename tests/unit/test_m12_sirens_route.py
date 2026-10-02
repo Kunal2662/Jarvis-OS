@@ -207,3 +207,104 @@ def test_get_siren_on_switch_device_is_404(client, auth) -> None:
     response = client.get(f"/api/v1/sirens/{switch['id']}", headers=auth)
 
     assert response.status_code == 404
+
+
+# --- Task Group W: advanced controls via REST ------------------------------------
+
+
+def test_turn_on_with_no_body_is_bare_call(client, auth, fake_connector) -> None:
+    """No body at all -- the pre-Task-Group-W request shape -- still
+    produces the empty-payload wire call (Logic Contract §22)."""
+    home_id = _home(client, auth)
+    device_id = _connected_siren(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(f"/api/v1/sirens/{device_id}/turn_on", headers=auth)
+
+    assert response.status_code == 200
+    assert response.json()["data"]["success"] is True
+    assert fake_connector.sent_commands == [(fake_connector.devices[0].external_id, "turn_on", {})]
+
+
+def test_turn_on_with_empty_body_is_bare_call(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_siren(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(f"/api/v1/sirens/{device_id}/turn_on", json={}, headers=auth)
+
+    assert response.status_code == 200
+    assert response.json()["data"]["success"] is True
+    assert fake_connector.sent_commands == [(fake_connector.devices[0].external_id, "turn_on", {})]
+
+
+def test_turn_on_with_tone_duration_volume_body(client, auth, fake_connector) -> None:
+    from jarvis.core.interfaces.connectivity import DeviceState
+
+    home_id = _home(client, auth)
+    device_id = _connected_siren(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+    fake_connector.states[fake_connector.devices[0].external_id] = DeviceState(
+        external_id=fake_connector.devices[0].external_id, status="off", attributes={}
+    )
+
+    response = client.post(
+        f"/api/v1/sirens/{device_id}/turn_on",
+        json={"tone": "alarm", "duration": 30, "volume_level": 0.5},
+        headers=auth,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["success"] is True
+    assert fake_connector.sent_commands == [
+        (
+            fake_connector.devices[0].external_id,
+            "turn_on",
+            {"tone": "alarm", "duration": 30, "volume_level": 0.5},
+        )
+    ]
+
+
+def test_turn_on_with_invalid_volume_level_body_is_400(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_siren(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(
+        f"/api/v1/sirens/{device_id}/turn_on",
+        json={"volume_level": 1.5},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert fake_connector.sent_commands == []
+
+
+def test_turn_on_with_negative_duration_body_is_400(client, auth, fake_connector) -> None:
+    home_id = _home(client, auth)
+    device_id = _connected_siren(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(
+        f"/api/v1/sirens/{device_id}/turn_on",
+        json={"duration": -1},
+        headers=auth,
+    )
+
+    assert response.status_code == 400
+    assert fake_connector.sent_commands == []
+
+
+def test_turn_off_body_is_never_accepted_as_parameters(client, auth, fake_connector) -> None:
+    """`turn_off` has no request body of its own -- any JSON body sent
+    is simply ignored by FastAPI's routing (no body parameter declared
+    on that route), matching HA's own `siren.turn_off` taking no
+    parameters."""
+    home_id = _home(client, auth)
+    device_id = _connected_siren(client, auth, fake_connector, home_id)
+    _grant_smart_home_permission(client, auth)
+
+    response = client.post(f"/api/v1/sirens/{device_id}/turn_off", headers=auth)
+
+    assert response.status_code == 200
+    assert fake_connector.sent_commands == [(fake_connector.devices[0].external_id, "turn_off", {})]

@@ -16,8 +16,9 @@ than `ThermostatService`'s.
 `MqttConnector._handle_ha_discovery` writes `metadata["component"]`,
 never `metadata["domain"]` -- verified this session, and a real,
 pre-existing gap in already-shipped `ApplianceService._domain_for`
-(Fan/Cover) too, left unfixed there by explicit instruction (Logic
-Contract §3.1 -- a separate, narrower follow-up). This module's own
+(Fan/Cover) too, left unfixed there at the time (Logic Contract §3.1
+-- a separate, narrower follow-up), since restored (M0-M12 Structured
+Rework Audit, P1-1). This module's own
 `_domain_for` checks `metadata["domain"]` first, falling back to
 `metadata["component"]`: MQTT's `component` segment is populated with
 the identical domain vocabulary HA's own REST connector calls

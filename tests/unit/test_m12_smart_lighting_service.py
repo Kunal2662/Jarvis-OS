@@ -210,6 +210,31 @@ async def test_set_light_state_rejects_invalid_brightness(
 
 
 @pytest.mark.asyncio
+async def test_set_light_state_validation_failure_publishes_no_device_command_event(
+    service: SmartLightingService,
+    smart_home: SmartHomeService,
+    connectivity: ConnectivityService,
+    permissions: PermissionModel,
+    bus: EventBus,
+) -> None:
+    """M7 EventBus Tier 1 (docs/M7_EVENTBUS_DEVICE_COMMAND_EVENTS_LOGIC_CONTRACT.md
+    §9, scenario 5): a validation failure never reaches
+    ``ConnectivityService.send_command()``, so it must never produce a
+    ``DeviceCommandExecutedEvent``."""
+    from jarvis.core.events.events import DeviceCommandExecutedEvent
+
+    seen: list[DeviceCommandExecutedEvent] = []
+    bus.subscribe(DeviceCommandExecutedEvent, seen.append)
+    await _grant(permissions)
+    _, device = await _home_and_light(smart_home, connectivity)
+
+    with pytest.raises(ServiceError, match="brightness"):
+        await service.set_light_state(device.id, brightness=999)
+
+    assert seen == []
+
+
+@pytest.mark.asyncio
 async def test_set_light_state_rejects_invalid_color(
     service: SmartLightingService,
     smart_home: SmartHomeService,

@@ -45,7 +45,19 @@ def test_ipermission_checker_protocol():
 def test_permission_scopes_fixed_vocabulary():
     assert "network" in PERMISSION_SCOPES
     assert "memory.read" in PERMISSION_SCOPES
-    assert len(PERMISSION_SCOPES) == 10
+    # Milestone 7 Phase 6 (Scheduler MVP) added "scheduler" -- see
+    # docs/M7_SCHEDULER_LOGIC_CONTRACT.md §12.
+    assert "scheduler" in PERMISSION_SCOPES
+    # M7 Home Automation added "home_automation" -- see
+    # docs/M7_HOME_AUTOMATION_LOGIC_CONTRACT.md §17.
+    assert "home_automation" in PERMISSION_SCOPES
+    # M7 Workflow Builder added "workflow_builder" -- see
+    # docs/M7_WORKFLOW_BUILDER_LOGIC_CONTRACT.md §11.
+    assert "workflow_builder" in PERMISSION_SCOPES
+    # M7 Recorder added "recorder" -- see
+    # docs/M7_RECORDER_LOGIC_CONTRACT.md §11.
+    assert "recorder" in PERMISSION_SCOPES
+    assert len(PERMISSION_SCOPES) == 14
 
 
 @pytest.mark.parametrize(

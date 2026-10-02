@@ -304,7 +304,14 @@ Phase 1 (React Foundation), Phase 2 (Universal Application Framework &
 Logic), Phase 3 (Universal Workspace Framework), Phase 4 (Voice
 Experience & Motion), Phase 5 (AI Workspace & Module Integration), Phase
 6's production-UX half and Phase 7's Production Readiness audit shipped.
-Its Deferred Backlog is tracked in `docs/MASTER_ROADMAP.md`.
+Its Deferred Backlog is tracked in `docs/MASTER_ROADMAP.md`. **That work
+was against this repository's own `frontend/` subdirectory, which is no
+longer the canonical frontend** — following a product-design rejection,
+`Jarvis-Frontend-main` (a separate repository) was declared canonical
+instead, and a second M8 pass (real backend integration across six
+features) shipped against it. See `docs/MASTER_ROADMAP.md` §8's M8 entry
+for the full supersession note and `CHANGELOG.md`'s "M8 Phase 1/2"
+entry for what shipped.
 
 M11 — Intelligent Workspace & Productivity completed across six task
 groups (A Workspace Foundation, B Productivity Core, C File Platform,
@@ -462,7 +469,11 @@ implements a competing design in the meantime.
 As of this writing: **M0–M6 shipped** (Foundation, Chat, Voice,
 Memory, Automation, Desktop Platform, Vision & Multimodal
 architecture layer); **M7 — Workflow Intelligence** active (Phases
-1–2 shipped); **M8 — React Frontend & Desktop Experience** active
+1, 2, 4, 5 and 6 shipped — parallel automation execution, a standalone
+Workflow Builder, a Recorder that converts a recording into a Workflow
+Builder workflow, and a Scheduler that fires workflows unattended;
+Phase 3's cross-tool LangGraph parallelism remains deferred); **M8 —
+React Frontend & Desktop Experience** active
 (migrating the UI from PySide6 to React + Tauri — the PySide6 UI
 above remains the one that actually runs today. Phases 1, 2 and 4
 shipped, and Phase 3's Universal Workspace Framework: dockable and
@@ -495,8 +506,7 @@ Routine and Preference Learning, keyword-boosted Predictive Suggestions,
 an on-demand Daily Briefing, and a real `/api/v1/goals` +
 `/api/v1/intelligence` REST API, registered into Universal Search as a
 fourth `goals` provider; automatic scheduled delivery of the briefing
-remains deferred pending M7's Scheduler (Phase 6), which does not exist
-yet.
+via M7's now-shipped Scheduler (Phase 6) has not yet been wired up.
 
 ### Future vision
 

@@ -106,7 +106,7 @@ def plan_voice(
             approximate_download_mb=65,
             required=True,
             enabled=True,
-            reason="Lets JARVIS speak without a connection.",
+            reason="Lets Aarya speak without a connection.",
         )
     ]
 
@@ -130,7 +130,7 @@ def plan_voice(
             approximate_download_mb=stt_mb,
             required=True,
             enabled=True,
-            reason="Lets JARVIS listen without a connection.",
+            reason="Lets Aarya listen without a connection.",
         )
     )
 
@@ -153,7 +153,7 @@ def plan_voice(
 
     if include_cloud_voice:
         notes.append(
-            "Cloud speech is an enhancement: JARVIS falls back to local speech automatically "
+            "Cloud speech is an enhancement: Aarya falls back to local speech automatically "
             "and keeps the same voice."
         )
 
